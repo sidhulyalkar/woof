@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
-import { Paw, Trophy, Users, Heart, Activity } from "lucide-react";
+import { Footprints, Trophy, Users, Heart, Activity } from "lucide-react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,20 +16,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PetPath - Social Fitness for Pets & Owners",
+  title: "Woof - Social Fitness for Pets & Owners",
   description: "Connect with pet owners, track activities, and build a healthier, happier life with your furry friends.",
-  keywords: ["PetPath", "pets", "fitness", "social", "walking", "activities", "dog", "cat"],
-  authors: [{ name: "PetPath Team" }],
+  keywords: ["Woof", "pets", "fitness", "social", "walking", "activities", "dog", "cat"],
+  authors: [{ name: "Woof Team" }],
   openGraph: {
-    title: "PetPath - Social Fitness for Pets & Owners",
+    title: "Woof - Social Fitness for Pets & Owners",
     description: "Connect with pet owners, track activities, and build a healthier, happier life with your furry friends.",
-    url: "https://petpath.com",
-    siteName: "PetPath",
+    url: "https://Woof.com",
+    siteName: "Woof",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PetPath - Social Fitness for Pets & Owners",
+    title: "Woof - Social Fitness for Pets & Owners",
     description: "Connect with pet owners, track activities, and build a healthier, happier life with your furry friends.",
   },
 };
@@ -51,8 +51,8 @@ export default function RootLayout({
               <div className="flex justify-between items-center h-16">
                 <div className="flex items-center">
                   <Link href="/" className="flex items-center space-x-2">
-                    <Paw className="w-8 h-8 text-blue-600" />
-                    <span className="text-xl font-bold text-gray-900">PetPath</span>
+                    <Footprints className="w-8 h-8 text-blue-600" />
+                    <span className="text-xl font-bold text-gray-900">Woof</span>
                   </Link>
                 </div>
                 
@@ -69,7 +69,7 @@ export default function RootLayout({
                     href="/pets" 
                     className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition-colors"
                   >
-                    <Paw className="w-4 h-4" />
+                    <Footprints className="w-4 h-4" />
                     <span>Pets</span>
                   </Link>
                   <Link 
@@ -125,7 +125,7 @@ export default function RootLayout({
                 href="/pets" 
                 className="flex flex-col items-center justify-center text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <Paw className="w-5 h-5" />
+                <Footprints className="w-5 h-5" />
                 <span className="text-xs mt-1">Pets</span>
               </Link>
               <Link 

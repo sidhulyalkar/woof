@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Heart, Paw, Trophy, MapPin, Users, TrendingUp, Sun, Camera, MessageCircle, Share2 } from 'lucide-react'
+import { Heart, Footprints, Trophy, MapPin, Users, TrendingUp, Sun, Camera, MessageCircle, Share2 } from 'lucide-react'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -71,7 +71,7 @@ export default function Home() {
   ]
 
   const happinessMetrics = [
-    { icon: Paw, label: 'Walks', value: 12, target: 14, unit: 'this week', color: 'bg-blue-500' },
+    { icon: Footprints, label: 'Walks', value: 12, target: 14, unit: 'this week', color: 'bg-blue-500' },
     { icon: Sun, label: 'Outdoor Time', value: 18, target: 20, unit: 'hours', color: 'bg-yellow-500' },
     { icon: Users, label: 'Social Time', value: 6, target: 8, unit: 'sessions', color: 'bg-green-500' },
     { icon: Camera, label: 'Photos Shared', value: 8, target: 10, unit: 'this week', color: 'bg-purple-500' },
@@ -352,7 +352,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Paw className="w-8 h-8 text-blue-600 mr-2" />
+              <Footprints className="w-8 h-8 text-blue-600 mr-2" />
               <span className="text-xl font-bold text-gray-900">PetPath</span>
             </div>
             <nav className="hidden md:flex space-x-8">

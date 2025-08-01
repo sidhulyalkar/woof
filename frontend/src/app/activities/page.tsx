@@ -15,7 +15,7 @@ import {
   Plus, 
   Play, 
   Pause, 
-  Stop, 
+  Square, 
   MapPin, 
   Clock, 
   Flame, 
@@ -114,7 +114,7 @@ export default function ActivitiesPage() {
     })
   }
 
-  const stopActivity = () => {
+  const SquareActivity = () => {
     setIsTracking(false)
     setIsActivityOpen(true)
   }
@@ -205,9 +205,9 @@ export default function ActivitiesPage() {
             </div>
             <div className="flex items-center space-x-4">
               {isTracking ? (
-                <Button onClick={stopActivity} variant="destructive" size="sm">
-                  <Stop className="w-4 h-4 mr-2" />
-                  Stop Activity
+                <Button onClick={SquareActivity} variant="destructive" size="sm">
+                  <Square className="w-4 h-4 mr-2" />
+                  Square Activity
                 </Button>
               ) : (
                 <Dialog open={isActivityOpen} onOpenChange={setIsActivityOpen}>

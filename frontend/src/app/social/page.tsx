@@ -8,17 +8,19 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue} from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { 
   Heart, 
   MessageCircle, 
   Share2, 
   Plus, 
-  Camera, 
+  Camera,
+  Clock, 
   MapPin, 
   Users, 
   TrendingUp,
-  Paw,
+  Footprints,
   Sun,
   Smile,
   Filter,
@@ -191,7 +193,7 @@ export default function SocialPage() {
         {/* Activity Info */}
         <div className="flex items-center space-x-4 mb-4 text-sm text-gray-600">
           <div className="flex items-center space-x-1">
-            <Paw className="w-4 h-4" />
+            <Footprints className="w-4 h-4" />
             <span>{post.activity.type}</span>
           </div>
           <div className="flex items-center space-x-1">
@@ -272,7 +274,7 @@ export default function SocialPage() {
           Add Location
         </Button>
         <Button variant="outline" size="sm" className="flex-1">
-          <Paw className="w-4 h-4 mr-2" />
+          <Footprints className="w-4 h-4 mr-2" />
           Add Activity
         </Button>
       </div>
