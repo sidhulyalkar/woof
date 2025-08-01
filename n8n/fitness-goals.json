@@ -1,0 +1,287 @@
+{
+  "name": "PetPath Fitness Goals Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/users/with-pets",
+        "options": {}
+      },
+      "id": "2",
+      "name": "Get Users with Pets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get users with their pets\nconst users = $input.all()[0].json.body;\nconst results = [];\n\nfor (const user of users) {\n  for (const pet of user.pets) {\n    // Get today's activity data\n    const todayActivity = await getTodayActivity(user.id, pet.id);\n    \n    // Get current month's progress\n    const monthProgress = await getMonthProgress(user.id, pet.id);\n    \n    // Get fitness goals\n    const fitnessGoals = await getFitnessGoals(user.id, pet.id);\n    \n    // Calculate progress percentage\n    const progressPercentage = calculateProgress(todayActivity, fitnessGoals);\n    \n    // Determine if goal is achieved\n    const goalAchieved = progressPercentage >= 100;\n    \n    // Check if rewards should be given\n    const shouldReward = goalAchieved && !await hasRewardToday(user.id, pet.id);\n    \n    results.push({\n      user_id: user.id,\n      pet_id: pet.id,\n      user_name: user.name,\n      pet_name: pet.name,\n      today_activity: todayActivity,\n      month_progress: monthProgress,\n      fitness_goals: fitnessGoals,\n      progress_percentage: progressPercentage,\n      goal_achieved: goalAchieved,\n      should_reward: shouldReward\n    });\n  }\n}\n\nreturn results.map(result => ({ json: result }));\n\n// Helper functions\nasync function getTodayActivity(userId, petId) {\n  // Mock implementation - would get from activity tracking\n  return {\n    steps_walked: Math.floor(Math.random() * 15000) + 5000,\n    distance_km: Math.random() * 10 + 2,\n    calories_burned: Math.floor(Math.random() * 500) + 200,\n    active_minutes: Math.floor(Math.random() * 120) + 30\n  };\n}\n\nasync function getMonthProgress(userId, petId) {\n  // Mock implementation\n  return {\n    total_steps: Math.floor(Math.random() * 200000) + 50000,\n    total_distance: Math.random() * 100 + 20,\n    total_calories: Math.floor(Math.random() * 5000) + 1000,\n    days_active: Math.floor(Math.random() * 20) + 5\n  };\n}\n\nasync function getFitnessGoals(userId, petId) {\n  // Mock implementation\n  return {\n    daily_steps: 10000,\n    daily_distance: 5.0,\n    monthly_steps: 200000,\n    monthly_distance: 80.0\n  };\n}\n\nfunction calculateProgress(activity, goals) {\n  const stepsProgress = (activity.steps_walked / goals.daily_steps) * 100;\n  const distanceProgress = (activity.distance_km / goals.daily_distance) * 100;\n  return Math.min(stepsProgress, distanceProgress);\n}\n\nasync function hasRewardToday(userId, petId) {\n  // Mock implementation - check if reward already given today\n  return false;\n}"
+      },
+      "id": "3",
+      "name": "Calculate Fitness Progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.goal_achieved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "4",
+      "name": "Goal Achieved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/rewards/issue",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"user_id\": {{ $json.user_id }},\n  \"pet_id\": {{ $json.pet_id }},\n  \"reward_type\": \"fitness_goal_achieved\",\n  \"points\": 100,\n  \"description\": \"Daily fitness goal achieved!\",\n  \"progress_data\": {\n    \"steps_walked\": {{ $json.today_activity.steps_walked }},\n    \"distance_km\": {{ $json.today_activity.distance_km }},\n    \"progress_percentage\": {{ $json.progress_percentage }}\n  }\n}"
+        }
+      }
+    },
+      "id": "5",
+      "name": "Issue Reward",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/notifications/fitness-goal",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"user_id\": {{ $json.user_id }},\n  \"pet_id\": {{ $json.pet_id }},\n  \"message\": \"Congratulations! {{ $json.pet_name }} achieved today's fitness goal with {{ $json.progress_percentage }}% progress!\",\n  \"achievement_type\": \"daily_goal\",\n  \"progress_data\": {{ $json.today_activity }}\n}"
+        }
+      }
+    },
+      "id": "6",
+      "name": "Send Achievement Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/analytics/fitness-progress",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"user_id\": {{ $json.user_id }},\n  \"pet_id\": {{ $json.pet_id }},\n  \"progress_data\": {{ $json.today_activity }},\n  \"month_progress\": {{ $json.month_progress }},\n  \"progress_percentage\": {{ $json.progress_percentage }},\n  \"timestamp\": {{ $now }}\n}"
+        }
+      }
+    },
+      "id": "7",
+      "name": "Log Fitness Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.progress_percentage }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "largerEq"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "8",
+      "name": "High Progress?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/notifications/motivation",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"user_id\": {{ $json.user_id }},\n  \"pet_id\": {{ $json.pet_id }},\n  \"message\": \"Great progress! {{ $json.pet_name }} is at {{ $json.progress_percentage }}% of today's goal. Keep going!\",\n  \"motivation_type\": \"encouragement\"\n}"
+        }
+      }
+    },
+      "id": "9",
+      "name": "Send Motivation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Users with Pets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Users with Pets": {
+      "main": [
+        [
+          {
+            "node": "Calculate Fitness Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Fitness Progress": {
+      "main": [
+        [
+          {
+            "node": "Goal Achieved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Goal Achieved?": {
+      "main": [
+        [
+          {
+            "node": "Issue Reward",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Fitness Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Issue Reward": {
+      "main": [
+        [
+          {
+            "node": "Send Achievement Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Fitness Analytics": {
+      "main": [
+        [
+          {
+            "node": "High Progress?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Progress?": {
+      "main": [
+        [
+          {
+            "node": "Send Motivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "2",
+  "tags": []
+}

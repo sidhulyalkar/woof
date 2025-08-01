@@ -1,0 +1,211 @@
+{
+  "name": "PetPath Meetup Coordinator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/pets/active",
+        "options": {}
+      },
+      "id": "2",
+      "name": "Get Active Pets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get active pets from previous node\nconst activePets = $input.all()[0].json.body;\n\n// For each pet, find nearby compatible pets\nconst results = [];\n\nfor (const pet of activePets) {\n  // Get pet location (would come from GPS tracking)\n  const petLocation = await getPetLocation(pet.id);\n  \n  // Find nearby pets\n  const nearbyPets = await findNearbyPets(petLocation, 5); // 5km radius\n  \n  // Check compatibility for each nearby pet\n  for (const nearbyPet of nearbyPets) {\n    if (pet.id !== nearbyPet.id) {\n      const compatibility = await checkCompatibility(pet, nearbyPet);\n      \n      if (compatibility.score > 0.7) { // High compatibility threshold\n        results.push({\n          pet_a: pet,\n          pet_b: nearbyPet,\n          compatibility: compatibility.score,\n          distance: compatibility.distance,\n          recommended_location: compatibility.recommended_location\n        });\n      }\n    }\n  }\n}\n\nreturn results.map(result => ({ json: result }));\n\n// Helper functions (would be implemented in actual backend)\nasync function getPetLocation(petId) {\n  // Mock implementation\n  return { lat: 40.7128, lng: -74.0060 };\n}\n\nasync function findNearbyPets(location, radiusKm) {\n  // Mock implementation\n  return [];\n}\n\nasync function checkCompatibility(pet1, pet2) {\n  // Mock implementation\n  return { score: 0.85, distance: 1.2, recommended_location: \"Central Park\" };\n}"
+      },
+      "id": "3",
+      "name": "Find Compatible Pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.compatibility }}",
+              "rightValue": 0.8,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "4",
+      "name": "High Compatibility?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/notifications/meetup-suggestion",
+        "options": {},
+          "body": {
+            "mode": "json",
+            "json": "={\n  \"pet_a_id\": {{ $json.pet_a.id }},\n  \"pet_b_id\": {{ $json.pet_b.id }},\n  \"compatibility_score\": {{ $json.compatibility }},\n  \"distance_km\": {{ $json.distance }},\n  \"recommended_location\": \"{{ $json.recommended_location }}\",\n  \"message\": \"{{ $json.pet_a.name }} and {{ $json.pet_b.name }} are nearby with {{ $json.compatibility * 100 }}% compatibility! Want to meet up?\"\n}"
+          }
+        }
+      },
+      "id": "5",
+      "name": "Send Meetup Suggestion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/analytics/meetup-opportunities",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"pet_pairs\": [\n    {\n      \"pet_a_id\": {{ $json.pet_a.id }},\n      \"pet_b_id\": {{ $json.pet_b.id }},\n      \"compatibility_score\": {{ $json.compatibility }},\n      \"distance_km\": {{ $json.distance }},\n      \"timestamp\": {{ $now }}\n    }\n  ]\n}"
+        }
+      }
+    },
+      "id": "6",
+      "name": "Log Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/notifications/low-compatibility",
+        "options": {},
+        "body": {
+          "mode": "json",
+          "json": "={\n  \"pet_a_id\": {{ $json.pet_a.id }},\n  \"pet_b_id\": {{ $json.pet_b.id }},\n  \"compatibility_score\": {{ $json.compatibility }},\n  \"message\": \"Low compatibility opportunity detected for future analysis\"\n}"
+        }
+      }
+    },
+      "id": "7",
+      "name": "Log Low Compatibility",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        600
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Active Pets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Pets": {
+      "main": [
+        [
+          {
+            "node": "Find Compatible Pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Compatible Pairs": {
+      "main": [
+        [
+          {
+            "node": "High Compatibility?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Compatibility?": {
+      "main": [
+        [
+          {
+            "node": "Send Meetup Suggestion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Low Compatibility",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "1",
+  "tags": []
+}
