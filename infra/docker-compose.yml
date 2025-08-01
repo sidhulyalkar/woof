@@ -99,10 +99,11 @@ services:
       - ml
     networks:
       - petpath_network
-    volumes:
-      - ../frontend:/app
-      - /app/node_modules
-      - /app/.next
+    # For development - comment out for production builds
+    # volumes:
+    #   - ../frontend:/app
+    #   - /app/node_modules
+    #   - /app/.next
 
   # N8N Workflow Automation
   n8n:

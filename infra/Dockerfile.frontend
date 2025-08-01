@@ -1,4 +1,4 @@
-# Frontend Dockerfile for PetPath Next.js application
+# Frontend Dockerfile for Woof Next.js application
 FROM node:18-alpine AS base
 
 # Install dependencies only when needed
@@ -34,9 +34,17 @@ COPY --from=builder /app/public ./public
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
-# Automatically leverage output traces to reduce image size
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Check if standalone output exists, if not use regular .next
+RUN if [ -d "/app/.next/standalone" ]; then \
+        echo "Using standalone output"; \
+        COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./; \
+        COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static; \
+    else \
+        echo "Using regular .next output"; \
+        COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next; \
+        COPY --from=builder /app/package.json ./package.json; \
+        COPY --from=builder /app/node_modules ./node_modules; \
+    fi
 
 USER nextjs
 
@@ -45,4 +53,9 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["node", "server.js"]
+# Use server.js if it exists (standalone), otherwise use next start
+CMD if [ -f "server.js" ]; then \
+        node server.js; \
+    else \
+        npx next start; \
+    fi
