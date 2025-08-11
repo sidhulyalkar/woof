@@ -49,6 +49,9 @@ RUN mkdir -p /app/target
 # Run the copy script
 RUN /app/copy-files.sh
 
+# Also copy server.ts to target directory
+RUN cp /app/server.ts /app/target/server.ts
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
