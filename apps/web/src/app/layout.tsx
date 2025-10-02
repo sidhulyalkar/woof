@@ -41,21 +41,7 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <div
-            className="min-h-screen w-full flex items-center justify-center"
-            style={{ backgroundColor: '#0A0F1E' }}
-          >
-            <div
-              className="w-full min-h-screen relative"
-              style={{
-                maxWidth: '448px',
-                backgroundColor: 'var(--background)',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-              }}
-            >
-              {children}
-            </div>
-          </div>
+          {children}
           <Toaster position="top-center" />
         </ThemeProvider>
       </body>
