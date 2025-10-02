@@ -25,28 +25,34 @@ Woof is a **Strava-grade, pet-first social platform** that unifies:
 
 ### Prerequisites
 
-- **Node.js** 20+ ([Download](https://nodejs.org))
-- **pnpm** 8+ (auto-installed via setup script)
-- **PostgreSQL** 15+ with pgvector
-- **Docker** (optional, recommended)
+- **Node.js** 20+
+- **pnpm** 8+
+- **Docker & Docker Compose**
 
-### Setup in 3 Steps
+### Setup in 4 Steps
 
 ```bash
-# 1. Run setup script
-./scripts/setup.sh
+# 1. Install dependencies
+pnpm install
 
-# 2. Configure database
+# 2. Start Docker services
+docker compose up -d
+
+# 3. Set up database
 cp packages/database/.env.example packages/database/.env
-# Edit packages/database/.env with your PostgreSQL URL
-
-# 3. Initialize database
 pnpm --filter @woof/database db:generate
 pnpm --filter @woof/database db:migrate
 pnpm --filter @woof/database db:seed
+
+# 4. Start API
+cp apps/api/.env.example apps/api/.env
+pnpm --filter @woof/api dev
 ```
 
-📖 **See [QUICK_START.md](./QUICK_START.md) for detailed setup guide**
+**API Available**: http://localhost:4000
+**Swagger Docs**: http://localhost:4000/docs
+
+📖 **See [DEVELOPMENT.md](./DEVELOPMENT.md) for complete guide**
 
 ---
 
@@ -55,19 +61,20 @@ pnpm --filter @woof/database db:seed
 ```
 woof/
 ├── apps/
-│   ├── web/          # Next.js 15 (App Router, Tailwind, shadcn/ui)
-│   ├── mobile/       # Expo React Native (HealthKit/Google Fit)
-│   ├── api/          # NestJS (Prisma, Socket.io, BullMQ)
-│   └── automations/  # n8n workflows (Docker)
+│   ├── api/          # NestJS backend ✅
+│   ├── web/          # Next.js 15 (planned)
+│   └── mobile/       # Expo React Native (planned)
 ├── packages/
-│   ├── ui/           # Brand system + shared components ✅
-│   ├── database/     # Prisma schema + client ✅
-│   ├── config/       # Shared configs (TS, ESLint) ✅
-│   └── sdk/          # Generated OpenAPI SDK
-└── infra/            # Docker, CI/CD
+│   ├── ui/           # Galaxy-dark brand system ✅
+│   ├── database/     # Prisma + PostgreSQL + pgvector ✅
+│   └── config/       # Shared TypeScript/ESLint configs ✅
+├── infra/
+│   ├── db/           # Database scripts ✅
+│   └── docker/       # Dockerfiles ✅
+└── docker-compose.yml # PostgreSQL + Redis + n8n ✅
 ```
 
-**Legend:** ✅ Complete | ⏳ In Progress | 📋 Planned
+**Legend:** ✅ Complete | 📋 Planned
 
 ---
 
@@ -93,11 +100,14 @@ fonts.body        // Inter
 
 ## 📦 Packages
 
+### @woof/api ✅
+NestJS backend with JWT auth, Swagger docs, 6 core modules (auth, users, pets, activities, social, meetups, compatibility).
+
 ### @woof/ui ✅
-Galaxy-dark design system with 100+ color tokens, typography, spacing, logo, and glassmorphism utilities.
+Galaxy-dark design system with 100+ color tokens, typography, spacing, asymmetric neuron logo, glassmorphism utilities.
 
 ### @woof/database ✅
-Prisma schema with 15 models (User, Pet, Activity, Post, etc.), pgvector support for ML, comprehensive seed data.
+Prisma schema with 15 models, pgvector for ML compatibility, comprehensive seed data (3 users, 3 pets, activities).
 
 ### @woof/config ✅
 Shared TypeScript and ESLint configurations for Next.js, React Native, and Node.js.
@@ -128,11 +138,9 @@ pnpm test          # Run tests
 
 ## 📚 Documentation
 
-- **[QUICK_START.md](./QUICK_START.md)** - 5-minute setup guide
-- **[MIGRATION_PLAN.md](./MIGRATION_PLAN.md)** - Development strategy
-- **[PROGRESS.md](./PROGRESS.md)** - Current status
-- **[ACCOMPLISHMENTS.md](./ACCOMPLISHMENTS.md)** - What we've built
-- **[docs/api-spec.md](./docs/api-spec.md)** - API documentation
+- **[DEVELOPMENT.md](./DEVELOPMENT.md)** - Complete development guide
+- **[apps/api/README.md](./apps/api/README.md)** - API documentation
+- **[docs/api-spec.md](./docs/api-spec.md)** - Legacy API spec (reference)
 
 ---
 
