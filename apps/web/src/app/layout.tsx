@@ -41,7 +41,27 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
+          <div style={{
+            minHeight: '100vh',
+            width: '100%',
+            backgroundColor: '#0A0F1E',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            margin: 0
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '448px',
+              minHeight: '100vh',
+              backgroundColor: '#0E1220',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              position: 'relative'
+            }}>
+              {children}
+            </div>
+          </div>
           <Toaster position="top-center" />
         </ThemeProvider>
       </body>
