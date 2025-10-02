@@ -46,7 +46,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${spaceGrotesk.variable} ${inter.variable} font-sans antialiased`}
+        className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
+        style={{
+          fontFamily: 'var(--font-body)',
+        }}
       >
         <ThemeProvider
           attribute="class"
@@ -55,11 +58,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Providers>
-            <div className="min-h-screen flex flex-col bg-surface dark:bg-surface neuron-bg">
-              <Header />
-              <main className="flex-1 pb-16 md:pb-0">
+            <div className="h-screen bg-background flex flex-col">
+              {/* Main Content */}
+              <div className="flex-1 overflow-hidden">
                 {children}
-              </main>
+              </div>
+
+              {/* Bottom Navigation - Glass Morphism */}
               <MobileNav />
             </div>
             <Toaster position="top-center" />

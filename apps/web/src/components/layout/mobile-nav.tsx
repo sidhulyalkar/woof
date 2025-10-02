@@ -2,40 +2,40 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Footprints, Trophy, Users, Home } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Activity, Trophy, MessageCircle, User, Home } from 'lucide-react';
 
 const navigation = [
-  { name: 'Home', href: '/', icon: Home },
-  { name: 'Pets', href: '/pets', icon: Footprints },
-  { name: 'Activities', href: '/activities', icon: Activity },
-  { name: 'Social', href: '/social', icon: Users },
-  { name: 'Ranks', href: '/leaderboard', icon: Trophy },
+  { name: 'feed', href: '/', icon: Home },
+  { name: 'activity', href: '/activities', icon: Activity },
+  { name: 'leaderboard', href: '/leaderboard', icon: Trophy },
+  { name: 'messages', href: '/social', icon: MessageCircle },
+  { name: 'profile', href: '/profile', icon: User },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-sm border-t border-primary/20 z-50">
-      <div className="grid grid-cols-5 h-16">
+    <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
+      <div className="flex justify-around items-center max-w-md mx-auto">
         {navigation.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href ||
+            (item.href !== '/' && pathname.startsWith(item.href));
 
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={cn(
-                'flex flex-col items-center justify-center transition-all',
-                isActive ? 'text-accent' : 'text-gray-400 hover:text-accent'
-              )}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                isActive
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
             >
-              <Icon className={cn('w-5 h-5', isActive && 'scale-110')} />
-              <span className="text-xs mt-1">{item.name}</span>
-              {isActive && (
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-accent rounded-t-full" />
+              <Icon size={24} />
+              {item.name === 'messages' && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full ring-2 ring-background animate-pulse"></div>
               )}
             </Link>
           );
