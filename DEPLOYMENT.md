@@ -1,27 +1,9 @@
 # PetPath Deployment Guide
 
-## Quick Setup
-
-### 1. Initialize Git Repository
-```bash
-cd /home/z/my-project
-git init
-git add .
-git commit -m "Initial commit: Complete PetPath platform"
-```
-
-### 2. Create GitHub Repository
-1. Go to GitHub and create new repository named `petpath`
-2. Link and push:
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/petpath.git
-git push -u origin main
-```
-
-### 3. Set Up GitHub Secrets
+### Set Up GitHub Secrets
 Go to repository Settings → Secrets → Actions and add:
 - `SECRET_KEY`: `openssl rand -hex 32`
-- `DATABASE_URL`: PostgreSQL connection string
+- `DATABASE_URL`: 
 - `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`
 - `REDIS_URL`
 
@@ -29,7 +11,7 @@ Go to repository Settings → Secrets → Actions and add:
 
 ### Option A: Docker Compose (Recommended)
 ```bash
-docker-compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml up -d
 ```
 Access: http://localhost:3000 (frontend), http://localhost:8000 (backend)
 
