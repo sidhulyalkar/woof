@@ -30,16 +30,18 @@ function PetPathApp() {
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        {renderScreen()}
-      </div>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      {/* Mobile-first container */}
+      <div className="w-full max-w-md h-screen bg-background flex flex-col relative">
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          {renderScreen()}
+        </div>
 
-      {/* Bottom Navigation - Glass Morphism */}
-      <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
-        <div className="flex justify-around items-center max-w-md mx-auto">
-          <button
+        {/* Bottom Navigation - Glass Morphism */}
+        <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
+          <div className="flex justify-around items-center max-w-md mx-auto">
+            <button
             onClick={() => setActiveTab('feed')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
               activeTab === 'feed'
@@ -93,6 +95,7 @@ function PetPathApp() {
           </button>
         </div>
       </nav>
+      </div>
     </div>
   );
 }
