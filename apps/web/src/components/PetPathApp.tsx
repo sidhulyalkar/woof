@@ -30,9 +30,7 @@ function PetPathApp() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      {/* Mobile-first container */}
-      <div className="w-full max-w-md h-screen bg-background flex flex-col relative">
+    <div className="h-screen bg-background flex flex-col">
         {/* Main Content */}
         <div className="flex-1 overflow-hidden">
           {renderScreen()}
@@ -95,7 +93,6 @@ function PetPathApp() {
           </button>
         </div>
       </nav>
-      </div>
     </div>
   );
 }

@@ -41,7 +41,11 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
+          <div className="min-h-screen w-full bg-[#0A0F1E] flex items-center justify-center">
+            <div className="w-full max-w-[448px] min-h-screen bg-background shadow-2xl relative">
+              {children}
+            </div>
+          </div>
           <Toaster position="top-center" />
         </ThemeProvider>
       </body>
