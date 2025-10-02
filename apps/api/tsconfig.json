@@ -1,5 +1,4 @@
 {
-  "extends": "@woof/config/typescript/base.json",
   "compilerOptions": {
     "module": "commonjs",
     "declaration": true,
