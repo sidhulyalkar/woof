@@ -1,0 +1,102 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Home, Activity, Trophy, MessageCircle, User } from 'lucide-react';
+import { FeedScreen } from './FeedScreen';
+import { ActivityScreen } from './ActivityScreen';
+import { LeaderboardScreen } from './LeaderboardScreen';
+import { MessagesScreen } from './MessagesScreen';
+import { ProfileScreen } from './ProfileScreen';
+import { ErrorBoundary } from './ErrorBoundary';
+import { usePathname, useRouter } from 'next/navigation';
+
+export function PetPathApp() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const renderScreen = () => {
+    switch (pathname) {
+      case '/':
+        return <FeedScreen />;
+      case '/activities':
+        return <ActivityScreen />;
+      case '/leaderboard':
+        return <LeaderboardScreen />;
+      case '/social':
+        return <MessagesScreen />;
+      case '/profile':
+        return <ProfileScreen />;
+      default:
+        return <FeedScreen />;
+    }
+  };
+
+  return (
+    <ErrorBoundary>
+      <div className="h-screen bg-background flex flex-col">
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          {renderScreen()}
+        </div>
+
+        {/* Bottom Navigation - Glass Morphism */}
+        <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
+          <div className="flex justify-around items-center max-w-md mx-auto">
+            <button
+              onClick={() => router.push('/')}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                pathname === '/'
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
+            >
+              <Home size={24} />
+            </button>
+            <button
+              onClick={() => router.push('/activities')}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                pathname === '/activities'
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
+            >
+              <Activity size={24} />
+            </button>
+            <button
+              onClick={() => router.push('/leaderboard')}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                pathname === '/leaderboard'
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
+            >
+              <Trophy size={24} />
+            </button>
+            <button
+              onClick={() => router.push('/social')}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                pathname === '/social'
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
+            >
+              <MessageCircle size={24} />
+              {/* Notification dot */}
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full ring-2 ring-background animate-pulse"></div>
+            </button>
+            <button
+              onClick={() => router.push('/profile')}
+              className={`relative p-3 rounded-xl transition-all duration-300 ${
+                pathname === '/profile'
+                  ? 'bg-accent text-white shadow-lg scale-110'
+                  : 'text-muted-foreground hover:text-foreground hover:scale-105'
+              }`}
+            >
+              <User size={24} />
+            </button>
+          </div>
+        </nav>
+      </div>
+    </ErrorBoundary>
+  );
+}

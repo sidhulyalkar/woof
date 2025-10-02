@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
-@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -7,7 +6,7 @@
   --font-size: 16px;
   --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-
+  
   /* PetPath Brand Colors */
   --primary: #0B1C3D;
   --secondary: #0F2A6B;
@@ -15,7 +14,7 @@
   --surface: #0E1220;
   --surface-elevated: #121733;
   --glass-tint: rgba(255, 255, 255, 0.06);
-
+  
   /* Semantic Colors */
   --background: var(--surface);
   --foreground: #FFFFFF;
@@ -37,26 +36,36 @@
   --input-background: rgba(255, 255, 255, 0.05);
   --switch-background: rgba(255, 255, 255, 0.2);
   --ring: var(--accent);
-
+  
   /* Typography Weights */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-
+  
   /* Border Radius */
   --radius: 12px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
-
+  
   /* Chart Colors */
   --chart-1: var(--accent);
   --chart-2: var(--success);
   --chart-3: var(--warning);
   --chart-4: #8B5CF6;
   --chart-5: #EC4899;
+  
+  /* Sidebar (using same theme) */
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--surface-elevated);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
@@ -95,6 +104,14 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 @layer base {
@@ -104,40 +121,72 @@
 
   body {
     @apply bg-background text-foreground;
-    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Base typography */
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
 @layer base {
-  h1 {
-    font-family: var(--font-heading);
-    font-size: 2rem;
-    font-weight: var(--font-weight-semibold);
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-  }
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-family: var(--font-heading);
+      font-size: 3rem;
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.167;
+      letter-spacing: -0.02em;
+    }
 
-  h2 {
-    font-family: var(--font-heading);
-    font-size: 1.5rem;
-    font-weight: var(--font-weight-semibold);
-    line-height: 1.3;
-    letter-spacing: -0.01em;
-  }
+    h2 {
+      font-family: var(--font-heading);
+      font-size: 2.25rem;
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.222;
+      letter-spacing: -0.01em;
+    }
 
-  h3 {
-    font-family: var(--font-heading);
-    font-size: 1.25rem;
-    font-weight: var(--font-weight-semibold);
-    line-height: 1.4;
-  }
+    h3 {
+      font-family: var(--font-heading);
+      font-size: 1.75rem;
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.286;
+      letter-spacing: -0.01em;
+    }
 
-  p {
-    font-family: var(--font-body);
-    font-size: 1rem;
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+    h4 {
+      font-family: var(--font-heading);
+      font-size: 1.375rem;
+      font-weight: var(--font-weight-semibold);
+      line-height: 1.364;
+    }
+
+    p {
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: var(--font-weight-medium);
+      line-height: 1.429;
+    }
+
+    button {
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
   }
 }
 
@@ -169,28 +218,56 @@
   }
 }
 
-/* Color utilities */
+/* Robust color system that works without complex Tailwind parsing */
+:root {
+  --success: #25C18A;
+  --warning: #F5B041;
+  --accent: #6BA8FF;
+  --surface-elevated: #121733;
+}
+
+/* Text colors */
 .text-success { color: var(--success); }
 .text-warning { color: var(--warning); }
 .text-accent { color: var(--accent); }
 
+/* Background colors with opacity variants */
 .bg-success { background-color: var(--success); }
 .bg-warning { background-color: var(--warning); }
 .bg-accent { background-color: var(--accent); }
 .bg-surface-elevated { background-color: var(--surface-elevated); }
 
-/* Opacity variants */
-.bg-surface-elevated\/50 { background-color: rgba(18, 23, 51, 0.5); }
-.bg-surface-elevated\/30 { background-color: rgba(18, 23, 51, 0.3); }
+/* Opacity variants - these provide fallbacks for complex Tailwind classes */
+.bg-surface-elevated\/50,
+.bg-surface-elevated-50 { 
+  background-color: rgba(18, 23, 51, 0.5); 
+}
+
+.bg-surface-elevated\/30,
+.bg-surface-elevated-30 { 
+  background-color: rgba(18, 23, 51, 0.3); 
+}
+
 .bg-accent\/20 { background-color: rgba(107, 168, 255, 0.2); }
 .bg-accent\/10 { background-color: rgba(107, 168, 255, 0.1); }
 .bg-success\/20 { background-color: rgba(37, 193, 138, 0.2); }
 .bg-warning\/20 { background-color: rgba(245, 176, 65, 0.2); }
 
+/* Border colors */
 .border-accent\/30 { border-color: rgba(107, 168, 255, 0.3); }
 .border-success\/30 { border-color: rgba(37, 193, 138, 0.3); }
 .border-warning\/30 { border-color: rgba(245, 176, 65, 0.3); }
 .border-border\/20 { border-color: rgba(255, 255, 255, 0.02); }
+.border-border\/30 { border-color: rgba(255, 255, 255, 0.03); }
+
+/* Ring colors */
+.ring-accent\/20 { --ring-color: rgba(107, 168, 255, 0.2); }
+.ring-accent\/30 { --ring-color: rgba(107, 168, 255, 0.3); }
+
+/* Hover states */
+.hover\:bg-surface-elevated\/50:hover { background-color: rgba(18, 23, 51, 0.5); }
+.hover\:bg-surface-elevated\/80:hover { background-color: rgba(18, 23, 51, 0.8); }
+.hover\:bg-accent\/10:hover { background-color: rgba(107, 168, 255, 0.1); }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
@@ -213,4 +290,8 @@
 html {
   font-size: var(--font-size);
   font-family: var(--font-body);
+}
+
+body {
+  font-variant-numeric: tabular-nums;
 }
