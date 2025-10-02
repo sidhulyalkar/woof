@@ -1,0 +1,89 @@
+{
+  "name": "Woof - Daily Wellness Check",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "Morning Cron",
+      "name": "Morning Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "\nitems = [{ json: { message: \"How is your pet feeling today? Do a quick check-in in Woof! \ud83d\udc3e\" } }];\nreturn items;\n"
+      },
+      "id": "Build Notifications",
+      "name": "Build Notifications",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.NOTIFICATION_WEBHOOK_URL}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Send Notification",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Morning Cron": {
+      "main": [
+        [
+          {
+            "node": "Build Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Notifications": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetup": []
+  }
+}

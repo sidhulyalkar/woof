@@ -1,0 +1,346 @@
+// Woof Database Schema
+// PostgreSQL with pgvector extension for ML compatibility scoring
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+model User {
+  id           String    @id @default(uuid())
+  handle       String    @unique
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  authProvider String?   @map("auth_provider") // GOOGLE, APPLE, EMAIL
+  bio          String?
+  avatarUrl    String?   @map("avatar_url")
+  homeLocation Json?     @map("home_location") // {lat, lng}
+  visibility   String    @default("PUBLIC") // PUBLIC, FRIENDS_ONLY, PRIVATE
+  points       Int       @default(0)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  pets               Pet[]
+  activities         Activity[]
+  posts              Post[]
+  likes              Like[]
+  comments           Comment[]
+  notifications      Notification[]
+  integrationTokens  IntegrationToken[]
+  mutualGoals        MutualGoal[]
+  meetups            Meetup[]
+  meetupInvites      MeetupInvite[]
+  redeemedRewards    Reward[]
+
+  @@map("users")
+}
+
+model Pet {
+  id            String    @id @default(uuid())
+  ownerId       String    @map("owner_id")
+  name          String
+  species       String    // DOG, CAT, etc
+  breed         String?
+  sex           String?   // MALE, FEMALE, UNKNOWN
+  birthdate     DateTime?
+  temperament   Json?     // {friendly: 5, energetic: 4, ...}
+  vaccinations  Json?     // [{name: "Rabies", date: "2024-01-01"}]
+  avatarUrl     String?   @map("avatar_url")
+  embedding     Unsupported("vector(384)")?  // pgvector for compatibility
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  devices       Device[]
+  activities    Activity[]
+  posts         Post[]
+  mutualGoals   MutualGoal[]
+  meetupInvites MeetupInvite[]
+  edgesA        PetEdge[] @relation("PetA")
+  edgesB        PetEdge[] @relation("PetB")
+
+  @@index([ownerId])
+  @@map("pets")
+}
+
+model Device {
+  id         String    @id @default(uuid())
+  petId      String    @map("pet_id")
+  kind       String    // AIRTAG, GENERIC_GPS, CUSTOM_COLLAR
+  externalId String?   @map("external_id")
+  lastSeenAt DateTime? @map("last_seen_at")
+  status     String    @default("ACTIVE") // ACTIVE, INACTIVE, LOST
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@map("devices")
+}
+
+// ============================================
+// ACTIVITIES & FITNESS
+// ============================================
+
+model Activity {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  petId        String?  @map("pet_id")
+  startedAt    DateTime @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+  type         String   // WALK, RUN, PLAY, HIKE
+  route        Json?    // GeoJSON
+  humanMetrics Json?    @map("human_metrics") // {steps, calories, hr_avg}
+  petMetrics   Json?    @map("pet_metrics")   // {distance, active_time}
+  jointMetrics Json?    @map("joint_metrics") // {sync_score}
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet   Pet?  @relation(fields: [petId], references: [id], onDelete: SetNull)
+  posts Post[]
+
+  @@index([userId])
+  @@index([petId])
+  @@index([startedAt])
+  @@map("activities")
+}
+
+model MutualGoal {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  petId        String   @map("pet_id")
+  goalType     String   @map("goal_type") // DISTANCE, TIME, STEPS, VENUES
+  period       String   // WEEK, MONTH
+  targetNumber Float    @map("target_number")
+  progress     Float    @default(0)
+  status       String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet  Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([petId])
+  @@map("mutual_goals")
+}
+
+model Reward {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  title       String
+  description String?
+  points      Int
+  partner     String?
+  expiresAt   DateTime? @map("expires_at")
+  redeemedBy  String?   @map("redeemed_by")
+  redeemedAt  DateTime? @map("redeemed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User? @relation(fields: [redeemedBy], references: [id])
+
+  @@index([redeemedBy])
+  @@map("rewards")
+}
+
+// ============================================
+// SOCIAL GRAPH
+// ============================================
+
+model PetEdge {
+  id                   String   @id @default(uuid())
+  petAId               String   @map("pet_a_id")
+  petBId               String   @map("pet_b_id")
+  weight               Float    @default(1.0)
+  compatibilityScore   Float?   @map("compatibility_score")
+  lastInteractionAt    DateTime? @map("last_interaction_at")
+  status               String   @default("PROPOSED") // PROPOSED, CONFIRMED, AVOID
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  petA Pet @relation("PetA", fields: [petAId], references: [id], onDelete: Cascade)
+  petB Pet @relation("PetB", fields: [petBId], references: [id], onDelete: Cascade)
+
+  @@unique([petAId, petBId])
+  @@index([petAId])
+  @@index([petBId])
+  @@map("pet_edges")
+}
+
+// ============================================
+// MEETUPS
+// ============================================
+
+model Meetup {
+  id           String   @id @default(uuid())
+  title        String
+  location     Json     // GeoJSON point
+  radiusM      Int      @default(500) @map("radius_m")
+  startsAt     DateTime @map("starts_at")
+  endsAt       DateTime? @map("ends_at")
+  status       String   @default("SCHEDULED") // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+  creatorUserId String  @map("creator_user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  creator User           @relation(fields: [creatorUserId], references: [id])
+  invites MeetupInvite[]
+
+  @@index([creatorUserId])
+  @@index([startsAt])
+  @@map("meetups")
+}
+
+model MeetupInvite {
+  id        String    @id @default(uuid())
+  meetupId  String    @map("meetup_id")
+  userId    String    @map("user_id")
+  petId     String?   @map("pet_id")
+  rsvp      String    @default("MAYBE") // YES, MAYBE, NO
+  checkinAt DateTime? @map("checkin_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  meetup Meetup @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet    Pet?   @relation(fields: [petId], references: [id], onDelete: SetNull)
+
+  @@unique([meetupId, userId])
+  @@index([meetupId])
+  @@index([userId])
+  @@map("meetup_invites")
+}
+
+// ============================================
+// SOCIAL CONTENT
+// ============================================
+
+model Post {
+  id           String   @id @default(uuid())
+  authorUserId String   @map("author_user_id")
+  petId        String?  @map("pet_id")
+  text         String?
+  mediaUrls    String[] @map("media_urls")
+  activityId   String?  @map("activity_id")
+  visibility   String   @default("PUBLIC") // PUBLIC, FRIENDS_ONLY, PRIVATE
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  author   User      @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  pet      Pet?      @relation(fields: [petId], references: [id], onDelete: SetNull)
+  activity Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  likes    Like[]
+  comments Comment[]
+
+  @@index([authorUserId])
+  @@index([petId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@map("comments")
+}
+
+// ============================================
+// NOTIFICATIONS & INTEGRATIONS
+// ============================================
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  type      String    // FRIEND_REQUEST, MEETUP_INVITE, GOAL_ACHIEVED, etc
+  payload   Json
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model IntegrationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  provider  String    // APPLE, GOOGLE, STRAVA, INSTAGRAM, MAPBOX
+  scopes    String[]
+  expiresAt DateTime? @map("expires_at")
+  data      Json      // Encrypted token data
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("integration_tokens")
+}
+
+// ============================================
+// PLACES
+// ============================================
+
+model Place {
+  id           String   @id @default(uuid())
+  name         String
+  kind         String   // DOG_PARK, TRAIL, CAFE, STORE
+  location     Json     // GeoJSON point
+  score        Float?
+  hours        Json?    // {monday: "9-17", ...}
+  petPolicies  Json?    @map("pet_policies") // {dogs_allowed: true, ...}
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("places")
+}
+
+// ============================================
+// TELEMETRY
+// ============================================
+
+model Telemetry {
+  id        String   @id @default(uuid())
+  source    String   // WEB, MOBILE, API
+  event     String   // PAGE_VIEW, BUTTON_CLICK, etc
+  userId    String?  @map("user_id")
+  petId     String?  @map("pet_id")
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([source])
+  @@index([event])
+  @@index([createdAt])
+  @@map("telemetry")
+}

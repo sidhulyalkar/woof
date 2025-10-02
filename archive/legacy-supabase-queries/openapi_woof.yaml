@@ -1,0 +1,769 @@
+openapi: 3.0.3
+info:
+  title: Woof Pet Social Fitness API
+  version: "1.0"
+  description: |
+    This OpenAPI specification covers the Woof app backend. It includes user auth, 
+    pet profiles, tracking walks, scheduling meetups, social feed (posts, comments, likes), 
+    gamification (XP, levels, badges, leaderboards), premium subscription management, 
+    activity suggestions, and AI chatbot interactions.
+servers:
+  - url: https://api.woofapp.com/v1
+security:
+  - BearerAuth: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [user, moderator, admin] }
+        xp: { type: integer }
+        level: { type: integer }
+        premiumTier: { type: string }
+        premiumExpiration: { type: string, format: date-time }
+        pets:
+          type: array
+          items: { $ref: '#/components/schemas/Pet' }
+      required: [id, email, name]
+    Pet:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ownerId: { type: string, format: uuid }
+        name: { type: string }
+        species: { type: string, enum: [dog, cat, other] }
+        breed: { type: string }
+        birthDate: { type: string, format: date }
+        sizeCategory: { type: string, enum: [small, medium, large] }
+        happinessScore: { type: integer }
+      required: [id, ownerId, name, species]
+    Walk:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        petId: { type: string, format: uuid }
+        walkedAt: { type: string, format: date-time }
+        durationMinutes: { type: integer }
+        distanceKm: { type: number, format: float }
+        route: { type: object, description: "GeoJSON LineString" }
+        routePreview: { type: string, description: "Snapshot or polyline" }
+      required: [id, userId, petId, walkedAt]
+    Meetup:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        hostUserId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        eventTime: { type: string, format: date-time }
+        locationName: { type: string }
+        locationLat: { type: number }
+        locationLon: { type: number }
+        petTypeFilter: { type: string, enum: [dog, cat, any] }
+        sizeFilter: { type: string, enum: [small, medium, large, any] }
+        attendeeCount: { type: integer }
+        isAttending: { type: boolean }
+      required: [id, hostUserId, title, eventTime, locationName]
+    MeetupDetail:
+      allOf:
+        - $ref: '#/components/schemas/Meetup'
+        - type: object
+          properties:
+            attendees:
+              type: array
+              items: { $ref: '#/components/schemas/User' }
+    Badge:
+      type: object
+      properties:
+        id: { type: integer }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        iconUrl: { type: string }
+      required: [id, code, name]
+    UserBadge:
+      type: object
+      properties:
+        badge: { $ref: '#/components/schemas/Badge' }
+        earnedAt: { type: string, format: date-time }
+    GamificationProfile:
+      type: object
+      properties:
+        xp: { type: integer }
+        level: { type: integer }
+        badges:
+          type: array
+          items: { $ref: '#/components/schemas/UserBadge' }
+        rank: { type: integer }
+      required: [xp, level, badges]
+    LeaderboardEntry:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        xp: { type: integer }
+        level: { type: integer }
+        rank: { type: integer }
+    Post:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        author: { $ref: '#/components/schemas/User' }
+        content: { type: string }
+        imageUrls:
+          type: array
+          items: { type: string, format: uri }
+        createdAt: { type: string, format: date-time }
+        likeCount: { type: integer }
+        commentCount: { type: integer }
+        likedByMe: { type: boolean }
+      required: [id, author, content, createdAt]
+    Comment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        postId: { type: string, format: uuid }
+        author: { $ref: '#/components/schemas/User' }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, postId, author, content, createdAt]
+    PremiumTier:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        monthlyPriceCents: { type: integer }
+        benefits: { type: string }
+      required: [code, name, monthlyPriceCents]
+    SubscriptionStatus:
+      type: object
+      properties:
+        tier: { $ref: '#/components/schemas/PremiumTier' }
+        status: { type: string, enum: [active, canceled, expired] }
+        endDate: { type: string, format: date-time }
+      required: [tier, status]
+    Suggestion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        category: { type: string, enum: [dog_park, cat_cafe, trail, pet_friendly_cafe, vet, other] }
+        description: { type: string }
+        address: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+    ChatMessage:
+      type: object
+      properties:
+        sender: { type: string, enum: [user, assistant] }
+        message: { type: string }
+        sentAt: { type: string, format: date-time }
+    ChatSession:
+      type: object
+      properties:
+        sessionId: { type: string, format: uuid }
+        petId: { type: string, format: uuid }
+        startedAt: { type: string, format: date-time }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatMessage' }
+        feedbackRating: { type: integer }
+        feedbackComment: { type: string }
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                name: { type: string }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { description: Invalid }
+  /auth/login:
+    post:
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { description: Unauthorized }
+  /users/me:
+    get:
+      summary: Get current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+    patch:
+      summary: Update profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+  /users/{userId}:
+    get:
+      summary: Get a user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '404': { description: Not found }
+  /pets:
+    post:
+      summary: Create a pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, species]
+              properties:
+                name: { type: string }
+                species: { type: string, enum: [dog, cat, other] }
+                breed: { type: string }
+                birthDate: { type: string, format: date }
+                sizeCategory: { type: string, enum: [small, medium, large] }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pet' }
+    get:
+      summary: List my pets
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pet' }
+  /pets/{petId}:
+    get:
+      summary: Get a pet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pet' }
+        '404': { description: Not found }
+    patch:
+      summary: Update a pet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                breed: { type: string }
+                sizeCategory: { type: string, enum: [small, medium, large] }
+                happinessScore: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pet' }
+        '403': { description: Forbidden }
+    delete:
+      summary: Delete a pet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Deleted }
+  /walks:
+    get:
+      summary: List my walks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Walk' }
+    post:
+      summary: Log a walk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [petId, walkedAt, durationMinutes, distanceKm]
+              properties:
+                petId: { type: string, format: uuid }
+                walkedAt: { type: string, format: date-time }
+                durationMinutes: { type: integer }
+                distanceKm: { type: number }
+                route: { type: object }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+  /walks/{walkId}:
+    get:
+      summary: Get a walk
+      parameters:
+        - name: walkId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Walk' }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a walk
+      parameters:
+        - name: walkId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Deleted }
+  /meetups:
+    get:
+      summary: Discover meetups
+      parameters:
+        - { name: petType, in: query, schema: { type: string, enum: [dog, cat, any] } }
+        - { name: size, in: query, schema: { type: string, enum: [small, medium, large, any] } }
+        - { name: after, in: query, schema: { type: string, format: date-time } }
+        - { name: nearLat, in: query, schema: { type: number } }
+        - { name: nearLon, in: query, schema: { type: number } }
+        - { name: radiusKm, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Meetup' }
+    post:
+      summary: Create meetup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, eventTime, locationName, locationLat, locationLon]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                eventTime: { type: string, format: date-time }
+                locationName: { type: string }
+                locationLat: { type: number }
+                locationLon: { type: number }
+                petTypeFilter: { type: string, enum: [dog, cat, any], default: any }
+                sizeFilter: { type: string, enum: [small, medium, large, any], default: any }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Meetup' }
+  /meetups/{meetupId}:
+    get:
+      summary: Get meetup details
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeetupDetail' }
+        '404': { description: Not found }
+    patch:
+      summary: Update meetup
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                eventTime: { type: string, format: date-time }
+                petTypeFilter: { type: string }
+                sizeFilter: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Meetup' }
+        '403': { description: Forbidden }
+    delete:
+      summary: Cancel meetup
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted }
+  /meetups/{meetupId}/attendees:
+    get:
+      summary: List attendees
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+    post:
+      summary: RSVP
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                petId: { type: string, format: uuid }
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Cancel RSVP
+      parameters:
+        - { name: meetupId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted }
+  /gamification:
+    get:
+      summary: My gamification profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GamificationProfile' }
+  /gamification/leaderboard:
+    get:
+      summary: Leaderboard
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LeaderboardEntry' }
+  /gamification/badges:
+    get:
+      summary: All badges
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    badge: { $ref: '#/components/schemas/Badge' }
+                    earned: { type: boolean }
+  /feed/posts:
+    get:
+      summary: Get posts
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Post' }
+    post:
+      summary: Create post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                imageUrls:
+                  type: array
+                  items: { type: string, format: uri }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+  /feed/posts/{postId}:
+    get:
+      summary: Get a post with comments
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post: { $ref: '#/components/schemas/Post' }
+                  comments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+        '404': { description: Not found }
+    delete:
+      summary: Delete a post
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted }
+        '403': { description: Forbidden }
+  /feed/posts/{postId}/like:
+    post:
+      summary: Like a post
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+    delete:
+      summary: Unlike a post
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted }
+  /feed/posts/{postId}/comments:
+    post:
+      summary: Add a comment
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comment' }
+  /feed/comments/{commentId}:
+    delete:
+      summary: Delete a comment
+      parameters:
+        - { name: commentId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Deleted }
+        '403': { description: Forbidden }
+  /premium/tiers:
+    get:
+      summary: Premium tiers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PremiumTier' }
+  /premium/status:
+    get:
+      summary: My premium status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionStatus' }
+  /premium/subscribe:
+    post:
+      summary: Start subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tierCode]
+              properties:
+                tierCode: { type: string }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkoutUrl: { type: string, format: uri }
+  /suggestions:
+    get:
+      summary: Activity suggestions
+      parameters:
+        - { name: category, in: query, schema: { type: string, enum: [dog_park, cat_cafe, trail, pet_friendly_cafe, vet, other] } }
+        - { name: nearLat, in: query, schema: { type: number } }
+        - { name: nearLon, in: query, schema: { type: number } }
+        - { name: radiusKm, in: query, schema: { type: number, default: 50 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Suggestion' }
+  /chatbot/message:
+    post:
+      summary: Send a message to the chatbot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+                petId: { type: string, format: uuid }
+                sessionId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply: { type: string }
+                  sessionId: { type: string, format: uuid }
+  /chatbot/history:
+    get:
+      summary: My chatbot sessions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: 
+                  $ref: '#/components/schemas/ChatSession'
+  /chatbot/feedback:
+    post:
+      summary: Chatbot feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, rating]
+              properties:
+                sessionId: { type: string, format: uuid }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Not found }

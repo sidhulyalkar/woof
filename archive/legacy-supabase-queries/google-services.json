@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "211412736881",
+    "project_id": "woof-n9tlrs",
+    "storage_bucket": "woof-n9tlrs.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:211412736881:android:d0c7b55aa6db10f3c9b4d0",
+        "android_client_info": {
+          "package_name": "com.flutterflow.sniffsocial"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqZesrgSrKX10Myk_piqy3ddNIeLVyOPA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,89 @@
+{
+  "name": "Woof - Meetup Suggestions (Cron)",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "Daily Cron",
+      "name": "Daily Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "\nitems = [{\n  json: {\n    title: \"Evening Small Dogs Walk\",\n    description: \"Casual meetup for small dogs.\",\n    event_time: new Date(Date.now() + 36e5).toISOString(),\n    location_name: \"Central Dog Park\",\n    location_lat: 37.7694,\n    location_lon: -122.4862,\n    pet_type_filter: \"dog\",\n    size_filter: \"small\"\n  }\n}];\nreturn items;\n"
+      },
+      "id": "Build Suggested Meetup",
+      "name": "Build Suggested Meetup",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/meetups",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Insert Meetup",
+      "name": "Insert Meetup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Cron": {
+      "main": [
+        [
+          {
+            "node": "Build Suggested Meetup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Suggested Meetup": {
+      "main": [
+        [
+          {
+            "node": "Insert Meetup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetup": []
+  }
+}

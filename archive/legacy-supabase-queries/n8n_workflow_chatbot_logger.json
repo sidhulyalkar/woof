@@ -1,0 +1,136 @@
+{
+  "name": "Woof - Chatbot Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "chatbot-log",
+        "methods": [
+          "POST"
+        ],
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "responseCode": 200
+      },
+      "id": "Webhook Chatbot Logger",
+      "name": "Webhook Chatbot Logger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "\nconst d = items[0].json;\nitems[0].json = { ...d };\nreturn items;\n"
+      },
+      "id": "Prepare Inserts",
+      "name": "Prepare Inserts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/ai_chat_sessions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Insert Session (if needed)",
+      "name": "Insert Session (if needed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/ai_chat_messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Insert User Message",
+      "name": "Insert User Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/ai_chat_messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Insert Assistant Message",
+      "name": "Insert Assistant Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Chatbot Logger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Inserts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Inserts": {
+      "main": [
+        [
+          {
+            "node": "Insert Session (if needed)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert User Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Assistant Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetup": []
+  }
+}

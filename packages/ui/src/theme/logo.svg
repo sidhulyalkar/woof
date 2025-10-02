@@ -1,0 +1,54 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Asymmetric neuron silhouette forming a leash curve -->
+  <defs>
+    <linearGradient id="woofGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6BA8FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0F2A6B;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Neuron body (organic, asymmetric shape) -->
+  <ellipse cx="256" cy="180" rx="80" ry="100" fill="url(#woofGradient)" opacity="0.9"/>
+
+  <!-- Dendrites (top-left extensions) -->
+  <path d="M 200 140 Q 150 100, 120 80 Q 110 70, 100 65"
+        stroke="#6BA8FF" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M 220 120 Q 180 90, 160 70"
+        stroke="#6BA8FF" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <path d="M 240 110 Q 230 80, 220 60"
+        stroke="#6BA8FF" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.6"/>
+
+  <!-- Dendrites (top-right extensions) -->
+  <path d="M 310 130 Q 350 110, 380 95"
+        stroke="#6BA8FF" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <path d="M 290 145 Q 320 120, 340 105"
+        stroke="#6BA8FF" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.6"/>
+
+  <!-- Main axon (leash curve going down and curving) -->
+  <path d="M 256 280 Q 256 340, 280 380 Q 300 420, 340 440 Q 380 460, 420 455"
+        stroke="url(#woofGradient)" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.95"/>
+
+  <!-- Axon terminals (smaller branches at the end) -->
+  <circle cx="420" cy="455" r="10" fill="#6BA8FF" opacity="0.8"/>
+  <path d="M 410 450 Q 400 445, 390 440"
+        stroke="#6BA8FF" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M 425 465 Q 430 475, 435 485"
+        stroke="#6BA8FF" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.6"/>
+
+  <!-- Paw print at the end of the leash -->
+  <g transform="translate(395, 470)">
+    <!-- Main pad -->
+    <ellipse cx="0" cy="0" rx="20" ry="25" fill="#0F2A6B"/>
+    <!-- Toe pads -->
+    <ellipse cx="-15" cy="-20" rx="8" ry="10" fill="#0F2A6B"/>
+    <ellipse cx="-5" cy="-25" rx="8" ry="10" fill="#0F2A6B"/>
+    <ellipse cx="5" cy="-25" rx="8" ry="10" fill="#0F2A6B"/>
+    <ellipse cx="15" cy="-20" rx="8" ry="10" fill="#0F2A6B"/>
+  </g>
+
+  <!-- Connecting nodes/synapses along the axon (neural aesthetic) -->
+  <circle cx="268" cy="320" r="6" fill="#6BA8FF" opacity="0.5"/>
+  <circle cx="285" cy="360" r="5" fill="#6BA8FF" opacity="0.5"/>
+  <circle cx="310" cy="400" r="6" fill="#6BA8FF" opacity="0.5"/>
+  <circle cx="350" cy="430" r="5" fill="#6BA8FF" opacity="0.5"/>
+</svg>

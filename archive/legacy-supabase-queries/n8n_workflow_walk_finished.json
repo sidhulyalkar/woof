@@ -1,0 +1,112 @@
+{
+  "name": "Woof - Walk Finished",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "walk-finished",
+        "methods": [
+          "POST"
+        ],
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "responseCode": 200
+      },
+      "id": "Webhook Walk Finished",
+      "name": "Webhook Walk Finished",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "\nitems[0].json = Object.assign(\n  { },\n  items[0].json\n);\nconst d = items[0].json;\nconst minutes = Number(d.duration_minutes || d.duration || 0);\nconst km = Number(d.distance_km || d.distance || 0);\nconst xpGain = Math.max(1, Math.round(minutes + 2*km));\nitems[0].json.xpGain = xpGain;\nitems[0].json.postContent = `\ud83c\udfc5 Walk complete! ${km.toFixed(2)} km in ${minutes} min.`;\nreturn items;\n"
+      },
+      "id": "Compute XP & Prepare Post",
+      "name": "Compute XP & Prepare Post",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/rpc/increment_user_xp",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Update User XP (RPC)",
+      "name": "Update User XP (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonParameters": true,
+        "headerParametersJson": "[\n          {\"name\":\"apikey\",\"value\":\"={{$env.SUPABASE_SERVICE_ROLE}}\"},\n          {\"name\":\"Authorization\",\"value\":\"=Bearer {{$env.SUPABASE_SERVICE_ROLE}}\"}\n        ]"
+      },
+      "id": "Insert Feed Post",
+      "name": "Insert Feed Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 5,
+      "position": [
+        980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Walk Finished": {
+      "main": [
+        [
+          {
+            "node": "Compute XP & Prepare Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute XP & Prepare Post": {
+      "main": [
+        [
+          {
+            "node": "Update User XP (RPC)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Feed Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetup": []
+  }
+}
