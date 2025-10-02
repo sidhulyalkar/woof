@@ -44,12 +44,19 @@ pnpm --filter @woof/database db:generate
 pnpm --filter @woof/database db:migrate
 pnpm --filter @woof/database db:seed
 
-# 4. Start API
+# 4. Start API & Frontend
 cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.local.example apps/web/.env.local
+
+# Terminal 1: API
 pnpm --filter @woof/api dev
+
+# Terminal 2: Web
+pnpm --filter @woof/web dev
 ```
 
-**API Available**: http://localhost:4000
+**Frontend**: http://localhost:3000
+**API**: http://localhost:4000
 **Swagger Docs**: http://localhost:4000/docs
 
 📖 **See [DEVELOPMENT.md](./DEVELOPMENT.md) for complete guide**
@@ -62,8 +69,8 @@ pnpm --filter @woof/api dev
 woof/
 ├── apps/
 │   ├── api/          # NestJS backend ✅
-│   ├── web/          # Next.js 15 (planned)
-│   └── mobile/       # Expo React Native (planned)
+│   ├── web/          # Next.js 15 frontend ✅
+│   └── mobile/       # Expo React Native 📋
 ├── packages/
 │   ├── ui/           # Galaxy-dark brand system ✅
 │   ├── database/     # Prisma + PostgreSQL + pgvector ✅

@@ -48,12 +48,16 @@ cp apps/api/.env.example apps/api/.env
 ### 3. Start Development
 
 ```bash
-# Start API
+# Terminal 1: Start API
 pnpm --filter @woof/api dev
 
-# API will be available at:
+# Terminal 2: Start Web Frontend
+pnpm --filter @woof/web dev
+
+# Services will be available at:
 # http://localhost:4000 - API endpoints
 # http://localhost:4000/docs - Swagger documentation
+# http://localhost:3000 - Web frontend
 ```
 
 ---
@@ -64,7 +68,7 @@ pnpm --filter @woof/api dev
 woof/
 ├── apps/
 │   ├── api/           # NestJS backend ✅
-│   ├── web/           # Next.js frontend (planned)
+│   ├── web/           # Next.js frontend ✅
 │   └── mobile/        # Expo app (planned)
 ├── packages/
 │   ├── ui/            # Brand system ✅
@@ -122,6 +126,25 @@ pnpm --filter @woof/api test:cov
 
 # Lint code
 pnpm --filter @woof/api lint
+```
+
+### Working with the Web Frontend
+
+```bash
+# Development mode (hot reload)
+pnpm --filter @woof/web dev
+
+# Build for production
+pnpm --filter @woof/web build
+
+# Run production build
+pnpm --filter @woof/web start
+
+# Type check
+pnpm --filter @woof/web type-check
+
+# Lint code
+pnpm --filter @woof/web lint
 ```
 
 ### Docker Services
