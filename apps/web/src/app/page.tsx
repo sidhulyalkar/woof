@@ -1,5 +1,5 @@
-import { PetPathApp } from '@/components/PetPathApp';
+import App from '@/components/PetPathApp';
 
 export default function Home() {
-  return <PetPathApp />;
+  return <App />;
 }

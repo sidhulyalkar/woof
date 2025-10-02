@@ -48,7 +48,7 @@ const dailyGoals = {
 
 export function ActivityScreen() {
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-screen overflow-y-auto">
       {/* Header */}
       <div className="sticky top-0 z-50 glass-card border-b border-border/20 px-4 py-4">
         <div className="flex items-center justify-between">
