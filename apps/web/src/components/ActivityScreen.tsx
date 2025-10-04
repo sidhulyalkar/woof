@@ -1,20 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, MapPin, Timer, Footprints, Flame, Heart, TrendingUp } from 'lucide-react';
 import { useSessionStore } from '@/store/session';
-import { useActivities } from '@/lib/api/hooks';
+import { useActivities, useCreateActivity, useUpdateActivity } from '@/lib/api/hooks';
+import { useUIStore } from '@/store/ui';
 import { formatDistanceToNow } from 'date-fns';
 
 type ActivityType = 'WALK' | 'RUN' | 'PLAY' | 'HIKE';
 
 export function ActivityScreen() {
   const { user, pets } = useSessionStore();
+  const { showToast } = useUIStore();
   const { data: activities, isLoading } = useActivities();
+  const createActivity = useCreateActivity();
+  const updateActivity = useUpdateActivity();
+
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedActivityType, setSelectedActivityType] = useState<ActivityType>('WALK');
   const [selectedPet, setSelectedPet] = useState<string | null>(pets[0]?.id || null);
+  const [currentActivityId, setCurrentActivityId] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [currentStats, setCurrentStats] = useState({
     duration: 0,
@@ -23,19 +32,83 @@ export function ActivityScreen() {
     steps: 0,
   });
 
-  const handleStartActivity = () => {
+  // Real-time tracking simulation
+  useEffect(() => {
+    if (isTracking && !isPaused) {
+      timerRef.current = setInterval(() => {
+        setCurrentStats(prev => ({
+          duration: prev.duration + 1,
+          distance: prev.distance + (Math.random() * 0.01), // Simulate GPS
+          calories: prev.calories + Math.floor(Math.random() * 2),
+          steps: prev.steps + Math.floor(Math.random() * 3),
+        }));
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isTracking, isPaused]);
+
+  const handleStartActivity = async () => {
+    const start = new Date();
+    setStartTime(start);
     setIsTracking(true);
     setIsPaused(false);
+
+    try {
+      const activity = await createActivity.mutateAsync({
+        type: selectedActivityType,
+        startedAt: start.toISOString(),
+        petId: selectedPet || undefined,
+      });
+      setCurrentActivityId(activity.id);
+      showToast({ message: `${selectedActivityType} started!`, type: 'success' });
+    } catch (error) {
+      showToast({ message: 'Failed to start activity', type: 'error' });
+      setIsTracking(false);
+    }
   };
 
   const handlePauseActivity = () => {
     setIsPaused(!isPaused);
   };
 
-  const handleStopActivity = () => {
-    setIsTracking(false);
-    setIsPaused(false);
-    setCurrentStats({ duration: 0, distance: 0, calories: 0, steps: 0 });
+  const handleStopActivity = async () => {
+    if (!currentActivityId || !startTime) return;
+
+    try {
+      await updateActivity.mutateAsync({
+        id: currentActivityId,
+        data: {
+          endedAt: new Date().toISOString(),
+          humanMetrics: {
+            steps: currentStats.steps,
+            calories: currentStats.calories,
+            hr_avg: 120, // Mock data
+          },
+          petMetrics: {
+            distance: currentStats.distance.toFixed(2),
+            active_time: currentStats.duration,
+          },
+        },
+      });
+
+      showToast({
+        message: `Activity saved! ${currentStats.distance.toFixed(1)}km in ${Math.floor(currentStats.duration / 60)}min`,
+        type: 'success'
+      });
+
+      setIsTracking(false);
+      setIsPaused(false);
+      setCurrentStats({ duration: 0, distance: 0, calories: 0, steps: 0 });
+      setCurrentActivityId(null);
+      setStartTime(null);
+    } catch (error) {
+      showToast({ message: 'Failed to save activity', type: 'error' });
+    }
   };
 
   const activityTypes: { type: ActivityType; icon: any; label: string; color: string }[] = [
