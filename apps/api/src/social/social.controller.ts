@@ -32,7 +32,10 @@ export class SocialController {
     @Query('authorUserId') authorUserId?: string,
     @Query('petId') petId?: string,
   ) {
-    return this.socialService.findAllPosts(skip, take, authorUserId, petId);
+    // Ensure proper number conversion with defaults
+    const skipNum = skip !== undefined ? Number(skip) : 0;
+    const takeNum = take !== undefined ? Number(take) : 20;
+    return this.socialService.findAllPosts(skipNum, takeNum, authorUserId, petId);
   }
 
   @Get('posts/:id')
@@ -104,8 +107,16 @@ export class SocialController {
   @ApiOperation({ summary: 'Create a comment on a post' })
   @ApiResponse({ status: 201, description: 'Comment created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
-  async createComment(@Body() createCommentDto: Prisma.CommentCreateInput) {
-    return this.socialService.createComment(createCommentDto);
+  async createComment(
+    @Param('postId') postId: string,
+    @Body() createCommentDto: Prisma.CommentCreateInput,
+  ) {
+    // Ensure the post connection is properly set using the postId from the URL
+    const commentData: Prisma.CommentCreateInput = {
+      ...createCommentDto,
+      post: { connect: { id: postId } },
+    };
+    return this.socialService.createComment(commentData);
   }
 
   @Get('posts/:postId/comments')

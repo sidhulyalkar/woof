@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
+import { QueryProvider } from '@/components/providers/QueryProvider';
 import { Toaster } from 'sonner';
 
 const spaceGrotesk = Space_Grotesk({
@@ -35,35 +36,37 @@ export default function RootLayout({
           fontFamily: 'var(--font-body)',
         }}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
-          <div style={{
-            minHeight: '100vh',
-            width: '100%',
-            backgroundColor: '#0A0F1E',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0,
-            margin: 0
-          }}>
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem={false}
+            disableTransitionOnChange
+          >
             <div style={{
-              width: '100%',
-              maxWidth: '448px',
               minHeight: '100vh',
-              backgroundColor: '#0E1220',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-              position: 'relative'
+              width: '100%',
+              backgroundColor: '#0A0F1E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              margin: 0
             }}>
-              {children}
+              <div style={{
+                width: '100%',
+                maxWidth: '448px',
+                minHeight: '100vh',
+                backgroundColor: '#0E1220',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                position: 'relative'
+              }}>
+                {children}
+              </div>
             </div>
-          </div>
-          <Toaster position="top-center" />
-        </ThemeProvider>
+            <Toaster position="top-center" />
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

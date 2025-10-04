@@ -1,297 +1,239 @@
-import React, { useState } from 'react';
-import { Settings, Edit3, Share2, MapPin, Calendar, Award, Users, Camera, Heart, MessageCircle, Star, Plus } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { Settings, MapPin, Calendar, Award, Camera, MessageCircle, Plus, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
-
-const userProfile = {
-  name: 'Sarah Johnson',
-  avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c5?w=150&h=150&fit=crop&crop=face',
-  location: 'San Francisco, CA',
-  joinDate: 'March 2023',
-  bio: 'Dog lover and outdoor enthusiast. Always looking for new trails to explore with my furry friends!',
-  stats: {
-    posts: 127,
-    friends: 245,
-    totalDistance: '342 km',
-    achievements: 12
-  }
-};
-
-const userPets = [
-  {
-    id: 1,
-    name: 'Buddy',
-    type: 'Golden Retriever',
-    age: '3 years',
-    avatar: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=150&h=150&fit=crop&crop=face',
-    bio: 'Loves fetch and swimming. Champion belly rub receiver.',
-    achievements: ['Best Walker', 'Social Butterfly', 'Park Explorer']
-  },
-  {
-    id: 2,
-    name: 'Luna',
-    type: 'Border Collie Mix',
-    age: '2 years',
-    avatar: 'https://images.unsplash.com/photo-1551717743-49959800b1f6?w=150&h=150&fit=crop&crop=face',
-    bio: 'Agility champion in training. Smart and energetic.',
-    achievements: ['Speed Demon', 'Agility Star']
-  }
-];
-
-const recentPosts = [
-  {
-    id: 1,
-    image: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=300&h=300&fit=crop',
-    likes: 142,
-    comments: 23
-  },
-  {
-    id: 2,
-    image: 'https://images.unsplash.com/photo-1551717743-49959800b1f6?w=300&h=300&fit=crop',
-    likes: 89,
-    comments: 12
-  },
-  {
-    id: 3,
-    image: 'https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=300&h=300&fit=crop',
-    likes: 256,
-    comments: 34
-  },
-  {
-    id: 4,
-    image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300&h=300&fit=crop',
-    likes: 178,
-    comments: 19
-  },
-  {
-    id: 5,
-    image: 'https://images.unsplash.com/photo-1605568427561-40dd23c2acea?w=300&h=300&fit=crop',
-    likes: 203,
-    comments: 28
-  },
-  {
-    id: 6,
-    image: 'https://images.unsplash.com/photo-1589941013453-ec89f33b5e95?w=300&h=300&fit=crop',
-    likes: 156,
-    comments: 15
-  }
-];
+import { useSessionStore } from '@/store/session';
+import { useFeed } from '@/lib/api/hooks';
+import { PostCard } from '@/components/feed/PostCard';
+import { useUIStore } from '@/store/ui';
+import { formatDistanceToNow } from 'date-fns';
 
 export function ProfileScreen() {
+  const { user, pets } = useSessionStore();
+  const { showToast } = useUIStore();
   const [activeTab, setActiveTab] = useState('posts');
 
-  return (
-    <div className="bg-background min-h-screen overflow-y-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-50 glass-card border-b border-border/20 px-4 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Profile</h1>
-          <Button variant="ghost" size="sm" className="p-2 rounded-full">
-            <Settings size={20} />
-          </Button>
-        </div>
-      </div>
+  // Get user's posts (we'll filter by user ID later)
+  const { data: allPosts, isLoading } = useFeed();
+  const userPosts = allPosts?.filter(post => post.userId === user?.id) || [];
 
-      <div className="pb-24">
-        {/* Profile Header */}
-        <div className="relative px-4 py-8">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-br from-accent/10 to-transparent rounded-xl mx-4"></div>
-          
-          <div className="relative z-10 text-center">
-            <div className="relative inline-block mb-6">
-              <Avatar className="w-32 h-32 mx-auto ring-4 ring-accent/20">
-                <AvatarImage src={userProfile.avatar} />
-                <AvatarFallback className="bg-accent/20 text-2xl">{userProfile.name[0]}</AvatarFallback>
+  const handleEditProfile = () => {
+    showToast({ message: 'Profile editing coming soon!', type: 'info' });
+  };
+
+  const handleAddPet = () => {
+    showToast({ message: 'Pet creation coming soon!', type: 'info' });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Figma Glass Header: Centered, frosted glass effect */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-gray-200/60 shadow-sm">
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-4 h-14">
+          <h1 className="text-lg font-semibold text-gray-900">
+            Profile
+          </h1>
+          <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100/80 backdrop-blur-sm transition-all">
+            <Settings className="h-5 w-5 text-gray-700" />
+          </button>
+        </div>
+      </header>
+
+      <div className="pb-20">
+        <div className="max-w-2xl mx-auto">
+          {/* Profile Header - Figma Glass Style: Compact, clean, glass effect */}
+          <div className="mt-3 mx-4 bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm p-6">
+          <div className="flex items-start gap-4">
+            {/* Avatar */}
+            <div className="relative">
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={user?.avatar} />
+                <AvatarFallback className="bg-gray-200 text-gray-600 text-xl font-medium">
+                  {user?.username?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
               </Avatar>
-              <Button size="sm" className="absolute -bottom-2 -right-2 rounded-full w-10 h-10 p-0 bg-accent hover:bg-accent/90">
-                <Camera size={16} />
-              </Button>
+              <button className="absolute bottom-0 right-0 w-6 h-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 rounded-full transition-colors">
+                <Camera className="h-3 w-3 text-white" />
+              </button>
             </div>
-            
-            <h2 className="text-2xl font-bold mb-2">{userProfile.name}</h2>
-            
-            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground mb-4">
-              <div className="flex items-center gap-1">
-                <MapPin size={16} />
-                {userProfile.location}
+
+            {/* User Info */}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">{user?.username || 'Anonymous'}</h2>
+
+              <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
+                {user?.location && (
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {user.location}
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Joined {user?.createdAt ? formatDistanceToNow(new Date(user.createdAt), { addSuffix: true }) : 'recently'}
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Calendar size={16} />
-                Joined {userProfile.joinDate}
+
+              {user?.bio && (
+                <p className="text-sm text-gray-700 mb-3 line-clamp-2">
+                  {user.bio}
+                </p>
+              )}
+
+              {/* Stats - Inline */}
+              <div className="flex items-center gap-4 text-sm mb-3">
+                <div>
+                  <span className="font-semibold text-gray-900">{userPosts.length}</span>
+                  <span className="text-gray-600 ml-1">Posts</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-900">{pets.length}</span>
+                  <span className="text-gray-600 ml-1">Pets</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-900">{user?.points || 0}</span>
+                  <span className="text-gray-600 ml-1">Points</span>
+                </div>
               </div>
-            </div>
-            
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">
-              {userProfile.bio}
-            </p>
-            
-            <div className="flex justify-center gap-3 mb-8">
-              <Button size="sm" className="bg-accent hover:bg-accent/90">
-                <Edit3 size={16} className="mr-2" />
+
+              {/* Edit Button */}
+              <button
+                onClick={handleEditProfile}
+                className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded text-sm font-medium text-gray-900 transition-colors"
+              >
                 Edit Profile
-              </Button>
-              <Button size="sm" variant="outline">
-                <Share2 size={16} className="mr-2" />
-                Share
-              </Button>
-            </div>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="glass-card p-4 rounded-xl text-center">
-                <p className="text-xl font-bold text-accent">{userProfile.stats.posts}</p>
-                <p className="text-xs text-muted-foreground">Posts</p>
-              </div>
-              <div className="glass-card p-4 rounded-xl text-center">
-                <p className="text-xl font-bold text-accent">{userProfile.stats.friends}</p>
-                <p className="text-xs text-muted-foreground">Friends</p>
-              </div>
-              <div className="glass-card p-4 rounded-xl text-center">
-                <p className="text-xl font-bold text-accent">{userProfile.stats.totalDistance}</p>
-                <p className="text-xs text-muted-foreground">Distance</p>
-              </div>
-              <div className="glass-card p-4 rounded-xl text-center">
-                <p className="text-xl font-bold text-accent">{userProfile.stats.achievements}</p>
-                <p className="text-xs text-muted-foreground">Awards</p>
-              </div>
+              </button>
             </div>
           </div>
-        </div>
+          </div>
 
-        {/* Content Tabs */}
-        <div className="px-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="posts">Posts</TabsTrigger>
-              <TabsTrigger value="pets">My Pets</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
+          {/* Content Tabs - Figma Glass Style: In centered container */}
+          <div className="mt-3 mx-4 bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm overflow-hidden">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3 bg-transparent h-12 p-0 gap-0 border-0">
+              <TabsTrigger
+                value="posts"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 text-gray-600 font-medium"
+              >
+                Posts
+              </TabsTrigger>
+              <TabsTrigger
+                value="pets"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 text-gray-600 font-medium"
+              >
+                Pets
+              </TabsTrigger>
+              <TabsTrigger
+                value="activity"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 text-gray-600 font-medium"
+              >
+                Activity
+              </TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="posts" className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {recentPosts.map((post) => (
-                  <div key={post.id} className="relative aspect-square glass-card rounded-xl overflow-hidden group">
-                    <ImageWithFallback
-                      src={post.image}
-                      alt="Pet post"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute bottom-2 left-2 flex items-center gap-3 text-white text-sm">
-                        <div className="flex items-center gap-1">
-                          <Heart size={14} />
-                          {post.likes}
+
+            {/* Posts Tab - Figma Style: No extra spacing */}
+            <TabsContent value="posts" className="mt-0">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : userPosts.length > 0 ? (
+                <div>
+                  {userPosts.map((post) => <PostCard key={post.id} post={post} />)}
+                </div>
+              ) : (
+                <div className="p-12 text-center border-b border-gray-100">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                    <MessageCircle className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 mb-1">No posts yet</p>
+                  <p className="text-xs text-gray-600">Start sharing your adventures!</p>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Pets Tab - Figma Style: Clean cards */}
+            <TabsContent value="pets" className="mt-0">
+              {pets.length > 0 && (
+                <div className="border-b border-gray-100">
+                  {pets.map((pet, index) => (
+                    <div
+                      key={pet.id}
+                      className={`px-4 py-4 flex items-start gap-3 ${index !== pets.length - 1 ? 'border-b border-gray-100' : ''}`}
+                    >
+                      <Avatar className="w-14 h-14">
+                        <AvatarImage src={pet.avatarUrl} />
+                        <AvatarFallback className="bg-gray-200 text-gray-600 font-medium">
+                          {pet.name[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-base font-semibold text-gray-900">{pet.name}</h3>
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
+                            {pet.species}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle size={14} />
-                          {post.comments}
-                        </div>
+                        {pet.breed && (
+                          <p className="text-sm text-gray-600 mb-1">{pet.breed}</p>
+                        )}
+                        {pet.bio && (
+                          <p className="text-sm text-gray-700 line-clamp-2">{pet.bio}</p>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="pets" className="space-y-4">
-              {userPets.map((pet) => (
-                <div key={pet.id} className="glass-card p-6 rounded-xl">
-                  <div className="flex items-start gap-4">
-                    <Avatar className="w-20 h-20 ring-2 ring-accent/20">
-                      <AvatarImage src={pet.avatar} />
-                      <AvatarFallback className="bg-accent/20 text-lg">{pet.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-xl font-bold">{pet.name}</h3>
-                        <Badge 
-                          variant="secondary" 
-                          className="bg-accent/20 text-accent border-accent/30"
-                        >
-                          {pet.type}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3">{pet.age}</p>
-                      <p className="text-sm mb-4 leading-relaxed">{pet.bio}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {pet.achievements.map((achievement, index) => (
-                          <Badge 
-                            key={index} 
-                            variant="secondary" 
-                            className="text-xs bg-success/20 text-success border-success/30"
-                          >
-                            <Star size={10} className="mr-1" />
-                            {achievement}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-              
-              <Button variant="outline" className="w-full glass-card border-dashed border-accent/30 hover:bg-accent/10">
-                <Plus size={16} className="mr-2" />
-                Add New Pet
-              </Button>
+              )}
+
+              <button
+                onClick={handleAddPet}
+                className="w-full px-4 py-4 border-b border-gray-100 flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <Plus className="h-5 w-5" />
+                <span className="font-medium text-sm">Add New Pet</span>
+              </button>
             </TabsContent>
-            
-            <TabsContent value="activity" className="space-y-6">
-              <div className="glass-card p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4">This Month</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-                    <p className="text-2xl font-bold text-accent">28.4 km</p>
-                    <p className="text-sm text-muted-foreground">Distance</p>
+
+            {/* Activity Tab - Figma Style: Simple stats */}
+            <TabsContent value="activity" className="mt-0">
+              <div className="px-4 py-6 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">This Month</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-gray-200 rounded p-3 text-center">
+                    <p className="text-xl font-semibold text-gray-900">0 km</p>
+                    <p className="text-xs text-gray-600 mt-0.5">Distance</p>
                   </div>
-                  <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-                    <p className="text-2xl font-bold text-success">1,840</p>
-                    <p className="text-sm text-muted-foreground">Calories</p>
+                  <div className="border border-gray-200 rounded p-3 text-center">
+                    <p className="text-xl font-semibold text-gray-900">0</p>
+                    <p className="text-xs text-gray-600 mt-0.5">Calories</p>
                   </div>
-                  <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-                    <p className="text-2xl font-bold text-warning">15h 32m</p>
-                    <p className="text-sm text-muted-foreground">Active Time</p>
+                  <div className="border border-gray-200 rounded p-3 text-center">
+                    <p className="text-xl font-semibold text-gray-900">0h</p>
+                    <p className="text-xs text-gray-600 mt-0.5">Active Time</p>
                   </div>
-                  <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-                    <p className="text-2xl font-bold text-accent">23</p>
-                    <p className="text-sm text-muted-foreground">Activities</p>
+                  <div className="border border-gray-200 rounded p-3 text-center">
+                    <p className="text-xl font-semibold text-gray-900">0</p>
+                    <p className="text-xs text-gray-600 mt-0.5">Activities</p>
                   </div>
                 </div>
               </div>
-              
-              <div className="glass-card p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4">Recent Achievements</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 p-3 bg-surface-elevated/30 rounded-lg">
-                    <div className="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
-                      <Award className="text-yellow-500" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">Marathon Master</p>
-                      <p className="text-sm text-muted-foreground">Completed 100km this month</p>
-                    </div>
-                    <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
-                      New!
-                    </Badge>
+
+              <div className="px-4 py-6 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Achievements</h3>
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                    <Award className="h-6 w-6 text-gray-400" />
                   </div>
-                  <div className="flex items-center gap-4 p-3 bg-surface-elevated/30 rounded-lg">
-                    <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center">
-                      <Users className="text-accent" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">Social Butterfly</p>
-                      <p className="text-sm text-muted-foreground">Made 10 new friends</p>
-                    </div>
-                  </div>
+                  <p className="text-xs text-gray-600">No achievements yet</p>
+                  <p className="text-xs text-gray-500 mt-1">Start tracking activities to earn badges!</p>
                 </div>
               </div>
             </TabsContent>
-          </Tabs>
+            </Tabs>
+          </div>
         </div>
       </div>
     </div>

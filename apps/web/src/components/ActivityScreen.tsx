@@ -1,244 +1,233 @@
-import React from 'react';
-import { Clock, MapPin, Zap, Target, Calendar, Play, Footprints, Heart, Trophy } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+'use client';
 
-const mockActivities = [
-  {
-    id: 1,
-    pet: { name: 'Buddy', avatar: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=150&h=150&fit=crop&crop=face' },
-    type: 'Walk',
-    duration: '32 min',
-    distance: '2.4 km',
-    calories: 180,
-    location: 'Central Park',
-    time: '2 hours ago'
-  },
-  {
-    id: 2,
-    pet: { name: 'Luna', avatar: 'https://images.unsplash.com/photo-1551717743-49959800b1f6?w=150&h=150&fit=crop&crop=face' },
-    type: 'Run',
-    duration: '45 min',
-    distance: '5.2 km',
-    calories: 320,
-    location: 'Riverside Trail',
-    time: '4 hours ago'
-  },
-  {
-    id: 3,
-    pet: { name: 'Whiskers', avatar: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop&crop=face' },
-    type: 'Play',
-    duration: '25 min',
-    distance: '0.8 km',
-    calories: 95,
-    location: 'Home',
-    time: '6 hours ago'
-  }
-];
+import { useState } from 'react';
+import { Play, Pause, Square, MapPin, Timer, Footprints, Flame, Heart, TrendingUp } from 'lucide-react';
+import { useSessionStore } from '@/store/session';
+import { useActivities } from '@/lib/api/hooks';
+import { formatDistanceToNow } from 'date-fns';
 
-const dailyGoals = {
-  steps: { current: 8420, target: 10000 },
-  calories: { current: 285, target: 400 },
-  distance: { current: 3.2, target: 5.0 },
-  playTime: { current: 95, target: 120 }
-};
+type ActivityType = 'WALK' | 'RUN' | 'PLAY' | 'HIKE';
 
 export function ActivityScreen() {
+  const { user, pets } = useSessionStore();
+  const { data: activities, isLoading } = useActivities();
+  const [isTracking, setIsTracking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [selectedActivityType, setSelectedActivityType] = useState<ActivityType>('WALK');
+  const [selectedPet, setSelectedPet] = useState<string | null>(pets[0]?.id || null);
+
+  const [currentStats, setCurrentStats] = useState({
+    duration: 0,
+    distance: 0,
+    calories: 0,
+    steps: 0,
+  });
+
+  const handleStartActivity = () => {
+    setIsTracking(true);
+    setIsPaused(false);
+  };
+
+  const handlePauseActivity = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const handleStopActivity = () => {
+    setIsTracking(false);
+    setIsPaused(false);
+    setCurrentStats({ duration: 0, distance: 0, calories: 0, steps: 0 });
+  };
+
+  const activityTypes: { type: ActivityType; icon: any; label: string; color: string }[] = [
+    { type: 'WALK', icon: Footprints, label: 'Walk', color: 'bg-blue-500' },
+    { type: 'RUN', icon: TrendingUp, label: 'Run', color: 'bg-orange-500' },
+    { type: 'PLAY', icon: Heart, label: 'Play', color: 'bg-pink-500' },
+    { type: 'HIKE', icon: MapPin, label: 'Hike', color: 'bg-green-500' },
+  ];
+
   return (
-    <div className="bg-background min-h-screen overflow-y-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-50 glass-card border-b border-border/20 px-4 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Activity</h1>
-          <Button className="rounded-full bg-accent hover:bg-accent/90">
-            <Play size={20} />
-            Start Workout
-          </Button>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-gray-200/60 shadow-sm">
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-4 h-14">
+          <h1 className="text-lg font-semibold text-gray-900">Activity</h1>
         </div>
-      </div>
+      </header>
 
-      <div className="p-4 pb-24 space-y-6">
-        {/* Quick Stats Ring */}
-        <div className="glass-card p-6 rounded-xl">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="text-center">
-              <div className="relative w-24 h-24 mx-auto mb-2">
-                <svg className="w-24 h-24 transform -rotate-90">
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="rgba(107, 168, 255, 0.2)"
-                    strokeWidth="8"
-                    fill="none"
-                  />
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="#6BA8FF"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={`${(dailyGoals.steps.current / dailyGoals.steps.target) * 251.2} 251.2`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Footprints size={20} className="text-accent" />
+      <main className="pb-20 pt-3">
+        <div className="max-w-2xl mx-auto px-4 space-y-3">
+          {isTracking ? (
+            <div className="bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const activity = activityTypes.find(a => a.type === selectedActivityType);
+                    const Icon = activity?.icon;
+                    return (
+                      <>
+                        <div className={`w-10 h-10 rounded-full ${activity?.color} flex items-center justify-center`}>
+                          {Icon && <Icon className="h-5 w-5 text-white" />}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{selectedActivityType}</h3>
+                          {selectedPet && pets.find(p => p.id === selectedPet) && (
+                            <p className="text-xs text-gray-600">with {pets.find(p => p.id === selectedPet)?.name}</p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-green-500'} animate-pulse`} />
+                  <span className="text-xs font-medium text-gray-600">{isPaused ? 'Paused' : 'Active'}</span>
                 </div>
               </div>
-              <p className="text-lg font-semibold">{dailyGoals.steps.current.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">Steps</p>
-            </div>
-            <div className="text-center">
-              <div className="relative w-24 h-24 mx-auto mb-2">
-                <svg className="w-24 h-24 transform -rotate-90">
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="rgba(37, 193, 138, 0.2)"
-                    strokeWidth="8"
-                    fill="none"
-                  />
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="40"
-                    stroke="#25C18A"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={`${(dailyGoals.calories.current / dailyGoals.calories.target) * 251.2} 251.2`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Zap size={20} className="text-success" />
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <Timer className="h-5 w-5 text-blue-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{Math.floor(currentStats.duration / 60)}:{(currentStats.duration % 60).toString().padStart(2, '0')}</p>
+                  <p className="text-xs text-gray-600 mt-1">Duration</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <MapPin className="h-5 w-5 text-green-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{currentStats.distance.toFixed(2)}</p>
+                  <p className="text-xs text-gray-600 mt-1">Distance (km)</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <Flame className="h-5 w-5 text-orange-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{currentStats.calories}</p>
+                  <p className="text-xs text-gray-600 mt-1">Calories</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <Footprints className="h-5 w-5 text-purple-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{currentStats.steps}</p>
+                  <p className="text-xs text-gray-600 mt-1">Steps</p>
                 </div>
               </div>
-              <p className="text-lg font-semibold">{dailyGoals.calories.current}</p>
-              <p className="text-sm text-muted-foreground">Calories</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Daily Goals */}
-        <div className="glass-card p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-4">
-            <Target size={20} className="text-accent" />
-            <h2 className="text-lg font-semibold">Today's Goals</h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Distance</span>
-                <span className="text-sm text-accent font-semibold">{dailyGoals.distance.current}km / {dailyGoals.distance.target}km</span>
+              <div className="flex gap-3">
+                <button
+                  onClick={handlePauseActivity}
+                  className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium text-gray-900 transition-colors flex items-center justify-center gap-2"
+                >
+                  {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+                  {isPaused ? 'Resume' : 'Pause'}
+                </button>
+                <button
+                  onClick={handleStopActivity}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 rounded-xl font-medium text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  <Square className="h-5 w-5" />
+                  Stop
+                </button>
               </div>
-              <Progress 
-                value={(dailyGoals.distance.current / dailyGoals.distance.target) * 100} 
-                className="h-3" 
-              />
             </div>
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Play Time</span>
-                <span className="text-sm text-accent font-semibold">{dailyGoals.playTime.current}min / {dailyGoals.playTime.target}min</span>
-              </div>
-              <Progress 
-                value={(dailyGoals.playTime.current / dailyGoals.playTime.target) * 100} 
-                className="h-3" 
-              />
-            </div>
-          </div>
-        </div>
+          ) : (
+            <div className="bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Start Activity</h3>
 
-        {/* Weekly Stats */}
-        <div className="glass-card p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar size={20} className="text-accent" />
-            <h2 className="text-lg font-semibold">This Week</h2>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-              <div className="w-10 h-10 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <MapPin size={20} className="text-accent" />
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {activityTypes.map((activity) => {
+                  const Icon = activity.icon;
+                  const isSelected = selectedActivityType === activity.type;
+                  return (
+                    <button
+                      key={activity.type}
+                      onClick={() => setSelectedActivityType(activity.type)}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full ${activity.color} flex items-center justify-center mx-auto mb-1`}>
+                        <Icon className="h-4 w-4 text-white" />
+                      </div>
+                      <p className={`text-xs font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                        {activity.label}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-xl font-semibold text-accent">12.4km</p>
-              <p className="text-sm text-muted-foreground">Distance</p>
-            </div>
-            <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-              <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Zap size={20} className="text-success" />
-              </div>
-              <p className="text-xl font-semibold text-success">1,240</p>
-              <p className="text-sm text-muted-foreground">Calories</p>
-            </div>
-            <div className="text-center p-4 bg-surface-elevated/50 rounded-lg">
-              <div className="w-10 h-10 bg-warning/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Clock size={20} className="text-warning" />
-              </div>
-              <p className="text-xl font-semibold text-warning">7h 32m</p>
-              <p className="text-sm text-muted-foreground">Active</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Recent Activities */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4 px-2">Recent Activities</h2>
-          <div className="space-y-3">
-            {mockActivities.map((activity) => (
-              <div key={activity.id} className="glass-card p-4 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar className="w-12 h-12 ring-2 ring-accent/20">
-                    <AvatarImage src={activity.pet.avatar} />
-                    <AvatarFallback className="bg-accent/20">{activity.pet.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{activity.pet.name}</span>
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${
-                          activity.type === 'Run' ? 'bg-success/20 text-success border-success/30' : 
-                          activity.type === 'Walk' ? 'bg-accent/20 text-accent border-accent/30' :
-                          'bg-warning/20 text-warning border-warning/30'
-                        }`}
-                      >
-                        {activity.type}
-                      </Badge>
+              {pets.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Activity with</label>
+                  <select
+                    value={selectedPet || ''}
+                    onChange={(e) => setSelectedPet(e.target.value || null)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Just me</option>
+                    {pets.map((pet) => (
+                      <option key={pet.id} value={pet.id}>
+                        {pet.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                onClick={handleStartActivity}
+                className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-xl font-semibold text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Play className="h-5 w-5" />
+                Start {selectedActivityType}
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200/60">
+              <h3 className="text-base font-semibold text-gray-900">Recent Activities</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {isLoading ? (
+                <div className="p-8 text-center text-sm text-gray-600">Loading...</div>
+              ) : activities && activities.length > 0 ? (
+                activities.slice(0, 5).map((activity: any) => {
+                  const activityType = activityTypes.find(a => a.type === activity.type);
+                  const Icon = activityType?.icon;
+                  return (
+                    <div key={activity.id} className="px-6 py-4 hover:bg-gray-50/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full ${activityType?.color || 'bg-gray-400'} flex items-center justify-center`}>
+                            {Icon && <Icon className="h-5 w-5 text-white" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{activity.type}</p>
+                            <p className="text-xs text-gray-600">
+                              {formatDistanceToNow(new Date(activity.startedAt), { addSuffix: true })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {activity.petMetrics?.distance || '0'} km
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {activity.humanMetrics?.calories || '0'} cal
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">{activity.time}</p>
-                  </div>
-                  <Trophy size={18} className="text-accent" />
+                  );
+                })
+              ) : (
+                <div className="p-8 text-center">
+                  <Play className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">No activities yet</p>
+                  <p className="text-xs text-gray-500 mt-1">Start tracking your first activity!</p>
                 </div>
-                
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="text-center p-2 bg-surface-elevated/30 rounded-lg">
-                    <Clock size={16} className="text-muted-foreground mx-auto mb-1" />
-                    <p className="text-sm font-medium">{activity.duration}</p>
-                  </div>
-                  <div className="text-center p-2 bg-surface-elevated/30 rounded-lg">
-                    <MapPin size={16} className="text-muted-foreground mx-auto mb-1" />
-                    <p className="text-sm font-medium">{activity.distance}</p>
-                  </div>
-                  <div className="text-center p-2 bg-surface-elevated/30 rounded-lg">
-                    <Zap size={16} className="text-muted-foreground mx-auto mb-1" />
-                    <p className="text-sm font-medium">{activity.calories}</p>
-                  </div>
-                  <div className="text-center p-2 bg-surface-elevated/30 rounded-lg">
-                    <Heart size={16} className="text-muted-foreground mx-auto mb-1" />
-                    <p className="text-xs font-medium truncate">{activity.location}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

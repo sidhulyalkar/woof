@@ -1,24 +1,14 @@
-'use client';
-
 import React, { useState } from 'react';
 import { Home, Activity, Trophy, MessageCircle, User } from 'lucide-react';
-import { FeedScreen } from './FeedScreen';
-import { ActivityScreen } from './ActivityScreen';
-import { LeaderboardScreen } from './LeaderboardScreen';
-import { MessagesScreen } from './MessagesScreen';
-import { ProfileScreen } from './ProfileScreen';
-import { LoginScreen } from './auth/LoginScreen';
-import { ErrorBoundary } from './ErrorBoundary';
-import { useSessionStore } from '@/store/session';
+import { FeedScreen } from './components/FeedScreen';
+import { ActivityScreen } from './components/ActivityScreen';
+import { LeaderboardScreen } from './components/LeaderboardScreen';
+import { MessagesScreen } from './components/MessagesScreen';
+import { ProfileScreen } from './components/ProfileScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function PetPathApp() {
   const [activeTab, setActiveTab] = useState('feed');
-  const { isAuthenticated } = useSessionStore();
-
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <LoginScreen />;
-  }
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -39,19 +29,19 @@ function PetPathApp() {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-        {/* Main Content */}
-        <div className="flex-1 overflow-hidden">
-          {renderScreen()}
-        </div>
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden">
+        {renderScreen()}
+      </div>
 
-        {/* Bottom Navigation - Glass Morphism */}
-        <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
-          <div className="flex justify-around items-center max-w-md mx-auto">
-            <button
+      {/* Bottom Navigation - Glass Morphism */}
+      <nav className="glass-card border-t border-border/20 px-4 py-3 mx-4 mb-4 rounded-xl">
+        <div className="flex justify-around items-center max-w-md mx-auto">
+          <button
             onClick={() => setActiveTab('feed')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
-              activeTab === 'feed'
-                ? 'bg-accent text-white shadow-lg scale-110'
+              activeTab === 'feed' 
+                ? 'bg-accent text-white shadow-lg scale-110' 
                 : 'text-muted-foreground hover:text-foreground hover:scale-105'
             }`}
           >
@@ -60,8 +50,8 @@ function PetPathApp() {
           <button
             onClick={() => setActiveTab('activity')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
-              activeTab === 'activity'
-                ? 'bg-accent text-white shadow-lg scale-110'
+              activeTab === 'activity' 
+                ? 'bg-accent text-white shadow-lg scale-110' 
                 : 'text-muted-foreground hover:text-foreground hover:scale-105'
             }`}
           >
@@ -70,8 +60,8 @@ function PetPathApp() {
           <button
             onClick={() => setActiveTab('leaderboard')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
-              activeTab === 'leaderboard'
-                ? 'bg-accent text-white shadow-lg scale-110'
+              activeTab === 'leaderboard' 
+                ? 'bg-accent text-white shadow-lg scale-110' 
                 : 'text-muted-foreground hover:text-foreground hover:scale-105'
             }`}
           >
@@ -80,8 +70,8 @@ function PetPathApp() {
           <button
             onClick={() => setActiveTab('messages')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
-              activeTab === 'messages'
-                ? 'bg-accent text-white shadow-lg scale-110'
+              activeTab === 'messages' 
+                ? 'bg-accent text-white shadow-lg scale-110' 
                 : 'text-muted-foreground hover:text-foreground hover:scale-105'
             }`}
           >
@@ -92,8 +82,8 @@ function PetPathApp() {
           <button
             onClick={() => setActiveTab('profile')}
             className={`relative p-3 rounded-xl transition-all duration-300 ${
-              activeTab === 'profile'
-                ? 'bg-accent text-white shadow-lg scale-110'
+              activeTab === 'profile' 
+                ? 'bg-accent text-white shadow-lg scale-110' 
                 : 'text-muted-foreground hover:text-foreground hover:scale-105'
             }`}
           >
