@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Settings, MapPin, Calendar, Award, Camera, MessageCircle, Plus, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmojiAvatar, getEmojiForId, getVariantForId, petEmojis } from '@/components/ui/EmojiAvatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSessionStore } from '@/store/session';
 import { useFeed } from '@/lib/api/hooks';
@@ -43,19 +43,18 @@ export function ProfileScreen() {
 
       <div className="pb-20">
         <div className="max-w-2xl mx-auto">
-          {/* Profile Header - Figma Glass Style: Compact, clean, glass effect */}
-          <div className="mt-3 mx-4 bg-white/80 backdrop-blur-md border border-gray-200/60 rounded-2xl shadow-sm p-6">
+          {/* Profile Header - Premium Glass Style with EmojiAvatar */}
+          <div className="mt-3 mx-4 bg-white/90 backdrop-blur-xl border border-gray-200/40 rounded-3xl shadow-lg p-6">
           <div className="flex items-start gap-4">
-            {/* Avatar */}
+            {/* EmojiAvatar */}
             <div className="relative">
-              <Avatar className="w-20 h-20">
-                <AvatarImage src={user?.avatar} />
-                <AvatarFallback className="bg-gray-200 text-gray-600 text-xl font-medium">
-                  {user?.username?.[0]?.toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <button className="absolute bottom-0 right-0 w-6 h-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 rounded-full transition-colors">
-                <Camera className="h-3 w-3 text-white" />
+              <EmojiAvatar
+                emoji={getEmojiForId(user?.id || '', 'user')}
+                variant={getVariantForId(user?.id || '')}
+                size="2xl"
+              />
+              <button className="absolute bottom-0 right-0 w-7 h-7 flex items-center justify-center bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-full shadow-md transition-all active:scale-95">
+                <Camera className="h-3.5 w-3.5 text-white" />
               </button>
             </div>
 
@@ -163,16 +162,15 @@ export function ProfileScreen() {
                       key={pet.id}
                       className={`px-4 py-4 flex items-start gap-3 ${index !== pets.length - 1 ? 'border-b border-gray-100' : ''}`}
                     >
-                      <Avatar className="w-14 h-14">
-                        <AvatarImage src={pet.avatarUrl} />
-                        <AvatarFallback className="bg-gray-200 text-gray-600 font-medium">
-                          {pet.name[0].toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <EmojiAvatar
+                        emoji={getEmojiForId(pet.id, 'pet')}
+                        variant={getVariantForId(pet.id)}
+                        size="lg"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-base font-semibold text-gray-900">{pet.name}</h3>
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">
                             {pet.species}
                           </span>
                         </div>
