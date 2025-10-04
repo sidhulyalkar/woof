@@ -6,10 +6,10 @@ import { X, Loader2, ArrowLeft, Link as LinkIcon, ImagePlus } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useCreatePost } from '@/lib/api/hooks';
 import { useSessionStore } from '@/store/session';
 import { useUIStore } from '@/store/ui';
+import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
 
 export default function CreatePostPage() {
   const router = useRouter();
@@ -92,12 +92,11 @@ export default function CreatePostPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {/* User Info */}
         <div className="flex items-start gap-3">
-          <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm">
-            <AvatarImage src={user?.avatar} />
-            <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-500 text-white text-sm font-medium">
-              {user?.username?.[0]?.toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
+          <EmojiAvatar
+            emoji={getEmojiForId(user?.id || '', 'user')}
+            variant={getVariantForId(user?.id || '')}
+            size="lg"
+          />
           <div className="flex-1 space-y-1">
             <p className="font-semibold text-[15px]">{user?.username}</p>
             {pets.length > 0 && (
