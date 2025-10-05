@@ -415,3 +415,311 @@ model MLTrainingData {
   @@index([createdAt])
   @@map("ml_training_data")
 }
+
+// ============================================
+// BETA MVP: MEETUPS & CO-ACTIVITY
+// ============================================
+
+model MeetupProposal {
+  id              String    @id @default(uuid())
+  proposerId      String    @map("proposer_id")
+  recipientId     String    @map("recipient_id")
+  suggestedTime   DateTime  @map("suggested_time")
+  suggestedVenue  Json      @map("suggested_venue") // {name, lat, lng, type, address}
+  status          String    @default("pending") // pending, accepted, declined, completed, cancelled
+  occurredAt      DateTime? @map("occurred_at")
+  rating          Int?      // 1-5 stars
+  feedbackTags    String[]  @map("feedback_tags") // energy_mismatch, size_issue, temperament, great_match, owner_friendly
+  checklistOk     Boolean   @default(false) @map("checklist_ok")
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([proposerId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([suggestedTime])
+  @@map("meetup_proposals")
+}
+
+model CoActivitySegment {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  petId         String   @map("pet_id")
+  otherUserId   String?  @map("other_user_id")
+  otherPetId    String?  @map("other_pet_id")
+  startTime     DateTime @map("start_time")
+  endTime       DateTime @map("end_time")
+  distanceM     Float    @map("distance_m")
+  gpsOverlapM   Float?   @map("gps_overlap_m")
+  avgPace       Float?   @map("avg_pace") // meters per minute
+  venueType     String?  @map("venue_type") // park, trail, urban, beach, indoor
+  gpsTraceRef   String?  @map("gps_trace_ref") // Reference to stored GPS data
+  steps         Int?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([petId])
+  @@index([startTime])
+  @@index([venueType])
+  @@map("co_activity_segments")
+}
+
+// ============================================
+// BETA MVP: COMMUNITY EVENTS
+// ============================================
+
+model CommunityEvent {
+  id                String   @id @default(uuid())
+  title             String
+  description       String?
+  hostUserId        String   @map("host_user_id")
+  venueType         String   @map("venue_type") // park, trail, beach, cafe, indoor
+  lat               Float
+  lng               Float
+  venueName         String?  @map("venue_name")
+  address           String?
+  startTime         DateTime @map("start_time")
+  endTime           DateTime @map("end_time")
+  capacity          Int?
+  rsvpCount         Int      @default(0) @map("rsvp_count")
+  visibility        String   @default("PUBLIC") // PUBLIC, FRIENDS, PRIVATE
+  recurring         Boolean  @default(false)
+  recurringPattern  String?  @map("recurring_pattern") // weekly_saturday_9am, etc
+  postFeedbackScore Float?   @map("post_feedback_score")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  rsvps    EventRSVP[]
+  feedback EventFeedback[]
+
+  @@index([hostUserId])
+  @@index([startTime])
+  @@index([lat, lng])
+  @@index([visibility])
+  @@map("community_events")
+}
+
+model EventRSVP {
+  id          String    @id @default(uuid())
+  eventId     String    @map("event_id")
+  userId      String    @map("user_id")
+  petId       String?   @map("pet_id")
+  status      String    @default("YES") // YES, MAYBE, NO
+  checkedInAt DateTime? @map("checked_in_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  event CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@map("event_rsvps")
+}
+
+model EventFeedback {
+  id          String   @id @default(uuid())
+  eventId     String   @map("event_id")
+  userId      String   @map("user_id")
+  vibeScore   Int      @map("vibe_score") // 1-5
+  petDensity  String?  @map("pet_density") // too_crowded, just_right, too_few
+  surfaceType String?  @map("surface_type") // grass, dirt, pavement, sand
+  crowding    String?  // not_crowded, moderate, crowded
+  noiseLevel  String?  @map("noise_level") // quiet, moderate, loud
+  tags        String[] // fun, well_organized, safe, would_repeat, too_short, too_long
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  event CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([vibeScore])
+  @@map("event_feedback")
+}
+
+// ============================================
+// BETA MVP: SERVICES HUB
+// ============================================
+
+model Business {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // groomer, vet, trainer, store, park, restaurant, walker, daycare
+  lat         Float
+  lng         Float
+  address     String?
+  phone       String?
+  website     String?
+  rating      Float?
+  reviewCount Int?     @map("review_count")
+  hours       Json?    // {monday: "9-17", tuesday: "9-17", ...}
+  petPolicies Json?    @map("pet_policies") // {dogs_allowed: true, size_limit: "50lbs", ...}
+  partnered   Boolean  @default(false)
+  partnerTier String?  @map("partner_tier") // bronze, silver, gold
+  logoUrl     String?  @map("logo_url")
+  photos      String[] @default([])
+  amenities   String[] @default([]) // parking, outdoor_seating, grooming_on_site, etc
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  serviceIntents ServiceIntent[]
+
+  @@index([type])
+  @@index([lat, lng])
+  @@index([partnered])
+  @@index([rating])
+  @@map("businesses")
+}
+
+model ServiceIntent {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  businessId         String    @map("business_id")
+  action             String    // view, tap_call, tap_directions, tap_website, tap_book
+  conversionFollowup Boolean?  @map("conversion_followup") // Did they actually book/visit?
+  followupAskedAt    DateTime? @map("followup_asked_at")
+  followupResponse   String?   @map("followup_response") // yes, no, not_yet
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([conversionFollowup])
+  @@map("service_intents")
+}
+
+// ============================================
+// BETA MVP: GAMIFICATION
+// ============================================
+
+model Gamification {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  points       Int      @default(0)
+  level        Int      @default(1)
+  badges       String[] // first_match, first_meetup, pack_leader, explorer, social_butterfly, etc
+  weeklyStreak Int      @default(0) @map("weekly_streak")
+  lastActiveAt DateTime @default(now()) @map("last_active_at")
+  streakStart  DateTime? @map("streak_start")
+  totalMeetups Int      @default(0) @map("total_meetups")
+  totalEvents  Int      @default(0) @map("total_events")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([points])
+  @@index([level])
+  @@index([weeklyStreak])
+  @@map("gamification")
+}
+
+model PointTransaction {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  points      Int      // Can be positive or negative
+  reason      String   // onboarding_complete, first_match, meetup_attended, badge_earned, etc
+  referenceId String?  @map("reference_id") // ID of related entity (meetup, event, etc)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([reason])
+  @@map("point_transactions")
+}
+
+// ============================================
+// BETA MVP: PROACTIVE FEATURES
+// ============================================
+
+model ProactiveNudge {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  targetUserId String?   @map("target_user_id")
+  type         String    // meetup, event, service, safety_reminder, feedback_request
+  payload      Json      // Context data specific to nudge type
+  sentVia      String    @default("push") @map("sent_via") // push, in_app, email
+  accepted     Boolean?  // null = pending/not_responded
+  respondedAt  DateTime? @map("responded_at")
+  sentAt       DateTime  @default(now()) @map("sent_at")
+
+  @@index([userId])
+  @@index([type])
+  @@index([sentAt])
+  @@index([accepted])
+  @@map("proactive_nudges")
+}
+
+model NudgeCooldown {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  targetUserId String?  @map("target_user_id")
+  nudgeType    String   @map("nudge_type")
+  cooldownUntil DateTime @map("cooldown_until")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, targetUserId, nudgeType])
+  @@index([userId])
+  @@index([cooldownUntil])
+  @@map("nudge_cooldowns")
+}
+
+// ============================================
+// BETA MVP: SAFETY & VERIFICATION
+// ============================================
+
+model SafetyVerification {
+  id               String    @id @default(uuid())
+  userId           String    @unique @map("user_id")
+  vaccineDocUrl    String?   @map("vaccine_doc_url")
+  vaccineVerified  Boolean   @default(false) @map("vaccine_verified")
+  vaccineExpiry    DateTime? @map("vaccine_expiry")
+  idDocUrl         String?   @map("id_doc_url")
+  idVerified       Boolean   @default(false) @map("id_verified")
+  trustedBadge     Boolean   @default(false) @map("trusted_badge")
+  verificationNotes String?  @map("verification_notes")
+  verifiedAt       DateTime? @map("verified_at")
+  verifiedBy       String?   @map("verified_by") // admin user ID
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([vaccineVerified])
+  @@index([trustedBadge])
+  @@map("safety_verifications")
+}
+
+model ReportFlag {
+  id           String   @id @default(uuid())
+  reporterId   String   @map("reporter_id")
+  reportedId   String   @map("reported_id")
+  reason       String   // inappropriate_behavior, safety_concern, spam, fake_profile, harassment
+  description  String?
+  evidence     String[] // URLs to screenshots, etc
+  status       String   @default("pending") // pending, reviewed, action_taken, dismissed
+  reviewedBy   String?  @map("reviewed_by")
+  reviewedAt   DateTime? @map("reviewed_at")
+  actionTaken  String?  @map("action_taken")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([reportedId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("report_flags")
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  blockedId String   @map("blocked_id")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, blockedId])
+  @@index([userId])
+  @@index([blockedId])
+  @@map("blocked_users")
+}
