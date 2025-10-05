@@ -10,6 +10,7 @@ import { ActivitiesModule } from './activities/activities.module';
 import { SocialModule } from './social/social.module';
 import { MeetupsModule } from './meetups/meetups.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
+import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CompatibilityModule } from './compatibility/compatibility.module';
     SocialModule,
     MeetupsModule,
     CompatibilityModule,
+    MeetupProposalsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
