@@ -108,6 +108,17 @@ export function useFeed(options?: UseQueryOptions<Post[]>) {
   });
 }
 
+export function usePost(postId: string, options?: UseQueryOptions<Post>) {
+  return useQuery<Post>({
+    queryKey: ['post', postId],
+    queryFn: async () => {
+      const response = await apiClient.get<any>(`/social/posts/${postId}`);
+      return transformBackendPost(response);
+    },
+    ...options,
+  });
+}
+
 export function useCreatePost(options?: UseMutationOptions<Post, Error, Partial<Post>>) {
   const queryClient = useQueryClient();
 
@@ -411,6 +422,45 @@ export function useUploadImage(options?: UseMutationOptions<{ url: string }, Err
       formData.append('file', file);
       return apiClient.upload<{ url: string }>('/upload/image', formData);
     },
+    ...options,
+  });
+}
+
+// Quiz Hooks
+export function useSubmitQuiz(options?: UseMutationOptions<any, Error, any>) {
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, any>({
+    mutationFn: async (quizSession) => {
+      const userId = useSessionStore.getState().user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      // Store quiz responses and generate ML feature vector
+      return apiClient.post<any>('/quiz/submit', {
+        ...quizSession,
+        userId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.userProfile(useSessionStore.getState().user?.id || '') });
+    },
+    ...options,
+  });
+}
+
+export function useGetMatches(options?: UseQueryOptions<any[]>) {
+  return useQuery<any[]>({
+    queryKey: ['matches'],
+    queryFn: () => apiClient.get<any[]>('/matches/suggested'),
+    ...options,
+  });
+}
+
+export function useRecordInteraction(options?: UseMutationOptions<any, Error, { targetUserId: string; action: 'like' | 'skip' | 'super_like' }>) {
+  return useMutation<any, Error, { targetUserId: string; action: 'like' | 'skip' | 'super_like' }>({
+    mutationFn: (data) => apiClient.post<any>('/matches/interact', data),
     ...options,
   });
 }
