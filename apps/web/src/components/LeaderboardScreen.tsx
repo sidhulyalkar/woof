@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Trophy, Medal, Award, Crown, Star, Zap, Target, Heart } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Trophy, Medal, Award, Crown, Star, Zap, Target, Heart, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
 
 const mockLeaderboards = {
   weekly: [
@@ -77,6 +78,7 @@ const achievements = [
 ];
 
 export function LeaderboardScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('weekly');
 
   const getRankIcon = (rank: number) => {
@@ -109,34 +111,40 @@ export function LeaderboardScreen() {
   };
 
   return (
-    <div className="bg-background min-h-screen overflow-y-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
       {/* Header */}
-      <div className="sticky top-0 z-50 glass-card border-b border-border/20 px-4 py-4">
-        <h1 className="text-2xl font-bold">Leaderboards</h1>
+      <div className="sticky top-0 z-50 backdrop-blur-2xl bg-white/90 border-b border-gray-200/40 px-6 py-4">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            Leaderboards
+          </h1>
+        </div>
       </div>
 
-      <div className="p-4 pb-24 space-y-6">
+      <div className="max-w-3xl mx-auto px-6 py-6 pb-24 space-y-6">
         {/* User's Current Rank */}
-        <div className="glass-card p-6 rounded-xl">
+        <div className="bg-white/80 backdrop-blur-xl border border-gray-200/60 p-6 rounded-3xl shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center">
-              <Trophy size={24} className="text-accent" />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+              <Trophy size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">Your Ranking</h3>
-              <p className="text-muted-foreground">#8 this week • #12 this month</p>
+              <h3 className="font-bold text-[17px] text-gray-900">Your Ranking</h3>
+              <p className="text-sm text-gray-600">#8 this week • #12 this month</p>
             </div>
             <div className="text-right">
-              <p className="text-xl font-bold text-accent">1,420 pts</p>
-              <p className="text-sm text-muted-foreground">+180 today</p>
+              <p className="text-xl font-bold text-blue-600">1,420 pts</p>
+              <p className="text-sm text-gray-500">+180 today</p>
             </div>
           </div>
           <div className="mt-4">
-            <div className="flex justify-between text-sm mb-2">
+            <div className="flex justify-between text-sm mb-2 text-gray-700">
               <span>To reach #7</span>
-              <span>65 pts needed</span>
+              <span className="font-medium">65 pts needed</span>
             </div>
-            <Progress value={85} className="h-2" />
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full" style={{ width: '85%' }}></div>
+            </div>
           </div>
         </div>
 
@@ -198,38 +206,35 @@ export function LeaderboardScreen() {
               {mockLeaderboards.weekly.slice(0, 3).map((entry, index) => (
                 <div
                   key={entry.rank}
-                  className={`relative overflow-hidden rounded-xl p-4 ${
-                    entry.rank === 1 ? 'bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30' :
-                    entry.rank === 2 ? 'bg-gradient-to-r from-gray-400/20 to-gray-500/20 border border-gray-400/30' :
-                    'bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30'
+                  className={`relative overflow-hidden rounded-3xl p-4 border cursor-pointer hover:shadow-lg transition-all duration-200 active:scale-[0.98] ${
+                    entry.rank === 1 ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-500/20 border-yellow-500/40' :
+                    entry.rank === 2 ? 'bg-gradient-to-r from-gray-300/20 to-gray-400/20 border-gray-400/40' :
+                    'bg-gradient-to-r from-amber-400/20 to-amber-500/20 border-amber-500/40'
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     {getRankIcon(entry.rank)}
-                    <Avatar className="w-14 h-14 ring-2 ring-accent/30">
-                      <AvatarImage src={entry.pet.avatar} />
-                      <AvatarFallback className="bg-accent/20">{entry.pet.name[0]}</AvatarFallback>
-                    </Avatar>
+                    <EmojiAvatar
+                      emoji={getEmojiForId(entry.pet.name, 'pet')}
+                      variant={getVariantForId(entry.pet.name)}
+                      size="lg"
+                    />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-lg">{entry.pet.name}</span>
-                        <Badge 
-                          variant="secondary" 
-                          className="text-xs bg-surface-elevated/50 border-accent/30"
-                        >
-                          {entry.pet.type}
-                        </Badge>
+                        <span className="font-bold text-[17px] text-gray-900">{entry.pet.name}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className="text-sm font-medium text-gray-600">{entry.pet.type}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">with {entry.owner}</p>
+                      <p className="text-sm text-gray-600">with {entry.owner}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-accent">{entry.distance}</p>
-                      <p className="text-sm text-muted-foreground">{entry.score} points</p>
+                      <p className="text-xl font-bold text-blue-600">{entry.distance}</p>
+                      <p className="text-sm text-gray-500">{entry.score} points</p>
                     </div>
                   </div>
                   {entry.rank === 1 && (
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                      <Star size={12} className="text-white" />
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                      <Star size={14} className="text-white fill-white" />
                     </div>
                   )}
                 </div>
