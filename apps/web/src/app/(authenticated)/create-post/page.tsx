@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Loader2, ArrowLeft, Link as LinkIcon, ImagePlus } from 'lucide-react';
+import { X, Loader2, ArrowLeft, Link as LinkIcon, ImagePlus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,14 @@ export default function CreatePostPage() {
   const router = useRouter();
   const { user, pets } = useSessionStore();
   const { showToast } = useUIStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [selectedPet, setSelectedPet] = useState<string | null>(pets[0]?.id || null);
   const [showImageInput, setShowImageInput] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const createPostMutation = useCreatePost({
     onSuccess: () => {
@@ -31,6 +34,36 @@ export default function CreatePostPage() {
     },
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    handleFiles(files);
+  };
+
+  const handleFiles = (files: File[]) => {
+    const validFiles = files.filter(file => {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB limit
+
+      if (!isImage && !isVideo) {
+        showToast({ message: 'Only images and videos are allowed', type: 'error' });
+        return false;
+      }
+      if (!isValidSize) {
+        showToast({ message: `${file.name} is too large (max 50MB)`, type: 'error' });
+        return false;
+      }
+      return true;
+    });
+
+    // Create preview URLs
+    validFiles.forEach(file => {
+      const url = URL.createObjectURL(file);
+      setImages(prev => [...prev, url]);
+      setImageFiles(prev => [...prev, file]);
+    });
+  };
+
   const handleAddImageUrl = () => {
     if (imageUrlInput.trim()) {
       setImages((prev) => [...prev, imageUrlInput.trim()]);
@@ -40,7 +73,12 @@ export default function CreatePostPage() {
   };
 
   const handleRemoveImage = (index: number) => {
+    // Revoke object URL if it's a blob
+    if (images[index].startsWith('blob:')) {
+      URL.revokeObjectURL(images[index]);
+    }
     setImages((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
@@ -203,16 +241,37 @@ export default function CreatePostPage() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setShowImageInput(true)}
-            className="w-full p-3 flex items-center justify-center gap-2 bg-muted/30 hover:bg-muted/50 border border-border/30 border-dashed rounded-xl transition-all duration-200 group"
-          >
-            <ImagePlus className="h-5 w-5 text-muted-foreground group-hover:text-violet-500 transition-colors" />
-            <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-              Add image URL
-            </span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 rounded-xl transition-all duration-200 group"
+            >
+              <Upload className="h-5 w-5 text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">
+                Upload File
+              </span>
+            </button>
+            <button
+              onClick={() => setShowImageInput(true)}
+              className="p-3 flex items-center justify-center gap-2 bg-muted/30 hover:bg-muted/50 border border-border/30 rounded-xl transition-all duration-200 group"
+            >
+              <LinkIcon className="h-5 w-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                Add URL
+              </span>
+            </button>
+          </div>
         )}
+
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
 
         {/* Bottom Spacing */}
         <div className="h-20" />
