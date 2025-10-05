@@ -16,6 +16,7 @@ import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { VerificationModule } from './verification/verification.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CoActivityModule } from './co-activity/co-activity.module';
     GamificationModule,
     VerificationModule,
     CoActivityModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
