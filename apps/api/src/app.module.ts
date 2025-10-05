@@ -12,6 +12,10 @@ import { MeetupsModule } from './meetups/meetups.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
 import { ServicesModule } from './services/services.module';
+import { EventsModule } from './events/events.module';
+import { GamificationModule } from './gamification/gamification.module';
+import { VerificationModule } from './verification/verification.module';
+import { CoActivityModule } from './co-activity/co-activity.module';
 
 @Module({
   imports: [
@@ -29,6 +33,10 @@ import { ServicesModule } from './services/services.module';
     CompatibilityModule,
     MeetupProposalsModule,
     ServicesModule,
+    EventsModule,
+    GamificationModule,
+    VerificationModule,
+    CoActivityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
