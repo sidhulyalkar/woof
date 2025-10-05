@@ -11,6 +11,7 @@ import { SocialModule } from './social/social.module';
 import { MeetupsModule } from './meetups/meetups.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
+import { ServicesModule } from './services/services.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.modul
     MeetupsModule,
     CompatibilityModule,
     MeetupProposalsModule,
+    ServicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
