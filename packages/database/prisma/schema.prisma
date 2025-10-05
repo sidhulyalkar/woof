@@ -42,6 +42,8 @@ model User {
   meetups            Meetup[]
   meetupInvites      MeetupInvite[]
   redeemedRewards    Reward[]
+  quizResponses      QuizResponse[]
+  featureVector      MLFeatureVector?
 
   @@map("users")
 }
@@ -344,4 +346,72 @@ model Telemetry {
   @@index([event])
   @@index([createdAt])
   @@map("telemetry")
+}
+
+// ============================================
+// ML & QUIZ SYSTEM
+// ============================================
+
+model QuizResponse {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  petId       String?  @map("pet_id")
+  sessionId   String   @map("session_id")
+  responses   Json     // Array of {questionId, answer, customAnswer, timestamp}
+  completedAt DateTime @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("quiz_responses")
+}
+
+model MLFeatureVector {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  petId     String?  @unique @map("pet_id")
+  features  Json     // MLFeatureVector.features object
+  timestamp DateTime @default(now())
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchesFrom UserInteraction[]    @relation("UserMLFeatures")
+  matchesTo   UserInteraction[]    @relation("TargetMLFeatures")
+
+  @@index([userId])
+  @@map("ml_feature_vectors")
+}
+
+model UserInteraction {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  targetUserId     String    @map("target_user_id")
+  action           String    // like, skip, super_like
+  matched          Boolean   @default(false)
+  meetupOccurred   Boolean   @default(false) @map("meetup_occurred")
+  meetupRating     Int?      @map("meetup_rating") // 1-5 stars
+  compatibilityScore Float?  @map("compatibility_score")
+  timestamp        DateTime  @default(now())
+
+  userFeatures   MLFeatureVector @relation("UserMLFeatures", fields: [userId], references: [userId], onDelete: Cascade)
+  targetFeatures MLFeatureVector @relation("TargetMLFeatures", fields: [targetUserId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([targetUserId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("user_interactions")
+}
+
+model MLTrainingData {
+  id          String   @id @default(uuid())
+  dataPoint   Json     // Complete MLTrainingDataPoint object
+  label       Float?   // Outcome score 0-1
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("ml_training_data")
 }
