@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { useLikePost, useComments, useCreateComment, useDeleteComment } from '@/lib/api/hooks';
 import { useUIStore } from '@/store/ui';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,10 +62,12 @@ export function PostCard({ post }: PostCardProps) {
       {/* Premium Instagram-Style Header */}
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
-          <EmojiAvatar
-            emoji={getEmojiForId(post.userId, 'user')}
-            variant={getVariantForId(post.userId)}
+          <ProfileAvatar
+            src={post.user.avatar || getPlaceholderAvatar(post.user.username, 'user')}
+            alt={post.user.username}
+            type="user"
             size="lg"
+            fallbackText={post.user.username.slice(0, 2).toUpperCase()}
           />
 
           <div className="flex flex-col">
