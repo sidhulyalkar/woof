@@ -1,6 +1,6 @@
 'use client';
 
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { Plus } from 'lucide-react';
 
 interface StoryCircleProps {
@@ -12,7 +12,7 @@ interface StoryCircleProps {
   onClick?: () => void;
 }
 
-export function StoryCircle({ id, username, hasStory = false, isOwn = false, onClick }: StoryCircleProps) {
+export function StoryCircle({ id, username, avatar, hasStory = false, isOwn = false, onClick }: StoryCircleProps) {
   const userId = id || username; // Use id if available, fallback to username
 
   return (
@@ -29,9 +29,10 @@ export function StoryCircle({ id, username, hasStory = false, isOwn = false, onC
           }`}
         >
           <div className="bg-white rounded-full p-[3px]">
-            <EmojiAvatar
-              emoji={getEmojiForId(userId, 'user')}
-              variant={getVariantForId(userId)}
+            <ProfileAvatar
+              type="user"
+              src={avatar || getPlaceholderAvatar(username, 'user')}
+              fallbackText={username.slice(0, 2).toUpperCase()}
               size="lg"
               className="ring-0"
             />

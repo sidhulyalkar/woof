@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Send, Image as ImageIcon, Smile, MoreVertical } from 'lucide-react';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -76,9 +76,10 @@ export default function ConversationPage({ params }: { params: { id: string } })
             </button>
 
             <div className="flex items-center gap-3">
-              <EmojiAvatar
-                emoji={getEmojiForId(mockConversation.user.id, 'user')}
-                variant={getVariantForId(mockConversation.user.id)}
+              <ProfileAvatar
+                type="user"
+                src={getPlaceholderAvatar(mockConversation.user.name, 'user')}
+                fallbackText={mockConversation.user.name.slice(0, 2).toUpperCase()}
                 size="md"
               />
               <div>
@@ -104,9 +105,10 @@ export default function ConversationPage({ params }: { params: { id: string } })
             >
               <div className={`flex gap-2 max-w-[75%] ${msg.isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                 {!msg.isOwn && (
-                  <EmojiAvatar
-                    emoji={getEmojiForId(mockConversation.user.id, 'user')}
-                    variant={getVariantForId(mockConversation.user.id)}
+                  <ProfileAvatar
+                    type="user"
+                    src={getPlaceholderAvatar(mockConversation.user.name, 'user')}
+                    fallbackText={mockConversation.user.name.slice(0, 2).toUpperCase()}
                     size="sm"
                     className="shrink-0"
                   />

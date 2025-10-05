@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Send, Loader2 } from 'lucide-react';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { useSessionStore } from '@/store/session';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -74,9 +74,10 @@ export function CommentSection({
         <div className="space-y-3">
           {comments.map((comment) => (
             <div key={comment.id} className="flex gap-3 group">
-              <EmojiAvatar
-                emoji={getEmojiForId(comment.authorUserId, 'user')}
-                variant={getVariantForId(comment.authorUserId)}
+              <ProfileAvatar
+                type="user"
+                src={comment.author?.avatar || getPlaceholderAvatar(comment.author?.username || 'Anonymous', 'user')}
+                fallbackText={(comment.author?.username || 'Anonymous').slice(0, 2).toUpperCase()}
                 size="sm"
               />
 
@@ -110,9 +111,10 @@ export function CommentSection({
 
       {/* Premium Comment Input */}
       <form onSubmit={handleSubmit} className="flex gap-3 pt-3 border-t border-gray-100">
-        <EmojiAvatar
-          emoji={getEmojiForId(user?.id || '', 'user')}
-          variant={getVariantForId(user?.id || '')}
+        <ProfileAvatar
+          type="user"
+          src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
+          fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
           size="sm"
         />
 

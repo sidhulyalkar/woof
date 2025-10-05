@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 const mockLeaderboards = {
   weekly: [
@@ -214,9 +215,10 @@ export function LeaderboardScreen() {
                 >
                   <div className="flex items-center gap-4">
                     {getRankIcon(entry.rank)}
-                    <EmojiAvatar
-                      emoji={getEmojiForId(entry.pet.name, 'pet')}
-                      variant={getVariantForId(entry.pet.name)}
+                    <ProfileAvatar
+                      type="pet"
+                      src={entry.pet.avatar || getPlaceholderAvatar(entry.pet.name, 'pet')}
+                      fallbackText={entry.pet.name.slice(0, 2).toUpperCase()}
                       size="lg"
                     />
                     <div className="flex-1">

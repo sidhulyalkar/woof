@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useCreatePost } from '@/lib/api/hooks';
 import { useSessionStore } from '@/store/session';
 import { useUIStore } from '@/store/ui';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 
 export default function CreatePostPage() {
   const router = useRouter();
@@ -92,9 +92,10 @@ export default function CreatePostPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {/* User Info */}
         <div className="flex items-start gap-3">
-          <EmojiAvatar
-            emoji={getEmojiForId(user?.id || '', 'user')}
-            variant={getVariantForId(user?.id || '')}
+          <ProfileAvatar
+            type="user"
+            src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
+            fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
             size="lg"
           />
           <div className="flex-1 space-y-1">

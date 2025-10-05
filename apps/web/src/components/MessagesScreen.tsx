@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { EmojiAvatar, getEmojiForId, getVariantForId } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 
 const mockConversations = [
   {
@@ -140,9 +140,10 @@ export function MessagesScreen() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <EmojiAvatar
-                        emoji={getEmojiForId(conversation.user.name, 'user')}
-                        variant={getVariantForId(conversation.user.name)}
+                      <ProfileAvatar
+                        type="user"
+                        src={conversation.user.avatar || getPlaceholderAvatar(conversation.user.name, 'user')}
+                        fallbackText={conversation.user.name.slice(0, 2).toUpperCase()}
                         size="lg"
                       />
                       {conversation.online && (
@@ -193,9 +194,10 @@ export function MessagesScreen() {
                 {mockFriendRequests.map((request) => (
                   <div key={request.id} className="bg-white/80 backdrop-blur-xl border border-gray-200/60 p-4 rounded-3xl">
                     <div className="flex items-center gap-4">
-                      <EmojiAvatar
-                        emoji={getEmojiForId(request.user.name, 'user')}
-                        variant={getVariantForId(request.user.name)}
+                      <ProfileAvatar
+                        type="user"
+                        src={request.user.avatar || getPlaceholderAvatar(request.user.name, 'user')}
+                        fallbackText={request.user.name.slice(0, 2).toUpperCase()}
                         size="lg"
                       />
                       <div className="flex-1 min-w-0">

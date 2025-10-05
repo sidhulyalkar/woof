@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Settings, MapPin, Calendar, Award, Camera, MessageCircle, Plus, Loader2 } from 'lucide-react';
-import { EmojiAvatar, getEmojiForId, getVariantForId, petEmojis } from '@/components/ui/EmojiAvatar';
+import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSessionStore } from '@/store/session';
 import { useFeed } from '@/lib/api/hooks';
@@ -45,14 +45,15 @@ export function ProfileScreen() {
 
       <div className="pb-20">
         <div className="max-w-2xl mx-auto">
-          {/* Profile Header - Premium Glass Style with EmojiAvatar */}
+          {/* Profile Header - Premium Glass Style with ProfileAvatar */}
           <div className="mt-3 mx-4 bg-white/90 backdrop-blur-xl border border-gray-200/40 rounded-3xl shadow-lg p-6">
           <div className="flex items-start gap-4">
-            {/* EmojiAvatar */}
+            {/* ProfileAvatar */}
             <div className="relative">
-              <EmojiAvatar
-                emoji={getEmojiForId(user?.id || '', 'user')}
-                variant={getVariantForId(user?.id || '')}
+              <ProfileAvatar
+                type="user"
+                src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
+                fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
                 size="2xl"
               />
               <button className="absolute bottom-0 right-0 w-7 h-7 flex items-center justify-center bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-full shadow-md transition-all active:scale-95">
@@ -164,9 +165,10 @@ export function ProfileScreen() {
                       key={pet.id}
                       className={`px-4 py-4 flex items-start gap-3 ${index !== pets.length - 1 ? 'border-b border-gray-100' : ''}`}
                     >
-                      <EmojiAvatar
-                        emoji={getEmojiForId(pet.id, 'pet')}
-                        variant={getVariantForId(pet.id)}
+                      <ProfileAvatar
+                        type="pet"
+                        src={pet.avatar || getPlaceholderAvatar(pet.name, 'pet')}
+                        fallbackText={pet.name.slice(0, 2).toUpperCase()}
                         size="lg"
                       />
                       <div className="flex-1 min-w-0">
