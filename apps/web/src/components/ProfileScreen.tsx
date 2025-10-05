@@ -9,11 +9,13 @@ import { useFeed } from '@/lib/api/hooks';
 import { PostCard } from '@/components/feed/PostCard';
 import { useUIStore } from '@/store/ui';
 import { formatDistanceToNow } from 'date-fns';
+import { AddPetModal } from '@/components/profile/AddPetModal';
 
 export function ProfileScreen() {
   const { user, pets } = useSessionStore();
   const { showToast } = useUIStore();
   const [activeTab, setActiveTab] = useState('posts');
+  const [showAddPetModal, setShowAddPetModal] = useState(false);
 
   // Get user's posts (we'll filter by user ID later)
   const { data: allPosts, isLoading } = useFeed();
@@ -24,7 +26,7 @@ export function ProfileScreen() {
   };
 
   const handleAddPet = () => {
-    showToast({ message: 'Pet creation coming soon!', type: 'info' });
+    setShowAddPetModal(true);
   };
 
   return (
@@ -234,6 +236,9 @@ export function ProfileScreen() {
           </div>
         </div>
       </div>
+
+      {/* Add Pet Modal */}
+      <AddPetModal isOpen={showAddPetModal} onClose={() => setShowAddPetModal(false)} />
     </div>
   );
 }
