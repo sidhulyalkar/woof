@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { useLikePost, useComments, useCreateComment, useDeleteComment } from '@/lib/api/hooks';
@@ -14,6 +15,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post }: PostCardProps) {
+  const router = useRouter();
   const { showToast } = useUIStore();
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes);
@@ -100,18 +102,21 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       )}
 
-      {/* Images - Figma Style: Edge-to-edge */}
+      {/* Images - Figma Style: Edge-to-edge, Clickable */}
       {post.images && post.images.length > 0 && (
-        <div className={`grid gap-0.5 ${
-          post.images.length === 1 ? 'grid-cols-1' :
-          post.images.length === 2 ? 'grid-cols-2' :
-          post.images.length === 3 ? 'grid-cols-2' : 'grid-cols-2'
-        }`}>
+        <div
+          onClick={() => router.push(`/posts/${post.id}`)}
+          className={`grid gap-0.5 cursor-pointer ${
+            post.images.length === 1 ? 'grid-cols-1' :
+            post.images.length === 2 ? 'grid-cols-2' :
+            post.images.length === 3 ? 'grid-cols-2' : 'grid-cols-2'
+          }`}
+        >
           {post.images.slice(0, 4).map((image, index) => (
             <div
               key={index}
               className={`relative bg-gray-100 overflow-hidden ${
-                post.images!.length === 1 ? 'aspect-video' : 'aspect-square'
+                post.images!.length === 1 ? 'aspect-square' : 'aspect-square'
               } ${
                 post.images!.length === 3 && index === 0 ? 'col-span-2 aspect-video' : ''
               }`}
@@ -119,7 +124,7 @@ export function PostCard({ post }: PostCardProps) {
               <img
                 src={image}
                 alt={`Post image ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
               />
               {index === 3 && post.images!.length > 4 && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
