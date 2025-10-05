@@ -1,20 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, MapPin, Timer, Footprints, Flame, Heart, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Play, Pause, Square, MapPin, Timer, Footprints, Flame, Heart, TrendingUp, Share2, X } from 'lucide-react';
 import { useSessionStore } from '@/store/session';
-import { useActivities, useCreateActivity, useUpdateActivity } from '@/lib/api/hooks';
+import { useActivities, useCreateActivity, useUpdateActivity, useCreatePost } from '@/lib/api/hooks';
 import { useUIStore } from '@/store/ui';
 import { formatDistanceToNow } from 'date-fns';
 
 type ActivityType = 'WALK' | 'RUN' | 'PLAY' | 'HIKE';
 
 export function ActivityScreen() {
+  const router = useRouter();
   const { user, pets } = useSessionStore();
   const { showToast } = useUIStore();
   const { data: activities, isLoading } = useActivities();
   const createActivity = useCreateActivity();
   const updateActivity = useUpdateActivity();
+  const createPost = useCreatePost();
 
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -22,6 +25,8 @@ export function ActivityScreen() {
   const [selectedPet, setSelectedPet] = useState<string | null>(pets[0]?.id || null);
   const [currentActivityId, setCurrentActivityId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [completedActivity, setCompletedActivity] = useState<any>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,7 +85,7 @@ export function ActivityScreen() {
     if (!currentActivityId || !startTime) return;
 
     try {
-      await updateActivity.mutateAsync({
+      const updatedActivity = await updateActivity.mutateAsync({
         id: currentActivityId,
         data: {
           endedAt: new Date().toISOString(),
@@ -96,10 +101,14 @@ export function ActivityScreen() {
         },
       });
 
-      showToast({
-        message: `Activity saved! ${currentStats.distance.toFixed(1)}km in ${Math.floor(currentStats.duration / 60)}min`,
-        type: 'success'
+      // Store completed activity data for sharing
+      setCompletedActivity({
+        id: currentActivityId,
+        type: selectedActivityType,
+        stats: currentStats,
+        petId: selectedPet,
       });
+      setShowShareDialog(true);
 
       setIsTracking(false);
       setIsPaused(false);
@@ -109,6 +118,36 @@ export function ActivityScreen() {
     } catch (error) {
       showToast({ message: 'Failed to save activity', type: 'error' });
     }
+  };
+
+  const handleShareActivity = async () => {
+    if (!completedActivity || !user) return;
+
+    const pet = pets.find(p => p.id === completedActivity.petId);
+    const petName = pet ? ` with ${pet.name}` : '';
+    const duration = Math.floor(completedActivity.stats.duration / 60);
+    const distance = completedActivity.stats.distance.toFixed(1);
+
+    try {
+      await createPost.mutateAsync({
+        content: `Just completed a ${completedActivity.type.toLowerCase()}${petName}! 🎉\n\n📍 ${distance}km in ${duration} minutes\n🔥 ${completedActivity.stats.calories} calories burned\n👟 ${completedActivity.stats.steps} steps`,
+        petId: completedActivity.petId || undefined,
+        activityId: completedActivity.id,
+      });
+
+      showToast({ message: 'Activity shared to feed!', type: 'success' });
+      setShowShareDialog(false);
+      setCompletedActivity(null);
+      router.push('/');
+    } catch (error) {
+      showToast({ message: 'Failed to share activity', type: 'error' });
+    }
+  };
+
+  const handleSkipShare = () => {
+    showToast({ message: 'Activity saved!', type: 'success' });
+    setShowShareDialog(false);
+    setCompletedActivity(null);
   };
 
   const activityTypes: { type: ActivityType; icon: any; label: string; color: string }[] = [
@@ -301,6 +340,72 @@ export function ActivityScreen() {
           </div>
         </div>
       </main>
+
+      {/* Share Activity Dialog */}
+      {showShareDialog && completedActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Activity Completed! 🎉</h3>
+              <button
+                onClick={handleSkipShare}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Stats Summary */}
+            <div className="px-6 py-6 bg-gradient-to-br from-blue-50 to-indigo-50">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {completedActivity.stats.distance.toFixed(1)}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">km</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Math.floor(completedActivity.stats.duration / 60)}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">min</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {completedActivity.stats.calories}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">cal</div>
+                </div>
+              </div>
+              <p className="text-sm text-center text-gray-700">
+                Great {completedActivity.type.toLowerCase()}
+                {completedActivity.petId && pets.find(p => p.id === completedActivity.petId)
+                  ? ` with ${pets.find(p => p.id === completedActivity.petId)?.name}`
+                  : ''}!
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 py-5 space-y-3">
+              <button
+                onClick={handleShareActivity}
+                disabled={createPost.isPending}
+                className="w-full py-3.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Share2 className="h-5 w-5" />
+                Share to Feed
+              </button>
+              <button
+                onClick={handleSkipShare}
+                className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors"
+              >
+                Skip for Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
