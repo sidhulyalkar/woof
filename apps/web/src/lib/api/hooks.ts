@@ -280,6 +280,18 @@ export function useCreateActivity(options?: UseMutationOptions<Activity, Error, 
   });
 }
 
+export function useUpdateActivity(options?: UseMutationOptions<Activity, Error, { id: string; data: Partial<Activity> }>) {
+  const queryClient = useQueryClient();
+
+  return useMutation<Activity, Error, { id: string; data: Partial<Activity> }>({
+    mutationFn: ({ id, data }) => apiClient.put<Activity>(`/activities/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.activities });
+    },
+    ...options,
+  });
+}
+
 // Leaderboard Hooks
 export function useLeaderboard(
   timeframe: 'weekly' | 'monthly' = 'weekly',
@@ -305,6 +317,35 @@ export function usePetProfile(petId: string, options?: UseQueryOptions<any>) {
   return useQuery<any>({
     queryKey: queryKeys.petProfile(petId),
     queryFn: () => apiClient.get<any>(`/pets/${petId}`),
+    ...options,
+  });
+}
+
+export function useCreatePet(options?: UseMutationOptions<any, Error, Partial<any>>) {
+  const queryClient = useQueryClient();
+
+  return useMutation<any, Error, Partial<any>>({
+    mutationFn: async (data) => {
+      const userId = useSessionStore.getState().user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      const payload = {
+        ...data,
+        owner: { connect: { id: userId } }
+      };
+
+      return apiClient.post<any>('/pets', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+      // Refresh session to update pets list
+      const refreshSession = useSessionStore.getState().refreshSession;
+      if (refreshSession) {
+        refreshSession();
+      }
+    },
     ...options,
   });
 }
