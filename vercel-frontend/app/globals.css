@@ -1,0 +1,123 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Galaxy Dark theme colors for PetPath */
+:root {
+  /* Galaxy Dark - Deep space backgrounds */
+  --background: #0a0e27;
+  --foreground: #e2e8f0;
+
+  /* Cards with glass morphism effect */
+  --card: #1a1f3a;
+  --card-foreground: #e2e8f0;
+
+  /* Popovers and dropdowns */
+  --popover: #1a1f3a;
+  --popover-foreground: #e2e8f0;
+
+  /* Primary - Nebula teal accent */
+  --primary: #00d9ff;
+  --primary-foreground: #0a0e27;
+
+  /* Secondary - Stardust purple */
+  --secondary: #a78bfa;
+  --secondary-foreground: #0a0e27;
+
+  /* Muted elements */
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  /* Accent - Comet orange */
+  --accent: #ff6b35;
+  --accent-foreground: #0a0e27;
+
+  /* Destructive states */
+  --destructive: #ef4444;
+  --destructive-foreground: #fef2f2;
+
+  /* Borders and inputs */
+  --border: #334155;
+  --input: #1e293b;
+  --ring: #00d9ff;
+
+  /* Chart colors */
+  --chart-1: #00d9ff;
+  --chart-2: #a78bfa;
+  --chart-3: #ff6b35;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
+
+  /* Border radius */
+  --radius: 0.75rem;
+
+  /* Sidebar colors */
+  --sidebar: #1a1f3a;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #00d9ff;
+  --sidebar-primary-foreground: #0a0e27;
+  --sidebar-accent: #a78bfa;
+  --sidebar-accent-foreground: #0a0e27;
+  --sidebar-border: #334155;
+  --sidebar-ring: #00d9ff;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Glass morphism utility classes */
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .glass-strong {
+    @apply bg-card/90 backdrop-blur-2xl border border-border/60;
+  }
+}
