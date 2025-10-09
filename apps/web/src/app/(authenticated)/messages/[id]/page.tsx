@@ -23,7 +23,7 @@ const mockConversation = {
     {
       id: 2,
       senderId: 'current-user',
-      text: 'That's awesome! How did she do with the weave poles?',
+      text: "That's awesome! How did she do with the weave poles?",
       timestamp: '10:34 AM',
       isOwn: true,
     },

@@ -1,286 +1,59 @@
-/**
- * PetPath Onboarding Quiz Questions
- * Comprehensive questions for matching algorithm
- */
-
-import { QuizQuestion } from '@/types/quiz';
-
-export const QUIZ_QUESTIONS: QuizQuestion[] = [
-  // Pet Personality Section
-  {
-    id: 'pet_energy_level',
-    category: 'pet_personality',
-    type: 'scale',
-    question: "What's your pet's energy level?",
-    description: 'Help us understand how active your pet is',
-    required: true,
-    scaleRange: {
-      min: 1,
-      max: 10,
-      minLabel: 'Couch potato',
-      maxLabel: 'Non-stop energy',
-    },
-    mlWeight: 0.95,
-  },
-  {
-    id: 'pet_temperament',
-    category: 'pet_personality',
-    type: 'multiple_choice',
-    question: "How would you describe your pet's temperament?",
-    required: true,
-    allowCustom: true,
-    options: [
-      { id: 'calm', label: 'Calm & Relaxed', value: 'calm', weight: 1 },
-      { id: 'playful', label: 'Playful & Energetic', value: 'playful', weight: 2 },
-      { id: 'shy', label: 'Shy & Reserved', value: 'shy', weight: 0.5 },
-      { id: 'confident', label: 'Confident & Bold', value: 'confident', weight: 1.5 },
-      { id: 'anxious', label: 'Anxious & Cautious', value: 'anxious', weight: 0.3 },
-      { id: 'friendly', label: 'Friendly & Outgoing', value: 'friendly', weight: 2 },
-    ],
-    mlWeight: 0.9,
-  },
-  {
-    id: 'pet_play_style',
-    category: 'pet_behavior',
-    type: 'multiple_select',
-    question: "What's your pet's play style? (Select all that apply)",
-    required: true,
-    allowCustom: true,
-    options: [
-      { id: 'chase', label: 'Loves to chase', value: 'chase' },
-      { id: 'fetch', label: 'Plays fetch', value: 'fetch' },
-      { id: 'tug', label: 'Tug-of-war', value: 'tug' },
-      { id: 'wrestling', label: 'Wrestling with other pets', value: 'wrestling' },
-      { id: 'gentle', label: 'Gentle, low-intensity play', value: 'gentle' },
-      { id: 'water', label: 'Loves water play', value: 'water' },
-      { id: 'independent', label: 'Prefers solo play', value: 'independent' },
-    ],
-    mlWeight: 0.85,
-  },
-
-  // Socialization Section
-  {
-    id: 'pet_dog_socialization',
-    category: 'socialization',
-    type: 'scale',
-    question: 'How comfortable is your pet around other dogs?',
-    required: true,
-    scaleRange: {
-      min: 1,
-      max: 10,
-      minLabel: 'Not comfortable',
-      maxLabel: 'Loves all dogs',
-    },
-    mlWeight: 0.95,
-  },
-  {
-    id: 'pet_human_socialization',
-    category: 'socialization',
-    type: 'scale',
-    question: 'How comfortable is your pet around new people?',
-    required: true,
-    scaleRange: {
-      min: 1,
-      max: 10,
-      minLabel: 'Very shy',
-      maxLabel: 'Loves everyone',
-    },
-    mlWeight: 0.7,
-  },
-  {
-    id: 'preferred_group_size',
-    category: 'socialization',
-    type: 'multiple_choice',
-    question: 'What group size does your pet prefer for playdates?',
-    required: true,
-    options: [
-      { id: 'one_on_one', label: 'One-on-one (just one other pet)', value: 'one_on_one', weight: 1 },
-      { id: 'small', label: 'Small group (2-3 pets)', value: 'small', weight: 1.2 },
-      { id: 'medium', label: 'Medium group (4-6 pets)', value: 'medium', weight: 1.5 },
-      { id: 'large', label: 'Large group (7+ pets)', value: 'large', weight: 2 },
-      { id: 'varies', label: 'Depends on the day', value: 'varies', weight: 1 },
-    ],
-    mlWeight: 0.8,
-  },
-
-  // Activity Level Section
-  {
-    id: 'walk_frequency',
-    category: 'activity_level',
-    type: 'multiple_choice',
-    question: 'How often do you walk your pet?',
-    required: true,
-    options: [
-      { id: 'daily_multiple', label: 'Multiple times per day', value: '3+', weight: 3 },
-      { id: 'daily_once', label: 'Once per day', value: '1', weight: 1 },
-      { id: 'few_per_week', label: '3-5 times per week', value: '4', weight: 0.7 },
-      { id: 'weekly', label: '1-2 times per week', value: '1.5', weight: 0.3 },
-      { id: 'rarely', label: 'Rarely', value: '0.5', weight: 0.1 },
-    ],
-    mlWeight: 0.9,
-  },
-  {
-    id: 'walk_duration',
-    category: 'activity_level',
-    type: 'multiple_choice',
-    question: 'How long are your typical walks?',
-    required: true,
-    options: [
-      { id: 'short', label: 'Short (< 15 min)', value: '10', weight: 0.3 },
-      { id: 'medium', label: 'Medium (15-30 min)', value: '22', weight: 0.7 },
-      { id: 'long', label: 'Long (30-60 min)', value: '45', weight: 1.2 },
-      { id: 'very_long', label: 'Very long (1+ hour)', value: '75', weight: 2 },
-    ],
-    mlWeight: 0.85,
-  },
-  {
-    id: 'preferred_activities',
-    category: 'activity_level',
-    type: 'multiple_select',
-    question: 'What activities do you enjoy with your pet? (Select all that apply)',
-    required: true,
-    allowCustom: true,
-    options: [
-      { id: 'walking', label: 'Walking', value: 'walking' },
-      { id: 'running', label: 'Running/Jogging', value: 'running' },
-      { id: 'hiking', label: 'Hiking', value: 'hiking' },
-      { id: 'park', label: 'Dog park visits', value: 'park' },
-      { id: 'beach', label: 'Beach trips', value: 'beach' },
-      { id: 'swimming', label: 'Swimming', value: 'swimming' },
-      { id: 'agility', label: 'Agility/Training', value: 'agility' },
-      { id: 'cafe', label: 'Pet-friendly cafes', value: 'cafe' },
-    ],
-    mlWeight: 0.8,
-  },
-
-  // Owner Lifestyle Section
-  {
-    id: 'preferred_times',
-    category: 'owner_lifestyle',
-    type: 'multiple_select',
-    question: 'When do you usually walk/exercise your pet?',
-    required: true,
-    options: [
-      { id: 'early_morning', label: 'Early morning (6-8am)', value: 'early_morning' },
-      { id: 'morning', label: 'Morning (8-11am)', value: 'morning' },
-      { id: 'midday', label: 'Midday (11am-2pm)', value: 'midday' },
-      { id: 'afternoon', label: 'Afternoon (2-5pm)', value: 'afternoon' },
-      { id: 'evening', label: 'Evening (5-8pm)', value: 'evening' },
-      { id: 'night', label: 'Night (after 8pm)', value: 'night' },
-    ],
-    mlWeight: 0.75,
-  },
-  {
-    id: 'experience_level',
-    category: 'owner_lifestyle',
-    type: 'multiple_choice',
-    question: "What's your experience level as a pet owner?",
-    required: true,
-    options: [
-      { id: 'first_time', label: 'First-time owner', value: '1', weight: 1 },
-      { id: 'some', label: 'Some experience (1-2 pets)', value: '2', weight: 1.2 },
-      { id: 'experienced', label: 'Experienced (3-5 pets)', value: '3', weight: 1.5 },
-      { id: 'very_experienced', label: 'Very experienced (6+ pets)', value: '4', weight: 2 },
-      { id: 'professional', label: 'Professional (trainer/vet/etc)', value: '5', weight: 2.5 },
-    ],
-    mlWeight: 0.6,
-  },
-  {
-    id: 'travel_distance',
-    category: 'owner_lifestyle',
-    type: 'multiple_choice',
-    question: 'How far are you willing to travel for a playdate?',
-    required: true,
-    options: [
-      { id: 'very_close', label: 'Walking distance (< 1km)', value: '0.5', weight: 0.5 },
-      { id: 'close', label: 'Close by (1-3km)', value: '2', weight: 1 },
-      { id: 'moderate', label: 'Moderate (3-5km)', value: '4', weight: 1.2 },
-      { id: 'far', label: 'Will travel (5-10km)', value: '7.5', weight: 1.5 },
-      { id: 'anywhere', label: 'Anywhere in the city (10km+)', value: '15', weight: 2 },
-    ],
-    mlWeight: 0.7,
-  },
-
-  // Preferences Section
-  {
-    id: 'environment_preference',
-    category: 'preferences',
-    type: 'multiple_select',
-    question: 'What environments does your pet enjoy? (Select all that apply)',
-    required: true,
-    allowCustom: true,
-    options: [
-      { id: 'urban_park', label: 'Urban parks', value: 'urban_park' },
-      { id: 'nature_trail', label: 'Nature trails', value: 'nature_trail' },
-      { id: 'beach', label: 'Beach', value: 'beach' },
-      { id: 'dog_park', label: 'Enclosed dog parks', value: 'dog_park' },
-      { id: 'quiet_area', label: 'Quiet residential areas', value: 'quiet_area' },
-      { id: 'busy_area', label: 'Busy, stimulating areas', value: 'busy_area' },
-    ],
-    mlWeight: 0.65,
-  },
-  {
-    id: 'training_interest',
-    category: 'preferences',
-    type: 'scale',
-    question: 'How interested are you in training/skill development?',
-    required: true,
-    scaleRange: {
-      min: 1,
-      max: 10,
-      minLabel: 'Just for fun',
-      maxLabel: 'Very serious about training',
-    },
-    mlWeight: 0.5,
-  },
-  {
-    id: 'meetup_goals',
-    category: 'preferences',
-    type: 'multiple_select',
-    question: 'What are your goals for meetups? (Select all that apply)',
-    required: true,
-    allowCustom: true,
-    options: [
-      { id: 'socialization', label: 'Pet socialization', value: 'socialization' },
-      { id: 'exercise', label: 'Exercise and fitness', value: 'exercise' },
-      { id: 'community', label: 'Build community connections', value: 'community' },
-      { id: 'training', label: 'Training opportunities', value: 'training' },
-      { id: 'fun', label: 'Just for fun!', value: 'fun' },
-      { id: 'advice', label: 'Get/share pet care advice', value: 'advice' },
-    ],
-    mlWeight: 0.7,
-  },
-];
-
 export const QUIZ_SECTIONS = [
   {
-    id: 'pet_personality',
-    title: 'Pet Personality',
-    description: "Let's learn about your pet's unique personality",
-    icon: '🐾',
+    id: 'schedule',
+    title: 'Schedule',
+    icon: 'calendar'
   },
   {
-    id: 'socialization',
-    title: 'Socialization',
-    description: 'How does your pet interact with others?',
-    icon: '🤝',
-  },
-  {
-    id: 'activity_level',
+    id: 'activity',
     title: 'Activity Level',
-    description: 'Tell us about your exercise routine',
-    icon: '🏃',
+    icon: 'activity'
   },
   {
-    id: 'owner_lifestyle',
-    title: 'Your Lifestyle',
-    description: 'Help us understand your schedule and preferences',
-    icon: '📅',
-  },
-  {
-    id: 'preferences',
-    title: 'Preferences',
-    description: 'What are you looking for in playdates?',
-    icon: '⭐',
-  },
+    id: 'interests',
+    title: 'Interests',
+    icon: 'heart'
+  }
 ];
+
+export const QUIZ_QUESTIONS = [
+  {
+    id: 1,
+    sectionId: 'schedule',
+    question: "What is your typical daily schedule?",
+    type: "multiple-choice",
+    options: [
+      "Early mornings (5-8 AM)",
+      "Mid-day (10 AM - 2 PM)",
+      "Evenings (5-8 PM)",
+      "Flexible throughout the day"
+    ]
+  },
+  {
+    id: 2,
+    sectionId: 'activity',
+    question: "How active are you with your pet?",
+    type: "multiple-choice",
+    options: [
+      "Very active - multiple long sessions daily",
+      "Moderately active - regular walks and playtime",
+      "Lightly active - short walks and indoor play",
+      "Varies based on mood and weather"
+    ]
+  },
+  {
+    id: 3,
+    sectionId: 'interests',
+    question: "What activities do you enjoy?",
+    type: "multi-select",
+    options: [
+      "Hiking and outdoor adventures",
+      "Dog parks and socialization",
+      "Training and obedience",
+      "Beach or water activities"
+    ]
+  }
+];
+
+// Keep backward compatibility
+export const quizQuestions = QUIZ_QUESTIONS;
