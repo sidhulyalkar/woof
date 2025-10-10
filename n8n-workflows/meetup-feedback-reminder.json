@@ -1,0 +1,148 @@
+{
+  "name": "Meetup Feedback Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:4000/api/v1/meetups?datetime[lte]={{$now}}&datetime[gte]={{$now.minus(2, 'hours')}}&status=pending",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-recent-meetups",
+      "name": "Get Recent Completed Meetups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-meetups",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$json.proposerId}}\",\n  \"title\": \"How was your meetup?\",\n  \"body\": \"Did your meetup happen? Please provide feedback!\",\n  \"url\": \"/meetups/{{$json.id}}/feedback\",\n  \"data\": {\n    \"type\": \"meetup_feedback\",\n    \"meetupId\": \"{{$json.id}}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "notify-proposer",
+      "name": "Notify Proposer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$json.proposeeId}}\",\n  \"title\": \"How was your meetup?\",\n  \"body\": \"Did your meetup happen? Please provide feedback!\",\n  \"url\": \"/meetups/{{$json.id}}/feedback\",\n  \"data\": {\n    \"type\": \"meetup_feedback\",\n    \"meetupId\": \"{{$json.id}}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "notify-proposee",
+      "name": "Notify Proposee",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Completed Meetups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Completed Meetups": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Notify Proposer",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Proposee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Proposer": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Proposee": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "meetup-feedback-reminder",
+  "meta": {
+    "instanceId": "woof-n8n"
+  },
+  "tags": []
+}

@@ -1,0 +1,153 @@
+{
+  "name": "Service Booking 24h Follow-up",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "service-booking-followup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "unit": "hours",
+        "amount": 24
+      },
+      "id": "wait-24h",
+      "name": "Wait 24 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "webhookId": "webhook-trigger"
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:4000/api/v1/services/intent/{{$json.intentId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "check-conversion",
+      "name": "Check Conversion Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.conversionFollowup}}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "if-not-converted",
+      "name": "If Not Converted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$node['Webhook Trigger'].json.userId}}\",\n  \"title\": \"Did you book {{$node['Webhook Trigger'].json.serviceName}}?\",\n  \"body\": \"Let us know if you completed your booking! Your feedback helps us improve.\",\n  \"url\": \"/services/{{$node['Webhook Trigger'].json.serviceId}}\",\n  \"data\": {\n    \"type\": \"service_followup\",\n    \"intentId\": \"{{$node['Webhook Trigger'].json.intentId}}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "send-followup-notification",
+      "name": "Send Follow-up Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Wait 24 Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 24 Hours": {
+      "main": [
+        [
+          {
+            "node": "Check Conversion Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Conversion Status": {
+      "main": [
+        [
+          {
+            "node": "If Not Converted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Not Converted": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Follow-up Notification": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "service-booking-followup",
+  "meta": {
+    "instanceId": "woof-n8n"
+  },
+  "tags": []
+}

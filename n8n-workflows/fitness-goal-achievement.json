@@ -1,0 +1,223 @@
+{
+  "name": "Fitness Goal Achievement Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily at 9 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/users?hasActiveGoals=true",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-users-with-goals",
+      "name": "Get Users With Active Goals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-users",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:4000/api/v1/activities?userId={{$json.id}}&startDate={{$now.startOf('week')}}&endDate={{$now}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-weekly-activities",
+      "name": "Get Weekly Activities",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calculate weekly progress\nconst user = $node['Split Into Batches'].json;\nconst activities = $json;\n\n// Sum up activity metrics\nconst totalDistance = activities.reduce((sum, act) => sum + (act.distance || 0), 0);\nconst totalDuration = activities.reduce((sum, act) => sum + (act.duration || 0), 0);\nconst totalCalories = activities.reduce((sum, act) => sum + (act.calories || 0), 0);\nconst activityCount = activities.length;\n\n// Check if user met their weekly goals\n// Assuming user.weeklyGoals = { distance: 10000, duration: 300, activities: 5 }\nconst goalMet = (\n  totalDistance >= (user.weeklyGoals?.distance || 0) &&\n  totalDuration >= (user.weeklyGoals?.duration || 0) &&\n  activityCount >= (user.weeklyGoals?.activities || 0)\n);\n\nreturn {\n  json: {\n    userId: user.id,\n    userName: user.name,\n    totalDistance,\n    totalDuration,\n    totalCalories,\n    activityCount,\n    goalMet,\n    goals: user.weeklyGoals\n  }\n};"
+      },
+      "id": "calculate-progress",
+      "name": "Calculate Goal Progress",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.goalMet}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-goal-met",
+      "name": "If Goal Met",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/gamification/points",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$json.userId}}\",\n  \"points\": 50,\n  \"reason\": \"weekly_goal_achieved\"\n}",
+        "options": {}
+      },
+      "id": "award-points",
+      "name": "Award Achievement Points",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$json.userId}}\",\n  \"title\": \"🎉 Weekly Goal Achieved!\",\n  \"body\": \"Congratulations! You completed your fitness goal this week and earned 50 points!\",\n  \"url\": \"/trophies\",\n  \"data\": {\n    \"type\": \"goal_achievement\",\n    \"points\": 50,\n    \"achievement\": \"weekly_goal\"\n  }\n}",
+        "options": {}
+      },
+      "id": "send-celebration",
+      "name": "Send Celebration Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 200]
+    }
+  ],
+  "connections": {
+    "Daily at 9 PM": {
+      "main": [
+        [
+          {
+            "node": "Get Users With Active Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Users With Active Goals": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Get Weekly Activities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Weekly Activities": {
+      "main": [
+        [
+          {
+            "node": "Calculate Goal Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Goal Progress": {
+      "main": [
+        [
+          {
+            "node": "If Goal Met",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Goal Met": {
+      "main": [
+        [
+          {
+            "node": "Award Achievement Points",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Award Achievement Points": {
+      "main": [
+        [
+          {
+            "node": "Send Celebration Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Celebration Notification": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "fitness-goal-achievement",
+  "meta": {
+    "instanceId": "woof-n8n"
+  },
+  "tags": []
+}

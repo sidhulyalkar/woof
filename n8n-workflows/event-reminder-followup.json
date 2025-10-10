@@ -1,0 +1,162 @@
+{
+  "name": "Event Reminder & Follow-up",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:4000/api/v1/events?datetime[gte]={{$now.plus(3, 'hours')}}&datetime[lte]={{$now.plus(4, 'hours')}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-upcoming-events",
+      "name": "Get Upcoming Events (3h away)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-events",
+      "name": "Split Into Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:4000/api/v1/events/{{$json.id}}/rsvps?response=yes",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-attendees",
+      "name": "Get Confirmed Attendees",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-attendees",
+      "name": "Split Attendees",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:4000/api/v1/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": \"{{$json.userId}}\",\n  \"title\": \"Event starting in 3 hours!\",\n  \"body\": \"{{$node['Get Upcoming Events (3h away)'].json.title}} - Don't forget!\",\n  \"url\": \"/events/{{$node['Get Upcoming Events (3h away)'].json.id}}\",\n  \"data\": {\n    \"type\": \"event_reminder\",\n    \"eventId\": \"{{$node['Get Upcoming Events (3h away)'].json.id}}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "send-reminder",
+      "name": "Send Event Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Get Upcoming Events (3h away)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Upcoming Events (3h away)": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches": {
+      "main": [
+        [
+          {
+            "node": "Get Confirmed Attendees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Confirmed Attendees": {
+      "main": [
+        [
+          {
+            "node": "Split Attendees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attendees": {
+      "main": [
+        [
+          {
+            "node": "Send Event Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Event Reminder": {
+      "main": [
+        [
+          {
+            "node": "Split Attendees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "event-reminder-followup",
+  "meta": {
+    "instanceId": "woof-n8n"
+  },
+  "tags": []
+}
