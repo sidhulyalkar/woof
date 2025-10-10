@@ -1,0 +1,323 @@
+/**
+ * San Francisco pet profiles for seeding
+ * Matched to realistic SF dog breeds and personalities
+ */
+
+export interface SeedPet {
+  name: string;
+  species: 'dog';
+  breed: string;
+  age: number;
+  size: 'small' | 'medium' | 'large';
+  energyLevel: 'low' | 'medium' | 'high';
+  temperament: string[];
+  bio: string;
+  preferences: {
+    playStyle: string[];
+    bestWith: string[];
+    experience: string;
+  };
+}
+
+export const sfPets: Record<string, SeedPet> = {
+  techie_sarah: {
+    name: 'Sunny',
+    species: 'dog',
+    breed: 'Golden Retriever',
+    age: 3,
+    size: 'large',
+    energyLevel: 'high',
+    temperament: ['friendly', 'playful', 'gentle', 'social'],
+    bio: 'Loves swimming at Crissy Field and making friends at every dog park!',
+    preferences: {
+      playStyle: ['fetch', 'swimming', 'running'],
+      bestWith: ['large-dogs', 'water-lovers', 'active-dogs'],
+      experience: 'Great with other dogs, loves group play',
+    },
+  },
+  marina_mike: {
+    name: 'Duke',
+    species: 'dog',
+    breed: 'Rescue Mix (Shepherd/Lab)',
+    age: 5,
+    size: 'large',
+    energyLevel: 'high',
+    temperament: ['loyal', 'athletic', 'protective', 'smart'],
+    bio: 'Former rescue, now living his best life! Loves long beach runs.',
+    preferences: {
+      playStyle: ['running', 'hiking', 'fetch'],
+      bestWith: ['athletic-dogs', 'experienced-owners'],
+      experience: 'Needs slow introductions but great once comfortable',
+    },
+  },
+  artist_jen: {
+    name: 'Pixel',
+    species: 'dog',
+    breed: 'Pembroke Welsh Corgi',
+    age: 2,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['smart', 'playful', 'vocal', 'herding'],
+    bio: 'Big personality in a small package! Star of Dolores Park ⭐',
+    preferences: {
+      playStyle: ['herding-games', 'chasing', 'socializing'],
+      bestWith: ['small-to-medium-dogs', 'patient-playmates'],
+      experience: 'Can be bossy but friendly, loves structured play',
+    },
+  },
+  noe_valley_dad: {
+    name: 'Buddy',
+    species: 'dog',
+    breed: 'Labradoodle',
+    age: 1,
+    size: 'medium',
+    energyLevel: 'high',
+    temperament: ['energetic', 'friendly', 'goofy', 'social'],
+    bio: 'Puppy energy for days! Looking for playmates to tire him out 😅',
+    preferences: {
+      playStyle: ['wrestling', 'fetch', 'zoomies'],
+      bestWith: ['puppies', 'patient-adults', 'high-energy-dogs'],
+      experience: 'Still learning manners but very sweet and gentle',
+    },
+  },
+  yoga_rachel: {
+    name: 'Luna',
+    species: 'dog',
+    breed: 'Australian Shepherd',
+    age: 4,
+    size: 'medium',
+    energyLevel: 'high',
+    temperament: ['intelligent', 'active', 'focused', 'loyal'],
+    bio: 'Agility champion and beach lover. Needs mental + physical stimulation!',
+    preferences: {
+      playStyle: ['agility', 'frisbee', 'herding', 'training-games'],
+      bestWith: ['active-dogs', 'smart-breeds', 'working-dogs'],
+      experience: 'Best with dogs who respect space, loves structured activities',
+    },
+  },
+  chef_marcus: {
+    name: 'Stella',
+    species: 'dog',
+    breed: 'American Pit Bull Terrier',
+    age: 6,
+    size: 'medium',
+    energyLevel: 'medium',
+    temperament: ['sweet', 'cuddly', 'loyal', 'gentle'],
+    bio: 'The ultimate velvet hippo 💙 Just wants belly rubs and friends!',
+    preferences: {
+      playStyle: ['gentle-wrestling', 'tug', 'walks'],
+      bestWith: ['calm-dogs', 'friendly-breeds', 'gentle-play'],
+      experience: 'Great with dogs who match her gentle energy',
+    },
+  },
+  pacific_heights_alex: {
+    name: 'Pierre',
+    species: 'dog',
+    breed: 'French Bulldog',
+    age: 3,
+    size: 'small',
+    energyLevel: 'low',
+    temperament: ['charming', 'stubborn', 'playful', 'adaptable'],
+    bio: 'Loves short walks and long naps. Perfect apartment companion!',
+    preferences: {
+      playStyle: ['gentle-play', 'socializing', 'short-walks'],
+      bestWith: ['small-dogs', 'low-energy', 'brachycephalic-breeds'],
+      experience: 'Great with calm, friendly dogs',
+    },
+  },
+  bernal_emma: {
+    name: 'Scout',
+    species: 'dog',
+    breed: 'Border Collie',
+    age: 2,
+    size: 'medium',
+    energyLevel: 'high',
+    temperament: ['intelligent', 'driven', 'athletic', 'focused'],
+    bio: 'Agility star and frisbee fanatic! Always ready for adventure.',
+    preferences: {
+      playStyle: ['agility', 'frisbee', 'herding', 'fetch'],
+      bestWith: ['working-breeds', 'athletic-dogs', 'smart-dogs'],
+      experience: 'Needs active playmates who can keep up!',
+    },
+  },
+  dogpatch_sam: {
+    name: 'Koda',
+    species: 'dog',
+    breed: 'Siberian Husky',
+    age: 3,
+    size: 'large',
+    energyLevel: 'high',
+    temperament: ['independent', 'energetic', 'vocal', 'playful'],
+    bio: 'Needs to run 10 miles before breakfast 😂 Fort Funston regular!',
+    preferences: {
+      playStyle: ['running', 'hiking', 'chasing', 'wrestling'],
+      bestWith: ['high-energy', 'athletic-dogs', 'northern-breeds'],
+      experience: 'Strong play style, best with confident dogs',
+    },
+  },
+  sunset_lisa: {
+    name: 'Kai',
+    species: 'dog',
+    breed: 'Portuguese Water Dog',
+    age: 4,
+    size: 'medium',
+    energyLevel: 'high',
+    temperament: ['athletic', 'smart', 'friendly', 'water-loving'],
+    bio: 'Surf dog extraordinaire! 🏄‍♀️ Loves ocean swimming and beach runs.',
+    preferences: {
+      playStyle: ['swimming', 'fetch', 'running', 'beach-play'],
+      bestWith: ['water-dogs', 'active-breeds', 'beach-lovers'],
+      experience: 'Great with all friendly dogs, loves water play',
+    },
+  },
+  richmond_kevin: {
+    name: 'Copper',
+    species: 'dog',
+    breed: 'Beagle',
+    age: 5,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['curious', 'friendly', 'food-motivated', 'vocal'],
+    bio: 'Professional sniffer and treat enthusiast. Golden Gate Park explorer!',
+    preferences: {
+      playStyle: ['sniffing', 'exploring', 'gentle-play'],
+      bestWith: ['friendly-dogs', 'scent-hounds', 'calm-playmates'],
+      experience: 'Friendly with everyone, food-motivated (watch your snacks!)',
+    },
+  },
+  castro_tony: {
+    name: 'Ollie',
+    species: 'dog',
+    breed: 'Jack Russell Terrier Mix',
+    age: 3,
+    size: 'small',
+    energyLevel: 'high',
+    temperament: ['energetic', 'feisty', 'playful', 'smart'],
+    bio: 'Big attitude, small body! Corona Heights regular 🏔️',
+    preferences: {
+      playStyle: ['chasing', 'digging', 'fetch', 'agility'],
+      bestWith: ['terriers', 'high-energy-small-dogs', 'active-playmates'],
+      experience: 'Feisty but friendly, loves confident playmates',
+    },
+  },
+  haight_maya: {
+    name: 'Django',
+    species: 'dog',
+    breed: 'German Shepherd Mix',
+    age: 4,
+    size: 'large',
+    energyLevel: 'medium',
+    temperament: ['calm', 'loyal', 'protective', 'gentle'],
+    bio: 'Laid-back shepherd who loves chill hangs at Buena Vista Park.',
+    preferences: {
+      playStyle: ['walking', 'gentle-play', 'sniffing'],
+      bestWith: ['calm-dogs', 'shepherds', 'mature-dogs'],
+      experience: 'Very gentle, prefers calm interactions',
+    },
+  },
+  soma_jessica: {
+    name: 'Mochi',
+    species: 'dog',
+    breed: 'Toy Poodle Mix',
+    age: 2,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['smart', 'social', 'adaptable', 'friendly'],
+    bio: 'Office dog by day, Duboce Park star by evening! ⭐',
+    preferences: {
+      playStyle: ['socializing', 'gentle-play', 'fetch'],
+      bestWith: ['small-dogs', 'office-dogs', 'social-butterflies'],
+      experience: 'Very social, great with all friendly dogs',
+    },
+  },
+  potrero_chris: {
+    name: 'Atlas',
+    species: 'dog',
+    breed: 'Great Dane',
+    age: 3,
+    size: 'large',
+    energyLevel: 'low',
+    temperament: ['gentle-giant', 'calm', 'friendly', 'goofy'],
+    bio: 'Gentle giant who thinks he\'s a lap dog! 140lbs of pure love 💙',
+    preferences: {
+      playStyle: ['gentle-play', 'walking', 'lounging'],
+      bestWith: ['large-dogs', 'gentle-giants', 'calm-playmates'],
+      experience: 'Very gentle despite size, loves calm interactions',
+    },
+  },
+  north_beach_maria: {
+    name: 'Romeo',
+    species: 'dog',
+    breed: 'Chihuahua',
+    age: 4,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['confident', 'loyal', 'vocal', 'charming'],
+    bio: 'Restaurant mascot with big personality! Loves being the center of attention.',
+    preferences: {
+      playStyle: ['socializing', 'short-walks', 'sunbathing'],
+      bestWith: ['small-dogs', 'toy-breeds', 'calm-playmates'],
+      experience: 'Confident with dogs his size, loves attention',
+    },
+  },
+  russian_hill_elena: {
+    name: 'Coco',
+    species: 'dog',
+    breed: 'Cavapoo',
+    age: 2,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['sweet', 'friendly', 'adaptable', 'cuddly'],
+    bio: 'Instagram-ready and always well-groomed! 📸✨',
+    preferences: {
+      playStyle: ['gentle-play', 'socializing', 'walks'],
+      bestWith: ['friendly-dogs', 'small-to-medium', 'gentle-playmates'],
+      experience: 'Very friendly, great with all dogs',
+    },
+  },
+  hayes_valley_omar: {
+    name: 'Bean',
+    species: 'dog',
+    breed: 'Boston Terrier',
+    age: 3,
+    size: 'small',
+    energyLevel: 'medium',
+    temperament: ['playful', 'smart', 'friendly', 'adaptable'],
+    bio: 'Coffee shop regular and professional treat catcher! ☕',
+    preferences: {
+      playStyle: ['fetch', 'socializing', 'gentle-wrestling'],
+      bestWith: ['small-to-medium-dogs', 'playful-breeds', 'social-dogs'],
+      experience: 'Very social, loves other dogs and people',
+    },
+  },
+  presidio_amy: {
+    name: 'Ranger',
+    species: 'dog',
+    breed: 'Labrador Retriever',
+    age: 5,
+    size: 'large',
+    energyLevel: 'high',
+    temperament: ['friendly', 'athletic', 'water-loving', 'gentle'],
+    bio: 'Trail guide and swimming champion! Presidio is our playground.',
+    preferences: {
+      playStyle: ['swimming', 'fetch', 'hiking', 'running'],
+      bestWith: ['athletic-dogs', 'water-lovers', 'friendly-breeds'],
+      experience: 'Extremely friendly, great with all dogs',
+    },
+  },
+  financial_jason: {
+    name: 'Winston',
+    species: 'dog',
+    breed: 'English Bulldog',
+    age: 4,
+    size: 'medium',
+    energyLevel: 'low',
+    temperament: ['calm', 'stubborn', 'sweet', 'dignified'],
+    bio: 'Professional napper and occasional walker. Living the good life! 😴',
+    preferences: {
+      playStyle: ['gentle-play', 'short-walks', 'lounging'],
+      bestWith: ['brachycephalic-breeds', 'calm-dogs', 'gentle-playmates'],
+      experience: 'Very calm, prefers short activities',
+    },
+  },
+};
