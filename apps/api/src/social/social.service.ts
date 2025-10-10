@@ -1,17 +1,21 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { GamificationService } from '../gamification/gamification.service';
 import { Prisma } from '@woof/database';
 
 @Injectable()
 export class SocialService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private gamificationService: GamificationService,
+  ) {}
 
   // ============================================
   // POSTS
   // ============================================
 
   async createPost(data: Prisma.PostCreateInput) {
-    return this.prisma.post.create({
+    const post = await this.prisma.post.create({
       data,
       include: {
         author: {
@@ -36,6 +40,16 @@ export class SocialService {
         },
       },
     });
+
+    // Award points for creating a post
+    await this.gamificationService.awardPoints({
+      userId: post.authorUserId,
+      points: 2,
+      reason: 'post_created',
+      relatedEntityId: post.id,
+    });
+
+    return post;
   }
 
   async findAllPosts(skip = 0, take = 20, authorUserId?: string, petId?: string) {
@@ -205,7 +219,7 @@ export class SocialService {
       throw new ConflictException('Post already liked by this user');
     }
 
-    return this.prisma.like.create({
+    const like = await this.prisma.like.create({
       data: {
         post: { connect: { id: postId } },
         user: { connect: { id: userId } },
@@ -220,6 +234,16 @@ export class SocialService {
         },
       },
     });
+
+    // Award 1 point for liking a post
+    await this.gamificationService.awardPoints({
+      userId,
+      points: 1,
+      reason: 'post_liked',
+      relatedEntityId: postId,
+    });
+
+    return like;
   }
 
   async deleteLike(postId: string, userId: string) {

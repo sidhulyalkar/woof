@@ -112,4 +112,14 @@ export class EventsController {
   async getEventFeedback(@Param('id') id: string) {
     return this.eventsService.getEventFeedback(id);
   }
+
+  @Post(':id/check-in')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Check in to an event (awards points)' })
+  @ApiResponse({ status: 200, description: 'Checked in successfully, points awarded' })
+  @ApiResponse({ status: 400, description: 'Must RSVP first or already checked in' })
+  async checkIn(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.checkIn(id, req.user.id);
+  }
 }

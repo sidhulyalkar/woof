@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { GamificationService } from '../gamification/gamification.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateRSVPDto, UpdateRSVPDto, EventFeedbackDto } from './dto/rsvp-event.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private gamificationService: GamificationService,
+  ) {}
 
   /**
    * Create a new community event
@@ -214,7 +218,58 @@ export class EventsService {
   }
 
   /**
-   * Submit event feedback
+   * Check in to an event (awards points)
+   */
+  async checkIn(eventId: string, userId: string) {
+    // Check if user RSVP'd to the event
+    const rsvp = await this.prisma.eventRSVP.findUnique({
+      where: {
+        eventId_userId: {
+          eventId,
+          userId,
+        },
+      },
+    });
+
+    if (!rsvp) {
+      throw new BadRequestException('You must RSVP to this event before checking in');
+    }
+
+    if (rsvp.checkedIn) {
+      throw new BadRequestException('You have already checked in to this event');
+    }
+
+    // Update RSVP to mark as checked in
+    const updatedRSVP = await this.prisma.eventRSVP.update({
+      where: {
+        eventId_userId: {
+          eventId,
+          userId,
+        },
+      },
+      data: {
+        checkedIn: true,
+        checkedInAt: new Date(),
+      },
+    });
+
+    // Award points for attending event
+    await this.gamificationService.awardPoints({
+      userId,
+      points: 5,
+      reason: 'event_attended',
+      relatedEntityId: eventId,
+    });
+
+    return {
+      ...updatedRSVP,
+      pointsAwarded: 5,
+      message: 'Checked in successfully! You earned 5 points.',
+    };
+  }
+
+  /**
+   * Submit event feedback (awards points)
    */
   async submitFeedback(eventId: string, userId: string, dto: EventFeedbackDto) {
     // Check if user RSVP'd to the event
@@ -241,9 +296,12 @@ export class EventsService {
       },
     });
 
+    let feedback;
+    let isNewFeedback = false;
+
     if (existingFeedback) {
       // Update existing feedback
-      return this.prisma.eventFeedback.update({
+      feedback = await this.prisma.eventFeedback.update({
         where: {
           eventId_userId: {
             eventId,
@@ -258,20 +316,39 @@ export class EventsService {
           notes: dto.notes,
         },
       });
+    } else {
+      // Create new feedback
+      feedback = await this.prisma.eventFeedback.create({
+        data: {
+          eventId,
+          userId,
+          vibeScore: dto.vibeScore,
+          petDensity: dto.petDensity,
+          venueQuality: dto.venueQuality,
+          tags: dto.tags || [],
+          notes: dto.notes,
+        },
+      });
+      isNewFeedback = true;
     }
 
-    // Create new feedback
-    return this.prisma.eventFeedback.create({
-      data: {
-        eventId,
+    // Award points for submitting feedback (only for new feedback)
+    if (isNewFeedback) {
+      await this.gamificationService.awardPoints({
         userId,
-        vibeScore: dto.vibeScore,
-        petDensity: dto.petDensity,
-        venueQuality: dto.venueQuality,
-        tags: dto.tags || [],
-        notes: dto.notes,
-      },
-    });
+        points: 3,
+        reason: 'event_feedback',
+        relatedEntityId: eventId,
+      });
+    }
+
+    return {
+      ...feedback,
+      pointsAwarded: isNewFeedback ? 3 : 0,
+      message: isNewFeedback
+        ? 'Feedback submitted! You earned 3 points.'
+        : 'Feedback updated successfully.',
+    };
   }
 
   /**
