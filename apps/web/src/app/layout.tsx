@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ServiceWorkerRegister } from "@/components/service-worker-register"
 import { Providers } from "@/components/providers"
 import { AuthGuard } from "@/components/auth-guard"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -50,14 +51,16 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className={`font-sans ${inter.variable} ${GeistMono.variable} antialiased`}>
-        <Providers>
-          <AuthGuard>
-            <Suspense fallback={null}>{children}</Suspense>
-          </AuthGuard>
-        </Providers>
-        <Analytics />
-        <Toaster />
-        <ServiceWorkerRegister />
+        <ErrorBoundary>
+          <Providers>
+            <AuthGuard>
+              <Suspense fallback={null}>{children}</Suspense>
+            </AuthGuard>
+          </Providers>
+          <Analytics />
+          <Toaster />
+          <ServiceWorkerRegister />
+        </ErrorBoundary>
       </body>
     </html>
   )

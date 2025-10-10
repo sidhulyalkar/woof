@@ -2,11 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { initSentry } from './sentry';
+
+// Initialize Sentry as early as possible
+initSentry();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+
+  // Global exception filter for Sentry
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Global prefix
   const apiPrefix = process.env.API_PREFIX || 'api/v1';
