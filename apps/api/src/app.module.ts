@@ -20,6 +20,7 @@ import { VerificationModule } from './verification/verification.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { StorageModule } from './storage/storage.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { StorageModule } from './storage/storage.module';
     CoActivityModule,
     AnalyticsModule,
     StorageModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
