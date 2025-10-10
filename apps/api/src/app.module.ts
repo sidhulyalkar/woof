@@ -19,6 +19,7 @@ import { GamificationModule } from './gamification/gamification.module';
 import { VerificationModule } from './verification/verification.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     VerificationModule,
     CoActivityModule,
     AnalyticsModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [

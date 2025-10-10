@@ -110,3 +110,37 @@ export const verificationApi = {
   submitVerification: (data: any) => apiClient.post('/verification/submit', data),
   getStatus: () => apiClient.get('/verification/status'),
 };
+
+// Storage/Upload API calls
+export const storageApi = {
+  /** Upload a single file */
+  uploadFile: async (file: File, folder?: string): Promise<{ key: string; url: string; bucket: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (folder) formData.append('folder', folder);
+
+    const response = await apiClient.post('/storage/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response;
+  },
+
+  /** Upload multiple files */
+  uploadFiles: async (files: File[], folder?: string): Promise<Array<{ key: string; url: string; bucket: string }>> => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    if (folder) formData.append('folder', folder);
+
+    const response = await apiClient.post('/storage/upload-multiple', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response;
+  },
+
+  /** Delete a file */
+  deleteFile: (key: string) => apiClient.delete(`/storage/${key}`),
+};
