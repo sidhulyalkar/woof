@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BottomNav } from "@/components/bottom-nav"
+import { NotificationSettings } from "@/components/settings/notification-settings"
 
 export default function SettingsPage() {
   const [notifications, setNotifications] = useState({
@@ -69,52 +70,8 @@ export default function SettingsPage() {
           </Card>
         </div>
 
-        {/* Notifications */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground px-2">NOTIFICATIONS</h2>
-          <Card className="glass divide-y divide-border/40">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span>New Matches</span>
-              </div>
-              <Switch
-                checked={notifications.matches}
-                onCheckedChange={(v) => setNotifications({ ...notifications, matches: v })}
-              />
-            </div>
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span>Messages</span>
-              </div>
-              <Switch
-                checked={notifications.messages}
-                onCheckedChange={(v) => setNotifications({ ...notifications, messages: v })}
-              />
-            </div>
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span>Events</span>
-              </div>
-              <Switch
-                checked={notifications.events}
-                onCheckedChange={(v) => setNotifications({ ...notifications, events: v })}
-              />
-            </div>
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span>Health Reminders</span>
-              </div>
-              <Switch
-                checked={notifications.health}
-                onCheckedChange={(v) => setNotifications({ ...notifications, health: v })}
-              />
-            </div>
-          </Card>
-        </div>
+        {/* Push Notifications */}
+        <NotificationSettings />
 
         {/* Privacy */}
         <div className="space-y-2">

@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { StorageModule } from './storage/storage.module';
 import { ChatModule } from './chat/chat.module';
 import { NudgesModule } from './nudges/nudges.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { NudgesModule } from './nudges/nudges.module';
     StorageModule,
     ChatModule,
     NudgesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

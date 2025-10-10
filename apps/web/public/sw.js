@@ -71,3 +71,62 @@ self.addEventListener("fetch", (event) => {
     }),
   )
 })
+
+// Push notification event - display notification
+self.addEventListener("push", (event) => {
+  console.log("[v0] Service Worker: Push notification received", event)
+
+  let data = {
+    title: "Woof 🐾",
+    body: "You have a new notification",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: "/" },
+  }
+
+  if (event.data) {
+    try {
+      data = event.data.json()
+    } catch (e) {
+      console.error("[v0] Service Worker: Error parsing push data", e)
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || "/icon-192.png",
+    badge: data.badge || "/icon-192.png",
+    tag: data.tag || "default",
+    data: data.data || { url: "/" },
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+  }
+
+  event.waitUntil(self.registration.showNotification(data.title, options))
+})
+
+// Notification click event - open app
+self.addEventListener("notificationclick", (event) => {
+  console.log("[v0] Service Worker: Notification clicked", event)
+
+  event.notification.close()
+
+  const urlToOpen = event.notification.data?.url || "/"
+
+  event.waitUntil(
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // Check if app is already open
+        for (const client of clientList) {
+          if (client.url.includes(urlToOpen) && "focus" in client) {
+            return client.focus()
+          }
+        }
+        // Open new window
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen)
+        }
+      }),
+  )
+})

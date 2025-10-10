@@ -160,3 +160,16 @@ export const nudgesApi = {
   checkChatActivity: (conversationId: string) =>
     apiClient.post(`/nudges/check/chat/${conversationId}`, {}),
 };
+
+// Push Notifications API calls
+export const notificationsApi = {
+  /** Subscribe to push notifications */
+  subscribe: (subscription: any) => apiClient.post('/notifications/subscribe', { subscription }),
+
+  /** Unsubscribe from push notifications */
+  unsubscribe: () => apiClient.post('/notifications/unsubscribe', {}),
+
+  /** Send a push notification (admin/testing) */
+  sendPush: (data: { userId: string; title: string; body: string; url?: string; data?: any }) =>
+    apiClient.post('/notifications/send', data),
+};

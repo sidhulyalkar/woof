@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateNudgeDto, NudgeType, NudgeReason } from './dto/create-nudge.dto';
 
 @Injectable()
 export class NudgesService {
   private readonly logger = new Logger(NudgesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Check for proximity-based nudge opportunities
@@ -234,10 +238,10 @@ export class NudgesService {
   }
 
   /**
-   * Create a nudge record
+   * Create a nudge record and send push notification
    */
   async createNudge(data: CreateNudgeDto) {
-    return this.prisma.proactiveNudge.create({
+    const nudge = await this.prisma.proactiveNudge.create({
       data: {
         userId: data.userId,
         type: data.type,
@@ -245,6 +249,26 @@ export class NudgesService {
         dismissed: false,
       },
     });
+
+    // Send push notification for the nudge
+    try {
+      await this.notificationsService.sendNudgeNotification(
+        data.userId,
+        data.type,
+        data.context.message || 'New suggestion for you!',
+        {
+          nudgeId: nudge.id,
+          ...data.context.metadata,
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send push notification for nudge: ${error.message}`,
+      );
+      // Don't fail nudge creation if push fails
+    }
+
+    return nudge;
   }
 
   /**
