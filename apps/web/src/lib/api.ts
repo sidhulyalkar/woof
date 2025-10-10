@@ -144,3 +144,19 @@ export const storageApi = {
   /** Delete a file */
   deleteFile: (key: string) => apiClient.delete(`/storage/${key}`),
 };
+
+// Nudges API calls
+export const nudgesApi = {
+  /** Get active nudges for current user */
+  getNudges: () => apiClient.get('/nudges'),
+
+  /** Accept a nudge */
+  acceptNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/accept`, {}),
+
+  /** Dismiss a nudge */
+  dismissNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/dismiss`, {}),
+
+  /** Manually trigger chat activity check */
+  checkChatActivity: (conversationId: string) =>
+    apiClient.post(`/nudges/check/chat/${conversationId}`, {}),
+};

@@ -21,6 +21,7 @@ import { CoActivityModule } from './co-activity/co-activity.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { StorageModule } from './storage/storage.module';
 import { ChatModule } from './chat/chat.module';
+import { NudgesModule } from './nudges/nudges.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { ChatModule } from './chat/chat.module';
     AnalyticsModule,
     StorageModule,
     ChatModule,
+    NudgesModule,
   ],
   controllers: [AppController],
   providers: [
