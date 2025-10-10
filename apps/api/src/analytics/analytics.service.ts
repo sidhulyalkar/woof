@@ -258,4 +258,85 @@ export class AnalyticsService {
       completed: 0,
     };
   }
+
+  /**
+   * Record telemetry event
+   */
+  async recordTelemetry(data: {
+    userId?: string;
+    source: string;
+    event: string;
+    metadata?: any;
+  }) {
+    return this.prisma.telemetry.create({
+      data: {
+        userId: data.userId,
+        source: data.source,
+        event: data.event,
+        metadata: data.metadata || {},
+      },
+    });
+  }
+
+  /**
+   * Get event counts by type
+   */
+  async getEventCounts(since: Date) {
+    const events = await this.prisma.telemetry.groupBy({
+      by: ['event'],
+      _count: true,
+      where: { createdAt: { gte: since } },
+      orderBy: { _count: { event: 'desc' } },
+    });
+
+    return events.map(e => ({
+      event: e.event,
+      count: e._count,
+    }));
+  }
+
+  /**
+   * Get user activity timeline
+   */
+  async getUserActivity(userId: string, limit = 50) {
+    return this.prisma.telemetry.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  /**
+   * Get active users count (opened app in timeframe)
+   */
+  async getActiveUsersCount(since: Date) {
+    const result = await this.prisma.telemetry.groupBy({
+      by: ['userId'],
+      where: {
+        event: 'APP_OPEN',
+        createdAt: { gte: since },
+      },
+    });
+
+    return result.length;
+  }
+
+  /**
+   * Get screen view analytics
+   */
+  async getScreenViews(since: Date) {
+    const screens = await this.prisma.telemetry.groupBy({
+      by: ['metadata'],
+      _count: true,
+      where: {
+        event: 'SCREEN_VIEW',
+        createdAt: { gte: since },
+      },
+    });
+
+    return screens.map(s => ({
+      screen: (s.metadata as any)?.screen || 'unknown',
+      views: s._count,
+    }));
+  }
 }

@@ -173,3 +173,34 @@ export const notificationsApi = {
   sendPush: (data: { userId: string; title: string; body: string; url?: string; data?: any }) =>
     apiClient.post('/notifications/send', data),
 };
+
+// Analytics & Telemetry API calls
+export const analyticsApi = {
+  /** Record a telemetry event */
+  trackEvent: (data: { userId?: string; source: string; event: string; metadata?: any }) =>
+    apiClient.post('/analytics/telemetry', data),
+
+  /** Get north star metrics */
+  getNorthStar: (timeframe?: '7d' | '30d' | '90d') =>
+    apiClient.get('/analytics/north-star', { params: { timeframe } }),
+
+  /** Get detailed analytics */
+  getDetails: (timeframe?: '7d' | '30d' | '90d') =>
+    apiClient.get('/analytics/details', { params: { timeframe } }),
+
+  /** Get event counts */
+  getEventCounts: (timeframe?: '7d' | '30d' | '90d') =>
+    apiClient.get('/analytics/events', { params: { timeframe } }),
+
+  /** Get active users count */
+  getActiveUsers: (timeframe?: '7d' | '30d' | '90d') =>
+    apiClient.get('/analytics/users/active', { params: { timeframe } }),
+
+  /** Get screen view analytics */
+  getScreenViews: (timeframe?: '7d' | '30d' | '90d') =>
+    apiClient.get('/analytics/screens', { params: { timeframe } }),
+
+  /** Get user activity timeline */
+  getUserActivity: (userId: string, limit?: number) =>
+    apiClient.get(`/analytics/users/${userId}/activity`, { params: { limit } }),
+};
