@@ -10,6 +10,8 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
+import { NudgesService } from '../nudges/nudges.service';
 
 interface ChatMessage {
   conversationId: string;
@@ -31,7 +33,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private logger = new Logger(ChatGateway.name);
   private connectedUsers = new Map<string, string>(); // socketId -> userId
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+    private nudgesService: NudgesService,
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -88,6 +94,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       senderId: userId,
       timestamp: new Date(),
     };
+
+    // Save message to database
+    try {
+      await this.prisma.message.create({
+        data: {
+          conversationId: data.conversationId,
+          senderId: userId,
+          text: data.text,
+        },
+      });
+
+      // Trigger nudge check after message is saved
+      // This checks if 5+ messages have been exchanged and suggests a meetup
+      await this.nudgesService.checkChatActivityNudges(data.conversationId).catch((err) => {
+        this.logger.error(`Failed to check chat nudges: ${err.message}`);
+      });
+    } catch (error) {
+      this.logger.error(`Failed to save message: ${error.message}`);
+    }
 
     // Emit to conversation room
     this.server.to(`conversation:${data.conversationId}`).emit('message:received', message);

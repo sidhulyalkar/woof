@@ -34,20 +34,11 @@ export class NudgesService {
           endTime: {
             gte: fiveMinutesAgo,
           },
-          distance: {
+          distanceM: {
             lte: 50, // Within 50 meters
           },
-        },
-        include: {
-          user1: {
-            include: {
-              pets: true,
-            },
-          },
-          user2: {
-            include: {
-              pets: true,
-            },
+          otherUserId: {
+            not: null,
           },
         },
       });
@@ -55,17 +46,19 @@ export class NudgesService {
       this.logger.debug(`Found ${recentSegments.length} recent co-activity segments`);
 
       for (const segment of recentSegments) {
+        if (!segment.otherUserId) continue;
+
         // Check if users are compatible
         const compatibility = await this.checkCompatibility(
-          segment.user1Id,
-          segment.user2Id,
+          segment.userId,
+          segment.otherUserId,
         );
 
-        if (compatibility && compatibility.score >= 0.7) {
+        if (compatibility && compatibility.compatibilityScore && compatibility.compatibilityScore >= 0.7) {
           // Check cooldown
           const canSend = await this.canSendNudge(
-            segment.user1Id,
-            segment.user2Id,
+            segment.userId,
+            segment.otherUserId,
             NudgeType.MEETUP,
           );
 
@@ -73,7 +66,7 @@ export class NudgesService {
             // Create nudges for both users
             await this.createProximityNudge(segment);
             this.logger.log(
-              `Created proximity nudge for users ${segment.user1Id} and ${segment.user2Id}`,
+              `Created proximity nudge for users ${segment.userId} and ${segment.otherUserId}`,
             );
           }
         }
@@ -115,7 +108,7 @@ export class NudgesService {
 
       // If conversation has 5+ messages, suggest meetup
       if (messageCount >= 5) {
-        const [user1, user2] = conversation.participants.map((p) => p.user);
+        const [user1, user2] = conversation.participants.map((p: any) => p.user);
 
         // Check cooldown
         const canSend = await this.canSendNudge(user1.id, user2.id, NudgeType.MEETUP);
@@ -168,7 +161,21 @@ export class NudgesService {
    * Create a proximity-based nudge for both users
    */
   private async createProximityNudge(segment: any) {
-    const { user1, user2, distance, location } = segment;
+    const { userId, otherUserId, distanceM, venueType } = segment;
+
+    // Get user details for personalized messages
+    const [user1, user2] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { pets: { take: 1 } }
+      }),
+      this.prisma.user.findUnique({
+        where: { id: otherUserId },
+        include: { pets: { take: 1 } }
+      }),
+    ]);
+
+    if (!user1 || !user2) return;
 
     await Promise.all([
       this.createNudge({
@@ -176,11 +183,11 @@ export class NudgesService {
         type: NudgeType.MEETUP,
         context: {
           targetUserId: user2.id,
-          location: location as { lat: number; lng: number },
           reason: NudgeReason.PROXIMITY,
           message: `${user2.handle} is nearby! Want to meet up?`,
           metadata: {
-            distance: Math.round(distance),
+            distance: Math.round(distanceM),
+            venueType,
             petNames: {
               yours: user1.pets[0]?.name,
               theirs: user2.pets[0]?.name,
@@ -193,11 +200,11 @@ export class NudgesService {
         type: NudgeType.MEETUP,
         context: {
           targetUserId: user1.id,
-          location: location as { lat: number; lng: number },
           reason: NudgeReason.PROXIMITY,
           message: `${user1.handle} is nearby! Want to meet up?`,
           metadata: {
-            distance: Math.round(distance),
+            distance: Math.round(distanceM),
+            venueType,
             petNames: {
               yours: user2.pets[0]?.name,
               theirs: user1.pets[0]?.name,
@@ -224,10 +231,7 @@ export class NudgesService {
       where: {
         userId: userId1,
         type,
-        payload: {
-          path: ['targetUserId'],
-          equals: userId2,
-        },
+        targetUserId: userId2,
         createdAt: {
           gte: cooldownTime,
         },
@@ -327,8 +331,8 @@ export class NudgesService {
     const compatibility = await this.prisma.petEdge.findFirst({
       where: {
         OR: [
-          { pet1: { userId: userId1 }, pet2: { userId: userId2 } },
-          { pet1: { userId: userId2 }, pet2: { userId: userId1 } },
+          { petA: { ownerId: userId1 }, petB: { ownerId: userId2 } },
+          { petA: { ownerId: userId2 }, petB: { ownerId: userId1 } },
         ],
       },
     });
