@@ -17,7 +17,7 @@ import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody
 import { VerificationService } from './verification.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { UpdateVerificationDto } from './dto/update-verification.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('verification')
 @Controller('verification')

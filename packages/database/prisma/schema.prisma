@@ -28,6 +28,7 @@ model User {
   homeLocation Json?     @map("home_location") // {lat, lng}
   visibility   String    @default("PUBLIC") // PUBLIC, FRIENDS_ONLY, PRIVATE
   points       Int       @default(0)
+  isVerified   Boolean   @default(false) @map("is_verified")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -46,6 +47,7 @@ model User {
   featureVector           MLFeatureVector?
   conversationParticipants ConversationParticipant[]
   messages                Message[]
+  verifications           Verification[] @relation("UserVerifications")
 
   @@map("users")
 }
@@ -73,6 +75,7 @@ model Pet {
   meetupInvites MeetupInvite[]
   edgesA        PetEdge[] @relation("PetA")
   edgesB        PetEdge[] @relation("PetB")
+  verifications Verification[] @relation("PetVerifications")
 
   @@index([ownerId])
   @@map("pets")
@@ -724,6 +727,27 @@ model NudgeCooldown {
 // ============================================
 // BETA MVP: SAFETY & VERIFICATION
 // ============================================
+
+model Verification {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  petId        String?   @map("pet_id")
+  documentType String    @map("document_type") // vaccination_record, vet_certificate, license, identity, other
+  fileUrl      String    @map("file_url")
+  status       String    @default("pending") // pending, approved, rejected
+  notes        String?   // User-provided notes
+  reviewNotes  String?   @map("review_notes") // Admin review notes
+  uploadedAt   DateTime  @default(now()) @map("uploaded_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+
+  user User  @relation("UserVerifications", fields: [userId], references: [id], onDelete: Cascade)
+  pet  Pet?  @relation("PetVerifications", fields: [petId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([petId])
+  @@index([status])
+  @@map("verifications")
+}
 
 model SafetyVerification {
   id               String    @id @default(uuid())

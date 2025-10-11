@@ -16,15 +16,14 @@ export class ServicesService {
       data: {
         name: dto.name,
         type: dto.type,
-        description: dto.description,
         address: dto.address,
-        lat: dto.lat,
-        lng: dto.lng,
+        lat: dto.lat ?? 0,
+        lng: dto.lng ?? 0,
         phone: dto.phone,
         website: dto.website,
         hours: dto.hours || {},
-        services: dto.services || [],
         photos: dto.photos || [],
+        amenities: dto.services || [], // Map services to amenities
       },
     });
   }
