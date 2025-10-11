@@ -21,11 +21,11 @@ echo ""
 
 # Start database services
 echo "📦 Starting database services..."
-docker-compose up -d postgres n8n
+docker compose up -d postgres n8n
 
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL to be ready..."
-until docker-compose exec -T postgres pg_isready -U woof > /dev/null 2>&1; do
+until docker compose exec -T postgres pg_isready -U woof > /dev/null 2>&1; do
     echo "   Still waiting..."
     sleep 2
 done
