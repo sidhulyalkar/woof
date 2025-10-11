@@ -56,14 +56,14 @@ export class AnalyticsService {
     since.setMinutes(since.getMinutes() - timeframeMinutes);
 
     // Meetup funnel
-    const totalMatches = await this.prisma.compatibilityEdge.count({
+    const totalMatches = await this.prisma.petEdge.count({
       where: {
         status: 'matched',
         createdAt: { gte: since },
       },
     });
 
-    const uniqueMatchChats = await this.prisma.compatibilityEdge.count({
+    const uniqueMatchChats = await this.prisma.petEdge.count({
       where: {
         status: 'matched',
         createdAt: { gte: since },
@@ -99,8 +99,6 @@ export class AnalyticsService {
       _count: true,
       _avg: {
         vibeScore: true,
-        petDensity: true,
-        venueQuality: true,
       },
     });
 
@@ -126,9 +124,7 @@ export class AnalyticsService {
       },
       eventsFeedback: {
         total: eventFeedback._count || 0,
-        avgVibeScore: eventFeedback._avg.vibeScore || 0,
-        avgPetDensity: eventFeedback._avg.petDensity || 0,
-        avgVenueQuality: eventFeedback._avg.venueQuality || 0,
+        avgVibeScore: eventFeedback._avg?.vibeScore || 0,
       },
     };
   }
@@ -139,7 +135,7 @@ export class AnalyticsService {
 
   private async calculateMeetupConversion(since: Date) {
     // Unique match chats (approximated by matched edges)
-    const uniqueMatchChats = await this.prisma.compatibilityEdge.count({
+    const uniqueMatchChats = await this.prisma.petEdge.count({
       where: {
         status: 'matched',
         createdAt: { gte: since },
@@ -156,7 +152,7 @@ export class AnalyticsService {
     const periodLength = Date.now() - since.getTime();
     previousPeriod.setTime(previousPeriod.getTime() - periodLength);
 
-    const previousChats = await this.prisma.compatibilityEdge.count({
+    const previousChats = await this.prisma.petEdge.count({
       where: {
         status: 'matched',
         createdAt: { gte: previousPeriod, lt: since },
@@ -273,7 +269,7 @@ export class AnalyticsService {
         userId: data.userId,
         source: data.source,
         event: data.event,
-        metadata: data.metadata || {},
+        data: data.metadata || {},
       },
     });
   }
@@ -325,18 +321,26 @@ export class AnalyticsService {
    * Get screen view analytics
    */
   async getScreenViews(since: Date) {
-    const screens = await this.prisma.telemetry.groupBy({
-      by: ['metadata'],
-      _count: true,
+    const screens = await this.prisma.telemetry.findMany({
       where: {
         event: 'SCREEN_VIEW',
         createdAt: { gte: since },
       },
+      select: {
+        data: true,
+      },
     });
 
-    return screens.map(s => ({
-      screen: (s.metadata as any)?.screen || 'unknown',
-      views: s._count,
+    // Group by screen name from data
+    const screenCounts = new Map<string, number>();
+    screens.forEach(s => {
+      const screen = (s.data as any)?.screen || 'unknown';
+      screenCounts.set(screen, (screenCounts.get(screen) || 0) + 1);
+    });
+
+    return Array.from(screenCounts.entries()).map(([screen, views]) => ({
+      screen,
+      views,
     }));
   }
 }

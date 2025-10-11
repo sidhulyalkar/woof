@@ -15,20 +15,20 @@ export class EventsService {
   /**
    * Create a new community event
    */
-  async create(organizerId: string, dto: CreateEventDto) {
+  async create(hostUserId: string, dto: CreateEventDto) {
     return this.prisma.communityEvent.create({
       data: {
-        organizerId,
+        hostUserId,
         title: dto.title,
         description: dto.description,
-        type: dto.type,
+        venueType: dto.type || 'park',
         startTime: new Date(dto.startTime),
-        endTime: dto.endTime ? new Date(dto.endTime) : null,
-        locationName: dto.locationName,
+        endTime: new Date(dto.endTime),
+        venueName: dto.locationName,
+        address: dto.locationName,
         lat: dto.lat,
         lng: dto.lng,
-        maxAttendees: dto.maxAttendees,
-        tags: dto.tags || [],
+        capacity: dto.capacity,
       },
     });
   }
@@ -111,7 +111,7 @@ export class EventsService {
     const event = await this.findOne(id);
 
     // Only organizer can update
-    if (event.organizerId !== userId) {
+    if (event.hostUserId !== userId) {
       throw new BadRequestException('Only the organizer can update this event');
     }
 
@@ -132,7 +132,7 @@ export class EventsService {
     const event = await this.findOne(id);
 
     // Only organizer can delete
-    if (event.organizerId !== userId) {
+    if (event.hostUserId !== userId) {
       throw new BadRequestException('Only the organizer can delete this event');
     }
 
@@ -148,9 +148,9 @@ export class EventsService {
     const event = await this.findOne(eventId);
 
     // Check if max attendees reached
-    if (event.maxAttendees && dto.status === 'going') {
+    if (event.capacity && dto.status === 'going') {
       const goingCount = event.rsvps.filter((r: any) => r.status === 'going').length;
-      if (goingCount >= event.maxAttendees) {
+      if (goingCount >= event.capacity) {
         throw new BadRequestException('Event is full');
       }
     }
@@ -248,7 +248,6 @@ export class EventsService {
         },
       },
       data: {
-        checkedIn: true,
         checkedInAt: new Date(),
       },
     });

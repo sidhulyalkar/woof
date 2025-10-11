@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Query, Param, UseGuards, Request } from '@
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { CoActivityService } from './co-activity.service';
 import { TrackLocationDto } from './dto/track-location.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('co-activity')
 @Controller('co-activity')

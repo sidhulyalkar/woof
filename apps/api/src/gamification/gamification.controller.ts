@@ -4,7 +4,7 @@ import { GamificationService } from './gamification.service';
 import { AwardPointsDto } from './dto/award-points.dto';
 import { AwardBadgeDto } from './dto/award-badge.dto';
 import { UpdateStreakDto } from './dto/update-streak.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('gamification')
 @Controller('gamification')
