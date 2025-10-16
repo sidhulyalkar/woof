@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "Woof",
+    "slug": "woof",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.woof.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Woof needs access to your camera to take photos of your pets.",
+        "NSPhotoLibraryUsageDescription": "Woof needs access to your photo library to select pet photos.",
+        "NSLocationWhenInUseUsageDescription": "Woof needs your location to show nearby pet parents and parks.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Woof needs your location to send you notifications about nearby pet activities."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.woof.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Woof to use your location to show nearby pet parents and parks."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Woof to access your camera to take photos of your pets."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Woof to access your photos to select pet photos."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:4000",
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    }
+  }
+}

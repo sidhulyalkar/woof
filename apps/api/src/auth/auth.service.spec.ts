@@ -98,9 +98,10 @@ describe('AuthService', () => {
         id: '123',
         email: 'test@example.com',
         handle: 'testuser',
+        password: 'password123',
       };
 
-      const result = await service.login(mockUser);
+      const result = await service.login(mockUser as any);
 
       expect(result).toEqual({
         access_token: 'mock-jwt-token',

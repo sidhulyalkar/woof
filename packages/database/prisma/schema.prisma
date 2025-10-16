@@ -28,6 +28,7 @@ model User {
   homeLocation Json?     @map("home_location") // {lat, lng}
   visibility   String    @default("PUBLIC") // PUBLIC, FRIENDS_ONLY, PRIVATE
   points       Int       @default(0)
+  totalPoints  Int       @default(0) @map("total_points")
   isVerified   Boolean   @default(false) @map("is_verified")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
@@ -48,6 +49,10 @@ model User {
   conversationParticipants ConversationParticipant[]
   messages                Message[]
   verifications           Verification[] @relation("UserVerifications")
+  hostedEvents            CommunityEvent[] @relation("EventHost")
+  eventRsvps              EventRSVP[] @relation("EventRSVPs")
+  eventFeedbacks          EventFeedback[] @relation("EventFeedbacks")
+  locationPings           LocationPing[] @relation("UserLocationPings")
 
   @@map("users")
 }
@@ -495,6 +500,23 @@ model MeetupProposal {
   @@map("meetup_proposals")
 }
 
+model LocationPing {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  lat          Float
+  lng          Float
+  timestamp    DateTime
+  activityType String?  @map("activity_type") // walking, running, park_visit
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation("UserLocationPings", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([lat, lng])
+  @@map("location_pings")
+}
+
 model CoActivitySegment {
   id            String   @id @default(uuid())
   userId        String   @map("user_id")
@@ -543,8 +565,9 @@ model CommunityEvent {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  rsvps    EventRSVP[]
-  feedback EventFeedback[]
+  organizer User            @relation("EventHost", fields: [hostUserId], references: [id])
+  rsvps     EventRSVP[]
+  feedback  EventFeedback[]
 
   @@index([hostUserId])
   @@index([startTime])
@@ -563,6 +586,7 @@ model EventRSVP {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   event CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User           @relation("EventRSVPs", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -585,6 +609,7 @@ model EventFeedback {
   createdAt   DateTime @default(now()) @map("created_at")
 
   event CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User           @relation("EventFeedbacks", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -671,18 +696,42 @@ model Gamification {
 }
 
 model PointTransaction {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  points      Int      // Can be positive or negative
-  reason      String   // onboarding_complete, first_match, meetup_attended, badge_earned, etc
-  referenceId String?  @map("reference_id") // ID of related entity (meetup, event, etc)
-  metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  points           Int      // Can be positive or negative
+  reason           String   // onboarding_complete, first_match, meetup_attended, badge_earned, etc
+  relatedEntityId  String?  @map("related_entity_id") // ID of related entity (meetup, event, etc)
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([createdAt])
   @@index([reason])
   @@map("point_transactions")
+}
+
+model BadgeAward {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  badgeType String   @map("badge_type") // first_match, streak_master, social_butterfly, etc
+  awardedAt DateTime @default(now()) @map("awarded_at")
+
+  @@unique([userId, badgeType], name: "userId_badgeType")
+  @@index([userId])
+  @@index([badgeType])
+  @@map("badge_awards")
+}
+
+model WeeklyStreak {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  currentWeek    Int      @default(0) @map("current_week")
+  lastActivityAt DateTime @map("last_activity_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("weekly_streaks")
 }
 
 // ============================================

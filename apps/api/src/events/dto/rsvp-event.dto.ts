@@ -22,17 +22,25 @@ export class EventFeedbackDto {
   @Max(5)
   vibeScore: number;
 
-  @ApiProperty({ description: 'Pet density 1-5', minimum: 1, maximum: 5 })
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  petDensity: number;
+  @ApiProperty({ description: 'Pet density', enum: ['too_crowded', 'just_right', 'too_few'], required: false })
+  @IsOptional()
+  @IsString()
+  petDensity?: string;
 
-  @ApiProperty({ description: 'Venue quality 1-5', minimum: 1, maximum: 5 })
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  venueQuality: number;
+  @ApiProperty({ description: 'Surface type', enum: ['grass', 'dirt', 'pavement', 'sand'], required: false })
+  @IsOptional()
+  @IsString()
+  surfaceType?: string;
+
+  @ApiProperty({ description: 'Crowding level', enum: ['not_crowded', 'moderate', 'crowded'], required: false })
+  @IsOptional()
+  @IsString()
+  crowding?: string;
+
+  @ApiProperty({ description: 'Noise level', enum: ['quiet', 'moderate', 'loud'], required: false })
+  @IsOptional()
+  @IsString()
+  noiseLevel?: string;
 
   @ApiProperty({ description: 'Feedback tags', type: [String], required: false })
   @IsOptional()

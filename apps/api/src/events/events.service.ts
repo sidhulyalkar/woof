@@ -23,12 +23,12 @@ export class EventsService {
         description: dto.description,
         venueType: dto.type || 'park',
         startTime: new Date(dto.startTime),
-        endTime: new Date(dto.endTime),
+        endTime: dto.endTime ? new Date(dto.endTime) : new Date(new Date(dto.startTime).getTime() + 2 * 60 * 60 * 1000), // Default: 2 hours after start
         venueName: dto.locationName,
         address: dto.locationName,
         lat: dto.lat,
         lng: dto.lng,
-        capacity: dto.capacity,
+        capacity: dto.maxAttendees,
       },
     });
   }
@@ -235,7 +235,7 @@ export class EventsService {
       throw new BadRequestException('You must RSVP to this event before checking in');
     }
 
-    if (rsvp.checkedIn) {
+    if (rsvp.checkedInAt) {
       throw new BadRequestException('You have already checked in to this event');
     }
 
@@ -310,7 +310,9 @@ export class EventsService {
         data: {
           vibeScore: dto.vibeScore,
           petDensity: dto.petDensity,
-          venueQuality: dto.venueQuality,
+          surfaceType: dto.surfaceType,
+          crowding: dto.crowding,
+          noiseLevel: dto.noiseLevel,
           tags: dto.tags || [],
           notes: dto.notes,
         },
@@ -323,7 +325,9 @@ export class EventsService {
           userId,
           vibeScore: dto.vibeScore,
           petDensity: dto.petDensity,
-          venueQuality: dto.venueQuality,
+          surfaceType: dto.surfaceType,
+          crowding: dto.crowding,
+          noiseLevel: dto.noiseLevel,
           tags: dto.tags || [],
           notes: dto.notes,
         },
@@ -370,17 +374,11 @@ export class EventsService {
     // Calculate averages
     const avgVibeScore =
       feedback.reduce((sum: number, f: any) => sum + f.vibeScore, 0) / feedback.length || 0;
-    const avgPetDensity =
-      feedback.reduce((sum: number, f: any) => sum + f.petDensity, 0) / feedback.length || 0;
-    const avgVenueQuality =
-      feedback.reduce((sum: number, f: any) => sum + f.venueQuality, 0) / feedback.length || 0;
 
     return {
       feedback,
       averages: {
         vibeScore: avgVibeScore,
-        petDensity: avgPetDensity,
-        venueQuality: avgVenueQuality,
       },
       totalFeedback: feedback.length,
     };

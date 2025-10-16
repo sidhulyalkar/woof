@@ -47,14 +47,14 @@ export class NotificationsService {
         create: {
           userId,
           provider: 'push_subscription',
-          token: JSON.stringify(subscription),
+          data: subscription as any,
           scopes: ['notifications'],
           expiresAt: subscription.expirationTime
             ? new Date(subscription.expirationTime)
             : null,
         },
         update: {
-          token: JSON.stringify(subscription),
+          data: subscription as any,
           expiresAt: subscription.expirationTime
             ? new Date(subscription.expirationTime)
             : null,
@@ -86,7 +86,7 @@ export class NotificationsService {
       });
 
       if (subscription) {
-        const subscriptionData = JSON.parse(subscription.token);
+        const subscriptionData = subscription.data as any;
         if (subscriptionData.endpoint === endpoint) {
           await this.prisma.integrationToken.delete({
             where: { id: subscription.id },
@@ -125,7 +125,7 @@ export class NotificationsService {
         return { success: false, reason: 'no_subscription' };
       }
 
-      const pushSubscription = JSON.parse(subscription.token);
+      const pushSubscription = subscription.data as any;
 
       // Prepare notification payload
       const notificationPayload = JSON.stringify({

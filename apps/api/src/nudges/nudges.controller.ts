@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NudgesService } from './nudges.service';
 import { CreateNudgeDto } from './dto/create-nudge.dto';
+import { Request as ExpressRequest } from 'express';
 
 @ApiTags('nudges')
 @ApiBearerAuth()
@@ -22,7 +23,7 @@ export class NudgesController {
 
   @Get()
   @ApiOperation({ summary: 'Get active nudges for current user' })
-  async getUserNudges(@Request() req) {
+  async getUserNudges(@Request() req: ExpressRequest & { user: any }) {
     return this.nudgesService.getUserNudges(req.user.id);
   }
 
@@ -34,13 +35,13 @@ export class NudgesController {
 
   @Patch(':id/dismiss')
   @ApiOperation({ summary: 'Dismiss a nudge' })
-  async dismissNudge(@Param('id') id: string, @Request() req) {
+  async dismissNudge(@Param('id') id: string, @Request() req: ExpressRequest & { user: any }) {
     return this.nudgesService.dismissNudge(id, req.user.id);
   }
 
   @Patch(':id/accept')
   @ApiOperation({ summary: 'Accept a nudge' })
-  async acceptNudge(@Param('id') id: string, @Request() req) {
+  async acceptNudge(@Param('id') id: string, @Request() req: ExpressRequest & { user: any }) {
     return this.nudgesService.acceptNudge(id, req.user.id);
   }
 

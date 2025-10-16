@@ -46,8 +46,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         },
         user: request['user']
           ? {
-              id: request['user'].id,
-              email: request['user'].email,
+              id: (request['user'] as any).id,
+              email: (request['user'] as any).email,
             }
           : undefined,
       });

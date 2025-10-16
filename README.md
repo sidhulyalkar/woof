@@ -68,12 +68,16 @@ pnpm --filter @woof/api dev
 
 # Terminal 2: Web
 pnpm --filter @woof/web dev
+
+# Terminal 3: Mobile (optional)
+pnpm --filter @woof/mobile start
 ```
 
 **Endpoints**:
 - Frontend: http://localhost:3000
 - API: http://localhost:4000
 - API Docs: http://localhost:4000/docs
+- Mobile: Expo DevTools at http://localhost:8081
 
 ### Test Credentials
 
@@ -94,7 +98,8 @@ Example logins:
 woof/
 ├── apps/
 │   ├── api/              # NestJS backend (18 modules)
-│   └── web/              # Next.js 15 frontend (158+ components)
+│   ├── web/              # Next.js 15 frontend (158+ components)
+│   └── mobile/           # React Native mobile app (iOS & Android)
 ├── packages/
 │   ├── database/         # Prisma schema (PostgreSQL + pgvector)
 │   ├── ui/               # Shared UI components
@@ -112,7 +117,7 @@ woof/
 - AWS S3/Cloudflare R2 for file storage
 - JWT authentication with refresh tokens
 
-**Frontend**:
+**Web Frontend**:
 - Next.js 15 with App Router
 - React 19 with TypeScript
 - Tailwind CSS v4
@@ -120,11 +125,19 @@ woof/
 - React Query for server state
 - PWA with offline support
 
+**Mobile App**:
+- React Native with Expo SDK 54
+- React Navigation 7
+- TypeScript 5.9
+- Axios with JWT auto-refresh
+- Native features: Camera, Maps, Location, Notifications
+
 **Infrastructure**:
 - GitHub Actions CI/CD
 - Sentry error tracking
 - Vercel deployment (web)
 - Fly.io deployment (API)
+- EAS Build (mobile)
 - Neon/Supabase (PostgreSQL)
 
 ---
