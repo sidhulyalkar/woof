@@ -1,21 +1,81 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../contexts/AuthContext';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-// Placeholder screens - will be implemented next
+// Auth screens
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
-import HomeScreen from '../screens/HomeScreen';
+
+// Main screens
+import FeedScreen from '../screens/FeedScreen';
+import MapScreen from '../screens/MapScreen';
+import EventsScreen from '../screens/EventsScreen';
+import PetsListScreen from '../screens/PetsListScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
-  Home: undefined;
+  MainTabs: undefined;
+};
+
+export type MainTabParamList = {
+  Feed: undefined;
+  Map: undefined;
+  Events: undefined;
+  Pets: undefined;
+  Profile: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
+
+const MainTabs = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'home';
+
+          if (route.name === 'Feed') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Map') {
+            iconName = focused ? 'map' : 'map-outline';
+          } else if (route.name === 'Events') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'Pets') {
+            iconName = focused ? 'paw' : 'paw-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#8B5CF6',
+        tabBarInactiveTintColor: '#6b7280',
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#ffffff',
+          borderTopWidth: 1,
+          borderTopColor: '#e5e7eb',
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
+        },
+      })}
+    >
+      <Tab.Screen name="Feed" component={FeedScreen} />
+      <Tab.Screen name="Map" component={MapScreen} />
+      <Tab.Screen name="Events" component={EventsScreen} />
+      <Tab.Screen name="Pets" component={PetsListScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+};
 
 export const AppNavigator = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -43,7 +103,7 @@ export const AppNavigator = () => {
           </>
         ) : (
           <>
-            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
           </>
         )}
       </Stack.Navigator>

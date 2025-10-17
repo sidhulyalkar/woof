@@ -1,12 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { authApi, AuthResponse } from '../api/auth';
-
-interface User {
-  id: string;
-  email: string;
-  handle: string;
-  displayName: string;
-}
+import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -45,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const response: AuthResponse = await authApi.login({ email, password });
-      setUser(response.user);
+      setUser(response.user as User);
     } finally {
       setLoading(false);
     }
@@ -60,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         handle,
         displayName,
       });
-      setUser(response.user);
+      setUser(response.user as User);
     } finally {
       setLoading(false);
     }
