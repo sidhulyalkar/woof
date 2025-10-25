@@ -129,22 +129,34 @@ model Activity {
 }
 
 model MutualGoal {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  petId        String   @map("pet_id")
-  goalType     String   @map("goal_type") // DISTANCE, TIME, STEPS, VENUES
-  period       String   // WEEK, MONTH
-  targetNumber Float    @map("target_number")
-  progress     Float    @default(0)
-  status       String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  petId         String   @map("pet_id")
+  goalType      String   @map("goal_type") // DISTANCE, TIME, STEPS, ACTIVITIES, CALORIES, SOCIAL
+  period        String   // DAILY, WEEKLY, MONTHLY, CUSTOM
+  targetNumber  Float    @map("target_number")
+  targetUnit    String   @map("target_unit") // km, minutes, steps, count, kcal, friends
+  progress      Float    @default(0)
+  currentValue  Float    @default(0) @map("current_value")
+  status        String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED, PAUSED
+  startDate     DateTime @map("start_date")
+  endDate       DateTime @map("end_date")
+  reminderTime  String?  @map("reminder_time") // HH:MM format
+  isRecurring   Boolean  @default(false) @map("is_recurring")
+  streakCount   Int      @default(0) @map("streak_count")
+  bestStreak    Int      @default(0) @map("best_streak")
+  completedDays Json     @default("[]") @map("completed_days") // Array of dates
+  metadata      Json?    // Additional goal-specific data
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   pet  Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([petId])
+  @@index([status])
+  @@index([endDate])
   @@map("mutual_goals")
 }
 

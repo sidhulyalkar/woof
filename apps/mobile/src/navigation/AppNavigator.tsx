@@ -15,6 +15,7 @@ import FeedScreen from '../screens/FeedScreen';
 import MapScreen from '../screens/MapScreen';
 import EventsScreen from '../screens/EventsScreen';
 import PetsListScreen from '../screens/PetsListScreen';
+import GoalsScreen from '../screens/GoalsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 export type RootStackParamList = {
@@ -28,6 +29,7 @@ export type MainTabParamList = {
   Map: undefined;
   Events: undefined;
   Pets: undefined;
+  Goals: undefined;
   Profile: undefined;
 };
 
@@ -49,6 +51,8 @@ const MainTabs = () => {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'Pets') {
             iconName = focused ? 'paw' : 'paw-outline';
+          } else if (route.name === 'Goals') {
+            iconName = focused ? 'trophy' : 'trophy-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -72,6 +76,7 @@ const MainTabs = () => {
       <Tab.Screen name="Map" component={MapScreen} />
       <Tab.Screen name="Events" component={EventsScreen} />
       <Tab.Screen name="Pets" component={PetsListScreen} />
+      <Tab.Screen name="Goals" component={GoalsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

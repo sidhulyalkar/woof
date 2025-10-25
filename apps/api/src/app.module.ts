@@ -23,6 +23,9 @@ import { StorageModule } from './storage/storage.module';
 import { ChatModule } from './chat/chat.module';
 import { NudgesModule } from './nudges/nudges.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { GoalsModule } from './goals/goals.module';
+import { MLModule } from './ml/ml.module';
+import { ABTestModule } from './ab-testing/ab-test.module';
 
 @Module({
   imports: [
@@ -66,6 +69,9 @@ import { NotificationsModule } from './notifications/notifications.module';
     ChatModule,
     NudgesModule,
     NotificationsModule,
+    GoalsModule,
+    MLModule,
+    ABTestModule,
   ],
   controllers: [AppController],
   providers: [

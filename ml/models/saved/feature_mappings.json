@@ -1,0 +1,58 @@
+{
+  "breed_to_idx": {
+    "Bulldog": 0,
+    "Labrador": 1,
+    "German Shepherd": 2,
+    "Golden Retriever": 3,
+    "Border Collie": 4,
+    "Shih Tzu": 5,
+    "Chihuahua": 6,
+    "Beagle": 7,
+    "Corgi": 8,
+    "Dachshund": 9,
+    "Boxer": 10,
+    "Pomeranian": 11,
+    "Husky": 12,
+    "Poodle": 13,
+    "Rottweiler": 14
+  },
+  "temp_to_idx": {
+    "calm": 0,
+    "friendly": 1,
+    "protective": 2,
+    "intelligent": 3,
+    "nervous": 4,
+    "stubborn": 5,
+    "playful": 6,
+    "bold": 7,
+    "energetic": 8
+  },
+  "idx_to_breed": {
+    "0": "Bulldog",
+    "1": "Labrador",
+    "2": "German Shepherd",
+    "3": "Golden Retriever",
+    "4": "Border Collie",
+    "5": "Shih Tzu",
+    "6": "Chihuahua",
+    "7": "Beagle",
+    "8": "Corgi",
+    "9": "Dachshund",
+    "10": "Boxer",
+    "11": "Pomeranian",
+    "12": "Husky",
+    "13": "Poodle",
+    "14": "Rottweiler"
+  },
+  "idx_to_temp": {
+    "0": "calm",
+    "1": "friendly",
+    "2": "protective",
+    "3": "intelligent",
+    "4": "nervous",
+    "5": "stubborn",
+    "6": "playful",
+    "7": "bold",
+    "8": "energetic"
+  }
+}

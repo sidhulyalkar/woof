@@ -1,0 +1,17 @@
+{
+  "Golden Retriever": 0,
+  "Labrador": 1,
+  "German Shepherd": 2,
+  "Poodle": 3,
+  "Bulldog": 4,
+  "Beagle": 5,
+  "Chihuahua": 6,
+  "Corgi": 7,
+  "Husky": 8,
+  "Dachshund": 9,
+  "Boxer": 10,
+  "Shih Tzu": 11,
+  "Rottweiler": 12,
+  "Pomeranian": 13,
+  "Border Collie": 14
+}

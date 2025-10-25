@@ -1,0 +1,11 @@
+{
+  "friendly": 0,
+  "stubborn": 1,
+  "bold": 2,
+  "calm": 3,
+  "playful": 4,
+  "protective": 5,
+  "nervous": 6,
+  "energetic": 7,
+  "intelligent": 8
+}
