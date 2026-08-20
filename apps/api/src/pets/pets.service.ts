@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@woof/database';
+import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePetDto, UpdatePetDto } from './dto/create-pet.dto';
 
