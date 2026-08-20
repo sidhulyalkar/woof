@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { GamificationService } from '../gamification/gamification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,7 +15,7 @@ export class SocialService {
     await this.validateOwnedRelations(userId, data.petId, data.activityId);
 
     if (!data.text?.trim() && (!data.mediaUrls || data.mediaUrls.length === 0)) {
-      throw new ConflictException('A post needs text or media');
+      throw new BadRequestException('A post needs text or media');
     }
 
     const post = await this.prisma.post.create({
@@ -27,11 +27,9 @@ export class SocialService {
         ...(data.petId ? { pet: { connect: { id: data.petId } } } : {}),
         ...(data.activityId ? { activity: { connect: { id: data.activityId } } } : {}),
       },
-      include: this.postCardInclude(),
+      include: this.postCardInclude(userId),
     });
 
-    // This is intentionally small. Longer-term rewards should favor meaningful
-    // activity/meetup outcomes rather than high-volume posting behavior.
     await this.gamificationService.awardPoints({
       userId,
       points: 2,
@@ -42,7 +40,13 @@ export class SocialService {
     return post;
   }
 
-  async findAllPosts(skip = 0, take = 20, authorUserId?: string, petId?: string) {
+  async findAllPosts(
+    viewerUserId: string,
+    skip = 0,
+    take = 20,
+    authorUserId?: string,
+    petId?: string,
+  ) {
     const safeSkip = Math.max(0, Number(skip) || 0);
     const safeTake = Math.max(1, Math.min(Number(take) || 20, 100));
     const where: Prisma.PostWhereInput = {};
@@ -55,7 +59,7 @@ export class SocialService {
         skip: safeSkip,
         take: safeTake,
         include: {
-          ...this.postCardInclude(),
+          ...this.postCardInclude(viewerUserId),
           activity: {
             select: {
               id: true,
@@ -72,7 +76,7 @@ export class SocialService {
     return { posts, total, skip: safeSkip, take: safeTake };
   }
 
-  async findPostById(id: string) {
+  async findPostById(id: string, viewerUserId?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: {
@@ -85,13 +89,13 @@ export class SocialService {
         activity: {
           select: { id: true, type: true, startedAt: true, endedAt: true },
         },
-        likes: {
-          include: {
-            user: {
-              select: { id: true, handle: true, avatarUrl: true },
+        likes: viewerUserId
+          ? { where: { userId: viewerUserId }, select: { id: true } }
+          : {
+              include: {
+                user: { select: { id: true, handle: true, avatarUrl: true } },
+              },
             },
-          },
-        },
         comments: {
           include: {
             user: {
@@ -100,6 +104,7 @@ export class SocialService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        _count: { select: { likes: true, comments: true } },
       },
     });
 
@@ -127,7 +132,7 @@ export class SocialService {
           ? { activity: data.activityId ? { connect: { id: data.activityId } } : { disconnect: true } }
           : {}),
       },
-      include: this.postCardInclude(),
+      include: this.postCardInclude(userId),
     });
   }
 
@@ -149,21 +154,15 @@ export class SocialService {
       where: { postId_userId: { postId, userId } },
     });
 
-    if (existingLike) {
-      return existingLike;
-    }
+    if (existingLike) return existingLike;
 
-    // Likes should not mint points. That incentive is too easy to spam and does
-    // not align with Woof's real-world outcome thesis.
     return this.prisma.like.create({
       data: {
         post: { connect: { id: postId } },
         user: { connect: { id: userId } },
       },
       include: {
-        user: {
-          select: { id: true, handle: true, avatarUrl: true },
-        },
+        user: { select: { id: true, handle: true, avatarUrl: true } },
       },
     });
   }
@@ -185,22 +184,15 @@ export class SocialService {
     return this.prisma.like.findMany({
       where: { postId },
       include: {
-        user: {
-          select: { id: true, handle: true, avatarUrl: true },
-        },
+        user: { select: { id: true, handle: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async createComment(postId: string, userId: string, text: string) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true },
-    });
-    if (!post) {
-      throw new NotFoundException(`Post with ID ${postId} not found`);
-    }
+    const post = await this.prisma.post.findUnique({ where: { id: postId }, select: { id: true } });
+    if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
     return this.prisma.comment.create({
       data: {
@@ -209,9 +201,7 @@ export class SocialService {
         user: { connect: { id: userId } },
       },
       include: {
-        user: {
-          select: { id: true, handle: true, avatarUrl: true },
-        },
+        user: { select: { id: true, handle: true, avatarUrl: true } },
       },
     });
   }
@@ -222,9 +212,7 @@ export class SocialService {
       where: { id },
       data: { text: text.trim() },
       include: {
-        user: {
-          select: { id: true, handle: true, avatarUrl: true },
-        },
+        user: { select: { id: true, handle: true, avatarUrl: true } },
       },
     });
   }
@@ -238,15 +226,13 @@ export class SocialService {
     return this.prisma.comment.findMany({
       where: { postId },
       include: {
-        user: {
-          select: { id: true, handle: true, avatarUrl: true },
-        },
+        user: { select: { id: true, handle: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  private postCardInclude() {
+  private postCardInclude(viewerUserId?: string) {
     return {
       author: {
         select: { id: true, handle: true, avatarUrl: true, isVerified: true },
@@ -254,6 +240,9 @@ export class SocialService {
       pet: {
         select: { id: true, name: true, species: true, breed: true, avatarUrl: true },
       },
+      likes: viewerUserId
+        ? { where: { userId: viewerUserId }, select: { id: true } }
+        : { take: 0, select: { id: true } },
       _count: {
         select: { likes: true, comments: true },
       },
