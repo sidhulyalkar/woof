@@ -18,6 +18,7 @@ export interface AuthUser {
   email: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  visibility?: 'PUBLIC' | 'FRIENDS_ONLY' | 'PRIVATE';
   points?: number;
   totalPoints?: number;
   isVerified?: boolean;
