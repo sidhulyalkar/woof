@@ -8,7 +8,16 @@ import {
   IsUUID,
 } from 'class-validator';
 
-const ACTIVITY_TYPES = ['WALK', 'RUN', 'PLAY', 'HIKE', 'TRAINING', 'OTHER'];
+const ACTIVITY_TYPES = [
+  'WALK',
+  'RUN',
+  'PLAY',
+  'HIKE',
+  'TRAINING',
+  'GROOMING',
+  'VET_VISIT',
+  'OTHER',
+];
 
 export class CreateActivityDto {
   @IsOptional()
