@@ -1,35 +1,50 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import { Loader2, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
 import { DiscoverMapView } from "@/components/discover/discover-map-view"
 import { FilterSheet } from "@/components/discover/filter-sheet"
 import { MatchCard } from "@/components/discover/match-card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { compatibilityApi } from "@/lib/api"
-import { useSessionStore } from "@/store/session"
+import { authApi, compatibilityApi } from "@/lib/api"
+import { useAuthStore } from "@/lib/stores/auth-store"
 
 export default function DiscoverPage() {
-  const user = useSessionStore((state) => state.user)
+  const cachedUser = useAuthStore((state) => state.user)
   const [filterOpen, setFilterOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("matches")
+
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useQuery({
+    queryKey: ["auth-profile"],
+    queryFn: authApi.me,
+    staleTime: 30_000,
+  })
+
+  const user = profile ?? cachedUser
   const primaryPetId = user?.pets?.[0]?.id
 
   const {
     data: matches = [],
-    isLoading,
-    isFetching,
-    error,
-    refetch,
+    isLoading: matchesLoading,
+    isFetching: matchesFetching,
+    error: matchesError,
+    refetch: refetchMatches,
   } = useQuery({
     queryKey: ["recommendations", primaryPetId],
     queryFn: () => compatibilityApi.getRecommendations(primaryPetId!),
     enabled: Boolean(primaryPetId),
     staleTime: 60_000,
   })
+
+  const isLoading = profileLoading || matchesLoading
 
   return (
     <div className="min-h-screen pb-24">
@@ -81,8 +96,7 @@ export default function DiscoverPage() {
                   A recommendation should explain itself
                 </h2>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Woof ranks known candidate relationships with a deterministic baseline built from pet profile signals.
-                  Each result exposes confidence and the factors behind the score, while advanced models remain gated behind evaluation.
+                  Woof ranks known candidate relationships with a deterministic profile baseline. Each result exposes confidence and the factors behind the score, while learned models remain gated behind evaluation.
                 </p>
               </div>
             </section>
@@ -90,30 +104,37 @@ export default function DiscoverPage() {
             {isLoading ? (
               <div className="flex min-h-72 flex-col items-center justify-center gap-3" role="status">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-                <p className="text-sm text-muted-foreground">Ranking compatible dogs…</p>
+                <p className="text-sm text-muted-foreground">Loading your pet profile and ranking candidates…</p>
+              </div>
+            ) : profileError && !cachedUser ? (
+              <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
+                <h2 className="text-lg font-semibold">Your profile could not be refreshed</h2>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  Discovery needs the current pet list before it can request recommendations. Other authenticated surfaces remain available.
+                </p>
+                <Button variant="outline" className="mt-5 gap-2 bg-transparent" onClick={() => refetchProfile()}>
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Retry profile
+                </Button>
               </div>
             ) : !primaryPetId ? (
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
                 <h2 className="text-lg font-semibold">Start with your dog</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Matching needs a pet profile so Woof can compare temperament, life stage and other available context.
+                  Matching needs a persisted pet profile so Woof can compare species, temperament, life stage and other available context.
                 </p>
                 <Button className="mt-5" onClick={() => setFilterOpen(true)}>
-                  Review profile setup
+                  Review discovery setup
                 </Button>
               </div>
-            ) : error ? (
+            ) : matchesError ? (
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
                 <h2 className="text-lg font-semibold">Recommendations are temporarily unavailable</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Discovery failed without blocking the rest of Woof. Retry the ranking request when you are ready.
+                  Discovery failed locally without blocking the rest of Woof. Retry the ranking request when you are ready.
                 </p>
-                <Button variant="outline" className="mt-5 gap-2 bg-transparent" onClick={() => refetch()} disabled={isFetching}>
-                  {isFetching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                  )}
+                <Button variant="outline" className="mt-5 gap-2 bg-transparent" onClick={() => refetchMatches()} disabled={matchesFetching}>
+                  {matchesFetching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
                   Retry
                 </Button>
               </div>
@@ -133,15 +154,9 @@ export default function DiscoverPage() {
                   <MatchCard key={match.id} match={match} />
                 ))}
                 <div className="py-5 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    You have reached the end of the current candidate set.
-                  </p>
-                  <Button variant="ghost" className="mt-2 gap-2" onClick={() => refetch()} disabled={isFetching}>
-                    {isFetching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                    )}
+                  <p className="text-sm text-muted-foreground">You have reached the end of the current candidate set.</p>
+                  <Button variant="ghost" className="mt-2 gap-2" onClick={() => refetchMatches()} disabled={matchesFetching}>
+                    {matchesFetching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
                     Refresh matches
                   </Button>
                 </div>
