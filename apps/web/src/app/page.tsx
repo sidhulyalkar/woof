@@ -1,31 +1,68 @@
 "use client"
 
+import Link from "next/link"
+import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  Bell,
+  CalendarHeart,
+  Compass,
+  Footprints,
+  Loader2,
+  PawPrint,
+  Trophy,
+} from "lucide-react"
 import { BottomNav } from "@/components/bottom-nav"
 import { PostCard } from "@/components/feed/post-card"
 import { FullScreenPostView } from "@/components/feed/full-screen-post-view"
 import { Button } from "@/components/ui/button"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
-import { Sparkles, Loader2 } from "lucide-react"
-import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { socialApi } from "@/lib/api"
-import type { Post } from "@/lib/types"
+
+const quickActions = [
+  {
+    href: "/discover",
+    label: "Find a match",
+    description: "Compatibility-first discovery",
+    icon: Compass,
+  },
+  {
+    href: "/events",
+    label: "Plan a meetup",
+    description: "See what is happening nearby",
+    icon: CalendarHeart,
+  },
+  {
+    href: "/activity",
+    label: "Log activity",
+    description: "Walks, play, runs and hikes",
+    icon: Footprints,
+  },
+  {
+    href: "/leaderboard",
+    label: "View progress",
+    description: "Goals, points and community",
+    icon: Trophy,
+  },
+]
 
 export default function HomePage() {
   const queryClient = useQueryClient()
   const [fullScreenIndex, setFullScreenIndex] = useState<number | null>(null)
 
-  // Fetch feed posts
-  const { data: posts = [], isLoading, error } = useQuery({
-    queryKey: ['feed'],
+  const {
+    data: posts = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["feed"],
     queryFn: socialApi.getFeed,
   })
 
-  // Like post mutation
   const likeMutation = useMutation({
     mutationFn: (postId: string) => socialApi.likePost(postId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feed'] })
+      queryClient.invalidateQueries({ queryKey: ["feed"] })
     },
   })
 
@@ -34,47 +71,138 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 glass-strong border-b border-border/50">
-        <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
-          <h1 className="text-xl font-bold">PetPath</h1>
-          <Button variant="ghost" size="icon" className="relative">
-            <Sparkles className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+    <div className="min-h-screen pb-24">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/88 backdrop-blur-2xl">
+        <div className="mx-auto flex h-16 max-w-xl items-center justify-between px-4">
+          <Link href="/" className="flex min-h-0 min-w-0 items-center gap-3" aria-label="Woof home">
+            <span className="brand-mark flex h-9 w-9 items-center justify-center rounded-xl">
+              <PawPrint className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Your local pack
+              </span>
+              <span className="block text-lg font-bold tracking-tight">Woof</span>
+            </span>
+          </Link>
+
+          <Button variant="ghost" size="icon" asChild className="relative rounded-xl">
+            <Link href="/notifications" aria-label="Open notifications">
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-background bg-accent" />
+            </Link>
           </Button>
         </div>
       </header>
 
-      {/* Feed */}
-      <div className="max-w-lg mx-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <main id="main-content" className="mx-auto max-w-xl px-4 pb-6 pt-5">
+        <section aria-labelledby="today-heading" className="animate-in">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow">Start with intent</p>
+              <h1 id="today-heading" className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                What does your dog need today?
+              </h1>
+            </div>
           </div>
-        ) : error ? (
-          <div className="text-center py-12 px-4">
-            <p className="text-destructive mb-2">Failed to load feed</p>
-            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['feed'] })}>
-              Try Again
-            </Button>
+
+          <div className="grid grid-cols-2 gap-3">
+            {quickActions.map((action) => {
+              const Icon = action.icon
+              return (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="group surface-soft flex min-h-[122px] flex-col justify-between rounded-2xl p-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.045]"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:-translate-y-0.5">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="mt-5">
+                    <span className="block text-sm font-semibold">{action.label}</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                      {action.description}
+                    </span>
+                  </span>
+                </Link>
+              )
+            })}
           </div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-12 px-4">
-            <p className="text-muted-foreground mb-2">No posts yet</p>
-            <p className="text-sm text-muted-foreground">Follow some friends or create your first post!</p>
+        </section>
+
+        <section aria-labelledby="feed-heading" className="mt-8">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Community</p>
+              <h2 id="feed-heading" className="mt-1 text-xl font-bold tracking-tight">
+                From your pack
+              </h2>
+            </div>
+            <Link
+              href="/discover"
+              className="flex min-h-0 min-w-0 items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80"
+            >
+              Discover
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
-        ) : (
-          posts.map((post, index) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onLike={handleLike}
-              onMediaClick={() => setFullScreenIndex(index)}
-            />
-          ))
-        )}
-      </div>
+
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/55">
+            {isLoading ? (
+              <div className="flex min-h-52 flex-col items-center justify-center gap-3 px-5 py-12" role="status">
+                <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden="true" />
+                <p className="text-sm text-muted-foreground">Gathering the latest from your pack…</p>
+              </div>
+            ) : error ? (
+              <div className="flex min-h-52 flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                  <PawPrint className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <h3 className="font-semibold">The feed could not load</h3>
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                  Your profile and other Woof features are still available. Try the feed again when the connection settles.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-5 bg-transparent"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["feed"] })}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : posts.length === 0 ? (
+              <div className="flex min-h-56 flex-col items-center justify-center px-6 py-12 text-center">
+                <div className="brand-mark mb-4 flex h-12 w-12 items-center justify-center rounded-2xl">
+                  <PawPrint className="h-6 w-6 text-primary-foreground" aria-hidden="true" />
+                </div>
+                <h3 className="text-base font-semibold">Your pack is quiet for now</h3>
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                  Find compatible dogs nearby or share the first walk, play session or park moment.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <Button asChild>
+                    <Link href="/discover">Find matches</Link>
+                  </Button>
+                  <Button variant="outline" asChild className="bg-transparent">
+                    <Link href="/camera">Create a post</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {posts.map((post, index) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onLike={handleLike}
+                    onMediaClick={() => setFullScreenIndex(index)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
 
       {fullScreenIndex !== null && (
         <FullScreenPostView
