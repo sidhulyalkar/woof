@@ -29,14 +29,14 @@ export type ClearLocationHistoryResponse = {
 
 export const privacyApi = {
   preferences: () =>
-    apiClient.get('/privacy/preferences') as Promise<PrivacyPreferences>,
+    apiClient.get('/privacy/preferences') as unknown as Promise<PrivacyPreferences>,
 
   updatePreferences: (patch: Partial<PrivacyPreferences>) =>
-    apiClient.put('/privacy/preferences', patch) as Promise<PrivacyUpdateResponse>,
+    apiClient.put('/privacy/preferences', patch) as unknown as Promise<PrivacyUpdateResponse>,
 
   locationSummary: () =>
-    apiClient.get('/privacy/location-summary') as Promise<LocationSummary>,
+    apiClient.get('/privacy/location-summary') as unknown as Promise<LocationSummary>,
 
   clearLocationHistory: () =>
-    apiClient.delete('/privacy/location-history') as Promise<ClearLocationHistoryResponse>,
+    apiClient.delete('/privacy/location-history') as unknown as Promise<ClearLocationHistoryResponse>,
 };
