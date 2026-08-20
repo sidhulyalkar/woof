@@ -1,12 +1,12 @@
 import { apiClient } from './api/client';
 import { useAuthStore } from './stores/auth-store';
+import type { Match } from './types';
 
 // Authentication API calls
 export const authApi = {
   /** Register a new user */
   register: async (data: { handle: string; email: string; password: string; bio?: string }) => {
     const response = await apiClient.post('/auth/register', data);
-    // Auto-login after registration
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);
     }
@@ -16,7 +16,6 @@ export const authApi = {
   /** Log in with email & password */
   login: async (data: { email: string; password: string }) => {
     const response = await apiClient.post('/auth/login', data);
-    // Store auth data in store
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);
     }
@@ -32,12 +31,10 @@ export const authApi = {
   me: () => apiClient.get('/auth/me'),
 };
 
-// User-related API calls
 export const userApi = {
   getUser: (userId: string) => apiClient.get(`/users/${userId}`),
 };
 
-// Pet-related API calls
 export const petsApi = {
   getPets: () => apiClient.get('/pets'),
   createPet: (data: { name: string; species: string; [key: string]: any }) =>
@@ -45,14 +42,12 @@ export const petsApi = {
   getPet: (petId: string) => apiClient.get(`/pets/${petId}`),
 };
 
-// Activities (walk/run/play logs) API calls
 export const activitiesApi = {
   getActivities: () => apiClient.get('/activities'),
   logActivity: (data: { petId: string; type: string; distance?: number; duration: number; calories?: number }) =>
     apiClient.post('/activities', data),
 };
 
-// Social (posts, feed, likes, comments) API calls
 export const socialApi = {
   getFeed: () => apiClient.get('/social/posts'),
   createPost: (data: { text: string; mediaUrls?: string[]; petId?: string }) =>
@@ -63,7 +58,6 @@ export const socialApi = {
   getComments: (postId: string) => apiClient.get(`/social/posts/${postId}/comments`),
 };
 
-// Meetups (events) API calls
 export const meetupsApi = {
   getMeetups: () => apiClient.get('/meetups'),
   createMeetup: (data: { title: string; datetime: string; location: string; description?: string }) =>
@@ -72,14 +66,118 @@ export const meetupsApi = {
     apiClient.post(`/meetups/${meetupId}/rsvp`, { response }),
 };
 
-// Compatibility (pet matching) API calls
-export const compatibilityApi = {
-  getRecommendations: (petId: string) => apiClient.get(`/compatibility/recommendations/${petId}`),
-  calculateCompatibility: (petId1: string, petId2: string) =>
-    apiClient.post('/compatibility/calculate', { petId1, petId2 }),
+type RawCompatibilityRecommendation = {
+  id: string;
+  pet: {
+    id: string;
+    ownerId: string;
+    name: string;
+    species: string;
+    breed?: string | null;
+    birthdate?: string | null;
+    avatarUrl?: string | null;
+    temperament?: string[];
+    owner?: {
+      id: string;
+      handle: string;
+      bio?: string | null;
+      avatarUrl?: string | null;
+      isVerified?: boolean;
+    };
+  };
+  compatibilityScore: number;
+  confidence?: number;
+  source?: string;
+  factors?: Record<string, number>;
+  explanation?: string[];
+  status?: 'PROPOSED' | 'CONFIRMED' | 'AVOID';
+  lastInteractionAt?: string | null;
 };
 
-// Events API calls
+type RawRecommendationsResponse = {
+  recommendations?: RawCompatibilityRecommendation[];
+};
+
+const asPercent = (value: number | undefined, fallback = 0) =>
+  Math.round(Math.max(0, Math.min(1, value ?? fallback)) * 100);
+
+const ageFromBirthdate = (birthdate?: string | null) => {
+  if (!birthdate) return undefined;
+  const born = new Date(birthdate);
+  if (Number.isNaN(born.getTime())) return undefined;
+
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  const beforeBirthday =
+    now.getMonth() < born.getMonth() ||
+    (now.getMonth() === born.getMonth() && now.getDate() < born.getDate());
+  if (beforeBirthday) age -= 1;
+  return Math.max(0, age);
+};
+
+const normalizeRecommendation = (recommendation: RawCompatibilityRecommendation): Match => {
+  const rawFactors = recommendation.factors ?? {};
+  const owner = recommendation.pet.owner;
+
+  return {
+    id: recommendation.id,
+    owner: {
+      id: owner?.id ?? recommendation.pet.ownerId,
+      name: owner?.handle ?? 'Woof member',
+      bio: owner?.bio ?? undefined,
+      avatarUrl: owner?.avatarUrl ?? undefined,
+      isVerified: owner?.isVerified,
+    },
+    pet: {
+      id: recommendation.pet.id,
+      ownerId: recommendation.pet.ownerId,
+      name: recommendation.pet.name,
+      species: recommendation.pet.species,
+      breed: recommendation.pet.breed ?? undefined,
+      age: ageFromBirthdate(recommendation.pet.birthdate),
+      temperament: recommendation.pet.temperament ?? [],
+      photoUrl: recommendation.pet.avatarUrl ?? undefined,
+    },
+    compatibility: {
+      overall: asPercent(recommendation.compatibilityScore),
+      confidence: asPercent(recommendation.confidence, 0.5),
+      source: recommendation.source ?? 'unknown',
+      factors: {
+        species: asPercent(rawFactors.species),
+        ...(rawFactors.temperament !== undefined
+          ? { temperament: asPercent(rawFactors.temperament) }
+          : {}),
+        ...(rawFactors.age !== undefined ? { age: asPercent(rawFactors.age) } : {}),
+        ...(rawFactors.breed !== undefined ? { breed: asPercent(rawFactors.breed) } : {}),
+      },
+      explanation: recommendation.explanation ?? [],
+    },
+    status: recommendation.status,
+    matchedAt: recommendation.lastInteractionAt ?? undefined,
+  };
+};
+
+export const compatibilityApi = {
+  /**
+   * Normalize the API envelope into the single Match contract used by discovery.
+   * This keeps presentation components independent from transport details.
+   */
+  getRecommendations: async (petId: string): Promise<Match[]> => {
+    const response = (await apiClient.get(
+      `/compatibility/recommendations/${petId}`,
+    )) as unknown as RawRecommendationsResponse | RawCompatibilityRecommendation[];
+
+    const recommendations = Array.isArray(response)
+      ? response
+      : response?.recommendations ?? [];
+
+    return recommendations.map(normalizeRecommendation);
+  },
+
+  calculateCompatibility: (petAId: string, petBId: string) =>
+    apiClient.post('/compatibility/calculate', { petAId, petBId }),
+};
+
 export const eventsApi = {
   getEvents: () => apiClient.get('/events'),
   getEvent: (eventId: string) => apiClient.get(`/events/${eventId}`),
@@ -89,7 +187,6 @@ export const eventsApi = {
   checkIn: (eventId: string) => apiClient.post(`/events/${eventId}/check-in`, {}),
 };
 
-// Gamification API calls
 export const gamificationApi = {
   getProfile: (userId: string) => apiClient.get(`/gamification/profile/${userId}`),
   getLeaderboard: () => apiClient.get('/gamification/leaderboard'),
@@ -97,7 +194,6 @@ export const gamificationApi = {
     apiClient.post('/gamification/points', data),
 };
 
-// Services API calls
 export const servicesApi = {
   getServices: (params?: any) => apiClient.get('/services', { params }),
   getService: (serviceId: string) => apiClient.get(`/services/${serviceId}`),
@@ -105,15 +201,12 @@ export const servicesApi = {
     apiClient.post('/services/intent', data),
 };
 
-// Verification API calls
 export const verificationApi = {
   submitVerification: (data: any) => apiClient.post('/verification/submit', data),
   getStatus: () => apiClient.get('/verification/status'),
 };
 
-// Storage/Upload API calls
 export const storageApi = {
-  /** Upload a single file */
   uploadFile: async (file: File, folder?: string): Promise<{ key: string; url: string; bucket: string }> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -127,7 +220,6 @@ export const storageApi = {
     return response;
   },
 
-  /** Upload multiple files */
   uploadFiles: async (files: File[], folder?: string): Promise<Array<{ key: string; url: string; bucket: string }>> => {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
@@ -141,66 +233,37 @@ export const storageApi = {
     return response;
   },
 
-  /** Delete a file */
   deleteFile: (key: string) => apiClient.delete(`/storage/${key}`),
 };
 
-// Nudges API calls
 export const nudgesApi = {
-  /** Get active nudges for current user */
   getNudges: () => apiClient.get('/nudges'),
-
-  /** Accept a nudge */
   acceptNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/accept`, {}),
-
-  /** Dismiss a nudge */
   dismissNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/dismiss`, {}),
-
-  /** Manually trigger chat activity check */
   checkChatActivity: (conversationId: string) =>
     apiClient.post(`/nudges/check/chat/${conversationId}`, {}),
 };
 
-// Push Notifications API calls
 export const notificationsApi = {
-  /** Subscribe to push notifications */
   subscribe: (subscription: any) => apiClient.post('/notifications/subscribe', { subscription }),
-
-  /** Unsubscribe from push notifications */
   unsubscribe: () => apiClient.post('/notifications/unsubscribe', {}),
-
-  /** Send a push notification (admin/testing) */
   sendPush: (data: { userId: string; title: string; body: string; url?: string; data?: any }) =>
     apiClient.post('/notifications/send', data),
 };
 
-// Analytics & Telemetry API calls
 export const analyticsApi = {
-  /** Record a telemetry event */
   trackEvent: (data: { userId?: string; source: string; event: string; metadata?: any }) =>
     apiClient.post('/analytics/telemetry', data),
-
-  /** Get north star metrics */
   getNorthStar: (timeframe?: '7d' | '30d' | '90d') =>
     apiClient.get('/analytics/north-star', { params: { timeframe } }),
-
-  /** Get detailed analytics */
   getDetails: (timeframe?: '7d' | '30d' | '90d') =>
     apiClient.get('/analytics/details', { params: { timeframe } }),
-
-  /** Get event counts */
   getEventCounts: (timeframe?: '7d' | '30d' | '90d') =>
     apiClient.get('/analytics/events', { params: { timeframe } }),
-
-  /** Get active users count */
   getActiveUsers: (timeframe?: '7d' | '30d' | '90d') =>
     apiClient.get('/analytics/users/active', { params: { timeframe } }),
-
-  /** Get screen view analytics */
   getScreenViews: (timeframe?: '7d' | '30d' | '90d') =>
     apiClient.get('/analytics/screens', { params: { timeframe } }),
-
-  /** Get user activity timeline */
   getUserActivity: (userId: string, limit?: number) =>
     apiClient.get(`/analytics/users/${userId}/activity`, { params: { limit } }),
 };
