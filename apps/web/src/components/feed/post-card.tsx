@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { Heart, MessageCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -24,9 +23,7 @@ export function PostCard({ post, onLike, onMediaClick }: PostCardProps) {
           <AvatarFallback>{post.userName.slice(0, 1).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <Link href={`/users/${post.userId}`} className="min-h-0 min-w-0 font-semibold hover:text-primary">
-            @{post.userName}
-          </Link>
+          <p className="truncate font-semibold">@{post.userName}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {post.petName && post.petName !== "Woof" ? `with ${post.petName} · ` : ""}{relativeTime}
           </p>
@@ -53,7 +50,7 @@ export function PostCard({ post, onLike, onMediaClick }: PostCardProps) {
         </button>
       )}
 
-      <div className="flex items-center gap-1 px-3 py-2.5">
+      <div className="flex items-center gap-3 px-3 py-2.5">
         <Button
           type="button"
           variant="ghost"
@@ -67,12 +64,10 @@ export function PostCard({ post, onLike, onMediaClick }: PostCardProps) {
           <span className="tabular-nums">{post.likes}</span>
         </Button>
 
-        <Button variant="ghost" size="sm" asChild className="gap-2 rounded-xl">
-          <Link href={`/posts/${post.id}`} aria-label={`Open ${post.comments} comments`}>
-            <MessageCircle className="h-5 w-5" aria-hidden="true" />
-            <span className="tabular-nums">{post.comments}</span>
-          </Link>
-        </Button>
+        <span className="inline-flex items-center gap-2 px-2 text-sm text-muted-foreground" aria-label={`${post.comments} comments`}>
+          <MessageCircle className="h-5 w-5" aria-hidden="true" />
+          <span className="tabular-nums">{post.comments}</span>
+        </span>
       </div>
     </article>
   )
