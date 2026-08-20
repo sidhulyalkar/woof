@@ -21,18 +21,19 @@ export class SocialController {
   @Get('posts')
   @ApiOperation({ summary: 'Get posts (paginated)' })
   async findAllPosts(
+    @Request() req: any,
     @Query('skip') skip?: number,
     @Query('take') take?: number,
     @Query('authorUserId') authorUserId?: string,
     @Query('petId') petId?: string,
   ) {
-    return this.socialService.findAllPosts(skip, take, authorUserId, petId);
+    return this.socialService.findAllPosts(req.user.sub, skip, take, authorUserId, petId);
   }
 
   @Get('posts/:id')
   @ApiOperation({ summary: 'Get post by ID' })
-  async findOnePost(@Param('id') id: string) {
-    return this.socialService.findPostById(id);
+  async findOnePost(@Request() req: any, @Param('id') id: string) {
+    return this.socialService.findPostById(id, req.user.sub);
   }
 
   @Put('posts/:id')
