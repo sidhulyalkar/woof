@@ -1,90 +1,120 @@
-import { Controller, Get, Post, Body, Query, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { AnalyticsService } from './analytics.service';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AnalyticsService } from './analytics.service';
 
 @ApiTags('analytics')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('north-star')
-  @ApiOperation({ summary: 'Get north star metrics for the specified timeframe' })
-  @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'], description: 'Timeframe for metrics' })
-  @ApiResponse({ status: 200, description: 'North star metrics retrieved successfully' })
-  async getNorthStarMetrics(@Query('timeframe') timeframe?: string) {
-    const minutes = this.getTimeframeMinutes(timeframe || '30d');
-    return this.analyticsService.getNorthStarMetrics(minutes);
+  @ApiOperation({ summary: 'Get outcome-focused beta metrics' })
+  @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
+  getNorthStarMetrics(@Query('timeframe') timeframe?: string) {
+    return this.analyticsService.getNorthStarMetrics(
+      this.getTimeframeMinutes(timeframe || '30d'),
+    );
   }
 
   @Get('details')
-  @ApiOperation({ summary: 'Get detailed analytics breakdown' })
-  @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'], description: 'Timeframe for metrics' })
-  @ApiResponse({ status: 200, description: 'Detailed metrics retrieved successfully' })
-  async getDetailedMetrics(@Query('timeframe') timeframe?: string) {
-    const minutes = this.getTimeframeMinutes(timeframe || '30d');
-    return this.analyticsService.getDetailedMetrics(minutes);
+  @ApiOperation({ summary: 'Get relationship funnel and compatibility calibration details' })
+  @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
+  getDetailedMetrics(@Query('timeframe') timeframe?: string) {
+    return this.analyticsService.getDetailedMetrics(
+      this.getTimeframeMinutes(timeframe || '30d'),
+    );
+  }
+
+  @Get('compatibility-calibration')
+  @ApiOperation({ summary: 'Get compatibility fallback and future-outcome calibration dashboard data' })
+  @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
+  getCompatibilityCalibration(@Query('timeframe') timeframe?: string) {
+    const since = new Date(
+      Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000,
+    );
+    return this.analyticsService.getCompatibilityCalibration(since);
   }
 
   @Post('telemetry')
-  @ApiOperation({ summary: 'Record a telemetry event' })
-  @ApiResponse({ status: 201, description: 'Telemetry event recorded' })
-  async recordTelemetry(
-    @Body() data: { userId?: string; source: string; event: string; metadata?: any },
+  @ApiOperation({ summary: 'Record actor-bound product telemetry' })
+  recordTelemetry(
+    @Request() req: any,
+    @Body() data: { source: string; event: string; metadata?: unknown },
   ) {
-    return this.analyticsService.recordTelemetry(data);
+    return this.analyticsService.recordTelemetry({
+      userId: req.user.sub,
+      source: data.source,
+      event: data.event,
+      metadata: data.metadata,
+    });
   }
 
   @Get('events')
-  @ApiOperation({ summary: 'Get event counts by type' })
+  @ApiOperation({ summary: 'Get product event counts' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
-  @ApiResponse({ status: 200, description: 'Event counts retrieved' })
-  async getEventCounts(@Query('timeframe') timeframe?: string) {
-    const minutes = this.getTimeframeMinutes(timeframe || '30d');
-    const since = new Date();
-    since.setMinutes(since.getMinutes() - minutes);
+  getEventCounts(@Query('timeframe') timeframe?: string) {
+    const since = new Date(
+      Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000,
+    );
     return this.analyticsService.getEventCounts(since);
   }
 
   @Get('users/active')
-  @ApiOperation({ summary: 'Get active users count' })
+  @ApiOperation({ summary: 'Get active user count' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
-  @ApiResponse({ status: 200, description: 'Active users count' })
   async getActiveUsers(@Query('timeframe') timeframe?: string) {
-    const minutes = this.getTimeframeMinutes(timeframe || '7d');
-    const since = new Date();
-    since.setMinutes(since.getMinutes() - minutes);
+    const since = new Date(
+      Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000,
+    );
     return { activeUsers: await this.analyticsService.getActiveUsersCount(since) };
   }
 
   @Get('screens')
   @ApiOperation({ summary: 'Get screen view analytics' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
-  @ApiResponse({ status: 200, description: 'Screen view statistics' })
-  async getScreenViews(@Query('timeframe') timeframe?: string) {
-    const minutes = this.getTimeframeMinutes(timeframe || '7d');
-    const since = new Date();
-    since.setMinutes(since.getMinutes() - minutes);
+  getScreenViews(@Query('timeframe') timeframe?: string) {
+    const since = new Date(
+      Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000,
+    );
     return this.analyticsService.getScreenViews(since);
   }
 
   @Get('users/:userId/activity')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get user activity timeline' })
-  @ApiResponse({ status: 200, description: 'User activity timeline' })
-  async getUserActivity(@Param('userId') userId: string, @Query('limit') limit?: number) {
-    return this.analyticsService.getUserActivity(userId, limit ? parseInt(limit.toString()) : 50);
+  @ApiOperation({ summary: 'Get the signed-in user telemetry timeline' })
+  getUserActivity(
+    @Request() req: any,
+    @Param('userId') userId: string,
+    @Query('limit') limit?: number,
+  ) {
+    if (userId !== req.user.sub) {
+      throw new ForbiddenException('Telemetry timelines are private');
+    }
+    return this.analyticsService.getUserActivity(
+      userId,
+      limit ? parseInt(limit.toString(), 10) : 50,
+    );
   }
 
   private getTimeframeMinutes(timeframe: string): number {
     switch (timeframe) {
       case '7d':
         return 7 * 24 * 60;
-      case '30d':
-        return 30 * 24 * 60;
       case '90d':
         return 90 * 24 * 60;
+      case '30d':
       default:
         return 30 * 24 * 60;
     }
