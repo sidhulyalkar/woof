@@ -1,19 +1,22 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
   Request,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { MeetupProposalsService } from './meetup-proposals.service';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
-import { UpdateMeetupProposalDto, CompleteMeetupDto } from './dto/update-meetup-proposal.dto';
+import {
+  CompleteMeetupDto,
+  UpdateMeetupProposalDto,
+} from './dto/update-meetup-proposal.dto';
+import { MeetupProposalsService } from './meetup-proposals.service';
 
 @ApiTags('meetup-proposals')
 @ApiBearerAuth()
@@ -23,60 +26,52 @@ export class MeetupProposalsController {
   constructor(private readonly meetupProposalsService: MeetupProposalsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new meetup proposal' })
-  @ApiResponse({ status: 201, description: 'Meetup proposal created successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input' })
-  async create(@Request() req: any, @Body() createMeetupProposalDto: CreateMeetupProposalDto) {
-    return this.meetupProposalsService.create(req.user.id, createMeetupProposalDto);
+  @ApiOperation({ summary: 'Propose a privacy-minimized meetup after conversation' })
+  create(@Request() req: any, @Body() dto: CreateMeetupProposalDto) {
+    return this.meetupProposalsService.create(req.user.sub, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all meetup proposals for the current user' })
-  @ApiResponse({ status: 200, description: 'List of sent and received proposals' })
-  async findAll(@Request() req: any) {
-    return this.meetupProposalsService.findAllForUser(req.user.id);
+  @ApiOperation({ summary: 'Get sent and received meetup proposals' })
+  findAll(@Request() req: any) {
+    return this.meetupProposalsService.findAllForUser(req.user.sub);
   }
 
   @Get('stats')
-  @ApiOperation({ summary: 'Get meetup statistics for the current user' })
-  @ApiResponse({ status: 200, description: 'Meetup statistics' })
-  async getStats(@Request() req: any) {
-    return this.meetupProposalsService.getStats(req.user.id);
+  @ApiOperation({ summary: 'Get the current member meetup statistics' })
+  getStats(@Request() req: any) {
+    return this.meetupProposalsService.getStats(req.user.sub);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a specific meetup proposal' })
-  @ApiResponse({ status: 200, description: 'Meetup proposal details' })
-  @ApiResponse({ status: 404, description: 'Proposal not found' })
-  async findOne(@Param('id') id: string) {
-    return this.meetupProposalsService.findOne(id);
+  @ApiOperation({ summary: 'Get a meetup proposal only when the member is a participant' })
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.meetupProposalsService.findOneForUser(id, req.user.sub);
   }
 
   @Put(':id/status')
-  @ApiOperation({ summary: 'Update proposal status (accept/decline)' })
-  @ApiResponse({ status: 200, description: 'Status updated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid status or not authorized' })
-  async updateStatus(
+  @ApiOperation({ summary: 'Accept or decline a pending proposal as its recipient' })
+  updateStatus(
     @Param('id') id: string,
     @Request() req: any,
-    @Body() updateMeetupProposalDto: UpdateMeetupProposalDto,
+    @Body() dto: UpdateMeetupProposalDto,
   ) {
-    return this.meetupProposalsService.updateStatus(id, req.user.id, updateMeetupProposalDto);
+    return this.meetupProposalsService.updateStatus(id, req.user.sub, dto);
   }
 
   @Put(':id/complete')
-  @ApiOperation({ summary: 'Mark meetup as completed with feedback' })
-  @ApiResponse({ status: 200, description: 'Meetup completed successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input or not authorized' })
-  async complete(@Param('id') id: string, @Request() req: any, @Body() completeMeetupDto: CompleteMeetupDto) {
-    return this.meetupProposalsService.complete(id, req.user.id, completeMeetupDto);
+  @ApiOperation({ summary: 'Submit participant-specific post-meetup outcome feedback' })
+  complete(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() dto: CompleteMeetupDto,
+  ) {
+    return this.meetupProposalsService.complete(id, req.user.sub, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Cancel a meetup proposal' })
-  @ApiResponse({ status: 200, description: 'Proposal cancelled successfully' })
-  @ApiResponse({ status: 400, description: 'Not authorized' })
-  async remove(@Param('id') id: string, @Request() req: any) {
-    return this.meetupProposalsService.remove(id, req.user.id);
+  @ApiOperation({ summary: 'Cancel an active meetup proposal as a participant' })
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.meetupProposalsService.remove(id, req.user.sub);
   }
 }
