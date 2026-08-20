@@ -22,7 +22,10 @@ for (const route of publicRoutes) {
         .map(
           (violation) =>
             `${violation.id}: ${violation.help}\n${violation.nodes
-              .map((node) => `  ${node.target.join(' ')}: ${node.failureSummary ?? ''}`)
+              .map(
+                (node) =>
+                  `  ${node.target.join(' ')}: ${node.failureSummary ?? ''}`,
+              )
               .join('\n')}`,
         )
         .join('\n\n'),
@@ -34,10 +37,14 @@ test('public beta surfaces remain keyboard navigable', async ({ page }) => {
   await page.goto('/login');
   await page.keyboard.press('Tab');
 
-  const firstFocused = await page.evaluate(() => document.activeElement?.tagName);
+  const firstFocused = await page.evaluate(
+    () => document.activeElement?.tagName,
+  );
   expect(firstFocused).not.toBe('BODY');
 
   await page.keyboard.press('Tab');
-  const secondFocused = await page.evaluate(() => document.activeElement?.tagName);
+  const secondFocused = await page.evaluate(
+    () => document.activeElement?.tagName,
+  );
   expect(secondFocused).not.toBe('BODY');
 });
