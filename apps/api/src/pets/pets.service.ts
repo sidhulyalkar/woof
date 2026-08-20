@@ -16,6 +16,7 @@ export class PetsService {
             id: true,
             handle: true,
             avatarUrl: true,
+            isVerified: true,
           },
         },
       },
@@ -38,6 +39,7 @@ export class PetsService {
               id: true,
               handle: true,
               avatarUrl: true,
+              isVerified: true,
             },
           },
           _count: {
@@ -60,16 +62,28 @@ export class PetsService {
   async findById(id: string) {
     const pet = await this.prisma.pet.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        species: true,
+        breed: true,
+        sex: true,
+        birthdate: true,
+        temperament: true,
+        vaccinations: true,
+        avatarUrl: true,
+        createdAt: true,
+        updatedAt: true,
         owner: {
           select: {
             id: true,
             handle: true,
-            email: true,
+            bio: true,
             avatarUrl: true,
+            isVerified: true,
           },
         },
-        devices: true,
         _count: {
           select: {
             activities: true,
@@ -99,6 +113,7 @@ export class PetsService {
             id: true,
             handle: true,
             avatarUrl: true,
+            isVerified: true,
           },
         },
       },
