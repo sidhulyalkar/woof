@@ -6,6 +6,8 @@ import {
   LearnedCompatibilityRequest,
 } from '../compatibility/compatibility.types';
 
+export type MLCompatibilityMode = 'off' | 'shadow' | 'promoted';
+
 export type MLCompatibilityAttempt = {
   score: CompatibilityScore | null;
   latencyMs: number;
@@ -14,6 +16,7 @@ export type MLCompatibilityAttempt = {
 
 export type MLServiceStatus = {
   enabled: boolean;
+  mode: MLCompatibilityMode;
   serviceUrlConfigured: boolean;
   modelRoute: string;
   timeoutMs: number;
@@ -24,13 +27,20 @@ export class MLService {
   private readonly logger = new Logger(MLService.name);
   private readonly serviceUrl: string | null;
   private readonly enabled: boolean;
+  private readonly mode: MLCompatibilityMode;
   private readonly timeoutMs: number;
   private readonly modelRoute = '/v1/compatibility/score';
 
   constructor(private readonly config: ConfigService) {
     const configuredUrl = this.config.get<string>('ML_SERVICE_URL')?.trim();
+    const requestedMode = this.config.get<string>('ML_COMPATIBILITY_MODE')?.toLowerCase();
     this.serviceUrl = configuredUrl ? configuredUrl.replace(/\/$/, '') : null;
     this.enabled = this.config.get<string>('ML_SERVICE_ENABLED') === 'true';
+    this.mode = !this.enabled
+      ? 'off'
+      : requestedMode === 'promoted'
+        ? 'promoted'
+        : 'shadow';
     this.timeoutMs = Math.max(
       250,
       Math.min(Number(this.config.get<string>('ML_SERVICE_TIMEOUT_MS')) || 1500, 5000),
@@ -40,10 +50,15 @@ export class MLService {
   getStatus(): MLServiceStatus {
     return {
       enabled: this.enabled,
+      mode: this.mode,
       serviceUrlConfigured: this.serviceUrl !== null,
       modelRoute: this.modelRoute,
       timeoutMs: this.timeoutMs,
     };
+  }
+
+  getCompatibilityMode(): MLCompatibilityMode {
+    return this.mode;
   }
 
   async tryPredictCompatibility(
@@ -52,11 +67,7 @@ export class MLService {
     const startedAt = Date.now();
 
     if (!this.enabled) {
-      return {
-        score: null,
-        latencyMs: 0,
-        fallbackReason: 'ml_disabled',
-      };
+      return { score: null, latencyMs: 0, fallbackReason: 'ml_disabled' };
     }
 
     if (!this.serviceUrl) {
