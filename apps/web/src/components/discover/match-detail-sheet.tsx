@@ -1,13 +1,13 @@
 "use client"
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import Link from "next/link"
+import { Calendar, Dna, Heart, PawPrint, ShieldCheck, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { MapPin, Calendar, Activity, Heart, Users } from "lucide-react"
-import type { Match } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { Progress } from "@/components/ui/progress"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import type { Match } from "@/lib/types"
 
 interface MatchDetailSheetProps {
   match: Match
@@ -15,137 +15,157 @@ interface MatchDetailSheetProps {
   onOpenChange: (open: boolean) => void
 }
 
+const factorMeta = {
+  species: { icon: PawPrint, label: "Species fit" },
+  temperament: { icon: Heart, label: "Temperament" },
+  age: { icon: Calendar, label: "Life stage" },
+  breed: { icon: Dna, label: "Breed context" },
+}
+
 export function MatchDetailSheet({ match, open, onOpenChange }: MatchDetailSheetProps) {
-  const factorIcons = {
-    schedule: Calendar,
-    location: MapPin,
-    activityLevel: Activity,
-    petCompatibility: Heart,
-    interests: Users,
-  }
-
-  const factorLabels = {
-    schedule: "Schedule Match",
-    location: "Location",
-    activityLevel: "Activity Level",
-    petCompatibility: "Pet Compatibility",
-    interests: "Shared Interests",
-  }
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+      <SheetContent side="bottom" className="h-[92vh] overflow-y-auto rounded-t-3xl border-border/70">
         <SheetHeader>
-          <SheetTitle>Match Details</SheetTitle>
+          <SheetTitle className="text-left">Why Woof suggested this match</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-6 py-6">
-          {/* Pet Image */}
-          <div className="relative aspect-[4/3] rounded-lg overflow-hidden">
+        <div className="mx-auto max-w-xl space-y-6 py-6">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted/30">
             <img
               src={match.pet.photoUrl || "/placeholder.svg"}
-              alt={match.pet.name}
-              className="w-full h-full object-cover"
+              alt={`${match.pet.name}, ${match.pet.breed || match.pet.species}`}
+              className="h-full w-full object-cover"
             />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/85 to-transparent" aria-hidden="true" />
+            <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
+              <Badge className="bg-background/85 text-foreground hover:bg-background/85">
+                {match.compatibility.overall}% match
+              </Badge>
+              <Badge className="bg-background/85 text-muted-foreground hover:bg-background/85">
+                {match.compatibility.confidence}% confidence
+              </Badge>
+            </div>
           </div>
 
-          {/* Owner & Pet Info */}
           <div className="flex items-start gap-4">
-            <Avatar className="w-16 h-16 border-2 border-border">
-              <AvatarImage src={match.owner.avatarUrl || "/placeholder.svg"} />
-              <AvatarFallback>{match.owner.name[0]}</AvatarFallback>
+            <Avatar className="h-14 w-14 border-2 border-border">
+              <AvatarImage src={match.owner.avatarUrl || "/placeholder.svg"} alt="" />
+              <AvatarFallback>{match.owner.name.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold">
-                {match.pet.name} & {match.owner.name}
-              </h2>
-              <p className="text-muted-foreground">
-                {match.pet.breed} • {match.pet.age} years old
-              </p>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                <MapPin className="w-4 h-4" />
-                <span>{match.distance} miles away</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-bold tracking-tight">
+                  {match.pet.name} <span className="font-normal text-muted-foreground">with</span> {match.owner.name}
+                </h2>
+                {match.owner.isVerified && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-secondary">
+                    <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                    Verified
+                  </span>
+                )}
               </div>
+              <p className="mt-1 text-sm capitalize text-muted-foreground">
+                {[match.pet.breed, match.pet.age !== undefined ? `${match.pet.age} years old` : undefined]
+                  .filter(Boolean)
+                  .join(" · ") || match.pet.species}
+              </p>
             </div>
           </div>
 
-          {/* Overall Compatibility */}
-          <div className="glass rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Overall Compatibility</h3>
-              <span className="text-2xl font-bold text-primary">{match.compatibility.overall}%</span>
+          <section className="glass rounded-2xl p-4" aria-labelledby="compatibility-summary">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow">Compatibility</p>
+                <h3 id="compatibility-summary" className="mt-1 font-semibold">
+                  Profile-based estimate
+                </h3>
+              </div>
+              <span className="text-2xl font-bold text-secondary">{match.compatibility.overall}%</span>
             </div>
-            <Progress value={match.compatibility.overall} className="h-3" />
-          </div>
+            <Progress value={match.compatibility.overall} className="mt-4 h-2.5" />
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-muted/40 p-3 text-sm text-muted-foreground">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <p>
+                This score comes from <span className="font-medium text-foreground">{match.compatibility.source}</span>.
+                It is a recommendation aid, not a guarantee of how two dogs will behave together.
+              </p>
+            </div>
+          </section>
 
-          {/* Compatibility Factors */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">Compatibility Breakdown</h3>
+          <section className="space-y-3" aria-labelledby="factor-heading">
+            <div>
+              <p className="eyebrow">Signals</p>
+              <h3 id="factor-heading" className="mt-1 font-semibold">
+                Compatibility breakdown
+              </h3>
+            </div>
             {Object.entries(match.compatibility.factors).map(([key, value]) => {
-              const Icon = factorIcons[key as keyof typeof factorIcons]
-              const label = factorLabels[key as keyof typeof factorLabels]
+              if (value === undefined) return null
+              const meta = factorMeta[key as keyof typeof factorMeta]
+              if (!meta) return null
+              const Icon = meta.icon
+
               return (
-                <div key={key} className="glass rounded-lg p-4 space-y-2">
-                  <div className="flex items-center justify-between">
+                <div key={key} className="surface-soft rounded-2xl p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">{label}</span>
+                      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                      <span className="text-sm font-medium">{meta.label}</span>
                     </div>
                     <span className="text-sm font-bold">{value}%</span>
                   </div>
-                  <Progress value={value} className="h-2" />
+                  <Progress value={value} className="mt-3 h-2" />
                 </div>
               )
             })}
-          </div>
+          </section>
 
-          {/* Why This Match */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">Why This Match?</h3>
-            <div className="space-y-2">
-              {match.compatibility.explanation.map((reason, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                  <p className="text-sm text-muted-foreground">{reason}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* About */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">About {match.owner.name}</h3>
-            <p className="text-sm text-muted-foreground">{match.owner.bio}</p>
-          </div>
-
-          {/* Pet Details */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">About {match.pet.name}</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="glass rounded-lg p-3">
-                <p className="text-xs text-muted-foreground">Species</p>
-                <p className="font-medium capitalize">{match.pet.species}</p>
+          {match.compatibility.explanation.length > 0 && (
+            <section className="space-y-3" aria-labelledby="reason-heading">
+              <div>
+                <p className="eyebrow">Explanation</p>
+                <h3 id="reason-heading" className="mt-1 font-semibold">
+                  Why this match surfaced
+                </h3>
               </div>
-              <div className="glass rounded-lg p-3">
-                <p className="text-xs text-muted-foreground">Size</p>
-                <p className="font-medium capitalize">{match.pet.size}</p>
+              <div className="space-y-2">
+                {match.compatibility.explanation.map((reason) => (
+                  <div key={reason} className="flex items-start gap-3 rounded-xl bg-muted/25 p-3">
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-secondary" aria-hidden="true" />
+                    <p className="text-sm leading-relaxed text-muted-foreground">{reason}</p>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Temperament</p>
+            </section>
+          )}
+
+          {match.owner.bio && (
+            <section className="space-y-2" aria-labelledby="owner-heading">
+              <h3 id="owner-heading" className="font-semibold">
+                About {match.owner.name}
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{match.owner.bio}</p>
+            </section>
+          )}
+
+          {match.pet.temperament.length > 0 && (
+            <section className="space-y-2" aria-labelledby="temperament-heading">
+              <h3 id="temperament-heading" className="font-semibold">
+                {match.pet.name}&apos;s temperament
+              </h3>
               <div className="flex flex-wrap gap-2">
                 {match.pet.temperament.map((trait) => (
-                  <Badge key={trait} variant="outline">
+                  <Badge key={trait} variant="outline" className="text-muted-foreground">
                     {trait}
                   </Badge>
                 ))}
               </div>
-            </div>
-          </div>
+            </section>
+          )}
 
-          {/* Action Button */}
           <Button asChild size="lg" className="w-full">
-            <Link href={`/inbox?match=${match.id}`}>Send Message</Link>
+            <Link href={`/inbox?match=${match.id}`}>Start a conversation</Link>
           </Button>
         </div>
       </SheetContent>
