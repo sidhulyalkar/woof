@@ -1,44 +1,38 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Test, TestingModule } from '@nestjs/testing';
+import { hash } from 'bcrypt';
+import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
-import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prismaService: PrismaService;
-  let jwtService: JwtService;
-
-  const mockPrismaService = {
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-    },
-  };
-
-  const mockJwtService = {
-    sign: jest.fn(() => 'mock-jwt-token'),
+  let jwtService: { sign: jest.Mock };
+  let usersService: {
+    findByEmail: jest.Mock;
+    create: jest.Mock;
+    findSelfById: jest.Mock;
   };
 
   beforeEach(async () => {
+    usersService = {
+      findByEmail: jest.fn(),
+      create: jest.fn(),
+      findSelfById: jest.fn(),
+    };
+    jwtService = {
+      sign: jest.fn(() => 'mock-jwt-token'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
-        {
-          provide: JwtService,
-          useValue: mockJwtService,
-        },
+        { provide: UsersService, useValue: usersService },
+        { provide: JwtService, useValue: jwtService },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    jwtService = module.get<JwtService>(JwtService);
   });
 
   afterEach(() => {
@@ -46,18 +40,19 @@ describe('AuthService', () => {
   });
 
   describe('validateUser', () => {
-    it('should return user without password when credentials are valid', async () => {
-      const mockUser = {
+    it('returns a user without passwordHash when credentials are valid', async () => {
+      usersService.findByEmail.mockResolvedValue({
         id: '123',
         email: 'test@example.com',
-        passwordHash: await bcrypt.hash('password123', 10),
+        passwordHash: await hash('password123', 4),
         handle: 'testuser',
         bio: 'Test bio',
-      };
+      });
 
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-
-      const result = await service.validateUser('test@example.com', 'password123');
+      const result = await service.validateUser(
+        'test@example.com',
+        'password123',
+      );
 
       expect(result).toEqual({
         id: '123',
@@ -68,96 +63,103 @@ describe('AuthService', () => {
       expect(result).not.toHaveProperty('passwordHash');
     });
 
-    it('should return null when user is not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+    it('rejects an unknown email without revealing which credential failed', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
 
-      const result = await service.validateUser('wrong@example.com', 'password123');
-
-      expect(result).toBeNull();
+      await expect(
+        service.validateUser('wrong@example.com', 'password123'),
+      ).rejects.toThrow(new UnauthorizedException('Invalid credentials'));
     });
 
-    it('should return null when password is incorrect', async () => {
-      const mockUser = {
+    it('rejects an incorrect password', async () => {
+      usersService.findByEmail.mockResolvedValue({
         id: '123',
         email: 'test@example.com',
-        passwordHash: await bcrypt.hash('password123', 10),
+        passwordHash: await hash('password123', 4),
         handle: 'testuser',
-      };
+      });
 
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-
-      const result = await service.validateUser('test@example.com', 'wrongpassword');
-
-      expect(result).toBeNull();
+      await expect(
+        service.validateUser('test@example.com', 'wrongpassword'),
+      ).rejects.toThrow(new UnauthorizedException('Invalid credentials'));
     });
   });
 
   describe('login', () => {
-    it('should return access token and user info', async () => {
-      const mockUser = {
+    it('returns the canonical token and safe user projection', async () => {
+      usersService.findByEmail.mockResolvedValue({
         id: '123',
         email: 'test@example.com',
+        passwordHash: await hash('password123', 4),
         handle: 'testuser',
-        password: 'password123',
-      };
+        bio: 'Test bio',
+        avatarUrl: null,
+        points: 9,
+      });
 
-      const result = await service.login(mockUser as any);
+      const result = await service.login({
+        email: 'test@example.com',
+        password: 'password123',
+      });
 
       expect(result).toEqual({
         access_token: 'mock-jwt-token',
-        user: mockUser,
+        user: {
+          id: '123',
+          email: 'test@example.com',
+          handle: 'testuser',
+          bio: 'Test bio',
+          avatarUrl: null,
+          points: 9,
+        },
       });
       expect(jwtService.sign).toHaveBeenCalledWith({
-        email: mockUser.email,
-        sub: mockUser.id,
+        sub: '123',
+        email: 'test@example.com',
+        handle: 'testuser',
       });
     });
   });
 
   describe('register', () => {
-    it('should create a new user and return tokens', async () => {
-      const registerDto = {
-        email: 'new@example.com',
-        handle: 'newuser',
-        password: 'password123',
-      };
-
-      const mockCreatedUser = {
+    it('delegates uniqueness and persistence to UsersService', async () => {
+      usersService.create.mockResolvedValue({
         id: '456',
         email: 'new@example.com',
         handle: 'newuser',
         passwordHash: 'hashed-password',
-      };
+        bio: null,
+        authProvider: 'EMAIL',
+      });
 
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue(mockCreatedUser);
+      const result = await service.register({
+        email: 'new@example.com',
+        handle: 'newuser',
+        password: 'password123',
+      });
 
-      const result = await service.register(registerDto);
-
-      expect(result).toEqual({
-        access_token: 'mock-jwt-token',
-        user: {
-          id: '456',
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
           email: 'new@example.com',
           handle: 'newuser',
-        },
-      });
-      expect(mockPrismaService.user.create).toHaveBeenCalled();
+          authProvider: 'EMAIL',
+          passwordHash: expect.any(String),
+        }),
+      );
+      expect(result.access_token).toBe('mock-jwt-token');
+      expect(result.user).not.toHaveProperty('passwordHash');
     });
 
-    it('should throw error if email already exists', async () => {
-      const registerDto = {
-        email: 'existing@example.com',
-        handle: 'existinguser',
-        password: 'password123',
-      };
+    it('propagates user-creation conflicts', async () => {
+      usersService.create.mockRejectedValue(new Error('duplicate account'));
 
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: '123',
-        email: 'existing@example.com',
-      });
-
-      await expect(service.register(registerDto)).rejects.toThrow();
+      await expect(
+        service.register({
+          email: 'existing@example.com',
+          handle: 'existinguser',
+          password: 'password123',
+        }),
+      ).rejects.toThrow('duplicate account');
     });
   });
 });
