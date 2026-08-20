@@ -17,7 +17,7 @@ import { PostCard } from "@/components/feed/post-card"
 import { FullScreenPostView } from "@/components/feed/full-screen-post-view"
 import { Button } from "@/components/ui/button"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
-import { socialApi } from "@/lib/api"
+import { webSocialApi } from "@/lib/api/social"
 
 const quickActions = [
   {
@@ -56,18 +56,21 @@ export default function HomePage() {
     error,
   } = useQuery({
     queryKey: ["feed"],
-    queryFn: socialApi.getFeed,
+    queryFn: webSocialApi.getFeed,
   })
 
   const likeMutation = useMutation({
-    mutationFn: (postId: string) => socialApi.likePost(postId),
+    mutationFn: ({ postId, isLiked }: { postId: string; isLiked: boolean }) =>
+      isLiked ? webSocialApi.unlikePost(postId) : webSocialApi.likePost(postId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed"] })
     },
   })
 
   const handleLike = (postId: string) => {
-    likeMutation.mutate(postId)
+    const post = posts.find((candidate) => candidate.id === postId)
+    if (!post) return
+    likeMutation.mutate({ postId, isLiked: post.isLiked })
   }
 
   return (
@@ -195,7 +198,7 @@ export default function HomePage() {
                     key={post.id}
                     post={post}
                     onLike={handleLike}
-                    onMediaClick={() => setFullScreenIndex(index)}
+                    onMediaClick={post.mediaUrl ? () => setFullScreenIndex(index) : undefined}
                   />
                 ))}
               </div>
@@ -206,8 +209,8 @@ export default function HomePage() {
 
       {fullScreenIndex !== null && (
         <FullScreenPostView
-          posts={posts}
-          initialIndex={fullScreenIndex}
+          posts={posts.filter((post) => Boolean(post.mediaUrl))}
+          initialIndex={Math.max(0, posts.slice(0, fullScreenIndex).filter((post) => Boolean(post.mediaUrl)).length)}
           onClose={() => setFullScreenIndex(null)}
           onLike={handleLike}
         />
