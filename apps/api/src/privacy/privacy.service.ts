@@ -18,8 +18,27 @@ export class PrivacyService {
       orderBy: { createdAt: 'desc' },
       select: { data: true },
     });
-    const data = this.asRecord(latest?.data);
-    return this.normalizePreferences(data);
+    return this.normalizePreferences(this.asRecord(latest?.data));
+  }
+
+  async getPreferencesForUsers(userIds: string[]) {
+    const uniqueIds = [...new Set(userIds.filter(Boolean))];
+    const result = new Map<string, PrivacyPreferences>();
+    if (uniqueIds.length === 0) return result;
+
+    const rows = await this.prisma.telemetry.findMany({
+      where: { userId: { in: uniqueIds }, event: PREFERENCES_EVENT },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, data: true },
+    });
+    for (const row of rows) {
+      if (!row.userId || result.has(row.userId)) continue;
+      result.set(row.userId, this.normalizePreferences(this.asRecord(row.data)));
+    }
+    for (const userId of uniqueIds) {
+      if (!result.has(userId)) result.set(userId, { ...DEFAULT_PRIVACY_PREFERENCES });
+    }
+    return result;
   }
 
   async updatePreferences(userId: string, dto: UpdatePrivacyPreferencesDto) {
@@ -27,7 +46,6 @@ export class PrivacyService {
     const next: PrivacyPreferences = {
       ...current,
       ...dto,
-      // Proximity suggestions can never remain enabled when precise location is disabled.
       proximitySuggestions:
         dto.preciseLocation === false
           ? false
@@ -44,10 +62,7 @@ export class PrivacyService {
     });
 
     await this.pruneLocationHistory(userId, next.locationRetentionHours);
-    if (!next.preciseLocation) {
-      await this.clearLocationHistory(userId);
-    }
-
+    if (!next.preciseLocation) await this.clearLocationHistory(userId);
     return { preferences: next, updatedAt: entry.createdAt };
   }
 
@@ -67,9 +82,8 @@ export class PrivacyService {
   }
 
   async bothAllowProximity(userAId: string, userBId: string) {
-    const [a, b, blocked] = await Promise.all([
-      this.getPreferences(userAId),
-      this.getPreferences(userBId),
+    const [preferences, blocked] = await Promise.all([
+      this.getPreferencesForUsers([userAId, userBId]),
       this.prisma.blockedUser.findFirst({
         where: {
           OR: [
@@ -80,6 +94,8 @@ export class PrivacyService {
         select: { id: true },
       }),
     ]);
+    const a = preferences.get(userAId) ?? DEFAULT_PRIVACY_PREFERENCES;
+    const b = preferences.get(userBId) ?? DEFAULT_PRIVACY_PREFERENCES;
     return (
       !blocked &&
       a.preciseLocation &&
@@ -137,15 +153,16 @@ export class PrivacyService {
       typeof value.locationRetentionHours === 'number'
         ? Math.max(1, Math.min(Math.round(value.locationRetentionHours), 24))
         : DEFAULT_PRIVACY_PREFERENCES.locationRetentionHours;
+    const preciseLocation =
+      typeof value.preciseLocation === 'boolean'
+        ? value.preciseLocation
+        : DEFAULT_PRIVACY_PREFERENCES.preciseLocation;
     return {
-      preciseLocation:
-        typeof value.preciseLocation === 'boolean'
-          ? value.preciseLocation
-          : DEFAULT_PRIVACY_PREFERENCES.preciseLocation,
+      preciseLocation,
       proximitySuggestions:
-        typeof value.proximitySuggestions === 'boolean'
+        preciseLocation && typeof value.proximitySuggestions === 'boolean'
           ? value.proximitySuggestions
-          : DEFAULT_PRIVACY_PREFERENCES.proximitySuggestions,
+          : false,
       shareActivityRoutes:
         typeof value.shareActivityRoutes === 'boolean'
           ? value.shareActivityRoutes
