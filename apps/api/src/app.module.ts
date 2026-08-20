@@ -15,6 +15,7 @@ import { validateEnvironment } from './config/env.validation';
 import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { GoalsModule } from './goals/goals.module';
+import { InsightsModule } from './insights/insights.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
 import { MeetupsModule } from './meetups/meetups.module';
 import { MLModule } from './ml/ml.module';
@@ -64,6 +65,7 @@ import { VerificationModule } from './verification/verification.module';
     MLModule,
     ABTestModule,
     QuizModule,
+    InsightsModule,
   ],
   controllers: [AppController],
   providers: [
