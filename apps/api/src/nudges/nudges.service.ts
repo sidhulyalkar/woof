@@ -1,342 +1,228 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@woof/database';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CreateNudgeDto, NudgeType, NudgeReason } from './dto/create-nudge.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateNudgeDto, NudgeReason, NudgeType } from './dto/create-nudge.dto';
+
+const PAIR_COOLDOWN_HOURS = 48;
+const DAILY_NUDGE_CAP = 2;
+const DISMISSAL_LOOKBACK_DAYS = 14;
 
 @Injectable()
 export class NudgesService {
   private readonly logger = new Logger(NudgesService.name);
 
   constructor(
-    private prisma: PrismaService,
-    private notificationsService: NotificationsService,
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
-   * Check for proximity-based nudge opportunities
-   * Runs every 5 minutes
+   * Precise proximity is intentionally not used for automatic beta nudges.
+   * The schema can support future opt-in location experiences, but visibility
+   * settings are not equivalent to explicit background/proximity consent.
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async checkProximityNudges() {
-    this.logger.debug('Checking for proximity-based nudges...');
-
-    try {
-      // Get recent co-activity segments (last 10 minutes)
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-      const recentSegments = await this.prisma.coActivitySegment.findMany({
-        where: {
-          startTime: {
-            gte: tenMinutesAgo,
-          },
-          endTime: {
-            gte: fiveMinutesAgo,
-          },
-          distanceM: {
-            lte: 50, // Within 50 meters
-          },
-          otherUserId: {
-            not: null,
-          },
-        },
-      });
-
-      this.logger.debug(`Found ${recentSegments.length} recent co-activity segments`);
-
-      for (const segment of recentSegments) {
-        if (!segment.otherUserId) continue;
-
-        // Check if users are compatible
-        const compatibility = await this.checkCompatibility(
-          segment.userId,
-          segment.otherUserId,
-        );
-
-        if (compatibility && compatibility.compatibilityScore && compatibility.compatibilityScore >= 0.7) {
-          // Check cooldown
-          const canSend = await this.canSendNudge(
-            segment.userId,
-            segment.otherUserId,
-            NudgeType.MEETUP,
-          );
-
-          if (canSend) {
-            // Create nudges for both users
-            await this.createProximityNudge(segment);
-            this.logger.log(
-              `Created proximity nudge for users ${segment.userId} and ${segment.otherUserId}`,
-            );
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.error(`Error checking proximity nudges: ${error.message}`, error.stack);
-    }
+    this.logger.debug(
+      'Proximity nudges are disabled in beta until explicit location-discovery consent is modeled.',
+    );
+    return { enabled: false, reason: 'explicit-consent-required' };
   }
 
   /**
-   * Check for chat activity-based nudges
-   * Triggered by chat service when message count reaches threshold
+   * A conversation can create a quiet, in-app meetup suggestion for the actor.
+   * Message volume alone is not treated as permission to push-notify both people.
    */
-  async checkChatActivityNudges(conversationId: string) {
-    this.logger.debug(`Checking chat activity nudge for conversation ${conversationId}`);
-
-    try {
-      // Get conversation details
-      const conversation = await this.prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          participants: {
-            include: {
-              user: true,
-            },
-          },
-          messages: {
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-          },
-        },
-      });
-
-      if (!conversation || conversation.participants.length !== 2) {
-        return;
-      }
-
-      const messageCount = conversation.messages.length;
-
-      // If conversation has 5+ messages, suggest meetup
-      if (messageCount >= 5) {
-        const [user1, user2] = conversation.participants.map((p: any) => p.user);
-
-        // Check cooldown
-        const canSend = await this.canSendNudge(user1.id, user2.id, NudgeType.MEETUP);
-
-        if (canSend) {
-          // Create nudge for both users
-          await Promise.all([
-            this.createNudge({
-              userId: user1.id,
-              type: NudgeType.MEETUP,
-              context: {
-                targetUserId: user2.id,
-                reason: NudgeReason.CHAT_ACTIVITY,
-                message: `You and ${user2.handle} have been chatting – ready to meet up?`,
-                metadata: {
-                  conversationId,
-                  messageCount,
-                },
-              },
-            }),
-            this.createNudge({
-              userId: user2.id,
-              type: NudgeType.MEETUP,
-              context: {
-                targetUserId: user1.id,
-                reason: NudgeReason.CHAT_ACTIVITY,
-                message: `You and ${user1.handle} have been chatting – ready to meet up?`,
-                metadata: {
-                  conversationId,
-                  messageCount,
-                },
-              },
-            }),
-          ]);
-
-          this.logger.log(
-            `Created chat activity nudges for users ${user1.id} and ${user2.id}`,
-          );
-        }
-      }
-    } catch (error) {
-      this.logger.error(
-        `Error checking chat activity nudges: ${error.message}`,
-        error.stack,
-      );
-    }
-  }
-
-  /**
-   * Create a proximity-based nudge for both users
-   */
-  private async createProximityNudge(segment: any) {
-    const { userId, otherUserId, distanceM, venueType } = segment;
-
-    // Get user details for personalized messages
-    const [user1, user2] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { pets: { take: 1 } }
-      }),
-      this.prisma.user.findUnique({
-        where: { id: otherUserId },
-        include: { pets: { take: 1 } }
-      }),
-    ]);
-
-    if (!user1 || !user2) return;
-
-    await Promise.all([
-      this.createNudge({
-        userId: user1.id,
-        type: NudgeType.MEETUP,
-        context: {
-          targetUserId: user2.id,
-          reason: NudgeReason.PROXIMITY,
-          message: `${user2.handle} is nearby! Want to meet up?`,
-          metadata: {
-            distance: Math.round(distanceM),
-            venueType,
-            petNames: {
-              yours: user1.pets[0]?.name,
-              theirs: user2.pets[0]?.name,
-            },
-          },
-        },
-      }),
-      this.createNudge({
-        userId: user2.id,
-        type: NudgeType.MEETUP,
-        context: {
-          targetUserId: user1.id,
-          reason: NudgeReason.PROXIMITY,
-          message: `${user1.handle} is nearby! Want to meet up?`,
-          metadata: {
-            distance: Math.round(distanceM),
-            venueType,
-            petNames: {
-              yours: user2.pets[0]?.name,
-              theirs: user1.pets[0]?.name,
-            },
-          },
-        },
-      }),
-    ]);
-  }
-
-  /**
-   * Check if a nudge can be sent (cooldown enforcement)
-   */
-  async canSendNudge(
-    userId1: string,
-    userId2: string,
-    type: NudgeType,
-  ): Promise<boolean> {
-    const cooldownHours = 24;
-    const cooldownTime = new Date(Date.now() - cooldownHours * 60 * 60 * 1000);
-
-    // Check if a similar nudge was sent recently
-    const recentNudge = await this.prisma.proactiveNudge.findFirst({
+  async checkChatActivityNudges(conversationId: string, actorId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
       where: {
-        userId: userId1,
-        type,
-        targetUserId: userId2,
-        createdAt: {
-          gte: cooldownTime,
+        id: conversationId,
+        participants: { some: { userId: actorId } },
+      },
+      select: {
+        id: true,
+        participants: {
+          select: {
+            user: { select: { id: true, handle: true } },
+          },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 12,
+          select: { id: true, senderId: true, createdAt: true },
         },
       },
     });
 
-    return !recentNudge;
+    if (!conversation || conversation.participants.length !== 2) {
+      return { created: false, reason: 'conversation-not-eligible' };
+    }
+
+    const other = conversation.participants
+      .map((participant) => participant.user)
+      .find((user) => user.id !== actorId);
+    if (!other) return { created: false, reason: 'conversation-not-eligible' };
+
+    const distinctSenders = new Set(
+      conversation.messages.map((message) => message.senderId),
+    ).size;
+    if (conversation.messages.length < 8 || distinctSenders < 2) {
+      return { created: false, reason: 'insufficient-two-way-context' };
+    }
+
+    const canSend = await this.canSendNudge(actorId, other.id, NudgeType.MEETUP);
+    if (!canSend) return { created: false, reason: 'cooldown-or-fatigue-cap' };
+
+    const nudge = await this.createNudge(
+      {
+        userId: actorId,
+        type: NudgeType.MEETUP,
+        context: {
+          targetUserId: other.id,
+          reason: NudgeReason.CHAT_ACTIVITY,
+          message: `Want to turn the conversation with ${other.handle} into a low-pressure meetup?`,
+          metadata: {
+            conversationId,
+            messageSampleSize: conversation.messages.length,
+          },
+        },
+      },
+      'in_app',
+    );
+
+    return { created: true, nudgeId: nudge.id };
   }
 
-  /**
-   * Create a nudge record and send push notification
-   */
-  async createNudge(data: CreateNudgeDto) {
+  async canSendNudge(userId: string, targetUserId: string | null, type: NudgeType) {
+    const now = Date.now();
+    const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const cooldownStart = new Date(
+      now - PAIR_COOLDOWN_HOURS * 60 * 60 * 1000,
+    );
+    const dismissalStart = new Date(
+      now - DISMISSAL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const [dailyCount, recentPairNudge, recentDismissals] = await Promise.all([
+      this.prisma.proactiveNudge.count({
+        where: { userId, createdAt: { gte: dayAgo } },
+      }),
+      targetUserId
+        ? this.prisma.proactiveNudge.findFirst({
+            where: {
+              userId,
+              targetUserId,
+              type,
+              createdAt: { gte: cooldownStart },
+            },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.proactiveNudge.count({
+        where: {
+          userId,
+          accepted: false,
+          respondedAt: { gte: dismissalStart },
+        },
+      }),
+    ]);
+
+    return (
+      dailyCount < DAILY_NUDGE_CAP &&
+      !recentPairNudge &&
+      recentDismissals < 3
+    );
+  }
+
+  async createNudge(
+    data: CreateNudgeDto,
+    delivery: 'push' | 'in_app' = 'push',
+  ) {
     const nudge = await this.prisma.proactiveNudge.create({
       data: {
         userId: data.userId,
+        targetUserId: data.context.targetUserId,
         type: data.type,
-        payload: data.context as any,
+        payload: data.context as unknown as Prisma.InputJsonValue,
+        sentVia: delivery,
         dismissed: false,
       },
     });
 
-    // Send push notification for the nudge
-    try {
-      await this.notificationsService.sendNudgeNotification(
-        data.userId,
-        data.type,
-        data.context.message || 'New suggestion for you!',
-        {
-          nudgeId: nudge.id,
-          ...data.context.metadata,
-        },
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to send push notification for nudge: ${error.message}`,
-      );
-      // Don't fail nudge creation if push fails
+    if (delivery === 'push') {
+      try {
+        await this.notificationsService.sendNudgeNotification(
+          data.userId,
+          data.type,
+          data.context.message || 'Woof has a new suggestion for you.',
+          {
+            nudgeId: nudge.id,
+            ...data.context.metadata,
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Push delivery failed for nudge ${nudge.id}: ${this.errorMessage(error)}`,
+        );
+      }
     }
 
     return nudge;
   }
 
-  /**
-   * Get active nudges for a user
-   */
   async getUserNudges(userId: string) {
     return this.prisma.proactiveNudge.findMany({
-      where: {
-        userId,
-        dismissed: false,
-      },
-      orderBy: {
-        createdAt: 'desc',
+      where: { userId, dismissed: false },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        targetUserId: true,
+        type: true,
+        payload: true,
+        sentVia: true,
+        accepted: true,
+        createdAt: true,
       },
     });
   }
 
-  /**
-   * Dismiss a nudge
-   */
   async dismissNudge(nudgeId: string, userId: string) {
+    const nudge = await this.findOwnedNudge(nudgeId, userId);
     return this.prisma.proactiveNudge.update({
-      where: {
-        id: nudgeId,
-        userId, // Ensure user owns this nudge
-      },
+      where: { id: nudge.id },
       data: {
         dismissed: true,
+        accepted: false,
+        respondedAt: new Date(),
       },
     });
   }
 
-  /**
-   * Accept a nudge (mark as interacted)
-   */
   async acceptNudge(nudgeId: string, userId: string) {
-    const nudge = await this.prisma.proactiveNudge.update({
-      where: {
-        id: nudgeId,
-        userId,
-      },
+    const nudge = await this.findOwnedNudge(nudgeId, userId);
+    return this.prisma.proactiveNudge.update({
+      where: { id: nudge.id },
       data: {
-        dismissed: true, // Remove from active list
+        dismissed: true,
+        accepted: true,
+        respondedAt: new Date(),
       },
     });
+  }
 
-    // Return the nudge data so caller can take action
+  private async findOwnedNudge(nudgeId: string, userId: string) {
+    const nudge = await this.prisma.proactiveNudge.findFirst({
+      where: { id: nudgeId, userId },
+      select: { id: true },
+    });
+    if (!nudge) throw new NotFoundException('Nudge not found');
     return nudge;
   }
 
-  /**
-   * Check compatibility between two users
-   */
-  private async checkCompatibility(userId1: string, userId2: string) {
-    // Get or calculate compatibility score
-    const compatibility = await this.prisma.petEdge.findFirst({
-      where: {
-        OR: [
-          { petA: { ownerId: userId1 }, petB: { ownerId: userId2 } },
-          { petA: { ownerId: userId2 }, petB: { ownerId: userId1 } },
-        ],
-      },
-    });
-
-    return compatibility;
+  private errorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
   }
 }
