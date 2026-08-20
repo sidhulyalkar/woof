@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsArray, IsISO8601, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, IsUrl, ValidateIf } from 'class-validator';
+import { IsArray, IsISO8601, IsIn, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CreatePetDto {
   @ApiProperty({ example: 'Shasta' })
@@ -28,12 +28,14 @@ export class CreatePetDto {
   birthdate?: string;
 
   @ApiPropertyOptional({
-    description: 'Temperament questionnaire scores or a list of descriptive traits.',
-    example: { friendly: 5, energetic: 4, confident: 3 },
+    description: 'Current descriptive temperament traits. Scored questionnaires belong in separate feature/preference records.',
+    example: ['Friendly', 'Energetic', 'Social'],
+    type: [String],
   })
   @IsOptional()
-  @ValidateIf((_object, value) => value !== undefined)
-  temperament?: Record<string, string | number | boolean> | string[];
+  @IsArray()
+  @IsString({ each: true })
+  temperament?: string[];
 
   @ApiPropertyOptional({
     description: 'Vaccination records supplied by the owner.',
