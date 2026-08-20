@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import { authApi } from '@/lib/api';
+import React, { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { authApi } from '@/lib/api';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
-const PUBLIC_ROUTES = ['/login', '/onboarding'];
+const PUBLIC_ROUTES = ['/login', '/onboarding', '/demo'];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -16,25 +16,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function checkAuth() {
-      // Check if current route is public
-      const isPublicRoute = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
+      const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
 
       if (isPublicRoute) {
         setIsChecking(false);
-        return; // Allow access to public routes
+        return;
       }
 
-      // Check for token
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
       if (!isAuthenticated && !storedToken) {
-        // No token found, redirect to login
         setIsChecking(false);
         router.replace('/login');
         return;
       }
 
-      // If we have a token but not authenticated in store, verify it
       if (storedToken && !isAuthenticated) {
         try {
           setLoading(true);
@@ -52,14 +48,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       setIsChecking(false);
     }
 
-    checkAuth();
+    void checkAuth();
   }, [isAuthenticated, token, pathname, router, setAuth, setLoading, logout]);
 
-  // Show loading spinner while checking auth
   if (isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center" role="status" aria-live="polite">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+        <span className="sr-only">Checking your Woof session</span>
       </div>
     );
   }
