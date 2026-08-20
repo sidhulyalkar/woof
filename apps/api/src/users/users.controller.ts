@@ -26,12 +26,10 @@ export class UsersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiOperation({ summary: 'Get a member-facing profile by ID' })
   @ApiResponse({ status: 200, description: 'User found' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Param('id') id: string) {
-    const user = await this.usersService.findById(id);
-    const { passwordHash, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return this.usersService.findById(id);
   }
 }
