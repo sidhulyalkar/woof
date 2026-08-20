@@ -1,25 +1,42 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface User {
+export interface AuthPet {
+  id: string;
+  name: string;
+  species: string;
+  breed?: string | null;
+  sex?: string | null;
+  birthdate?: string | null;
+  temperament?: unknown;
+  avatarUrl?: string | null;
+}
+
+export interface AuthUser {
   id: string;
   handle: string;
   email: string;
-  bio?: string;
-  avatarUrl?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   points?: number;
+  totalPoints?: number;
+  isVerified?: boolean;
+  createdAt?: string;
+  pets?: AuthPet[];
+  _count?: {
+    posts?: number;
+    activities?: number;
+  };
 }
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-
-  // Actions
-  setAuth: (user: User, token: string) => void;
+  setAuth: (user: AuthUser, token: string) => void;
   logout: () => void;
-  updateUser: (user: Partial<User>) => void;
+  updateUser: (user: Partial<AuthUser>) => void;
   setLoading: (loading: boolean) => void;
 }
 
@@ -32,7 +49,6 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
 
       setAuth: (user, token) => {
-        // Store token in localStorage for API client interceptor
         if (typeof window !== 'undefined') {
           localStorage.setItem('authToken', token);
         }
@@ -40,7 +56,6 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        // Remove token from localStorage
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
         }
@@ -61,6 +76,6 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
+    },
+  ),
 );
