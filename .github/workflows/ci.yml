@@ -61,6 +61,15 @@ jobs:
       - name: Type-check
         run: pnpm type-check
 
+      - name: Compile ML research code
+        run: python -m compileall -q ml
+
+      - name: Run lightweight ML policy contracts
+        run: >-
+          python -m unittest
+          ml.evaluation.test_promotion_gate
+          ml.simulation.test_generate_pair_scenarios
+
   test-backend:
     name: Backend tests
     runs-on: ubuntu-latest
