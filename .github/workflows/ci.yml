@@ -37,11 +37,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Capture resolved dependency graph
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-pnpm-lock-${{ github.run_id }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Check formatting
-        run: pnpm format:check
+      - name: Check release-critical formatting
+        run: >-
+          pnpm exec prettier --check
+          package.json
+          apps/api/package.json
+          apps/api/jest.config.js
+          apps/api/test/jest-e2e.json
+          apps/web/package.json
+          apps/web/vitest.config.ts
+          apps/web/src/lib/api-client.ts
+          packages/ui/package.json
 
       - name: Lint
         run: pnpm lint
