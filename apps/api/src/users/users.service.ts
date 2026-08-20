@@ -53,11 +53,31 @@ export class UsersService {
     return { users, total, skip: safeSkip, take: safeTake };
   }
 
+  /** Public/member-facing profile. Email and authentication fields never leave this projection. */
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: {
-        pets: true,
+      select: {
+        id: true,
+        handle: true,
+        bio: true,
+        avatarUrl: true,
+        visibility: true,
+        points: true,
+        isVerified: true,
+        createdAt: true,
+        pets: {
+          select: {
+            id: true,
+            name: true,
+            species: true,
+            breed: true,
+            sex: true,
+            birthdate: true,
+            temperament: true,
+            avatarUrl: true,
+          },
+        },
         _count: {
           select: {
             posts: true,
@@ -74,6 +94,51 @@ export class UsersService {
     return user;
   }
 
+  /** Authenticated self profile, including the account email but never passwordHash. */
+  async findSelfById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        handle: true,
+        email: true,
+        bio: true,
+        avatarUrl: true,
+        visibility: true,
+        points: true,
+        totalPoints: true,
+        isVerified: true,
+        createdAt: true,
+        updatedAt: true,
+        pets: {
+          select: {
+            id: true,
+            name: true,
+            species: true,
+            breed: true,
+            sex: true,
+            birthdate: true,
+            temperament: true,
+            avatarUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            posts: true,
+            activities: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    return user;
+  }
+
+  /** Authentication-only lookup. Keep private to server-side auth flows. */
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
@@ -101,7 +166,18 @@ export class UsersService {
           totalPoints: true,
           isVerified: true,
           createdAt: true,
-          pets: true,
+          pets: {
+            select: {
+              id: true,
+              name: true,
+              species: true,
+              breed: true,
+              sex: true,
+              birthdate: true,
+              temperament: true,
+              avatarUrl: true,
+            },
+          },
           _count: {
             select: {
               posts: true,
