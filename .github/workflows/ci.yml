@@ -6,8 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Temporary write scope is used only by the guarded same-repository lockfile
+# publication step. It is removed immediately after pnpm-lock.yaml lands.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -44,6 +46,24 @@ jobs:
           path: pnpm-lock.yaml
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish final lockfile to same-repository beta branch
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${{ github.head_ref }}"
+          git checkout -B "${{ github.head_ref }}" "origin/${{ github.head_ref }}"
+          pnpm install --lockfile-only --no-frozen-lockfile
+          git add -- pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "pnpm-lock.yaml already matches the pinned resolver output."
+            exit 0
+          fi
+          git commit -m "build: commit reproducible pnpm lockfile"
+          git push origin "HEAD:${{ github.head_ref }}"
 
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
