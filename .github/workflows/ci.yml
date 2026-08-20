@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'agent/**']
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -35,9 +35,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        # The repository currently has no pnpm-lock.yaml. Keep CI executable,
-        # while the portfolio roadmap tracks adding a committed lockfile as a
-        # reproducibility requirement.
         run: pnpm install --no-frozen-lockfile
 
       - name: Generate Prisma client
