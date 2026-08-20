@@ -1,398 +1,268 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  Activity,
+  CalendarDays,
+  ChevronRight,
+  Edit,
+  Image as ImageIcon,
+  Loader2,
+  LogOut,
+  PawPrint,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trophy,
+} from "lucide-react"
+import { toast } from "sonner"
 import { BottomNav } from "@/components/bottom-nav"
+import { EditProfileSheet } from "@/components/profile/edit-profile-sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Settings, Edit, MapPin, Calendar, Heart, MessageCircle, Briefcase, ChevronRight, LogOut, Loader2 } from "lucide-react"
-import Link from "next/link"
-import { EditProfileSheet } from "@/components/profile/edit-profile-sheet"
-import { ServiceProviderCard } from "@/components/profile/service-provider-card"
-import { LevelProgress } from "@/components/gamification/level-progress"
-import { BadgeShowcase } from "@/components/gamification/badge-showcase"
-import { useGamificationStore } from "@/lib/stores/gamification-store"
-import { useSessionStore } from "@/store/session"
-import { useQuery } from "@tanstack/react-query"
 import { authApi } from "@/lib/api"
-import { toast } from "sonner"
+import { profileApi } from "@/lib/api/profile"
+import { quizApi } from "@/lib/api/quiz"
+import type { AuthUser } from "@/lib/stores/auth-store"
+import { useAuthStore } from "@/lib/stores/auth-store"
 
-// Mock user data as fallback
-const mockUser = {
-  id: "current-user",
-  name: "Alex Thompson",
-  handle: "alex_t",
-  email: "alex@example.com",
-  age: 29,
-  location: { lat: 37.7749, lng: -122.4194, address: "San Francisco, CA" },
-  bio: "Dog lover and outdoor enthusiast. Always looking for new trails and dog-friendly adventures!",
-  avatarUrl: "/user-avatar.jpg",
-  createdAt: "2024-01-15",
-  stats: {
-    matches: 24,
-    events: 12,
-    activities: 48,
-  },
-  preferences: {
-    activityLevel: "high",
-    schedule: ["Weekday mornings", "Weekends"],
-    interests: ["Hiking", "Dog parks", "Training"],
-  },
-  pets: [
-    {
-      id: "p1",
-      name: "Charlie",
-      species: "dog",
-      breed: "Border Collie",
-      age: 3,
-      size: "medium",
-      temperament: ["Energetic", "Friendly", "Smart"],
-      photoUrl: "/border-collie.jpg",
-    },
-  ],
-  isServiceProvider: true,
-  services: {
-    type: "dog-walking",
-    rating: 4.8,
-    reviewCount: 32,
-    priceRange: "$25-40/hr",
-  },
-}
+const visibilityLabel = {
+  PUBLIC: "Public profile",
+  FRIENDS_ONLY: "Friends only",
+  PRIVATE: "Private profile",
+} as const
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user: sessionUser, clearSession } = useSessionStore()
+  const queryClient = useQueryClient()
+  const cachedUser = useAuthStore((state) => state.user)
   const [editOpen, setEditOpen] = useState(false)
-  const { userStats, setUserStats } = useGamificationStore()
 
-  // Fetch fresh user data
-  const { data: userData, isLoading } = useQuery({
-    queryKey: ['profile'],
+  const {
+    data: profile,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<AuthUser>({
+    queryKey: ["auth-profile"],
     queryFn: authApi.me,
-    enabled: !!sessionUser,
+    staleTime: 30_000,
   })
 
-  const user = userData?.user || sessionUser || mockUser
+  const user = profile ?? cachedUser
+
+  const { data: gamification } = useQuery({
+    queryKey: ["gamification-summary"],
+    queryFn: profileApi.gamificationSummary,
+    enabled: Boolean(user),
+    staleTime: 60_000,
+  })
+
+  const { data: latestPreferences } = useQuery({
+    queryKey: ["quiz-latest"],
+    queryFn: quizApi.latest,
+    enabled: Boolean(user),
+    staleTime: 60_000,
+  })
 
   const handleLogout = () => {
-    clearSession()
-    localStorage.removeItem('authToken')
-    toast.success('Logged out successfully')
-    router.replace('/login')
+    authApi.logout()
+    queryClient.clear()
+    toast.success("Signed out")
+    router.replace("/login")
   }
 
-  useEffect(() => {
-    if (!userStats) {
-      setUserStats({
-        userId: user.id,
-        points: 8450,
-        level: 9,
-        rank: 12,
-        badges: [
-          {
-            id: "b1",
-            name: "Early Bird",
-            description: "Complete 10 morning walks",
-            iconUrl: "/badge-early-bird.png",
-            category: "activity",
-            rarity: "common",
-            unlockedAt: "2024-02-01",
-          },
-          {
-            id: "b2",
-            name: "Social Butterfly",
-            description: "Attend 5 community events",
-            iconUrl: "/badge-social.png",
-            category: "social",
-            rarity: "rare",
-            unlockedAt: "2024-02-15",
-          },
-          {
-            id: "b3",
-            name: "Marathon Walker",
-            description: "Walk 100 miles total",
-            iconUrl: "/badge-marathon.png",
-            category: "activity",
-            rarity: "epic",
-            unlockedAt: "2024-03-01",
-          },
-        ],
-        streaks: {
-          daily: 7,
-          weekly: 3,
-        },
-        achievements: {
-          totalWalks: 48,
-          totalDistance: 125.5,
-          totalEvents: 12,
-          totalFriends: 24,
-          totalPosts: 36,
-        },
-      })
-    }
-  }, [userStats, setUserStats, user.id])
+  const handleProfileSaved = (updated: AuthUser) => {
+    queryClient.setQueryData(["auth-profile"], updated)
+  }
 
-  if (isLoading && !sessionUser) {
+  if (isLoading && !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center pb-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <BottomNav />
+      <div className="flex min-h-screen items-center justify-center" role="status">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+        <span className="sr-only">Loading profile</span>
       </div>
     )
   }
 
+  if (!user) {
+    return (
+      <main id="main-content" className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 text-center">
+        <h1 className="text-xl font-semibold">Profile unavailable</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {error ? "Woof could not refresh your account profile." : "No authenticated profile is available."}
+        </p>
+        <Button className="mt-5" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </main>
+    )
+  }
+
+  const pets = user.pets ?? []
+  const memberSince = user.createdAt
+    ? new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" }).format(new Date(user.createdAt))
+    : null
+
+  const stats = [
+    { label: "Activities", value: user._count?.activities ?? 0, icon: Activity },
+    { label: "Posts", value: user._count?.posts ?? 0, icon: ImageIcon },
+    { label: "Points", value: gamification?.points ?? user.totalPoints ?? user.points ?? 0, icon: Trophy },
+  ]
+
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 glass-strong border-b border-border/50">
-        <div className="px-4 py-4 max-w-lg mx-auto">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Profile</h1>
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/settings">
-                <Settings className="w-5 h-5" />
-              </Link>
-            </Button>
+    <div className="min-h-screen pb-24">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/88 backdrop-blur-2xl">
+        <div className="mx-auto flex h-16 max-w-xl items-center justify-between px-4">
+          <div>
+            <p className="eyebrow">Account & pack</p>
+            <h1 className="mt-0.5 text-xl font-bold tracking-tight">Profile</h1>
           </div>
+          <Button variant="ghost" size="icon" asChild className="rounded-xl">
+            <Link href="/settings" aria-label="Open settings">
+              <Settings className="h-5 w-5" aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="px-4 py-6 max-w-lg mx-auto space-y-6">
-        {/* Profile Header */}
-        <Card className="glass p-6 space-y-4">
+      <main id="main-content" className="mx-auto max-w-xl space-y-5 px-4 py-5">
+        <section className="glass rounded-3xl p-5 sm:p-6" aria-labelledby="profile-identity">
           <div className="flex items-start gap-4">
-            <Avatar className="w-20 h-20 border-2 border-border">
-              <AvatarImage src={user.avatarUrl || "/placeholder.svg"} />
-              <AvatarFallback>{(user.name || user.handle || 'U')[0].toUpperCase()}</AvatarFallback>
+            <Avatar className="h-20 w-20 border-2 border-border sm:h-24 sm:w-24">
+              <AvatarImage src={user.avatarUrl || "/placeholder.svg"} alt="" />
+              <AvatarFallback className="text-xl font-bold">{user.handle.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold mb-1">{user.name || user.handle}</h2>
-              {user.email && (
-                <div className="text-sm text-muted-foreground mb-2">
-                  {user.email}
-                </div>
-              )}
-              {user.location?.address && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
-                  <MapPin className="w-4 h-4" />
-                  <span>{user.location.address}</span>
-                </div>
-              )}
-              {user.createdAt && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>
-                    Joined {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                  </span>
-                </div>
-              )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="profile-identity" className="truncate text-2xl font-bold tracking-tight">@{user.handle}</h2>
+                {user.isVerified && (
+                  <Badge className="border-secondary/20 bg-secondary/10 text-secondary hover:bg-secondary/10">
+                    <ShieldCheck className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                    Verified
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline">{visibilityLabel[user.visibility ?? "PUBLIC"]}</Badge>
+                {memberSince && (
+                  <Badge variant="outline">
+                    <CalendarDays className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                    Joined {memberSince}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 
-          {user.bio && <p className="text-sm text-muted-foreground">{user.bio}</p>}
-
-          <Button className="w-full gap-2" onClick={() => setEditOpen(true)}>
-            <Edit className="w-4 h-4" />
-            Edit Profile
-          </Button>
-        </Card>
-
-        {userStats && (
-          <Card className="glass p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Progress</h3>
-              <Link href="/leaderboard">
-                <Button variant="ghost" size="sm" className="text-accent">
-                  Rank #{userStats.rank}
-                </Button>
-              </Link>
-            </div>
-
-            <LevelProgress level={userStats.level} points={userStats.points} />
-
-            <div className="flex items-center justify-between pt-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Badges Earned</p>
-                <p className="text-2xl font-bold">{userStats.badges.length}</p>
-              </div>
-              <BadgeShowcase badges={userStats.badges} maxDisplay={3} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
-              <div>
-                <p className="text-sm text-muted-foreground">Daily Streak</p>
-                <p className="text-xl font-bold text-accent">{userStats.streaks.daily} days</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Points</p>
-                <p className="text-xl font-bold text-accent">{userStats.points.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="glass p-4 text-center">
-            <Heart className="w-5 h-5 text-primary mx-auto mb-2" />
-            <p className="text-2xl font-bold">{user.stats?.matches || 0}</p>
-            <p className="text-xs text-muted-foreground">Matches</p>
-          </Card>
-
-          <Card className="glass p-4 text-center">
-            <Calendar className="w-5 h-5 text-secondary mx-auto mb-2" />
-            <p className="text-2xl font-bold">{user.stats?.events || 0}</p>
-            <p className="text-xs text-muted-foreground">Events</p>
-          </Card>
-
-          <Card className="glass p-4 text-center">
-            <MessageCircle className="w-5 h-5 text-accent mx-auto mb-2" />
-            <p className="text-2xl font-bold">{user.stats?.activities || 0}</p>
-            <p className="text-xs text-muted-foreground">Activities</p>
-          </Card>
-        </div>
-
-        {/* Pets */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">My Pets</h3>
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Edit className="w-4 h-4" />
-              Manage
-            </Button>
-          </div>
-
-          {user.pets && user.pets.length > 0 ? (
-            user.pets.map((pet) => (
-              <Card key={pet.id} className="glass p-4">
-                <div className="flex items-start gap-4">
-                  <Avatar className="w-16 h-16 border-2 border-border">
-                    <AvatarImage src={pet.photoUrl || "/placeholder.svg"} />
-                    <AvatarFallback>{pet.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-lg mb-1">{pet.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {pet.breed} • {pet.age} years {pet.size ? `• ${pet.size}` : ''}
-                    </p>
-                    {pet.temperament && (
-                      <div className="flex flex-wrap gap-1">
-                        {pet.temperament.map((trait) => (
-                          <Badge key={trait} variant="outline" className="text-xs">
-                            {trait}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))
+          {user.bio ? (
+            <p className="mt-5 text-sm leading-6 text-muted-foreground">{user.bio}</p>
           ) : (
-            <p className="text-sm text-muted-foreground">No pets added yet</p>
+            <p className="mt-5 text-sm italic text-muted-foreground">Add a short bio to give other owners context before they start a conversation.</p>
           )}
-        </div>
 
-        {/* Service Provider Section */}
-        {user.isServiceProvider && user.services && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Service Provider</h3>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/services/manage" className="gap-2">
-                  <Edit className="w-4 h-4" />
-                  Manage
-                </Link>
-              </Button>
-            </div>
-
-            <ServiceProviderCard
-              type={user.services.type}
-              rating={user.services.rating}
-              reviewCount={user.services.reviewCount}
-              priceRange={user.services.priceRange}
-            />
-          </div>
-        )}
-
-        {/* Preferences */}
-        {user.preferences && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Preferences</h3>
-            <Card className="glass p-4 space-y-3">
-              {user.preferences.activityLevel && (
-                <div>
-                  <p className="text-sm font-medium mb-2">Activity Level</p>
-                  <Badge className="capitalize">{user.preferences.activityLevel}</Badge>
-                </div>
-              )}
-
-              {user.preferences.schedule && user.preferences.schedule.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium mb-2">Availability</p>
-                  <div className="flex flex-wrap gap-2">
-                    {user.preferences.schedule.map((time) => (
-                      <Badge key={time} variant="outline">
-                        {time}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {user.preferences.interests && user.preferences.interests.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium mb-2">Interests</p>
-                  <div className="flex flex-wrap gap-2">
-                    {user.preferences.interests.map((interest) => (
-                      <Badge key={interest} variant="outline">
-                        {interest}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>
-          </div>
-        )}
-
-        {/* Quick Actions */}
-        <div className="space-y-2">
-          <Button variant="outline" className="w-full justify-between bg-transparent" asChild>
-            <Link href="/services">
-              <div className="flex items-center gap-2">
-                <Briefcase className="w-5 h-5" />
-                <span>Browse Services</span>
-              </div>
-              <ChevronRight className="w-5 h-5" />
-            </Link>
+          <Button variant="outline" className="mt-5 w-full gap-2 bg-transparent" onClick={() => setEditOpen(true)}>
+            <Edit className="h-4 w-4" aria-hidden="true" />
+            Edit public profile
           </Button>
+        </section>
 
+        <section className="grid grid-cols-3 gap-3" aria-label="Profile stats">
+          {stats.map((stat) => {
+            const Icon = stat.icon
+            return (
+              <Card key={stat.label} className="surface-soft rounded-2xl p-4 text-center">
+                <Icon className="mx-auto h-4 w-4 text-primary" aria-hidden="true" />
+                <p className="mt-2 text-xl font-bold">{stat.value}</p>
+                <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+              </Card>
+            )
+          })}
+        </section>
+
+        <section aria-labelledby="pets-heading" className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow">The pack</p>
+              <h2 id="pets-heading" className="mt-1 text-lg font-bold">Pets</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">{pets.length} saved</span>
+          </div>
+
+          {pets.length > 0 ? (
+            <div className="space-y-3">
+              {pets.map((pet) => (
+                <Card key={pet.id} className="surface-soft flex items-center gap-4 rounded-2xl p-4">
+                  <Avatar className="h-14 w-14 border border-border">
+                    <AvatarImage src={pet.avatarUrl || "/placeholder.svg"} alt="" />
+                    <AvatarFallback><PawPrint className="h-5 w-5" aria-hidden="true" /></AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">{pet.name}</p>
+                    <p className="mt-0.5 truncate text-sm capitalize text-muted-foreground">
+                      {[pet.breed, pet.species].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon" asChild aria-label={`Open ${pet.name}'s profile`}>
+                    <Link href={`/pets/${pet.id}`}>
+                      <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="surface-soft rounded-2xl p-5 text-center">
+              <PawPrint className="mx-auto h-6 w-6 text-primary" aria-hidden="true" />
+              <p className="mt-3 font-semibold">No pet profile yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">Discovery stays disabled until matching has a pet to reason about.</p>
+            </Card>
+          )}
+        </section>
+
+        <section className="space-y-3" aria-labelledby="learning-heading">
+          <div>
+            <p className="eyebrow">Learning signals</p>
+            <h2 id="learning-heading" className="mt-1 text-lg font-bold">Matching context</h2>
+          </div>
+          <Card className="surface-soft rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+                <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">Preference session</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  {latestPreferences?.completedAt
+                    ? `Last captured ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(latestPreferences.completedAt))}. Preferences are stored separately from durable pet traits.`
+                    : "No saved matching preference session yet. The deterministic baseline can still operate from pet profile data."}
+                </p>
+              </div>
+            </div>
+          </Card>
+        </section>
+
+        <section className="space-y-2" aria-label="Profile actions">
           <Button variant="outline" className="w-full justify-between bg-transparent" asChild>
             <Link href="/settings">
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
-              </div>
-              <ChevronRight className="w-5 h-5" />
+              <span>Privacy, notifications, and account settings</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2 text-destructive hover:text-destructive bg-transparent"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Log Out</span>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Sign out
           </Button>
-        </div>
+        </section>
       </main>
 
-      <EditProfileSheet open={editOpen} onOpenChange={setEditOpen} user={user} />
+      <EditProfileSheet open={editOpen} onOpenChange={setEditOpen} user={user} onSaved={handleProfileSaved} />
       <BottomNav />
     </div>
   )

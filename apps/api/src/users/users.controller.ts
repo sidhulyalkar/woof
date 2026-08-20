@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { UsersService } from './users.service';
+import { Body, Controller, Get, Param, Patch, Query, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UsersService } from './users.service';
 
 @ApiTags('users')
 @Controller('users')
@@ -11,19 +12,24 @@ export class UsersController {
   constructor(private usersService: UsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all users (paginated)' })
+  @ApiOperation({ summary: 'Get users (paginated)' })
   @ApiResponse({ status: 200, description: 'List of users' })
   async findAll(@Query('skip') skip?: number, @Query('take') take?: number) {
     return this.usersService.findAll(skip, take);
   }
 
+  @Patch('me')
+  @ApiOperation({ summary: 'Update the authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Profile updated' })
+  async updateMe(@Request() req: any, @Body() dto: UpdateProfileDto) {
+    return this.usersService.updateProfile(req.user.sub, dto);
+  }
+
   @Get(':id')
-  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiOperation({ summary: 'Get a member-facing profile by ID' })
   @ApiResponse({ status: 200, description: 'User found' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Param('id') id: string) {
-    const user = await this.usersService.findById(id);
-    const { passwordHash, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    return this.usersService.findById(id);
   }
 }

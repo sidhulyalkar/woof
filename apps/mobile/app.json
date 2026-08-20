@@ -5,37 +5,34 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0d1117"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.woof.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Woof needs access to your camera to take photos of your pets.",
-        "NSPhotoLibraryUsageDescription": "Woof needs access to your photo library to select pet photos.",
-        "NSLocationWhenInUseUsageDescription": "Woof needs your location to show nearby pet parents and parks.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Woof needs your location to send you notifications about nearby pet activities."
+        "NSCameraUsageDescription": "Woof uses the camera only when you choose to take a pet photo.",
+        "NSPhotoLibraryUsageDescription": "Woof uses your photo library only when you choose a pet or profile photo.",
+        "NSLocationWhenInUseUsageDescription": "Woof can use your location while the app is open to find nearby pet-friendly places and matches."
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0d1117"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "package": "com.woof.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "CAMERA"
       ]
     },
     "web": {
@@ -46,24 +43,24 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Woof to use your location to show nearby pet parents and parks."
+          "locationWhenInUsePermission": "Allow Woof to use your location while the app is open to find nearby pet-friendly places and matches."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Woof to access your camera to take photos of your pets."
+          "cameraPermission": "Allow Woof to use the camera when you choose to take a pet photo."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Woof to access your photos to select pet photos."
+          "photosPermission": "Allow Woof to use photos you explicitly select."
         }
       ]
     ],
     "extra": {
-      "apiUrl": "http://localhost:4000",
+      "apiUrl": "http://localhost:4000/api/v1",
       "eas": {
         "projectId": "your-project-id-here"
       }

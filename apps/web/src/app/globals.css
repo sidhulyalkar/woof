@@ -2,64 +2,62 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Galaxy Dark theme colors for PetPath */
+/*
+ * Woof design tokens
+ *
+ * A calm, high-contrast base keeps dense social/location information readable.
+ * Amber carries warmth and action; teal is reserved for compatibility/success.
+ */
 :root {
-  /* Galaxy Dark - Deep space backgrounds */
-  --background: #0a0e27;
-  --foreground: #e2e8f0;
+  --background: #0d1117;
+  --foreground: #f5f3ee;
 
-  /* Cards with glass morphism effect */
-  --card: #1a1f3a;
-  --card-foreground: #e2e8f0;
+  --card: #151b22;
+  --card-foreground: #f5f3ee;
 
-  /* Popovers and dropdowns */
-  --popover: #1a1f3a;
-  --popover-foreground: #e2e8f0;
+  --popover: #151b22;
+  --popover-foreground: #f5f3ee;
 
-  /* Primary - Nebula teal accent */
-  --primary: #00d9ff;
-  --primary-foreground: #0a0e27;
+  --primary: #ffb454;
+  --primary-foreground: #24170a;
 
-  /* Secondary - Stardust purple */
-  --secondary: #a78bfa;
-  --secondary-foreground: #0a0e27;
+  --secondary: #55d6be;
+  --secondary-foreground: #071d19;
 
-  /* Muted elements */
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted: #202832;
+  --muted-foreground: #a8b0ba;
 
-  /* Accent - Comet orange */
-  --accent: #ff6b35;
-  --accent-foreground: #0a0e27;
+  --accent: #ff795b;
+  --accent-foreground: #240b06;
 
-  /* Destructive states */
-  --destructive: #ef4444;
-  --destructive-foreground: #fef2f2;
+  --destructive: #f87171;
+  --destructive-foreground: #2b0808;
 
-  /* Borders and inputs */
-  --border: #334155;
-  --input: #1e293b;
-  --ring: #00d9ff;
+  --border: #2a3541;
+  --input: #1a222c;
+  --ring: #ffb454;
 
-  /* Chart colors */
-  --chart-1: #00d9ff;
-  --chart-2: #a78bfa;
-  --chart-3: #ff6b35;
-  --chart-4: #10b981;
-  --chart-5: #f59e0b;
+  --chart-1: #ffb454;
+  --chart-2: #55d6be;
+  --chart-3: #ff795b;
+  --chart-4: #8db5ff;
+  --chart-5: #d6a6ff;
 
-  /* Border radius */
-  --radius: 0.75rem;
+  --radius: 1rem;
 
-  /* Sidebar colors */
-  --sidebar: #1a1f3a;
-  --sidebar-foreground: #e2e8f0;
-  --sidebar-primary: #00d9ff;
-  --sidebar-primary-foreground: #0a0e27;
-  --sidebar-accent: #a78bfa;
-  --sidebar-accent-foreground: #0a0e27;
-  --sidebar-border: #334155;
-  --sidebar-ring: #00d9ff;
+  --sidebar: #121820;
+  --sidebar-foreground: #f5f3ee;
+  --sidebar-primary: #ffb454;
+  --sidebar-primary-foreground: #24170a;
+  --sidebar-accent: #55d6be;
+  --sidebar-accent-foreground: #071d19;
+  --sidebar-border: #2a3541;
+  --sidebar-ring: #ffb454;
+
+  --surface-elevated: rgba(21, 27, 34, 0.9);
+  --surface-soft: rgba(255, 255, 255, 0.035);
+  --brand-glow: rgba(255, 180, 84, 0.14);
+  --compatibility-glow: rgba(85, 214, 190, 0.12);
 }
 
 @theme inline {
@@ -89,10 +87,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -107,21 +105,38 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground antialiased;
+
+  html {
+    background: var(--background);
+    color-scheme: dark;
+    scroll-behavior: smooth;
   }
 
-  /* Accessibility improvements */
+  body {
+    @apply bg-background text-foreground antialiased;
+    min-height: 100dvh;
+    background-image:
+      radial-gradient(circle at 12% -8%, var(--brand-glow), transparent 34rem),
+      radial-gradient(circle at 92% 18%, var(--compatibility-glow), transparent 30rem);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(255, 180, 84, 0.32);
+    color: var(--foreground);
+  }
+
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
   }
 
-  /* Remove focus outline for mouse users */
   :focus:not(:focus-visible) {
     outline: none;
   }
 
-  /* Ensure minimum touch targets (44x44px) */
   button,
   a,
   input[type="checkbox"],
@@ -129,24 +144,37 @@
     min-height: 44px;
     min-width: 44px;
   }
+}
 
-  /* Improve text rendering */
-  body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* Glass morphism utility classes */
+@layer components {
   .glass {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+    background: rgba(21, 27, 34, 0.78);
+    border: 1px solid rgba(168, 176, 186, 0.16);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(20px);
   }
 
   .glass-strong {
-    @apply bg-card/90 backdrop-blur-2xl border border-border/60;
+    background: rgba(13, 17, 23, 0.9);
+    border: 1px solid rgba(168, 176, 186, 0.18);
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(28px);
   }
 
-  /* Responsive utility classes */
+  .surface-soft {
+    background: var(--surface-soft);
+    border: 1px solid rgba(168, 176, 186, 0.12);
+  }
+
+  .brand-mark {
+    background: linear-gradient(135deg, #ffb454 0%, #ff795b 58%, #55d6be 130%);
+    box-shadow: 0 8px 24px rgba(255, 180, 84, 0.18);
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
   .container-padding {
     @apply px-4 md:px-6 lg:px-8;
   }
@@ -155,62 +183,79 @@
     @apply py-8 md:py-12 lg:py-16;
   }
 
-  /* Animation utilities */
+  .skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 100;
+    transform: translateY(-160%);
+    border-radius: 0.75rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    padding: 0.65rem 0.9rem;
+    font-weight: 700;
+    transition: transform 160ms ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
   .animate-in {
-    animation: fadeIn 0.3s ease-in-out;
+    animation: fadeIn 260ms ease-out both;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #36414d;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5866;
+}
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
-  .animate-out {
-    animation: fadeOut 0.3s ease-in-out;
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes fadeOut {
-    from {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-  }
-
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-muted/20;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
-  }
-
-  /* Safe area insets for mobile devices */
-  @supports (padding: env(safe-area-inset-bottom)) {
-    .pb-safe {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .pt-safe {
-      padding-top: env(safe-area-inset-top);
-    }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,20 +1,21 @@
-import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { initSentry } from './sentry';
 
-// Initialize Sentry as early as possible
 initSentry();
 
 async function bootstrap() {
+  const isProduction = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: isProduction ? ['error', 'warn', 'log'] : ['error', 'warn', 'log', 'debug'],
   });
+  const configService = app.get(ConfigService);
 
-  // Security: Helmet middleware for security headers
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -29,17 +30,16 @@ async function bootstrap() {
     }),
   );
 
-  // Global exception filter for Sentry
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Global prefix
-  const apiPrefix = process.env.API_PREFIX || 'api/v1';
+  const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  // CORS - configured for security
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [
-    'http://localhost:3000',
-  ];
+  const allowedOrigins = (configService.get<string>('CORS_ORIGIN') || 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
@@ -55,7 +55,6 @@ async function bootstrap() {
     maxAge: 3600,
   });
 
-  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -67,41 +66,41 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Woof API')
-    .setDescription('Pet Social Fitness Platform API - Galaxy Dark Edition')
+    .setDescription(
+      'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.',
+    )
     .setVersion('1.0')
     .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User management')
+    .addTag('users', 'User profiles')
     .addTag('pets', 'Pet profiles and management')
     .addTag('activities', 'Activity tracking')
-    .addTag('social', 'Social features (posts, likes, comments)')
+    .addTag('social', 'Posts, likes, and comments')
     .addTag('meetups', 'Meetup coordination')
-    .addTag('compatibility', 'Pet compatibility ML')
+    .addTag('compatibility', 'Explainable compatibility ranking')
+    .addTag('quiz', 'Matching preference sessions')
     .addBearerAuth()
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document, {
     customSiteTitle: 'Woof API Docs',
     customCss: `
-      .swagger-ui .topbar { background-color: #0B1C3D; }
-      .swagger-ui .info .title { color: #6BA8FF; }
+      .swagger-ui .topbar { background-color: #0d1117; }
+      .swagger-ui .info .title { color: #b86912; }
     `,
   });
 
-  const port = process.env.PORT || 4000;
+  const port = configService.get<number>('PORT') || 4000;
   await app.listen(port);
 
   console.log(`
-  🐾 Woof API is running!
-
-  🚀 Server: http://localhost:${port}
-  📚 API Docs: http://localhost:${port}/docs
-  🔗 GraphQL: http://localhost:${port}/graphql (coming soon)
-
-  Environment: ${process.env.NODE_ENV || 'development'}
+  🐾 Woof API is running
+  Server: http://localhost:${port}
+  API:    http://localhost:${port}/${apiPrefix}
+  Docs:   http://localhost:${port}/docs
+  Mode:   ${configService.get<string>('NODE_ENV') || 'development'}
   `);
 }
 

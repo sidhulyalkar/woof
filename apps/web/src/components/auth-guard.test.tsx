@@ -1,21 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { AuthGuard } from './auth-guard';
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { AuthGuard } from './auth-guard';
 
-// Mock the router
 const mockReplace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: mockReplace,
-  }),
+  useRouter: () => ({ replace: mockReplace }),
   usePathname: () => '/test',
 }));
 
-// Mock the API
 vi.mock('@/lib/api', () => ({
   authApi: {
-    me: vi.fn(() => Promise.resolve({ id: '123', handle: 'testuser', email: 'test@example.com' })),
+    me: vi.fn(() =>
+      Promise.resolve({
+        id: '123',
+        handle: 'testuser',
+        email: 'test@example.com',
+      }),
+    ),
   },
 }));
 
@@ -31,21 +34,21 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('should show loading state initially', () => {
+  it('shows a loading state while session hydration runs', () => {
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>
+      </AuthGuard>,
     );
 
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
-  it('should redirect to login when not authenticated', async () => {
+  it('redirects unauthenticated visitors to login', async () => {
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>
+      </AuthGuard>,
     );
 
     await waitFor(() => {
@@ -53,7 +56,7 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('should render children when authenticated', async () => {
+  it('renders protected children for an authenticated session', async () => {
     useAuthStore.setState({
       user: { id: '123', handle: 'testuser', email: 'test@example.com' },
       token: 'mock-token',
@@ -64,7 +67,7 @@ describe('AuthGuard', () => {
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>
+      </AuthGuard>,
     );
 
     await waitFor(() => {

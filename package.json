@@ -2,7 +2,7 @@
   "name": "woof-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Woof - Pet Social Fitness Platform",
+  "description": "Woof - pet social coordination, activity, and compatibility platform",
   "author": "Sidharth Hulyalkar",
   "license": "MIT",
   "scripts": {
@@ -10,8 +10,11 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
+    "type-check": "pnpm --filter @woof/api exec tsc --noEmit && pnpm --filter @woof/web type-check && pnpm --filter @woof/mobile exec tsc --noEmit",
     "clean": "turbo clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "verify": "pnpm format:check && pnpm lint && pnpm type-check && pnpm test && pnpm build",
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed",
     "db:studio": "pnpm --filter @woof/database db:studio",
@@ -25,7 +28,7 @@
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
   },
   "packageManager": "pnpm@8.15.1"

@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Compass, MessageCircle, User, Plus, Trophy } from "lucide-react"
+import { Compass, Home, MessageCircle, Plus, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/discover", icon: Compass, label: "Discover" },
-  { href: "/camera", icon: Plus, label: "Camera", isSpecial: true },
-  { href: "/leaderboard", icon: Trophy, label: "Ranks" },
+  { href: "/camera", icon: Plus, label: "Create", isSpecial: true },
   { href: "/inbox", icon: MessageCircle, label: "Inbox" },
   { href: "/profile", icon: User, label: "Profile" },
 ]
@@ -18,10 +17,13 @@ export function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong border-t border-border/50 pb-safe">
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-4">
+    <nav
+      aria-label="Primary navigation"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/60 bg-background/92 pb-safe backdrop-blur-2xl"
+    >
+      <div className="mx-auto flex h-[68px] max-w-xl items-center justify-around px-3">
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
           const Icon = item.icon
 
           if (item.isSpecial) {
@@ -29,9 +31,11 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-lg hover:shadow-xl transition-all"
+                aria-label="Create a post or activity"
+                className="group -mt-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 brand-mark text-primary-foreground transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5"
               >
-                <Icon className="w-6 h-6" />
+                <Icon className="h-6 w-6 transition-transform group-hover:rotate-90" aria-hidden="true" />
+                <span className="sr-only">{item.label}</span>
               </Link>
             )
           }
@@ -40,13 +44,21 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors",
+                "group relative flex h-full flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs font-medium">{item.label}</span>
+              <span
+                className={cn(
+                  "absolute top-1.5 h-1 w-1 rounded-full bg-primary transition-opacity",
+                  isActive ? "opacity-100" : "opacity-0",
+                )}
+                aria-hidden="true"
+              />
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              <span className="text-[11px] font-semibold tracking-wide">{item.label}</span>
             </Link>
           )
         })}

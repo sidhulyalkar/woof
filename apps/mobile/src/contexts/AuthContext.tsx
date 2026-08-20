@@ -1,35 +1,41 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { authApi, AuthResponse } from '../api/auth';
+import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { AuthResponse, authApi } from '../api/auth';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, handle: string, displayName: string) => Promise<void>;
+  register: (email: string, password: string, handle: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeUser = (user: AuthResponse['user'] | any): User => ({
+  ...user,
+  displayName: user.displayName || user.handle,
+});
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
   }, []);
 
   const checkAuth = async () => {
     try {
-      const isAuth = await authApi.isAuthenticated();
-      if (isAuth) {
+      if (await authApi.isAuthenticated()) {
         const profile = await authApi.getProfile();
-        setUser(profile as User);
+        setUser(normalizeUser(profile));
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.warn('Stored Woof session could not be restored', error);
+      await authApi.logout();
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -38,23 +44,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const response: AuthResponse = await authApi.login({ email, password });
-      setUser(response.user as User);
+      const response = await authApi.login({ email, password });
+      setUser(normalizeUser(response.user));
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, handle: string, displayName: string) => {
+  const register = async (email: string, password: string, handle: string) => {
     setLoading(true);
     try {
-      const response: AuthResponse = await authApi.register({
-        email,
-        password,
-        handle,
-        displayName,
-      });
-      setUser(response.user as User);
+      const response = await authApi.register({ email, password, handle });
+      setUser(normalizeUser(response.user));
     } finally {
       setLoading(false);
     }
@@ -71,16 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        register,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: Boolean(user) }}>
       {children}
     </AuthContext.Provider>
   );
@@ -88,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

@@ -1,54 +1,46 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ABTestModule } from './ab-testing/ab-test.module';
+import { ActivitiesModule } from './activities/activities.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { PetsModule } from './pets/pets.module';
-import { ActivitiesModule } from './activities/activities.module';
-import { SocialModule } from './social/social.module';
-import { MeetupsModule } from './meetups/meetups.module';
+import { ChatModule } from './chat/chat.module';
+import { CoActivityModule } from './co-activity/co-activity.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
-import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
-import { ServicesModule } from './services/services.module';
+import { validateEnvironment } from './config/env.validation';
 import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
-import { VerificationModule } from './verification/verification.module';
-import { CoActivityModule } from './co-activity/co-activity.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { StorageModule } from './storage/storage.module';
-import { ChatModule } from './chat/chat.module';
-import { NudgesModule } from './nudges/nudges.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { GoalsModule } from './goals/goals.module';
+import { InsightsModule } from './insights/insights.module';
+import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
+import { MeetupsModule } from './meetups/meetups.module';
 import { MLModule } from './ml/ml.module';
-import { ABTestModule } from './ab-testing/ab-test.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { NudgesModule } from './nudges/nudges.module';
+import { PetsModule } from './pets/pets.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { QuizModule } from './quiz/quiz.module';
+import { ServicesModule } from './services/services.module';
+import { SocialModule } from './social/social.module';
+import { StorageModule } from './storage/storage.module';
+import { UsersModule } from './users/users.module';
+import { VerificationModule } from './verification/verification.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate: validateEnvironment,
     }),
     ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000,
-        limit: 3,
-      },
-      {
-        name: 'medium',
-        ttl: 10000,
-        limit: 20,
-      },
-      {
-        name: 'long',
-        ttl: 60000,
-        limit: 100,
-      },
+      { name: 'short', ttl: 1000, limit: 3 },
+      { name: 'medium', ttl: 10000, limit: 20 },
+      { name: 'long', ttl: 60000, limit: 100 },
     ]),
     PrismaModule,
     AuthModule,
@@ -72,6 +64,8 @@ import { ABTestModule } from './ab-testing/ab-test.module';
     GoalsModule,
     MLModule,
     ABTestModule,
+    QuizModule,
+    InsightsModule,
   ],
   controllers: [AppController],
   providers: [

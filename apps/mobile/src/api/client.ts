@@ -1,8 +1,14 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:4000';
+const configuredApiUrl =
+  process.env.EXPO_PUBLIC_API_URL ||
+  Constants.expoConfig?.extra?.apiUrl ||
+  'http://localhost:4000/api/v1';
+
+const API_URL = configuredApiUrl.replace(/\/$/, '');
+const ACCESS_TOKEN_KEY = 'woofAccessToken';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -20,56 +26,29 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor - attach JWT token
     this.client.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
-        const token = await SecureStore.getItemAsync('accessToken');
+        const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
-    // Response interceptor - handle token refresh
+    // The canonical NestJS API currently issues one expiring access token and
+    // does not expose a refresh-token endpoint. Do not invent a client-side
+    // protocol that the server cannot honor. Clear stale credentials on 401 so
+    // navigation/session code can return the user to authentication cleanly.
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
-        const originalRequest = error.config;
-
-        // If 401 and we haven't retried yet, try to refresh token
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-
-          try {
-            const refreshToken = await SecureStore.getItemAsync('refreshToken');
-            if (!refreshToken) {
-              throw new Error('No refresh token available');
-            }
-
-            const response = await axios.post(`${API_URL}/auth/refresh`, {
-              refreshToken,
-            });
-
-            const { accessToken, refreshToken: newRefreshToken } = response.data;
-
-            await SecureStore.setItemAsync('accessToken', accessToken);
-            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
-
-            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-            return this.client(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed, clear tokens and redirect to login
-            await SecureStore.deleteItemAsync('accessToken');
-            await SecureStore.deleteItemAsync('refreshToken');
-            // TODO: Navigate to login screen
-            return Promise.reject(refreshError);
-          }
+        if (error.response?.status === 401) {
+          await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
         }
-
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -78,17 +57,17 @@ class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config = {}) {
+  async post<T>(url: string, data?: unknown, config = {}) {
     const response = await this.client.post<T>(url, data, config);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config = {}) {
+  async put<T>(url: string, data?: unknown, config = {}) {
     const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config = {}) {
+  async patch<T>(url: string, data?: unknown, config = {}) {
     const response = await this.client.patch<T>(url, data, config);
     return response.data;
   }
@@ -99,5 +78,6 @@ class ApiClient {
   }
 }
 
+export { ACCESS_TOKEN_KEY, API_URL };
 export const apiClient = new ApiClient();
 export default apiClient;

@@ -1,11 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as path from 'path';
@@ -19,136 +14,132 @@ export interface UploadResult {
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly s3Client: S3Client;
+  private readonly s3Client: S3Client | null;
   private readonly bucket: string;
   private readonly region: string;
-  private readonly publicUrl: string;
+  private readonly publicUrl: string | null;
+  private readonly configured: boolean;
 
   constructor(private configService: ConfigService) {
-    this.region = this.configService.get('AWS_REGION') || 'auto';
-    this.bucket = this.configService.get('S3_BUCKET') || 'woof-uploads';
-    this.publicUrl =
-      this.configService.get('S3_PUBLIC_URL') || 'https://uploads.woof.app';
+    this.region = this.configService.get<string>('AWS_REGION') || 'auto';
+    this.bucket = this.configService.get<string>('S3_BUCKET') || 'woof-uploads';
+    this.publicUrl = this.configService.get<string>('S3_PUBLIC_URL') || null;
 
-    // Support both AWS S3 and Cloudflare R2
-    this.s3Client = new S3Client({
-      region: this.region,
-      endpoint: this.configService.get('S3_ENDPOINT'), // For R2: https://[account-id].r2.cloudflarestorage.com
-      credentials: {
-        accessKeyId: this.configService.get('S3_ACCESS_KEY_ID') || '',
-        secretAccessKey: this.configService.get('S3_SECRET_ACCESS_KEY') || '',
-      },
-    });
+    const endpoint = this.configService.get<string>('S3_ENDPOINT');
+    const accessKeyId = this.configService.get<string>('S3_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.get<string>('S3_SECRET_ACCESS_KEY');
+
+    this.configured = Boolean(accessKeyId && secretAccessKey && this.publicUrl);
+
+    this.s3Client = this.configured
+      ? new S3Client({
+          region: this.region,
+          endpoint: endpoint || undefined,
+          credentials: {
+            accessKeyId: accessKeyId!,
+            secretAccessKey: secretAccessKey!,
+          },
+        })
+      : null;
+
+    if (!this.configured) {
+      this.logger.warn('Object storage is not configured; media operations are disabled');
+    }
   }
 
-  /**
-   * Upload a file to S3/R2
-   */
   async uploadFile(
     file: Express.Multer.File,
-    folder: string = 'uploads',
+    folder = 'uploads',
   ): Promise<UploadResult> {
+    const client = this.requireClient();
+    const key = this.generateKey(file.originalname, folder);
+
     try {
-      const key = this.generateKey(file.originalname, folder);
-
-      const command = new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-        Metadata: {
-          originalName: file.originalname,
-          size: file.size.toString(),
-        },
-      });
-
-      await this.s3Client.send(command);
+      await client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          Metadata: {
+            originalName: file.originalname,
+            size: file.size.toString(),
+          },
+        }),
+      );
 
       const url = `${this.publicUrl}/${key}`;
-
       this.logger.log(`File uploaded successfully: ${key}`);
-
-      return {
-        key,
-        url,
-        bucket: this.bucket,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to upload file: ${error.message}`, error.stack);
+      return { key, url, bucket: this.bucket };
+    } catch (error: any) {
+      this.logger.error(`Failed to upload file: ${error?.message || 'unknown error'}`, error?.stack);
       throw error;
     }
   }
 
-  /**
-   * Upload multiple files
-   */
   async uploadFiles(
     files: Express.Multer.File[],
-    folder: string = 'uploads',
+    folder = 'uploads',
   ): Promise<UploadResult[]> {
     return Promise.all(files.map((file) => this.uploadFile(file, folder)));
   }
 
-  /**
-   * Delete a file from S3/R2
-   */
   async deleteFile(key: string): Promise<void> {
+    const client = this.requireClient();
+
     try {
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      });
-
-      await this.s3Client.send(command);
-
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
       this.logger.log(`File deleted successfully: ${key}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete file: ${error.message}`, error.stack);
+    } catch (error: any) {
+      this.logger.error(`Failed to delete file: ${error?.message || 'unknown error'}`, error?.stack);
       throw error;
     }
   }
 
-  /**
-   * Get a signed URL for private files
-   */
-  async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
-    try {
-      const command = new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      });
+  async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
+    const client = this.requireClient();
 
-      return await getSignedUrl(this.s3Client, command, { expiresIn });
-    } catch (error) {
+    try {
+      return await getSignedUrl(
+        client,
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+        { expiresIn },
+      );
+    } catch (error: any) {
       this.logger.error(
-        `Failed to generate signed URL: ${error.message}`,
-        error.stack,
+        `Failed to generate signed URL: ${error?.message || 'unknown error'}`,
+        error?.stack,
       );
       throw error;
     }
   }
 
-  /**
-   * Generate a unique key for the file
-   */
-  private generateKey(filename: string, folder: string): string {
-    const ext = path.extname(filename);
-    const hash = crypto.randomBytes(16).toString('hex');
-    const timestamp = Date.now();
-    return `${folder}/${timestamp}-${hash}${ext}`;
-  }
-
-  /**
-   * Validate file type
-   */
   validateFileType(file: Express.Multer.File, allowedTypes: string[]): boolean {
     return allowedTypes.includes(file.mimetype);
   }
 
-  /**
-   * Validate file size
-   */
   validateFileSize(file: Express.Multer.File, maxSizeBytes: number): boolean {
     return file.size <= maxSizeBytes;
+  }
+
+  private requireClient(): S3Client {
+    if (!this.s3Client || !this.configured) {
+      throw new ServiceUnavailableException(
+        'Media storage is not configured in this environment',
+      );
+    }
+    return this.s3Client;
+  }
+
+  private generateKey(filename: string, folder: string): string {
+    const safeFolder = folder.replace(/[^a-zA-Z0-9/_-]/g, '').replace(/^\/+|\/+$/g, '') || 'uploads';
+    const ext = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/g, '');
+    const hash = crypto.randomBytes(16).toString('hex');
+    return `${safeFolder}/${Date.now()}-${hash}${ext}`;
   }
 }

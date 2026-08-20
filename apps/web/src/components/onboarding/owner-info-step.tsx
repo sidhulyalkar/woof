@@ -1,161 +1,134 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { AtSign, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Upload, User } from "lucide-react"
+
+export interface OwnerInfoData {
+  handle: string
+  email: string
+  password: string
+  bio: string
+}
 
 interface OwnerInfoStepProps {
-  onComplete: (data: any) => void
-  initialData?: any
+  onComplete: (data: OwnerInfoData) => void
+  initialData?: OwnerInfoData | null
 }
 
 export function OwnerInfoStep({ onComplete, initialData }: OwnerInfoStepProps) {
-  const [formData, setFormData] = useState({
-    name: initialData?.name || "",
+  const [formData, setFormData] = useState<OwnerInfoData>({
+    handle: initialData?.handle || "",
     email: initialData?.email || "",
     password: initialData?.password || "",
-    age: initialData?.age || "",
-    location: initialData?.location || "",
     bio: initialData?.bio || "",
-    avatarUrl: initialData?.avatarUrl || "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onComplete(formData)
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    onComplete({
+      ...formData,
+      handle: formData.handle.trim().toLowerCase().replace(/\s+/g, "_"),
+    })
   }
 
-  const isValid = formData.name && formData.email && formData.password && formData.age && formData.location
+  const isValid =
+    formData.handle.trim().length >= 3 &&
+    formData.email.trim().length > 0 &&
+    formData.password.length >= 8 &&
+    formData.bio.length <= 500
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-balance">Tell us about yourself</h1>
-        <p className="text-muted-foreground text-pretty">Help us find the perfect matches for you and your pet.</p>
+        <p className="eyebrow">Owner account</p>
+        <h1 className="text-3xl font-bold tracking-tight text-balance">Create the human side of the profile</h1>
+        <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
+          Woof starts with only the account data it can actually use. Precise location, schedules, and other sensitive context should be requested later and only when a feature needs them.
+        </p>
       </div>
 
-      {/* Avatar Upload */}
-      <Card className="glass p-6">
-        <div className="flex items-center gap-4">
-          <Avatar className="w-20 h-20">
-            <AvatarImage src={formData.avatarUrl || "/placeholder.svg"} />
-            <AvatarFallback className="bg-primary/10">
-              <User className="w-8 h-8 text-primary" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <Label htmlFor="avatar" className="cursor-pointer">
-              <div className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors">
-                <Upload className="w-4 h-4" />
-                <span>Upload Photo</span>
-              </div>
-            </Label>
-            <Input
-              id="avatar"
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  const url = URL.createObjectURL(file)
-                  setFormData({ ...formData, avatarUrl: url })
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF (max 5MB)</p>
-          </div>
+      <Card className="surface-soft flex items-start gap-3 rounded-2xl p-4">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
+          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold">Data minimization by default</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            We do not ask for your age, home location, or route history just to create an account.
+          </p>
         </div>
       </Card>
 
-      {/* Form Fields */}
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name *</Label>
-          <Input
-            id="name"
-            placeholder="Enter your name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
+          <Label htmlFor="handle">Public handle</Label>
+          <div className="relative">
+            <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="handle"
+              autoComplete="username"
+              placeholder="trailpaws"
+              value={formData.handle}
+              onChange={(event) => setFormData({ ...formData, handle: event.target.value })}
+              className="pl-9"
+              minLength={3}
+              maxLength={30}
+              required
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">3–30 characters. Spaces are converted to underscores.</p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email *</Label>
+          <Label htmlFor="email">Email</Label>
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder="you@example.com"
             value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onChange={(event) => setFormData({ ...formData, email: event.target.value })}
             required
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password *</Label>
+          <Label htmlFor="password">Password</Label>
           <Input
             id="password"
             type="password"
+            autoComplete="new-password"
             placeholder="Create a secure password"
             value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            onChange={(event) => setFormData({ ...formData, password: event.target.value })}
             required
             minLength={8}
           />
-          <p className="text-xs text-muted-foreground">At least 8 characters</p>
+          <p className="text-xs text-muted-foreground">At least 8 characters.</p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="age">Age *</Label>
-          <Input
-            id="age"
-            type="number"
-            placeholder="Enter your age"
-            value={formData.age}
-            onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-            required
-            min="18"
-            max="120"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="location">Location *</Label>
-          <Input
-            id="location"
-            placeholder="City, State"
-            value={formData.location}
-            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-            required
-          />
-          <p className="text-xs text-muted-foreground">We'll use this to find nearby pet owners</p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="bio">Bio (Optional)</Label>
+          <Label htmlFor="bio">Short bio <span className="text-muted-foreground">(optional)</span></Label>
           <Textarea
             id="bio"
-            placeholder="Tell us a bit about yourself and what you're looking for..."
+            placeholder="What kinds of dog-friendly activities are you usually up for?"
             value={formData.bio}
-            onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+            onChange={(event) => setFormData({ ...formData, bio: event.target.value.slice(0, 500) })}
             rows={4}
             className="resize-none"
           />
-          <p className="text-xs text-muted-foreground">{formData.bio.length}/500 characters</p>
+          <p className="text-right text-xs text-muted-foreground">{formData.bio.length}/500</p>
         </div>
       </div>
 
       <Button type="submit" size="lg" className="w-full" disabled={!isValid}>
-        Continue
+        Continue to pet profile
       </Button>
     </form>
   )

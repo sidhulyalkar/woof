@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
@@ -18,24 +18,43 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "PetPath - Connect with Compatible Pet Owners",
-  description: "Find compatible pet owners, track activities, and join community events",
-  generator: "v0.app",
+  title: {
+    default: "Woof · Better dog friendships, offline",
+    template: "%s · Woof",
+  },
+  description:
+    "Discover compatible dogs nearby, coordinate meetups, track shared activity, and build better real-world pet friendships.",
+  applicationName: "Woof",
   manifest: "/manifest.json",
+  keywords: [
+    "dog social app",
+    "pet compatibility",
+    "dog meetups",
+    "pet activity tracking",
+    "pet community",
+  ],
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "PetPath",
+    statusBarStyle: "black-translucent",
+    title: "Woof",
   },
   formatDetection: {
     telephone: false,
   },
-  themeColor: "#FF6B6B",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
+  robots: {
+    index: true,
+    follow: true,
   },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f6f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1117" },
+  ],
 }
 
 export default function RootLayout({
@@ -48,9 +67,14 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icon-192.jpg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className={`font-sans ${inter.variable} ${GeistMono.variable} antialiased`}>
+        <a
+          href="#main-content"
+          className="skip-link"
+        >
+          Skip to content
+        </a>
         <ErrorBoundary>
           <Providers>
             <AuthGuard>

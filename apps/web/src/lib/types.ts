@@ -1,44 +1,33 @@
-// Core data types for PetPath app
+// Core client-side product types for Woof.
 
 export interface Owner {
   id: string
   name: string
-  age: number
-  location: {
-    lat: number
-    lng: number
-    address: string
-  }
-  bio: string
-  avatarUrl: string
-  preferences: {
-    activityLevel: "low" | "medium" | "high"
-    schedule: string[]
-    interests: string[]
-  }
+  bio?: string
+  avatarUrl?: string
+  isVerified?: boolean
 }
 
 export interface Pet {
   id: string
   ownerId: string
   name: string
-  species: "dog" | "cat" | "other"
-  breed: string
-  age: number
-  size: "small" | "medium" | "large"
+  species: string
+  breed?: string
+  age?: number
   temperament: string[]
-  photoUrl: string
-  medicalNotes?: string
+  photoUrl?: string
 }
 
 export interface CompatibilityScore {
   overall: number
+  confidence: number
+  source: string
   factors: {
-    schedule: number
-    location: number
-    activityLevel: number
-    petCompatibility: number
-    interests: number
+    species: number
+    temperament?: number
+    age?: number
+    breed?: number
   }
   explanation: string[]
 }
@@ -48,8 +37,8 @@ export interface Match {
   owner: Owner
   pet: Pet
   compatibility: CompatibilityScore
-  distance: number
-  matchedAt: string
+  status?: "PROPOSED" | "CONFIRMED" | "AVOID"
+  matchedAt?: string
 }
 
 export interface Message {
@@ -151,7 +140,7 @@ export interface LeaderboardEntry {
   points: number
   level: number
   badges: number
-  change: number // rank change from previous period
+  change: number
 }
 
 export interface Friend {
@@ -245,7 +234,7 @@ export interface MapMarker {
   title: string
   subtitle?: string
   avatarUrl?: string
-  data: any
+  data: unknown
 }
 
 export interface Service {
