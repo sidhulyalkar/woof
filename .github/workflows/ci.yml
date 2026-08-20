@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
@@ -6,9 +6,20 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8.15.1'
+
 jobs:
-  lint:
-    name: Lint
+  quality:
+    name: Static quality gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,29 +27,37 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8.15.1
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # The repository currently has no pnpm-lock.yaml. Keep CI executable,
+        # while the portfolio roadmap tracks adding a committed lockfile as a
+        # reproducibility requirement.
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Lint code
-        run: pnpm lint
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
 
       - name: Check formatting
-        run: pnpm format --check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm type-check
 
   test-backend:
-    name: Test Backend
+    name: Backend tests
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -51,109 +70,108 @@ jobs:
         ports:
           - 5432:5432
 
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      JWT_SECRET: ci-only-test-secret
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8.15.1
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Generate Prisma Client
+      - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Run migrations
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
-        run: pnpm --filter @woof/database db:migrate
+      - name: Apply database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Run backend tests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
-          JWT_SECRET: test-secret
-        run: pnpm --filter @woof/api test
+      - name: Run backend unit tests
+        run: pnpm --filter @woof/api test -- --runInBand
 
-      - name: Run E2E tests
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
-          JWT_SECRET: test-secret
-        run: pnpm --filter @woof/api test:e2e
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./apps/api/coverage/lcov.info
-          flags: backend
+      - name: Run backend API tests
+        run: pnpm --filter @woof/api test:e2e -- --runInBand
 
   test-frontend:
-    name: Test Frontend
+    name: Frontend tests
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8.15.1
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Run frontend tests
+      - name: Run frontend unit tests
         run: pnpm --filter @woof/web test
 
-      - name: Run E2E tests
-        run: pnpm --filter @woof/web test:e2e
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+      - name: Run browser smoke tests
+        run: pnpm --filter @woof/web test:e2e -- --project=chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          files: ./apps/web/coverage/lcov.info
-          flags: frontend
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
   build:
-    name: Build
-    needs: [lint, test-backend, test-frontend]
+    name: Production builds
+    needs: [quality, test-backend, test-frontend]
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8.15.1
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Generate Prisma Client
+      - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
       - name: Build API
         run: pnpm --filter @woof/api build
 
       - name: Build Web
-        env:
-          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
         run: pnpm --filter @woof/web build
