@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { PetsService } from './pets.service';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Prisma } from '@woof/database';
+import { CreatePetDto, UpdatePetDto } from './dto/create-pet.dto';
+import { PetsService } from './pets.service';
 
 @ApiTags('pets')
 @Controller('pets')
@@ -12,15 +23,15 @@ export class PetsController {
   constructor(private petsService: PetsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new pet' })
+  @ApiOperation({ summary: 'Create a pet owned by the authenticated user' })
   @ApiResponse({ status: 201, description: 'Pet created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
-  async create(@Body() createPetDto: Prisma.PetCreateInput) {
-    return this.petsService.create(createPetDto);
+  async create(@Request() req: any, @Body() createPetDto: CreatePetDto) {
+    return this.petsService.create(req.user.sub, createPetDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all pets (paginated)' })
+  @ApiOperation({ summary: 'Get pets (paginated)' })
   @ApiResponse({ status: 200, description: 'List of pets' })
   async findAll(
     @Query('skip') skip?: number,
@@ -39,21 +50,22 @@ export class PetsController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update pet by ID' })
+  @ApiOperation({ summary: 'Update a pet owned by the authenticated user' })
   @ApiResponse({ status: 200, description: 'Pet updated successfully' })
   @ApiResponse({ status: 404, description: 'Pet not found' })
   async update(
+    @Request() req: any,
     @Param('id') id: string,
-    @Body() updatePetDto: Prisma.PetUpdateInput,
+    @Body() updatePetDto: UpdatePetDto,
   ) {
-    return this.petsService.update(id, updatePetDto);
+    return this.petsService.updateOwned(id, req.user.sub, updatePetDto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete pet by ID' })
+  @ApiOperation({ summary: 'Delete a pet owned by the authenticated user' })
   @ApiResponse({ status: 200, description: 'Pet deleted successfully' })
   @ApiResponse({ status: 404, description: 'Pet not found' })
-  async delete(@Param('id') id: string) {
-    return this.petsService.delete(id);
+  async delete(@Request() req: any, @Param('id') id: string) {
+    return this.petsService.deleteOwned(id, req.user.sub);
   }
 }
