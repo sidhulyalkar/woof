@@ -9,8 +9,11 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { createReadStream, createWriteStream } from 'fs';
+import { rm, stat } from 'fs/promises';
 import * as path from 'path';
 import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 
 export interface UploadResult {
@@ -157,9 +160,7 @@ export class StorageService {
     }
     const client = this.requireClient();
     const key = this.generateKey(input.filename, input.folder ?? 'private/uploads');
-    const body = Readable.fromWeb(
-      input.body as unknown as NodeReadableStream<Uint8Array>,
-    );
+    const body = Readable.fromWeb(input.body as unknown as NodeReadableStream<Uint8Array>);
 
     try {
       await client.send(
@@ -257,6 +258,85 @@ export class StorageService {
       contentType: response.ContentType ?? null,
       etag: response.ETag?.replace(/^"|"$/g, '') ?? null,
     };
+  }
+
+  async getObjectHeader(key: string, bytes = 64): Promise<Buffer> {
+    const client = this.requireClient();
+    const bounded = Math.max(16, Math.min(4096, Math.round(bytes)));
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Range: `bytes=0-${bounded - 1}`,
+      }),
+    );
+    if (!response.Body) throw new ServiceUnavailableException('Media object returned no body');
+
+    const body = response.Body as typeof response.Body & {
+      transformToByteArray?: () => Promise<Uint8Array>;
+    };
+    if (body.transformToByteArray) {
+      return Buffer.from(await body.transformToByteArray()).subarray(0, bounded);
+    }
+
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
+      total += chunk.byteLength;
+      if (total >= bounded) break;
+    }
+    return Buffer.concat(chunks).subarray(0, bounded);
+  }
+
+  async downloadObjectToFile(key: string, destination: string, maxBytes: number): Promise<number> {
+    const client = this.requireClient();
+    const response = await client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const declared = Number(response.ContentLength ?? 0);
+    if (declared > maxBytes) {
+      throw new ServiceUnavailableException('Media object exceeds processing limit');
+    }
+    if (!response.Body) throw new ServiceUnavailableException('Media object returned no body');
+
+    try {
+      await pipeline(
+        Readable.from(response.Body as AsyncIterable<Uint8Array>),
+        createWriteStream(destination, { flags: 'wx' }),
+      );
+      const info = await stat(destination);
+      if (info.size <= 0 || info.size > maxBytes) {
+        throw new ServiceUnavailableException('Downloaded media exceeded processing bounds');
+      }
+      return info.size;
+    } catch (error) {
+      await rm(destination, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async uploadPrivateFilePath(input: {
+    filePath: string;
+    filename: string;
+    contentType: string;
+    folder?: string;
+  }): Promise<PrivateUploadResult> {
+    const client = this.requireClient();
+    const info = await stat(input.filePath);
+    if (!info.isFile() || info.size <= 0) {
+      throw new ServiceUnavailableException('Derivative output was not a readable file');
+    }
+    const key = this.generateKey(input.filename, input.folder ?? 'private/derivatives');
+    await client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: createReadStream(input.filePath),
+        ContentLength: info.size,
+        ContentType: input.contentType,
+        Metadata: { generated: 'true', size: String(info.size) },
+      }),
+    );
+    return { key, bucket: this.bucket };
   }
 
   async getObjectBytes(key: string, maxBytes = 600 * 1024 * 1024): Promise<Buffer> {
