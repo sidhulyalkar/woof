@@ -44,7 +44,7 @@ const STRONG_CONCERN_SIGNALS = new Set([
 
 export function recommendProgression(
   sessionsNewestFirst: TrainingSignal[],
-  currentLevel: number,
+  currentLevel: number
 ): ProgressionDecision {
   const level = Math.max(1, Math.min(5, Math.round(currentLevel || 1)));
   if (sessionsNewestFirst.length === 0) {
@@ -52,12 +52,15 @@ export function recommendProgression(
       action: 'start',
       nextLevel: level,
       headline: 'Start where success is easy',
-      reason: 'Use a quiet setup, mark the behavior you want, and reward every successful repetition.',
+      reason:
+        'Use a quiet setup, mark the behavior you want, and reward every successful repetition.',
     };
   }
 
   const latest = sessionsNewestFirst[0];
-  const hasStrongConcern = latest.stressSignals.some((signal) => STRONG_CONCERN_SIGNALS.has(signal));
+  const hasStrongConcern = latest.stressSignals.some((signal) =>
+    STRONG_CONCERN_SIGNALS.has(signal)
+  );
   if (latest.stoppedEarly || hasStrongConcern) {
     return {
       action: 'decrease',
@@ -76,7 +79,7 @@ export function recommendProgression(
         session.attempts >= 5 &&
         session.successRate >= 0.8 &&
         session.stressSignals.length === 0 &&
-        !session.stoppedEarly,
+        !session.stoppedEarly
     )
   ) {
     return {
@@ -140,7 +143,8 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
       'After several easy wins, change your position slightly instead of adding a big distraction.',
     ],
     rewardExamples: ['small food reward', 'brief toy play', 'permission to sniff'],
-    safety: 'If your dog cannot disengage from the environment, create more distance rather than pulling attention back by force.',
+    safety:
+      'If your dog cannot disengage from the environment, create more distance rather than pulling attention back by force.',
   },
   {
     id: 'dog-hand-target',
@@ -149,14 +153,16 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
     skill: 'targeting',
     objective: 'Teach an easy cooperative movement that can guide future skills.',
     cue: 'Touch',
-    handlerFocus: 'Present the target close enough to succeed. Mark nose contact rather than moving your hand into the dog.',
+    handlerFocus:
+      'Present the target close enough to succeed. Mark nose contact rather than moving your hand into the dog.',
     steps: [
       'Offer an open palm a few inches from the nose.',
       'Mark any deliberate nose touch and reward immediately.',
       'Move the hand only a little farther after repeated easy touches.',
     ],
     rewardExamples: ['food reward', 'toy', 'praise followed by access to something wanted'],
-    safety: 'Never push your hand into a worried dog’s face. Let the pet choose to approach the target.',
+    safety:
+      'Never push your hand into a worried dog’s face. Let the pet choose to approach the target.',
   },
   {
     id: 'dog-settle-mat',
@@ -171,7 +177,11 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
       'Reward paws on the mat, then relaxed body positions as they happen.',
       'Release before restlessness and build duration in small increments.',
     ],
-    rewardExamples: ['small food rewards placed on the mat', 'calm praise', 'chew or enrichment item when appropriate'],
+    rewardExamples: [
+      'small food rewards placed on the mat',
+      'calm praise',
+      'chew or enrichment item when appropriate',
+    ],
     safety: 'The mat should remain a safe place. Do not physically hold the pet there.',
   },
   {
@@ -188,7 +198,8 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
       'Reward close to your body, then release back to something enjoyable when safe.',
     ],
     rewardExamples: ['high-value food', 'tug or toy', 'release to sniff or play'],
-    safety: 'Do not test recall off leash in unsecured areas. Use a suitable long line or secure enclosure while generalizing.',
+    safety:
+      'Do not test recall off leash in unsecured areas. Use a suitable long line or secure enclosure while generalizing.',
   },
   {
     id: 'dog-loose-leash-check-in',
@@ -204,7 +215,8 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
       'If pulling rises, change direction or create distance rather than correcting through the leash.',
     ],
     rewardExamples: ['food at your side', 'permission to sniff', 'forward movement'],
-    safety: 'Choose equipment and environments that let you manage safely without painful or frightening corrections.',
+    safety:
+      'Choose equipment and environments that let you manage safely without painful or frightening corrections.',
   },
   {
     id: 'cat-target-touch',
@@ -213,7 +225,8 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
     skill: 'targeting',
     objective: 'Build a voluntary target behavior for play, enrichment, and cooperative movement.',
     cue: 'Touch',
-    handlerFocus: 'Let curiosity do the work. Reward orientation and contact without moving the target into the cat.',
+    handlerFocus:
+      'Let curiosity do the work. Reward orientation and contact without moving the target into the cat.',
     steps: [
       'Present a small target at a comfortable distance.',
       'Reward looking toward it, then voluntary nose contact.',
@@ -229,14 +242,20 @@ const TRAINING_TEMPLATES: TrainingTemplate[] = [
     skill: 'cooperative-care',
     objective: 'Turn the carrier into a familiar place rather than a last-minute capture event.',
     cue: 'Carrier',
-    handlerFocus: 'Reward voluntary investigation. Keep the door open until entering is comfortable.',
+    handlerFocus:
+      'Reward voluntary investigation. Keep the door open until entering is comfortable.',
     steps: [
       'Leave the carrier open in a familiar room with comfortable bedding.',
       'Reward looking at, approaching, and stepping into it voluntarily.',
       'Only add tiny door movement after the cat comfortably chooses to enter.',
     ],
-    rewardExamples: ['food placed near or inside the carrier', 'favorite bedding', 'play near the carrier'],
-    safety: 'Do not trap a worried cat during practice. If transport is medically urgent, follow veterinary guidance instead.',
+    rewardExamples: [
+      'food placed near or inside the carrier',
+      'favorite bedding',
+      'play near the carrier',
+    ],
+    safety:
+      'Do not trap a worried cat during practice. If transport is medically urgent, follow veterinary guidance instead.',
   },
   {
     id: 'any-name-game',
@@ -328,7 +347,9 @@ export class CoachingService {
     ]);
 
     const parsedSessions = activities
-      .map((activity) => this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt))
+      .map((activity) =>
+        this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt)
+      )
       .filter((session): session is NonNullable<typeof session> => session !== null);
 
     const plans = goals
@@ -340,7 +361,7 @@ export class CoachingService {
 
     const activePlan = plans.find((plan) => plan.status === 'ACTIVE') ?? null;
     const lastSevenDays = parsedSessions.filter(
-      (session) => Date.now() - session.startedAt.getTime() <= 7 * DAY_MS,
+      (session) => Date.now() - session.startedAt.getTime() <= 7 * DAY_MS
     );
 
     return {
@@ -356,7 +377,7 @@ export class CoachingService {
       weeklyRhythm: {
         sessions: lastSevenDays.length,
         minutes: Math.round(
-          lastSevenDays.reduce((sum, session) => sum + session.durationSeconds, 0) / 60,
+          lastSevenDays.reduce((sum, session) => sum + session.durationSeconds, 0) / 60
         ),
       },
       methodology: this.methodology(),
@@ -370,7 +391,7 @@ export class CoachingService {
     const template = TRAINING_TEMPLATES.find(
       (candidate) =>
         candidate.id === dto.templateId &&
-        (candidate.species === 'ANY' || candidate.species === pet.species.toUpperCase()),
+        (candidate.species === 'ANY' || candidate.species === pet.species.toUpperCase())
     );
     if (!template) throw new BadRequestException('Training template is not available for this pet');
 
@@ -466,10 +487,12 @@ export class CoachingService {
       take: 30,
     });
     const previous = recentActivities
-      .map((activity) => this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt))
+      .map((activity) =>
+        this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt)
+      )
       .filter(
         (session): session is NonNullable<typeof session> =>
-          session !== null && session.planId === plan.id,
+          session !== null && session.planId === plan.id
       );
 
     const now = new Date();
@@ -485,7 +508,7 @@ export class CoachingService {
     };
     const decision = recommendProgression(
       [signal, ...previous.map((session) => session.signal)],
-      metadata.level,
+      metadata.level
     );
 
     const activity = await this.prisma.activity.create({
@@ -602,11 +625,7 @@ export class CoachingService {
     };
   }
 
-  private parseSession(
-    value: Prisma.JsonValue | null,
-    startedAt: Date,
-    endedAt: Date | null,
-  ) {
+  private parseSession(value: Prisma.JsonValue | null, startedAt: Date, endedAt: Date | null) {
     if (!value || Array.isArray(value) || typeof value !== 'object') return null;
     const raw = value as Prisma.JsonObject;
     if (
@@ -655,7 +674,7 @@ export class CoachingService {
       startedAt: Date;
       durationSeconds: number;
       signal: TrainingSignal;
-    }>,
+    }>
   ) {
     const metadata = this.parsePlanMetadata(goal.metadata);
     if (!metadata) return null;
@@ -669,7 +688,9 @@ export class CoachingService {
       id: goal.id,
       petId: goal.petId,
       status: goal.status,
-      title: TRAINING_TEMPLATES.find((template) => template.id === metadata.templateId)?.title ?? metadata.skill,
+      title:
+        TRAINING_TEMPLATES.find((template) => template.id === metadata.templateId)?.title ??
+        metadata.skill,
       skill: metadata.skill,
       objective: metadata.objective,
       cue: metadata.cue,
@@ -682,8 +703,7 @@ export class CoachingService {
       targetSuccessRate: metadata.targetSuccessRate,
       sessionsCompleted: goal.currentValue,
       practiceCoverage: Math.round(goal.progress),
-      recentSuccessRate:
-        totalAttempts > 0 ? this.round(totalSuccesses / totalAttempts) : null,
+      recentSuccessRate: totalAttempts > 0 ? this.round(totalSuccesses / totalAttempts) : null,
       lastPracticedAt: sessions[0]?.startedAt.toISOString() ?? null,
       nextPractice: decision,
       support: this.supportMessage(signals),
@@ -694,7 +714,7 @@ export class CoachingService {
   private supportMessage(signals: TrainingSignal[]) {
     const recent = signals.slice(0, 3);
     const concerningSessions = recent.filter((session) =>
-      session.stressSignals.some((signal) => STRONG_CONCERN_SIGNALS.has(signal)),
+      session.stressSignals.some((signal) => STRONG_CONCERN_SIGNALS.has(signal))
     ).length;
     if (concerningSessions >= 2) {
       return {
@@ -713,7 +733,7 @@ export class CoachingService {
   private templatesForSpecies(species: string) {
     const normalized = species.toUpperCase();
     return TRAINING_TEMPLATES.filter(
-      (template) => template.species === 'ANY' || template.species === normalized,
+      (template) => template.species === 'ANY' || template.species === normalized
     );
   }
 

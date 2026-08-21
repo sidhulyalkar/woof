@@ -35,10 +35,13 @@ export function BottomNav() {
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'group -mt-5 flex h-14 w-14 items-center justify-center rounded-2xl border brand-mark text-primary-foreground transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5',
-                  isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20',
+                  isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20'
                 )}
               >
-                <Icon className="h-6 w-6 transition-transform group-hover:scale-105" aria-hidden="true" />
+                <Icon
+                  className="h-6 w-6 transition-transform group-hover:scale-105"
+                  aria-hidden="true"
+                />
                 <span className="sr-only">{item.label}</span>
               </Link>
             );
@@ -51,13 +54,13 @@ export function BottomNav() {
               aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'group relative flex h-full flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <span
                 className={cn(
                   'absolute top-1.5 h-1 w-1 rounded-full bg-primary transition-opacity',
-                  isActive ? 'opacity-100' : 'opacity-0',
+                  isActive ? 'opacity-100' : 'opacity-0'
                 )}
                 aria-hidden="true"
               />

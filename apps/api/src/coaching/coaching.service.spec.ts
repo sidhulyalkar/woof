@@ -1,9 +1,6 @@
 import { recommendProgression, TrainingSignal } from './coaching.service';
 
-const session = (
-  successRate: number,
-  options: Partial<TrainingSignal> = {},
-): TrainingSignal => ({
+const session = (successRate: number, options: Partial<TrainingSignal> = {}): TrainingSignal => ({
   attempts: 5,
   successes: Math.round(successRate * 5),
   successRate,
@@ -41,7 +38,7 @@ describe('reward-based coaching progression', () => {
   it('reduces difficulty immediately when the pet stops or shows a strong concern signal', () => {
     const decision = recommendProgression(
       [session(0.8, { stoppedEarly: true, stressSignals: ['escape-attempt'] })],
-      3,
+      3
     );
     expect(decision.action).toBe('decrease');
     expect(decision.nextLevel).toBe(2);

@@ -77,21 +77,21 @@ export type TrainingSessionInput = {
 
 export const coachingApi = {
   getMine: async (petId?: string) =>
-    (apiClient.get<CoachingDashboard>('/coaching/me', {
+    apiClient.get<CoachingDashboard>('/coaching/me', {
       params: petId ? { petId } : undefined,
-    }) as unknown as Promise<CoachingDashboard>),
+    }) as unknown as Promise<CoachingDashboard>,
 
   startPlan: async (petId: string, templateId: string) =>
-    (apiClient.post('/coaching/plans', { petId, templateId }) as unknown as Promise<CoachingPlan>),
+    apiClient.post('/coaching/plans', { petId, templateId }) as unknown as Promise<CoachingPlan>,
 
   setPlanStatus: async (planId: string, status: 'ACTIVE' | 'PAUSED') =>
-    (apiClient.patch(`/coaching/plans/${planId}/status`, { status }) as unknown as Promise<unknown>),
+    apiClient.patch(`/coaching/plans/${planId}/status`, { status }) as unknown as Promise<unknown>,
 
   recordSession: async (planId: string, input: TrainingSessionInput) =>
-    (apiClient.post(`/coaching/plans/${planId}/sessions`, input) as unknown as Promise<{
+    apiClient.post(`/coaching/plans/${planId}/sessions`, input) as unknown as Promise<{
       activityId: string;
       plan: CoachingPlan;
       decision: CoachingProgression;
       support: { recommended: boolean; message: string };
-    }>),
+    }>,
 };

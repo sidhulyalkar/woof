@@ -10,7 +10,7 @@ const request: LearnedCompatibilityRequest = {
 };
 
 const config = (values: Record<string, string>) =>
-  ({ get: (key: string) => values[key] } as unknown as ConfigService);
+  ({ get: (key: string) => values[key] }) as unknown as ConfigService;
 
 const learnedScore = (attestationId?: string) => ({
   compatibilityScore: 0.78,
@@ -52,7 +52,7 @@ describe('MLService promoted release trust', () => {
         ML_SERVICE_ENABLED: 'true',
         ML_COMPATIBILITY_MODE: 'promoted',
         ML_SERVICE_URL: 'http://ml.internal',
-      }),
+      })
     );
     expect(service.getCompatibilityMode()).toBe('shadow');
     expect(service.getStatus().promotedAttestationPinned).toBe(false);
@@ -63,7 +63,7 @@ describe('MLService promoted release trust', () => {
       new Response(JSON.stringify(learnedScore()), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })
     );
     const service = new MLService(
       config({
@@ -71,7 +71,7 @@ describe('MLService promoted release trust', () => {
         ML_COMPATIBILITY_MODE: 'promoted',
         ML_PROMOTED_ATTESTATION_ID: 'woof-release-123456',
         ML_SERVICE_URL: 'http://ml.internal',
-      }),
+      })
     );
     const result = await service.tryPredictCompatibility(request);
     expect(result.score).toBeNull();
@@ -83,7 +83,7 @@ describe('MLService promoted release trust', () => {
       new Response(JSON.stringify(learnedScore('woof-other-release')), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })
     );
     const service = new MLService(
       config({
@@ -91,7 +91,7 @@ describe('MLService promoted release trust', () => {
         ML_COMPATIBILITY_MODE: 'promoted',
         ML_PROMOTED_ATTESTATION_ID: 'woof-release-123456',
         ML_SERVICE_URL: 'http://ml.internal',
-      }),
+      })
     );
     const result = await service.tryPredictCompatibility(request);
     expect(result.score).toBeNull();
@@ -103,7 +103,7 @@ describe('MLService promoted release trust', () => {
       new Response(JSON.stringify(learnedScore('woof-release-123456')), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })
     );
     const service = new MLService(
       config({
@@ -111,7 +111,7 @@ describe('MLService promoted release trust', () => {
         ML_COMPATIBILITY_MODE: 'promoted',
         ML_PROMOTED_ATTESTATION_ID: 'woof-release-123456',
         ML_SERVICE_URL: 'http://ml.internal',
-      }),
+      })
     );
     const result = await service.tryPredictCompatibility(request);
     expect(result.score?.provenance.attestationId).toBe('woof-release-123456');

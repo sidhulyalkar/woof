@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CoachingService } from './coaching.service';
@@ -32,7 +42,7 @@ export class CoachingController {
   updatePlanStatus(
     @Request() req: any,
     @Param('planId') planId: string,
-    @Body() dto: UpdateTrainingPlanStatusDto,
+    @Body() dto: UpdateTrainingPlanStatusDto
   ) {
     return this.coachingService.setPlanStatus(req.user.sub, planId, dto);
   }
@@ -42,7 +52,7 @@ export class CoachingController {
   recordSession(
     @Request() req: any,
     @Param('planId') planId: string,
-    @Body() dto: RecordTrainingSessionDto,
+    @Body() dto: RecordTrainingSessionDto
   ) {
     return this.coachingService.recordSession(req.user.sub, planId, dto);
   }

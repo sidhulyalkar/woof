@@ -20,7 +20,7 @@ describe('Auth (e2e)', () => {
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
-      }),
+      })
     );
 
     prisma = app.get<PrismaService>(PrismaService);

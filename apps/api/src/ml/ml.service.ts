@@ -50,7 +50,7 @@ export class MLService {
     } else {
       if (requestedMode === 'promoted' && !this.expectedAttestationId) {
         this.logger.warn(
-          'ML_COMPATIBILITY_MODE=promoted requested without ML_PROMOTED_ATTESTATION_ID; failing closed to shadow mode',
+          'ML_COMPATIBILITY_MODE=promoted requested without ML_PROMOTED_ATTESTATION_ID; failing closed to shadow mode'
         );
       }
       this.mode = 'shadow';
@@ -58,7 +58,7 @@ export class MLService {
 
     this.timeoutMs = Math.max(
       250,
-      Math.min(Number(this.config.get<string>('ML_SERVICE_TIMEOUT_MS')) || 1500, 5000),
+      Math.min(Number(this.config.get<string>('ML_SERVICE_TIMEOUT_MS')) || 1500, 5000)
     );
   }
 
@@ -79,7 +79,7 @@ export class MLService {
   }
 
   async tryPredictCompatibility(
-    request: LearnedCompatibilityRequest,
+    request: LearnedCompatibilityRequest
   ): Promise<MLCompatibilityAttempt> {
     const startedAt = Date.now();
 
@@ -104,7 +104,7 @@ export class MLService {
       const latencyMs = Date.now() - startedAt;
       if (!response.ok) {
         this.logger.warn(
-          `Learned compatibility service returned HTTP ${response.status}; baseline will be used`,
+          `Learned compatibility service returned HTTP ${response.status}; baseline will be used`
         );
         return { score: null, latencyMs, fallbackReason: `ml_http_${response.status}` };
       }
@@ -124,7 +124,7 @@ export class MLService {
       if (this.mode === 'promoted') {
         if (!hasPromotedArtifactAttestation(payload)) {
           this.logger.error(
-            'Promoted ML mode received a score without complete promoted artifact attestation; baseline will be used',
+            'Promoted ML mode received a score without complete promoted artifact attestation; baseline will be used'
           );
           return {
             score: null,
@@ -134,7 +134,7 @@ export class MLService {
         }
         if (payload.provenance.attestationId !== this.expectedAttestationId) {
           this.logger.error(
-            `Promoted ML attestation mismatch: expected ${this.expectedAttestationId}, received ${payload.provenance.attestationId}`,
+            `Promoted ML attestation mismatch: expected ${this.expectedAttestationId}, received ${payload.provenance.attestationId}`
           );
           return {
             score: null,
@@ -148,11 +148,9 @@ export class MLService {
     } catch (error) {
       const latencyMs = Date.now() - startedAt;
       const fallbackReason =
-        error instanceof Error && error.name === 'AbortError'
-          ? 'ml_timeout'
-          : 'ml_unavailable';
+        error instanceof Error && error.name === 'AbortError' ? 'ml_timeout' : 'ml_unavailable';
       this.logger.warn(
-        `Learned compatibility unavailable (${fallbackReason}); deterministic baseline will be used`,
+        `Learned compatibility unavailable (${fallbackReason}); deterministic baseline will be used`
       );
       return { score: null, latencyMs, fallbackReason };
     } finally {

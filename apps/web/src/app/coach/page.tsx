@@ -61,7 +61,7 @@ function ProgressionCard({ decision }: { decision: CoachingProgression }) {
         <div
           className={cn(
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-            progressionTone[decision.action],
+            progressionTone[decision.action]
           )}
         >
           {decision.action === 'increase' ? (
@@ -102,7 +102,7 @@ function PracticePanel({
     mutationFn: () => {
       const durationSeconds = Math.max(
         20,
-        Math.min(900, Math.round((Date.now() - startedAt) / 1000)),
+        Math.min(900, Math.round((Date.now() - startedAt) / 1000))
       );
       return coachingApi.recordSession(plan.id, {
         attempts,
@@ -124,7 +124,7 @@ function PracticePanel({
     setStressSignals((current) =>
       current.includes(signal)
         ? current.filter((candidate) => candidate !== signal)
-        : [...current, signal].slice(0, 6),
+        : [...current, signal].slice(0, 6)
     );
   };
 
@@ -150,9 +150,7 @@ function PracticePanel({
         </div>
 
         <div className="mt-8 rounded-3xl border border-primary/15 bg-primary/[0.055] p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-            Your job
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Your job</p>
           <p className="mt-2 text-base font-semibold leading-relaxed">{plan.handlerFocus}</p>
         </div>
 
@@ -203,7 +201,7 @@ function PracticePanel({
                   'rounded-full border px-3 py-2 text-xs font-semibold transition-colors',
                   rewardType === reward.value
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border/70 bg-card text-muted-foreground',
+                    : 'border-border/70 bg-card text-muted-foreground'
                 )}
               >
                 {reward.label}
@@ -230,7 +228,7 @@ function PracticePanel({
                   'rounded-full border px-3 py-2 text-xs transition-colors',
                   stressSignals.includes(observation.value)
                     ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
-                    : 'border-border/70 text-muted-foreground',
+                    : 'border-border/70 text-muted-foreground'
                 )}
               >
                 {observation.label}
@@ -244,7 +242,7 @@ function PracticePanel({
               'mt-4 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs',
               stoppedEarly
                 ? 'border-amber-500/40 bg-amber-500/10'
-                : 'border-border/70 bg-background/50',
+                : 'border-border/70 bg-background/50'
             )}
           >
             <span>We stopped early</span>
@@ -353,17 +351,13 @@ export default function CoachPage() {
             completion={completion}
             latestDecision={latestDecision}
             onPractice={() => setPracticePlan(data.activePlan)}
-            onPause={() =>
-              statusMutation.mutate({ planId: data.activePlan!.id, status: 'PAUSED' })
-            }
+            onPause={() => statusMutation.mutate({ planId: data.activePlan!.id, status: 'PAUSED' })}
           />
         ) : (
           <TemplatePicker
             dashboard={data}
             pending={startMutation.isPending}
-            onStart={(templateId) =>
-              startMutation.mutate({ petId: data.pet!.id, templateId })
-            }
+            onStart={(templateId) => startMutation.mutate({ petId: data.pet!.id, templateId })}
             onResume={(planId) => statusMutation.mutate({ planId, status: 'ACTIVE' })}
           />
         )}
@@ -421,7 +415,10 @@ function ActivePlan({
             <p className="text-[10px] text-muted-foreground">sessions</p>
           </div>
           <div className="rounded-2xl bg-background/60 px-2 py-3">
-            <p className="text-lg font-bold">{completion ?? '—'}{completion !== null ? '%' : ''}</p>
+            <p className="text-lg font-bold">
+              {completion ?? '—'}
+              {completion !== null ? '%' : ''}
+            </p>
             <p className="text-[10px] text-muted-foreground">recent success</p>
           </div>
           <div className="rounded-2xl bg-background/60 px-2 py-3">
@@ -477,7 +474,14 @@ function ActivePlan({
         </div>
       </section>
 
-      <div className={cn('mt-5 rounded-2xl border p-4', plan.support.recommended ? 'border-amber-500/30 bg-amber-500/[0.07]' : 'border-border/60 bg-card/50')}>
+      <div
+        className={cn(
+          'mt-5 rounded-2xl border p-4',
+          plan.support.recommended
+            ? 'border-amber-500/30 bg-amber-500/[0.07]'
+            : 'border-border/60 bg-card/50'
+        )}
+      >
         <p className="text-xs leading-relaxed text-muted-foreground">{plan.support.message}</p>
       </div>
 
@@ -486,7 +490,9 @@ function ActivePlan({
         <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted-foreground">
           {dashboard.methodology.principles.map((principle) => (
             <li key={principle} className="flex gap-2">
-              <span className="text-primary" aria-hidden="true">•</span>
+              <span className="text-primary" aria-hidden="true">
+                •
+              </span>
               <span>{principle}</span>
             </li>
           ))}
@@ -580,9 +586,9 @@ function TemplatePicker({
 
       <div className="mt-6 rounded-2xl border border-border/60 bg-card/40 p-4">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Coach is for everyday learning and cooperative skills. Persistent aggression, fear,
-          panic, pain, or major behavior change deserves assessment from a veterinarian or a
-          qualified reward-based behavior professional.
+          Coach is for everyday learning and cooperative skills. Persistent aggression, fear, panic,
+          pain, or major behavior change deserves assessment from a veterinarian or a qualified
+          reward-based behavior professional.
         </p>
       </div>
     </>
