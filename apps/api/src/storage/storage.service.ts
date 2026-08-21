@@ -10,6 +10,8 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as path from 'path';
+import { Readable } from 'stream';
+import type { ReadableStream as NodeReadableStream } from 'stream/web';
 
 export interface UploadResult {
   key: string;
@@ -125,6 +127,7 @@ export class StorageService {
           Bucket: this.bucket,
           Key: key,
           Body: bytes,
+          ContentLength: bytes.byteLength,
           ContentType: input.contentType,
           Metadata: {
             originalName: input.filename.slice(0, 240),
@@ -136,6 +139,47 @@ export class StorageService {
       return { key, bucket: this.bucket };
     } catch (error) {
       this.logStorageError('Failed to upload private file', error);
+      throw error;
+    }
+  }
+
+  async uploadPrivateWebStream(input: {
+    body: ReadableStream<Uint8Array>;
+    contentLength: number;
+    filename: string;
+    contentType: string;
+    folder?: string;
+  }): Promise<PrivateUploadResult> {
+    if (!Number.isFinite(input.contentLength) || input.contentLength <= 0) {
+      throw new ServiceUnavailableException(
+        'Streaming media import requires a positive content length',
+      );
+    }
+    const client = this.requireClient();
+    const key = this.generateKey(input.filename, input.folder ?? 'private/uploads');
+    const body = Readable.fromWeb(
+      input.body as unknown as NodeReadableStream<Uint8Array>,
+    );
+
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body,
+          ContentLength: input.contentLength,
+          ContentType: input.contentType,
+          Metadata: {
+            originalName: input.filename.slice(0, 240),
+            size: String(input.contentLength),
+          },
+        }),
+      );
+      this.logger.log(`Private streamed file uploaded successfully: ${key}`);
+      return { key, bucket: this.bucket };
+    } catch (error) {
+      body.destroy();
+      this.logStorageError('Failed to stream private file', error);
       throw error;
     }
   }
