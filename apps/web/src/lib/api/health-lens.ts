@@ -86,13 +86,13 @@ export const healthLensApi = {
     if (input.bathroom) form.append('bathroom', input.bathroom);
     form.append('saveToTimeline', String(input.saveToTimeline !== false));
     if (input.image) {
-      const filename = input.image instanceof File ? input.image.name : `health-capture-${Date.now()}.jpg`;
+      const filename =
+        input.image instanceof File ? input.image.name : `health-capture-${Date.now()}.jpg`;
       form.append('image', input.image, filename);
     }
 
-    return apiClient.post('/health-lens/analyze', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }) as unknown as Promise<HealthLensResult>;
+    // Do not set Content-Type manually. The browser/Axios adapter must attach the multipart boundary.
+    return apiClient.post('/health-lens/analyze', form) as unknown as Promise<HealthLensResult>;
   },
 
   followUp: async (assessmentId: string, message: string) =>
