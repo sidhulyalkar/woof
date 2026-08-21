@@ -1,0 +1,85 @@
+name: Publish media beta integration
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-media-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install current committed workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Align native media dependencies to Expo 54
+        run: >-
+          pnpm --filter @woof/mobile add
+          expo-image-picker@~17.0.11
+          expo-file-system@~19.0.23
+          expo-sharing@~14.0.8
+
+      - name: Apply deterministic cross-surface integration
+        run: python scripts/finalize-media-beta.py
+
+      - name: Apply repository formatter
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/media-library
+          apps/api/src/storage/storage.service.ts
+          apps/api/src/app.module.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/.env.example
+          apps/web/src/lib/api.ts
+          apps/web/src/lib/api/media-library.ts
+          apps/web/src/components/keep-media-button.tsx
+          apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/health/page.tsx
+          apps/web/src/app/library/page.tsx
+          apps/web/e2e/library-regression.spec.ts
+          apps/mobile/src/api/media-library.ts
+          apps/mobile/src/media/apple-media-adapter.ts
+          apps/mobile/src/screens/MediaLibraryScreen.tsx
+          apps/mobile/src/navigation/AppNavigator.tsx
+          apps/mobile/app.json
+          .github/workflows/media-library-branch-ci.yml
+
+      - name: Remove one-run publishing machinery
+        run: git rm scripts/finalize-media-beta.py .github/workflows/publish-media-beta.yml
+
+      - name: Commit resolved media beta integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No media beta changes required."
+            exit 0
+          fi
+          git commit -m "feat(media): finish beta media privacy, derivatives, tests, and Apple adapters"
+          git push origin HEAD:agent/pet-media-library-v1
