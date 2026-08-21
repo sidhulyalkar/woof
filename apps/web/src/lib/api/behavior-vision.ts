@@ -113,6 +113,7 @@ export type BehaviorVisionResult = {
     otherDogsPresent: boolean;
     otherDogDistanceMeters?: number;
     familiarDog?: boolean;
+    audioAnalysisAllowed: boolean;
     ownerNote?: string;
   };
   analysis: BehaviorVisionAnalysis;
@@ -131,7 +132,11 @@ export type BehaviorVisionResult = {
     modelConfigured: boolean;
     savedToTimeline: boolean;
   };
-  privacy: { mediaStoredByWoof: boolean; mediaPolicy: string };
+  privacy: {
+    mediaStoredByWoof: boolean;
+    audioAnalysisAllowed: boolean;
+    mediaPolicy: string;
+  };
   safety: string;
 };
 
@@ -146,6 +151,7 @@ export type BehaviorVisionInput = {
   otherDogsPresent: boolean;
   otherDogDistanceMeters?: number;
   familiarDog?: boolean;
+  includeAudio?: boolean;
   ownerNote?: string;
   question?: string;
   saveToTimeline?: boolean;
@@ -157,6 +163,7 @@ export const behaviorVisionApi = {
     form.append('petId', input.petId);
     form.append('context', input.context);
     form.append('otherDogsPresent', String(input.otherDogsPresent));
+    form.append('includeAudio', String(input.includeAudio === true));
     form.append('saveToTimeline', String(input.saveToTimeline !== false));
     if (input.sessionKey) form.append('sessionKey', input.sessionKey);
     if (input.phase) form.append('phase', input.phase);
