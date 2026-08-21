@@ -64,8 +64,9 @@ jobs:
           apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/page.tsx
           apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/coach/observe/history/page.tsx
           apps/web/e2e
-          ml/behavior_vision/model_registry.json
+          ml/behavior_vision
           packages/ui/package.json
 
       - name: Lint
@@ -83,6 +84,7 @@ jobs:
           ml.evaluation.test_promotion_gate
           ml.evaluation.test_release_attestation
           ml.simulation.test_generate_pair_scenarios
+          ml.behavior_vision.test_pipeline
 
   test-backend:
     name: Backend tests
