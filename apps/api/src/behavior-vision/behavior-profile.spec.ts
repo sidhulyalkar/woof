@@ -30,6 +30,7 @@ function makeObservation(input: {
       handlerAction: input.action ?? 'none',
       leashState: 'loose',
       otherDogsPresent: true,
+      audioAnalysisAllowed: false,
     },
     analysis: {
       schemaVersion: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
@@ -152,4 +153,4 @@ describe('individual behavior profile', () => {
     expect(arousal?.sampleCount).toBe(1);
     expect(arousal?.mean).toBeCloseTo(0.2);
   });
-});
+}
