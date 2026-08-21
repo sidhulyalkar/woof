@@ -25,7 +25,7 @@ const quest = {
 };
 
 const dashboard = {
-  pet: { id: 'pet-1', name: 'Shasta', species: 'DOG' },
+  pet: { id: 'pet-1', name: 'Shasta', species: 'DOG', avatarUrl: null },
   generatedAt: '2026-08-21T12:00:00.000Z',
   bondXp: 12,
   rhythm: { activeWeeks: 2, windowWeeks: 5, label: 'A steady rhythm is growing' },
