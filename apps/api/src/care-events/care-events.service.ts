@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,6 +40,11 @@ type PathwaySummaryRow = {
   last_event_at: Date | null;
 };
 
+type SelectedQuestContextRow = {
+  context: Record<string, unknown> | null;
+  created_at: Date;
+};
+
 const PATHWAY_LABELS: Record<WellbeingPathway, string> = {
   MOVE: 'Move',
   EXPLORE: 'Explore',
@@ -53,6 +58,8 @@ const PATHWAY_LABELS: Record<WellbeingPathway, string> = {
 
 @Injectable()
 export class CareEventsService {
+  private readonly logger = new Logger(CareEventsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: CareEventInput): Promise<RewardReceipt> {
@@ -62,10 +69,10 @@ export class CareEventsService {
     const evidenceConfidence = Math.max(0, Math.min(1, input.evidenceConfidence ?? 0.65));
     const visibility = input.visibility ?? 'PRIVATE';
 
-    return this.prisma.$transaction(async (tx) => {
+    const receipt = await this.prisma.$transaction(async (tx) => {
       // Serialize reward issuance for one user so concurrent legitimate requests cannot
-      // race the daily/pathway caps or a shared dedupe key. The lock lives only for
-      // this transaction and does not block rewards for other users.
+      // race daily/pathway caps or a shared dedupe key. The lock lives only for this
+      // transaction and does not block rewards for other users.
       await tx.$queryRaw(
         Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))`
       );
@@ -84,24 +91,36 @@ export class CareEventsService {
           WHERE care_event_id = ${existing[0].id}
           LIMIT 1
         `);
-        const receipt = ledger[0];
+        const prior = ledger[0];
         return {
           careEventId: existing[0].id,
-          ledgerId: receipt?.id ?? null,
-          bondXp: receipt?.bond_xp ?? 0,
+          ledgerId: prior?.id ?? null,
+          bondXp: prior?.bond_xp ?? 0,
           pathway: existing[0].pathway,
-          policyVersion: receipt?.policy_version ?? 'bond-xp-v1',
-          explanation: receipt?.explanation ?? 'This trusted event was already recorded.',
+          policyVersion: prior?.policy_version ?? 'bond-xp-v1',
+          explanation: prior?.explanation ?? 'This trusted event was already recorded.',
           duplicate: true,
         };
       }
 
+      // Anti-farming windows are based on trusted server issuance time, not the
+      // client-influenced occurrence timestamp. This prevents backdating or future
+      // timestamps from manufacturing fresh cap windows. Zero-reward events do not
+      // decay later legitimate actions.
       const stats = await tx.$queryRaw<RewardStatsRow[]>(Prisma.sql`
         SELECT
-          COALESCE(SUM(CASE WHEN ce.occurred_at >= date_trunc('day', ${occurredAt}::timestamp) THEN rl.bond_xp ELSE 0 END), 0)::int AS total_xp_today,
-          COALESCE(SUM(CASE WHEN ce.occurred_at >= date_trunc('day', ${occurredAt}::timestamp) AND ce.pathway = ${input.pathway} THEN rl.bond_xp ELSE 0 END), 0)::int AS pathway_xp_today,
-          COUNT(*) FILTER (WHERE ce.occurred_at >= date_trunc('day', ${occurredAt}::timestamp) AND ce.pathway = ${input.pathway})::int AS same_pathway_events_today,
-          COUNT(*) FILTER (WHERE ce.occurred_at >= ${new Date(occurredAt.getTime() - 7 * 24 * 60 * 60 * 1000)} AND ce.event_type = ${input.eventType})::int AS repeated_event_count_7d
+          COALESCE(SUM(CASE WHEN rl.created_at >= date_trunc('day', NOW()) THEN rl.bond_xp ELSE 0 END), 0)::int AS total_xp_today,
+          COALESCE(SUM(CASE WHEN rl.created_at >= date_trunc('day', NOW()) AND ce.pathway = ${input.pathway} THEN rl.bond_xp ELSE 0 END), 0)::int AS pathway_xp_today,
+          COUNT(*) FILTER (
+            WHERE rl.created_at >= date_trunc('day', NOW())
+              AND ce.pathway = ${input.pathway}
+              AND rl.bond_xp > 0
+          )::int AS same_pathway_events_today,
+          COUNT(*) FILTER (
+            WHERE rl.created_at >= NOW() - INTERVAL '7 days'
+              AND ce.event_type = ${input.eventType}
+              AND rl.bond_xp > 0
+          )::int AS repeated_event_count_7d
         FROM care_events ce
         LEFT JOIN reward_ledger rl ON rl.care_event_id = ce.id
         WHERE ce.user_id = ${input.userId}
@@ -163,6 +182,21 @@ export class CareEventsService {
         duplicate: false,
       };
     });
+
+    // Keep reward observability useful without placing user/pet identifiers in logs.
+    this.logger.log(
+      JSON.stringify({
+        event: 'adventure_reward_decision',
+        careEventId: receipt.careEventId,
+        eventType: input.eventType,
+        pathway: receipt.pathway,
+        bondXp: receipt.bondXp,
+        duplicate: receipt.duplicate,
+        policyVersion: receipt.policyVersion,
+      })
+    );
+
+    return receipt;
   }
 
   async recordQuestInteraction(input: {
@@ -175,15 +209,37 @@ export class CareEventsService {
   }) {
     await this.assertOwnedPet(input.userId, input.petId);
     const id = randomUUID();
-    await this.prisma.$executeRaw(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       INSERT INTO quest_interactions (
         id, user_id, pet_id, quest_id, interaction, pathway, context, created_at
       ) VALUES (
         ${id}, ${input.userId}, ${input.petId}, ${input.questId}, ${input.interaction},
         ${input.pathway}, CAST(${JSON.stringify(input.context ?? {})} AS JSONB), NOW()
       )
+      ON CONFLICT (user_id, pet_id, quest_id, interaction)
+      DO UPDATE SET
+        pathway = EXCLUDED.pathway,
+        context = EXCLUDED.context,
+        created_at = EXCLUDED.created_at
+      RETURNING id
     `);
-    return { id };
+    return { id: rows[0]?.id ?? id };
+  }
+
+  async getRecentSelectedQuestContext(userId: string, petId: string, questId: string) {
+    await this.assertOwnedPet(userId, petId);
+    const rows = await this.prisma.$queryRaw<SelectedQuestContextRow[]>(Prisma.sql`
+      SELECT context, created_at
+      FROM quest_interactions
+      WHERE user_id = ${userId}
+        AND pet_id = ${petId}
+        AND quest_id = ${questId}
+        AND interaction = 'SELECTED'
+        AND created_at >= NOW() - INTERVAL '72 hours'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    return rows[0] ?? null;
   }
 
   async getSummary(userId: string, petId?: string): Promise<CareSummary> {
