@@ -48,6 +48,7 @@ jobs:
           apps/web/src/lib/api/behavior-vision.ts
           apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/coach/observe/history/page.tsx
           docs/BEHAVIOR_VISION.md
           ml/behavior_vision/model_registry.json
 
