@@ -16,9 +16,27 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PUBLIC_URL: z.string().optional(),
   AWS_REGION: z.string().optional(),
-  MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce.number().int().min(1024 * 1024).max(100 * 1024 * 1024).optional(),
-  MEDIA_LIBRARY_VIDEO_MAX_BYTES: z.coerce.number().int().min(10 * 1024 * 1024).max(1024 * 1024 * 1024).optional(),
-  MEDIA_LIBRARY_USER_QUOTA_BYTES: z.coerce.number().int().min(100 * 1024 * 1024).max(1024 * 1024 * 1024 * 1024).optional(),
+  MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(100 * 1024 * 1024)
+    .optional(),
+  MEDIA_LIBRARY_VIDEO_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(10 * 1024 * 1024)
+    .max(1024 * 1024 * 1024)
+    .optional(),
+  MEDIA_LIBRARY_USER_QUOTA_BYTES: z.coerce
+    .number()
+    .int()
+    .min(100 * 1024 * 1024)
+    .max(1024 * 1024 * 1024 * 1024)
+    .optional(),
+  MEDIA_DERIVATIVES_ENABLED: z.enum(['true', 'false']).default('false'),
+  MEDIA_FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
+  MEDIA_FFPROBE_PATH: z.string().min(1).default('ffprobe'),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   N8N_WEBHOOK_SECRET: z.string().optional(),
@@ -63,6 +81,15 @@ export function validateEnvironment(config: Record<string, unknown>) {
     const hasAnyStorageCredential = Boolean(env.S3_ACCESS_KEY_ID || env.S3_SECRET_ACCESS_KEY);
     if (hasAnyStorageCredential && !(env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY)) {
       throw new Error('S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be configured together');
+    }
+
+    if (
+      env.MEDIA_DERIVATIVES_ENABLED === 'true' &&
+      !(env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY && env.S3_BUCKET)
+    ) {
+      throw new Error(
+        'Private object storage must be configured when MEDIA_DERIVATIVES_ENABLED=true',
+      );
     }
   }
 
