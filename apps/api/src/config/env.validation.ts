@@ -16,6 +16,9 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PUBLIC_URL: z.string().optional(),
   AWS_REGION: z.string().optional(),
+  MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce.number().int().min(1024 * 1024).max(100 * 1024 * 1024).optional(),
+  MEDIA_LIBRARY_VIDEO_MAX_BYTES: z.coerce.number().int().min(10 * 1024 * 1024).max(1024 * 1024 * 1024).optional(),
+  MEDIA_LIBRARY_USER_QUOTA_BYTES: z.coerce.number().int().min(100 * 1024 * 1024).max(1024 * 1024 * 1024 * 1024).optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   N8N_WEBHOOK_SECRET: z.string().optional(),
@@ -43,7 +46,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
     const knownDevelopmentSecret = /^(dev-|change-this|your-)/i;
     if (env.JWT_SECRET.length < 32 || knownDevelopmentSecret.test(env.JWT_SECRET)) {
       throw new Error(
-        'JWT_SECRET must be a non-development secret of at least 32 characters in production'
+        'JWT_SECRET must be a non-development secret of at least 32 characters in production',
       );
     }
 
@@ -53,8 +56,13 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
     if (env.BEHAVIOR_VISION_SERVICE_URL && !env.BEHAVIOR_VISION_SERVICE_TOKEN) {
       throw new Error(
-        'BEHAVIOR_VISION_SERVICE_TOKEN is required when the behavior vision service is enabled in production'
+        'BEHAVIOR_VISION_SERVICE_TOKEN is required when the behavior vision service is enabled in production',
       );
+    }
+
+    const hasAnyStorageCredential = Boolean(env.S3_ACCESS_KEY_ID || env.S3_SECRET_ACCESS_KEY);
+    if (hasAnyStorageCredential && !(env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY)) {
+      throw new Error('S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be configured together');
     }
   }
 
