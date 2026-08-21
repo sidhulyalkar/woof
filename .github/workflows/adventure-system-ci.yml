@@ -12,10 +12,16 @@ on:
       - 'apps/api/src/auth/authenticated-request.ts'
       - 'apps/api/src/config/env.validation.ts'
       - 'apps/api/src/gamification/gamification.controller.ts'
+      - 'apps/api/src/behavior-vision/behavior-profile.spec.ts'
+      - 'apps/api/src/behavior-vision/behavior-vision.service.ts'
+      - 'apps/api/src/chat/chat.gateway.ts'
+      - 'apps/api/src/goals/goals.controller.ts'
       - 'apps/web/.eslintrc.js'
+      - 'apps/web/next.config.ts'
       - 'apps/web/src/app/**'
       - 'apps/web/src/components/bottom-nav.tsx'
       - 'apps/web/src/lib/api/**'
+      - 'apps/web/src/store/session.ts'
       - 'packages/database/prisma/schema.prisma'
       - 'packages/database/prisma/migrations/**'
       - '.github/workflows/adventure-system-ci.yml'
@@ -86,6 +92,7 @@ jobs:
         run: >-
           pnpm exec prettier --check
           apps/web/.eslintrc.js
+          apps/web/next.config.ts
           apps/api/src/adventure
           apps/api/src/care-events
           apps/api/src/auth/authenticated-request.ts
@@ -95,6 +102,10 @@ jobs:
           apps/api/src/coaching/coaching.controller.ts
           apps/api/src/coaching/coaching.module.ts
           apps/api/src/gamification/gamification.controller.ts
+          apps/api/src/behavior-vision/behavior-profile.spec.ts
+          apps/api/src/behavior-vision/behavior-vision.service.ts
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/goals/goals.controller.ts
           apps/api/src/app.module.ts
           apps/web/src/app/page.tsx
           apps/web/src/app/compass
@@ -102,8 +113,10 @@ jobs:
           apps/web/src/app/journey
           apps/web/src/app/pack
           apps/web/src/components/bottom-nav.tsx
+          apps/web/src/lib/api/client.ts
           apps/web/src/lib/api/adventure.ts
           apps/web/src/lib/api/pack.ts
+          apps/web/src/store/session.ts
 
       - name: Lint Adventure API changes
         run: >-
@@ -117,19 +130,26 @@ jobs:
           src/coaching/coaching.controller.ts
           src/coaching/coaching.module.ts
           src/gamification/gamification.controller.ts
+          src/behavior-vision/behavior-profile.spec.ts
+          src/behavior-vision/behavior-vision.service.ts
+          src/chat/chat.gateway.ts
+          src/goals/goals.controller.ts
           src/app.module.ts
 
       - name: Lint Adventure web changes
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          next.config.ts
           src/app/page.tsx
           src/app/compass/page.tsx
           src/app/health/page.tsx
           src/app/journey/page.tsx
           src/app/pack/page.tsx
           src/components/bottom-nav.tsx
+          src/lib/api/client.ts
           src/lib/api/adventure.ts
           src/lib/api/pack.ts
+          src/store/session.ts
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
