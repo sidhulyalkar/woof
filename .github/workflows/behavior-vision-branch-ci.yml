@@ -50,10 +50,16 @@ jobs:
           apps/web/src/app/coach/observe/page.tsx
           apps/web/src/app/coach/observe/history/page.tsx
           docs/BEHAVIOR_VISION.md
-          ml/behavior_vision/model_registry.json
+          ml/behavior_vision
 
-      - name: Run individualized behavior tests
+      - name: Run individualized behavior API tests
         run: pnpm --filter @woof/api exec jest src/behavior-vision --runInBand
+
+      - name: Compile behavior worker
+        run: python -m compileall -q ml/behavior_vision
+
+      - name: Run lightweight behavior worker contracts
+        run: python -m unittest ml.behavior_vision.test_pipeline
 
       - name: Build API
         run: pnpm --filter @woof/api build
