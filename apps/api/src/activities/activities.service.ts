@@ -1,15 +1,23 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@woof/database';
+import { CareEventsService } from '../care-events/care-events.service';
+import type { WellbeingPathway } from '../care-events/care-event.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
 
 @Injectable()
 export class ActivitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ActivitiesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly careEvents: CareEventsService,
+  ) {}
 
   async create(userId: string, dto: CreateActivityDto) {
     if (dto.petId) {
@@ -20,7 +28,7 @@ export class ActivitiesService {
     const endedAt = dto.endedAt ? new Date(dto.endedAt) : null;
     this.assertChronology(startedAt, endedAt);
 
-    return this.prisma.activity.create({
+    const activity = await this.prisma.activity.create({
       data: {
         userId,
         petId: dto.petId,
@@ -34,6 +42,12 @@ export class ActivitiesService {
       },
       include: this.activityInclude(),
     });
+
+    if (activity.endedAt && activity.petId) {
+      await this.emitActivityCareEvent(userId, activity);
+    }
+
+    return activity;
   }
 
   async findAll(userId: string, skip = 0, take = 20, petId?: string) {
@@ -98,12 +112,10 @@ export class ActivitiesService {
     }
 
     const startedAt = dto.startedAt ? new Date(dto.startedAt) : existing.startedAt;
-    const endedAt = dto.endedAt
-      ? new Date(dto.endedAt)
-      : existing.endedAt;
+    const endedAt = dto.endedAt ? new Date(dto.endedAt) : existing.endedAt;
     this.assertChronology(startedAt, endedAt);
 
-    return this.prisma.activity.update({
+    const activity = await this.prisma.activity.update({
       where: { id },
       data: {
         ...(dto.petId !== undefined ? { petId: dto.petId } : {}),
@@ -123,11 +135,99 @@ export class ActivitiesService {
       },
       include: this.activityInclude(),
     });
+
+    if (activity.endedAt && activity.petId) {
+      await this.emitActivityCareEvent(userId, activity);
+    }
+
+    return activity;
   }
 
   async delete(userId: string, id: string) {
     await this.assertOwnedActivity(userId, id);
     return this.prisma.activity.delete({ where: { id } });
+  }
+
+  private async emitActivityCareEvent(
+    userId: string,
+    activity: {
+      id: string;
+      petId: string | null;
+      type: string;
+      startedAt: Date;
+      endedAt: Date | null;
+      route: unknown;
+    },
+  ) {
+    if (!activity.petId || !activity.endedAt) return;
+    const semantic = this.activitySemantic(activity.type);
+    if (!semantic) return;
+
+    const durationMinutes = Math.max(
+      0,
+      Math.round((activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000),
+    );
+
+    try {
+      await this.careEvents.record({
+        userId,
+        petId: activity.petId,
+        eventType: semantic.eventType,
+        pathway: semantic.pathway,
+        occurredAt: activity.endedAt,
+        source: 'ACTIVITIES',
+        evidenceType: 'ACTIVITY',
+        evidenceConfidence: 0.78,
+        dedupeKey: `activity:${activity.id}:completed`,
+        context: {
+          activityId: activity.id,
+          activityType: activity.type.toUpperCase(),
+          durationMinutes,
+          routePresent: Boolean(activity.route),
+        },
+      });
+    } catch (error) {
+      // Rewards are additive product infrastructure. Logging an activity must remain
+      // reliable during a rolling deployment even if the new ledger migration has
+      // not reached this API instance yet.
+      this.logger.warn(
+        `Activity ${activity.id} saved, but Adventure reward emission failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
+  }
+
+  private activitySemantic(type: string): {
+    eventType: string;
+    pathway: WellbeingPathway;
+  } | null {
+    switch (type.toUpperCase()) {
+      case 'WALK':
+        return { eventType: 'ACTIVITY_WALK', pathway: 'MOVE' };
+      case 'RUN':
+        return { eventType: 'ACTIVITY_RUN', pathway: 'MOVE' };
+      case 'HIKE':
+        return { eventType: 'ACTIVITY_HIKE', pathway: 'EXPLORE' };
+      case 'PLAY':
+      case 'ENRICHMENT':
+      case 'SCENT':
+      case 'PUZZLE':
+        return { eventType: 'ENRICHMENT_SESSION', pathway: 'ENRICH' };
+      case 'TRAINING':
+        return { eventType: 'TRAINING_SESSION', pathway: 'LEARN' };
+      case 'SOCIAL':
+      case 'MEETUP':
+        return { eventType: 'SOCIAL_OUTING', pathway: 'CONNECT' };
+      case 'PARALLEL_WALK':
+        return { eventType: 'PARALLEL_WALK', pathway: 'CONNECT' };
+      case 'RECOVERY':
+      case 'REST':
+      case 'DECOMPRESSION':
+        return { eventType: 'RECOVERY_SESSION', pathway: 'RECOVER' };
+      default:
+        return null;
+    }
   }
 
   private async assertOwnedPet(userId: string, petId: string) {
