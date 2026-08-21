@@ -24,6 +24,7 @@ const EMERGENCY_PATTERNS: Array<{ id: string; patterns: RegExp[] }> = [
       /blue (?:gum|gums|tongue)/i,
       /purple (?:gum|gums|tongue)/i,
       /open[- ]mouth breathing/i,
+      /major change in breathing/i,
     ],
   },
   {
