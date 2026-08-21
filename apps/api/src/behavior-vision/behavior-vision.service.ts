@@ -52,6 +52,7 @@ export class BehaviorVisionService {
       otherDogsPresent: dto.otherDogsPresent,
       otherDogDistanceMeters: dto.otherDogDistanceMeters,
       familiarDog: dto.familiarDog,
+      audioAnalysisAllowed: dto.includeAudio === true,
       ownerNote: dto.ownerNote?.trim() || undefined,
     };
 
@@ -145,8 +146,9 @@ export class BehaviorVisionService {
       },
       privacy: {
         mediaStoredByWoof: false,
+        audioAnalysisAllowed: context.audioAnalysisAllowed,
         mediaPolicy:
-          'Raw behavior images and videos are processed transiently and are not written to Woof object storage. The timeline stores derived observations plus an irreversible media fingerprint.',
+          'Raw behavior images and videos are processed transiently and are not written to Woof object storage. The timeline stores derived observations plus an irreversible media fingerprint. Audio analysis is disabled unless the owner explicitly opts in.',
       },
       safety:
         'Behavior Vision describes observable patterns and compares this dog with their own history. It cannot know a dog’s internal emotional state from video alone and never automatically recommends direct dog-to-dog greeting.',
@@ -300,7 +302,11 @@ export class BehaviorVisionService {
           createdAt: entry.createdAt.toISOString(),
           mediaType,
           mediaSha256,
-          context: context as StoredBehaviorObservation['context'],
+          context: {
+            ...(context as StoredBehaviorObservation['context']),
+            audioAnalysisAllowed:
+              (context as Record<string, unknown>).audioAnalysisAllowed === true,
+          },
           analysis: analysis as StoredBehaviorObservation['analysis'],
           ownerFeedback: feedbackByObservation.get(entry.id),
         } satisfies StoredBehaviorObservation;
