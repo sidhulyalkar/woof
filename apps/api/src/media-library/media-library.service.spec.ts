@@ -3,22 +3,73 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MediaLibraryService } from './media-library.service';
 
+const createdAt = new Date('2026-08-21T00:00:00.000Z');
+
+function pendingAsset() {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    ownerId: 'user-1',
+    petId: 'pet-1',
+    storageKey: 'private/media/user-1/pet-1/object.jpg',
+    filename: 'nova.jpg',
+    mimeType: 'image/jpeg',
+    mediaType: 'image',
+    sizeBytes: 1024n,
+    capturedAt: null,
+    source: 'device-picker',
+    provider: 'DEVICE',
+    providerItemId: null,
+    favorite: false,
+    status: 'PENDING',
+    createdFrom: 'UPLOAD',
+    sha256: null,
+    width: null,
+    height: null,
+    durationMs: null,
+    uploadExpiresAt: new Date(Date.now() + 60_000),
+    completedAt: null,
+    tags: [],
+    linkedObservationIds: [],
+    createdAt,
+    updatedAt: createdAt,
+    albumLinks: [],
+  };
+}
+
 function makePrisma() {
   return {
     pet: {
       findFirst: jest.fn().mockResolvedValue({ id: 'pet-1', name: 'Nova', species: 'DOG' }),
     },
-    telemetry: {
+    mediaAsset: {
+      create: jest.fn().mockResolvedValue(pendingAsset()),
+      findFirst: jest.fn().mockResolvedValue(pendingAsset()),
       findMany: jest.fn().mockResolvedValue([]),
-      findFirst: jest.fn(),
-      count: jest.fn().mockResolvedValue(0),
-      create: jest.fn().mockResolvedValue({
-        id: '11111111-1111-4111-8111-111111111111',
-        createdAt: new Date('2026-08-21T00:00:00.000Z'),
-      }),
-      update: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...pendingAsset(), ...data }),
+      ),
       delete: jest.fn().mockResolvedValue({}),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: 0n } }),
     },
+    mediaAlbum: {
+      count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+    },
+    mediaAlbumAsset: {
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    mediaExternalReference: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    },
+    telemetry: {
+      create: jest.fn().mockResolvedValue({ id: 'event-1', createdAt }),
+    },
+    $transaction: jest.fn().mockImplementation((operations: Array<Promise<unknown>>) =>
+      Promise.all(operations),
+    ),
   };
 }
 
@@ -43,6 +94,7 @@ function makeStorage() {
     getSignedUrl: jest.fn().mockResolvedValue('https://private-storage.example/signed-get'),
     deleteFile: jest.fn().mockResolvedValue(undefined),
     uploadPrivateBytes: jest.fn(),
+    uploadPrivateWebStream: jest.fn(),
     getObjectBytes: jest.fn(),
   };
 }
@@ -77,37 +129,16 @@ describe('MediaLibraryService', () => {
     expect(storage.createPrivateUploadIntent).toHaveBeenCalledWith(
       expect.objectContaining({ folder: 'private/media/user-1/pet-1' }),
     );
-    const persisted = JSON.stringify(prisma.telemetry.create.mock.calls[0][0]);
+    const persisted = JSON.stringify(prisma.mediaAsset.create.mock.calls[0][0]);
     expect(persisted).toContain('private/media/user-1/pet-1/object.jpg');
     expect(persisted).not.toContain('signed-put');
     expect(persisted).not.toContain('PUBLIC');
+    expect(prisma.telemetry.create).not.toHaveBeenCalled();
   });
 
   it('rejects and deletes an upload whose stored size differs from the declared size', async () => {
     const prisma = makePrisma();
     const storage = makeStorage();
-    prisma.telemetry.findFirst.mockResolvedValue({
-      id: '11111111-1111-4111-8111-111111111111',
-      userId: 'user-1',
-      petId: 'pet-1',
-      createdAt: new Date('2026-08-21T00:00:00.000Z'),
-      data: {
-        schemaVersion: 'woof-media-asset-v1',
-        status: 'PENDING',
-        storageKey: 'private/media/user-1/pet-1/object.jpg',
-        filename: 'nova.jpg',
-        mimeType: 'image/jpeg',
-        sizeBytes: 1024,
-        capturedAt: null,
-        source: 'device-picker',
-        provider: 'DEVICE',
-        favorite: false,
-        albumIds: [],
-        tags: [],
-        linkedObservationIds: [],
-        createdFrom: 'UPLOAD',
-      },
-    });
     storage.headObject.mockResolvedValue({
       key: 'private/media/user-1/pet-1/object.jpg',
       sizeBytes: 2048,
@@ -121,8 +152,27 @@ describe('MediaLibraryService', () => {
         assetId: '11111111-1111-4111-8111-111111111111',
       }),
     ).rejects.toThrow('did not match');
-    expect(storage.deleteFile).toHaveBeenCalled();
-    expect(JSON.stringify(prisma.telemetry.update.mock.calls[0][0])).toContain('FAILED');
+    expect(storage.deleteFile).toHaveBeenCalledWith('private/media/user-1/pet-1/object.jpg');
+    expect(prisma.mediaAsset.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+    );
+  });
+
+  it('reserves pending bytes when enforcing the private storage quota', async () => {
+    const prisma = makePrisma();
+    prisma.mediaAsset.aggregate.mockResolvedValue({
+      _sum: { sizeBytes: 10n * 1024n * 1024n * 1024n - 512n },
+    });
+    const { service } = makeService(prisma, makeStorage());
+
+    await expect(
+      service.createUploadIntent('user-1', {
+        petId: 'pet-1',
+        filename: 'too-much.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+      }),
+    ).rejects.toThrow('storage quota');
   });
 
   it('uses a Google Photos Picker token ephemerally and never writes it to telemetry', async () => {
@@ -153,5 +203,6 @@ describe('MediaLibraryService', () => {
       }),
     );
     expect(JSON.stringify(prisma.telemetry.create.mock.calls)).not.toContain(accessToken);
+    expect(JSON.stringify(prisma.mediaAsset.create.mock.calls)).not.toContain(accessToken);
   });
 });
