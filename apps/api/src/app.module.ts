@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule, type ThrottlerModuleOptions } from '@nestjs/throttler';
 import { ABTestModule } from './ab-testing/ab-test.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -33,6 +33,15 @@ import { TrustSafetyModule } from './trust-safety/trust-safety.module';
 import { UsersModule } from './users/users.module';
 import { VerificationModule } from './verification/verification.module';
 
+export const throttlerOptions: ThrottlerModuleOptions = {
+  skipIf: () => process.env.NODE_ENV === 'test',
+  throttlers: [
+    { name: 'short', ttl: 1000, limit: 3 },
+    { name: 'medium', ttl: 10000, limit: 20 },
+    { name: 'long', ttl: 60000, limit: 100 },
+  ],
+};
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -40,11 +49,7 @@ import { VerificationModule } from './verification/verification.module';
       envFilePath: '.env',
       validate: validateEnvironment,
     }),
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1000, limit: 3 },
-      { name: 'medium', ttl: 10000, limit: 20 },
-      { name: 'long', ttl: 60000, limit: 100 },
-    ]),
+    ThrottlerModule.forRoot(throttlerOptions),
     PrismaModule,
     PrivacyModule,
     TrustSafetyModule,

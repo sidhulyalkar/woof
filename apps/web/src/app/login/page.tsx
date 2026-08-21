@@ -1,50 +1,57 @@
-"use client"
+'use client';
 
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { CheckCircle2, Loader2, PawPrint, ShieldCheck, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { authApi } from "@/lib/api"
+import { CheckCircle2, Loader2, PawPrint, ShieldCheck, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { authApi } from '@/lib/api';
 
 const productSignals = [
-  "Explainable compatibility, not mystery scores",
-  "Designed around real-world meetup outcomes",
-  "Location and trust treated as product boundaries",
-]
+  'Explainable compatibility, not mystery scores',
+  'Designed around real-world meetup outcomes',
+  'Location and trust treated as product boundaries',
+];
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setError("")
-    setIsLoading(true)
+    event.preventDefault();
+    setError('');
+    setIsLoading(true);
 
     try {
-      await authApi.login({ email, password })
-      router.replace("/")
+      await authApi.login({ email, password });
+      router.replace('/');
     } catch (err: any) {
-      console.error("Login failed", err)
-      setError(err?.response?.data?.message || "Invalid email or password.")
+      console.error('Login failed', err);
+      setError(err?.response?.data?.message || 'Invalid email or password.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_0.95fr]">
       <aside className="relative hidden overflow-hidden border-r border-border/60 lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,180,84,0.14),transparent_32rem),radial-gradient(circle_at_85%_75%,rgba(85,214,190,0.12),transparent_28rem)]" aria-hidden="true" />
+        <div
+          className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,180,84,0.14),transparent_32rem),radial-gradient(circle_at_85%_75%,rgba(85,214,190,0.12),transparent_28rem)]"
+          aria-hidden="true"
+        />
         <div className="relative">
-          <Link href="/login" className="inline-flex min-h-0 min-w-0 items-center gap-3" aria-label="Woof sign in">
+          <Link
+            href="/login"
+            className="inline-flex min-h-11 items-center gap-3 rounded-xl"
+            aria-label="Woof sign in"
+          >
             <span className="brand-mark flex h-11 w-11 items-center justify-center rounded-2xl">
               <PawPrint className="h-6 w-6 text-primary-foreground" aria-hidden="true" />
             </span>
@@ -54,11 +61,12 @@ export default function LoginPage() {
 
         <div className="relative max-w-xl">
           <p className="eyebrow">A social network that closes the loop</p>
-          <h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight xl:text-5xl">
+          <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tight xl:text-5xl">
             Better dog friendships start with better context.
-          </h1>
+          </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-            Discover compatible dogs, coordinate a safe meetup, and learn from what actually happened offline instead of optimizing another endless feed.
+            Discover compatible dogs, coordinate a safe meetup, and learn from what actually
+            happened offline instead of optimizing another endless feed.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -79,7 +87,10 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      <main id="main-content" className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-10"
+      >
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <span className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl">
@@ -97,9 +108,9 @@ export default function LoginPage() {
                 <Sparkles className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <CardTitle className="text-3xl font-bold tracking-tight">Welcome back</CardTitle>
+                <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
                 <CardDescription className="mt-2 leading-relaxed">
-                  Sign in to continue building your dog&apos;s real-world social graph.
+                  Sign in to continue learning what helps your pet thrive with you.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -134,7 +145,11 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <div role="alert" aria-live="polite" className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+                  >
                     {error}
                   </div>
                 )}
@@ -146,14 +161,17 @@ export default function LoginPage() {
                       Signing in…
                     </>
                   ) : (
-                    "Sign in"
+                    'Sign in'
                   )}
                 </Button>
               </form>
 
               <p className="mt-6 text-center text-sm text-muted-foreground">
-                New to Woof?{" "}
-                <Link href="/onboarding" className="font-semibold text-primary hover:text-primary/80">
+                New to Woof?{' '}
+                <Link
+                  href="/onboarding"
+                  className="inline-flex min-h-8 items-center rounded-md px-1 font-semibold text-primary hover:text-primary/80"
+                >
                   Create your profile
                 </Link>
               </p>
@@ -161,10 +179,11 @@ export default function LoginPage() {
           </Card>
 
           <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-            Woof is a portfolio research product. Public demos should use synthetic data and avoid sensitive real-world location history.
+            Woof is a beta research product. Public demos use synthetic data and avoid sensitive
+            real-world location history.
           </p>
         </div>
       </main>
     </div>
-  )
+  );
 }
