@@ -1,0 +1,62 @@
+name: Format Pet Media Library branch
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  prettier:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply pinned Prettier
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/media-library
+          apps/api/src/storage/storage.service.ts
+          apps/api/src/app.module.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/.env.example
+          apps/web/src/lib/api/media-library.ts
+          apps/web/src/lib/google-photos-oauth.ts
+          apps/web/src/app/library/page.tsx
+          apps/web/src/app/coach/layout.tsx
+          apps/web/.env.local.example
+          docs/PET_MEDIA_LIBRARY.md
+          .github/workflows/media-library-branch-ci.yml
+
+      - name: Commit formatter output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- apps/api apps/web docs/PET_MEDIA_LIBRARY.md .github/workflows/media-library-branch-ci.yml
+          if git diff --cached --quiet; then
+            echo "No formatter changes required."
+            exit 0
+          fi
+          git commit -m "style: apply pinned prettier to media library"
+          git push origin HEAD:agent/pet-media-library-v1
