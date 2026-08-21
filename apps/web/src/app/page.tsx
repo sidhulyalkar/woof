@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
@@ -48,7 +49,9 @@ const ownerChoices = [
 
 export default function HomePage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [closingQuest, setClosingQuest] = useState<AdventureQuest | null>(null);
+  const [startingQuestId, setStartingQuestId] = useState<string | null>(null);
   const [dogExperience, setDogExperience] = useState<
     'loved_it' | 'comfortable' | 'not_their_thing' | null
   >(null);
@@ -78,12 +81,29 @@ export default function HomePage() {
       });
     },
     onSuccess: async (result) => {
-      setCompletionMessage(
-        `${result.message} ${result.reward.bondXp > 0 ? `+${result.reward.bondXp} Bond XP` : ''}`.trim()
-      );
+      const rewardCopy = result.reward.duplicate
+        ? 'Already saved. No extra Bond XP was issued.'
+        : result.reward.bondXp > 0
+          ? `+${result.reward.bondXp} Bond XP`
+          : '';
+      setCompletionMessage(`${result.message} ${rewardCopy}`.trim());
       await queryClient.invalidateQueries({ queryKey: ['adventure', 'me'] });
     },
   });
+
+  const startQuest = async (quest: AdventureQuest) => {
+    if (!data || startingQuestId) return;
+
+    setStartingQuestId(quest.id);
+    try {
+      await adventureApi.selectQuest(quest.id, data.pet.id);
+    } finally {
+      // Selection persistence improves continuity, but a transient analytics/network
+      // failure must never trap the user on Today instead of letting them do the activity.
+      setStartingQuestId(null);
+      router.push(quest.href);
+    }
+  };
 
   const closeOutcome = () => {
     setClosingQuest(null);
@@ -141,8 +161,8 @@ export default function HomePage() {
             <PawPrint className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
             <h1 className="mt-3 text-xl font-bold">Adventure mode is unavailable</h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Your existing Coach, Health, Library, and social tools are still available. The new
-              quest ledger requires the latest database migration.
+              Adventure may be paused or temporarily unavailable. Your existing Coach, Health,
+              Library, and social tools are still available.
             </p>
             <Button
               className="mt-5"
@@ -228,13 +248,15 @@ export default function HomePage() {
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <Button asChild size="sm">
-                            <Link
-                              href={quest.href}
-                              onClick={() => void adventureApi.selectQuest(quest.id, data.pet.id)}
-                            >
-                              {quest.actionLabel}
-                            </Link>
+                          <Button
+                            size="sm"
+                            disabled={startingQuestId !== null}
+                            onClick={() => void startQuest(quest)}
+                          >
+                            {startingQuestId === quest.id && (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                            )}
+                            {quest.actionLabel}
                           </Button>
                           <Button
                             variant="outline"
