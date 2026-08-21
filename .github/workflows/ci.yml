@@ -49,6 +49,7 @@ jobs:
           apps/api/jest.config.js
           apps/api/test/jest-e2e.json
           apps/api/test/auth.e2e-spec.ts
+          apps/api/src/behavior-vision
           apps/api/src/coaching
           apps/api/src/compatibility/compatibility.types.ts
           apps/api/src/ml/ml.service.ts
@@ -57,10 +58,14 @@ jobs:
           apps/web/vitest.config.ts
           apps/web/playwright.config.ts
           apps/web/src/lib/api-client.ts
+          apps/web/src/lib/api/behavior-vision.ts
           apps/web/src/lib/api/coaching.ts
           apps/web/src/components/bottom-nav.tsx
+          apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/page.tsx
+          apps/web/src/app/coach/observe/page.tsx
           apps/web/e2e
+          ml/behavior_vision/model_registry.json
           packages/ui/package.json
 
       - name: Lint
