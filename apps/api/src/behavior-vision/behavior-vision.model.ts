@@ -74,12 +74,14 @@ export class BehaviorVisionModelService {
             objectiveObservationOnly: true,
             noDefinitiveEmotionInference: true,
             noAutomaticGreetingRecommendation: true,
+            noHumanFaceRecognition: true,
+            noBiometricIdentityInference: true,
           },
         })
       );
       form.append(
         'media',
-        new Blob([input.media.bytes], { type: input.media.mimeType }),
+        new Blob([new Uint8Array(input.media.bytes)], { type: input.media.mimeType }),
         input.media.filename
       );
 
