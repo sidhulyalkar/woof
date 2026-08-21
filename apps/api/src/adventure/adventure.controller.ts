@@ -1,26 +1,28 @@
 import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdventureEnabledGuard } from './adventure-enabled.guard';
 import { AdventureService } from './adventure.service';
 import { CompleteQuestDto, QuestInteractionDto } from './dto/adventure.dto';
 
 @ApiTags('adventure')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AdventureEnabledGuard)
 @Controller('adventure')
 export class AdventureController {
   constructor(private readonly adventureService: AdventureService) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Get the personalized Woof Adventure dashboard and daily quest deck' })
-  getMine(@Request() req: any, @Query('petId') petId?: string) {
+  getMine(@Request() req: AuthenticatedRequest, @Query('petId') petId?: string) {
     return this.adventureService.getDashboard(req.user.sub, petId);
   }
 
   @Post('quests/:questId/select')
   @ApiOperation({ summary: 'Record that the owner selected a generated quest' })
   selectQuest(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('questId') questId: string,
     @Body() dto: QuestInteractionDto
   ) {
@@ -30,7 +32,7 @@ export class AdventureController {
   @Post('quests/:questId/dismiss')
   @ApiOperation({ summary: 'Record that a generated quest did not fit today' })
   dismissQuest(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('questId') questId: string,
     @Body() dto: QuestInteractionDto
   ) {
@@ -42,7 +44,7 @@ export class AdventureController {
     summary: 'Close the five-second outcome loop and issue server-calculated Bond XP',
   })
   completeQuest(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('questId') questId: string,
     @Body() dto: CompleteQuestDto
   ) {
