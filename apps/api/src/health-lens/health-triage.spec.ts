@@ -8,7 +8,9 @@ describe('pet health emergency screening', () => {
   });
 
   it('escalates possible gastric dilation warning signs', () => {
-    const result = screenEmergencyText('His belly is swollen and hard and he keeps trying to vomit but nothing comes up');
+    const result = screenEmergencyText(
+      'His belly is swollen and hard and he keeps trying to vomit but nothing comes up',
+    );
     expect(result?.level).toBe('emergency_now');
     expect(result?.matchedSignals).toContain('gdv-bloat');
   });
@@ -20,10 +22,12 @@ describe('pet health emergency screening', () => {
   });
 
   it('does not invent an emergency from a localized mild concern', () => {
-    expect(screenEmergencyText('Small red patch on paw noticed this morning, otherwise acting normal')).toBeNull();
+    expect(
+      screenEmergencyText('Small red patch on paw noticed this morning, otherwise acting normal'),
+    ).toBeNull();
   });
 
-  it('includes structured major changes in the triage text', () => {
+  it('turns a structured major breathing change into an emergency signal', () => {
     const text = buildTriageText({
       concern: 'Something seems off',
       breathing: 'major-change',
@@ -32,5 +36,6 @@ describe('pet health emergency screening', () => {
       appetite: 'normal',
     });
     expect(text).toContain('major change in breathing');
+    expect(screenEmergencyText(text)?.matchedSignals).toContain('breathing-distress');
   });
 });
