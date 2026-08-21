@@ -2,91 +2,91 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
+import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { NudgesService } from '../nudges/nudges.service';
 
-interface ChatMessage {
-  conversationId: string;
-  senderId: string;
-  text: string;
-  timestamp: Date;
+interface AuthenticatedSocket extends Socket {
+  userId?: string;
 }
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
   },
+  namespace: '/chat',
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private logger = new Logger(ChatGateway.name);
-  private connectedUsers = new Map<string, string>(); // socketId -> userId
+  private readonly logger = new Logger(ChatGateway.name);
 
   constructor(
-    private jwtService: JwtService,
-    private prisma: PrismaService,
-    private nudgesService: NudgesService,
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly nudgesService: NudgesService
   ) {}
 
-  async handleConnection(client: Socket) {
+  async handleConnection(client: AuthenticatedSocket) {
     try {
-      // Extract JWT from handshake
-      const token = client.handshake.auth.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.headers?.authorization?.split(' ')[1];
 
       if (!token) {
         client.disconnect();
         return;
       }
 
-      // Verify JWT
-      const payload = await this.jwtService.verifyAsync(token);
-      const userId = payload.sub;
+      const payload = this.jwtService.verify(token);
+      client.userId = payload.sub;
+      client.join(`user:${payload.sub}`);
 
-      this.connectedUsers.set(client.id, userId);
-      this.logger.log(`User ${userId} connected: ${client.id}`);
-
-      // Join user's personal room
-      client.join(`user:${userId}`);
-
-      // Notify user is online
-      this.server.emit('user:online', { userId });
+      this.logger.log(`Client connected: ${client.id} (User: ${payload.sub})`);
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      this.logger.error(`Authentication failed: ${error.message}`);
       client.disconnect();
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = this.connectedUsers.get(client.id);
-    if (userId) {
-      this.logger.log(`User ${userId} disconnected: ${client.id}`);
-      this.connectedUsers.delete(client.id);
-
-      // Notify user is offline
-      this.server.emit('user:offline', { userId });
-    }
+  handleDisconnect(client: AuthenticatedSocket) {
+    this.logger.log(`Client disconnected: ${client.id}`);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('message:send')
   async handleMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: ChatMessage,
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    data: {
+      conversationId: string;
+      text: string;
+    }
   ) {
-    const userId = this.connectedUsers.get(client.id);
-
+    const userId = client.userId;
     if (!userId) {
-      return { error: 'Unauthorized' };
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const participant = await this.prisma.conversationParticipant.findFirst({
+      where: {
+        conversationId: data.conversationId,
+        userId,
+      },
+      select: { id: true },
+    });
+
+    if (!participant) {
+      return { success: false, error: 'Conversation not found' };
     }
 
     const message = {
@@ -95,7 +95,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       timestamp: new Date(),
     };
 
-    // Save message to database
     try {
       await this.prisma.message.create({
         data: {
@@ -105,16 +104,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         },
       });
 
-      // Trigger nudge check after message is saved
-      // This checks if 5+ messages have been exchanged and suggests a meetup
-      await this.nudgesService.checkChatActivityNudges(data.conversationId).catch((err) => {
-        this.logger.error(`Failed to check chat nudges: ${err.message}`);
-      });
+      await this.nudgesService
+        .checkChatActivityNudges(data.conversationId, userId)
+        .catch((err) => {
+          this.logger.error(`Failed to check chat nudges: ${err.message}`);
+        });
     } catch (error) {
       this.logger.error(`Failed to save message: ${error.message}`);
     }
 
-    // Emit to conversation room
     this.server.to(`conversation:${data.conversationId}`).emit('message:received', message);
 
     return { success: true, message };
@@ -123,38 +121,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('conversation:join')
   handleJoinConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     client.join(`conversation:${data.conversationId}`);
-    this.logger.log(`User joined conversation: ${data.conversationId}`);
     return { success: true };
   }
 
   @SubscribeMessage('conversation:leave')
   handleLeaveConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     client.leave(`conversation:${data.conversationId}`);
-    this.logger.log(`User left conversation: ${data.conversationId}`);
     return { success: true };
   }
 
   @SubscribeMessage('typing:start')
   handleTypingStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string }
   ) {
-    const userId = this.connectedUsers.get(client.id);
-    client.to(`conversation:${data.conversationId}`).emit('typing:start', { userId });
+    client.to(`conversation:${data.conversationId}`).emit('typing:started', {
+      userId: client.userId,
+      conversationId: data.conversationId,
+    });
   }
 
   @SubscribeMessage('typing:stop')
   handleTypingStop(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string }
   ) {
-    const userId = this.connectedUsers.get(client.id);
-    client.to(`conversation:${data.conversationId}`).emit('typing:stop', { userId });
+    client.to(`conversation:${data.conversationId}`).emit('typing:stopped', {
+      userId: client.userId,
+      conversationId: data.conversationId,
+    });
   }
 }
