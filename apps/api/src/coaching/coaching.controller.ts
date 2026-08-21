@@ -26,7 +26,7 @@ import {
 export class CoachingController {
   constructor(
     private readonly coachingService: CoachingService,
-    private readonly careEvents: CareEventsService,
+    private readonly careEvents: CareEventsService
   ) {}
 
   @Get('me')
@@ -46,7 +46,7 @@ export class CoachingController {
   updatePlanStatus(
     @Request() req: any,
     @Param('planId') planId: string,
-    @Body() dto: UpdateTrainingPlanStatusDto,
+    @Body() dto: UpdateTrainingPlanStatusDto
   ) {
     return this.coachingService.setPlanStatus(req.user.sub, planId, dto);
   }
@@ -56,7 +56,7 @@ export class CoachingController {
   async recordSession(
     @Request() req: any,
     @Param('planId') planId: string,
-    @Body() dto: RecordTrainingSessionDto,
+    @Body() dto: RecordTrainingSessionDto
   ) {
     const result = await this.coachingService.recordSession(req.user.sub, planId, dto);
     const petId = result.plan?.petId;

@@ -55,7 +55,7 @@ function booleanContext(input: CareEventInput, key: string) {
 
 export function rewardCareEvent(
   input: CareEventInput,
-  context: RewardPolicyContext,
+  context: RewardPolicyContext
 ): RewardDecision {
   if (input.safetyEligible === false) {
     return {
@@ -84,24 +84,17 @@ export function rewardCareEvent(
 
   // Repeating the same pathway remains useful, but the game does not reward farming.
   const diversityMultiplier =
-    context.samePathwayEventsToday <= 1
-      ? 1
-      : context.samePathwayEventsToday === 2
-        ? 0.82
-        : 0.58;
+    context.samePathwayEventsToday <= 1 ? 1 : context.samePathwayEventsToday === 2 ? 0.82 : 0.58;
   const repetitionMultiplier =
-    context.repeatedEventCount7d <= 2
-      ? 1
-      : context.repeatedEventCount7d <= 5
-        ? 0.88
-        : 0.72;
+    context.repeatedEventCount7d <= 2 ? 1 : context.repeatedEventCount7d <= 5 ? 0.88 : 0.72;
 
   // Quest ranking may contribute a server-generated relevance value. It is tightly
   // capped and never accepted as an arbitrary XP amount.
   const relevance = Number(input.context?.personalRelevance ?? 1);
   const relevanceMultiplier = clamp(Number.isFinite(relevance) ? relevance : 1, 0.9, 1.08);
 
-  let raw = base * evidenceMultiplier * diversityMultiplier * repetitionMultiplier * relevanceMultiplier;
+  let raw =
+    base * evidenceMultiplier * diversityMultiplier * repetitionMultiplier * relevanceMultiplier;
 
   const reflected =
     typeof input.outcome?.dogExperience === 'string' &&

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { CareEventsService } from '../care-events/care-events.service';
 import {
   QUEST_EVENT_TYPES,
@@ -47,7 +47,7 @@ export class AdventureService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly insights: InsightsService,
-    private readonly careEvents: CareEventsService,
+    private readonly careEvents: CareEventsService
   ) {}
 
   async getDashboard(userId: string, requestedPetId?: string) {
@@ -79,7 +79,7 @@ export class AdventureService {
     userId: string,
     petId: string,
     questId: string,
-    interaction: 'SELECTED' | 'DISMISSED',
+    interaction: 'SELECTED' | 'DISMISSED'
   ) {
     const dashboard = await this.getDashboard(userId, petId);
     const quest = dashboard.quests.find((candidate) => candidate.id === questId);
@@ -108,7 +108,8 @@ export class AdventureService {
       : learnedMismatch
         ? QUEST_EVENT_TYPES.BOND
         : QUEST_EVENT_TYPES[quest.primaryPathway];
-    const rewardPathway: WellbeingPathway = safeOptOut || learnedMismatch ? 'BOND' : quest.primaryPathway;
+    const rewardPathway: WellbeingPathway =
+      safeOptOut || learnedMismatch ? 'BOND' : quest.primaryPathway;
 
     const receipt = await this.careEvents.record({
       userId,
@@ -190,7 +191,7 @@ export class AdventureService {
   private buildQuests(
     userId: string,
     insights: Awaited<ReturnType<InsightsService['getForUser']>>,
-    summary: CareSummary,
+    summary: CareSummary
   ): Quest[] {
     const dateKey = new Date().toISOString().slice(0, 10);
     const coverage = new Map(summary.pathways.map((item) => [item.pathway, item.coverage]));
@@ -237,7 +238,8 @@ export class AdventureService {
       {
         key: 'skill-spark',
         title: 'Five-minute skill spark',
-        description: 'Choose one tiny reward-based skill and stop while the session still feels easy.',
+        description:
+          'Choose one tiny reward-based skill and stop while the session still feels easy.',
         why: 'Short comfortable repetitions build communication without making training a grind.',
         primaryPathway: 'LEARN',
         pathways: ['LEARN', 'BOND'],
@@ -252,7 +254,8 @@ export class AdventureService {
       {
         key: 'easy-day',
         title: 'Choose an easy day',
-        description: 'Keep the outing simple, add calm sniffing or enrichment, and leave room for decompression.',
+        description:
+          'Keep the outing simple, add calm sniffing or enrichment, and leave room for decompression.',
         why: 'Recovery is a valid wellbeing action. Woof does not treat more miles as automatically better.',
         primaryPathway: 'RECOVER',
         pathways: ['RECOVER', 'BOND'],
@@ -267,7 +270,8 @@ export class AdventureService {
       {
         key: 'favorite-ritual',
         title: 'Do one favorite thing together',
-        description: 'Pick a small ritual you both genuinely enjoy. Familiar can be as valuable as novel.',
+        description:
+          'Pick a small ritual you both genuinely enjoy. Familiar can be as valuable as novel.',
         why: 'The Bond pathway is about shared fit, not performance.',
         primaryPathway: 'BOND',
         pathways: ['BOND'],
@@ -282,7 +286,9 @@ export class AdventureService {
     ];
 
     const pool = [...candidates, ...templates]
-      .filter((candidate, index, items) => items.findIndex((item) => item.key === candidate.key) === index)
+      .filter(
+        (candidate, index, items) => items.findIndex((item) => item.key === candidate.key) === index
+      )
       .sort((a, b) => b.score - a.score);
 
     const selected: Candidate[] = [];
@@ -296,7 +302,9 @@ export class AdventureService {
       if (!selected.includes(candidate)) selected.push(candidate);
     }
 
-    const expiresAt = new Date(new Date(`${dateKey}T00:00:00.000Z`).getTime() + DAY_MS).toISOString();
+    const expiresAt = new Date(
+      new Date(`${dateKey}T00:00:00.000Z`).getTime() + DAY_MS
+    ).toISOString();
     return selected.slice(0, 3).map((candidate, index) => ({
       ...candidate,
       id: this.questId(userId, insights.pet.id, dateKey, candidate.key),

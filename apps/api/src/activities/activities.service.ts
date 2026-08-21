@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { CareEventsService } from '../care-events/care-events.service';
 import type { WellbeingPathway } from '../care-events/care-event.types';
@@ -16,7 +11,7 @@ export class ActivitiesService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly careEvents: CareEventsService,
+    private readonly careEvents: CareEventsService
   ) {}
 
   async create(userId: string, dto: CreateActivityDto) {
@@ -123,15 +118,9 @@ export class ActivitiesService {
         ...(dto.endedAt !== undefined ? { endedAt } : {}),
         ...(dto.type !== undefined ? { type: dto.type } : {}),
         ...(dto.route !== undefined ? { route: this.json(dto.route) } : {}),
-        ...(dto.humanMetrics !== undefined
-          ? { humanMetrics: this.json(dto.humanMetrics) }
-          : {}),
-        ...(dto.petMetrics !== undefined
-          ? { petMetrics: this.json(dto.petMetrics) }
-          : {}),
-        ...(dto.jointMetrics !== undefined
-          ? { jointMetrics: this.json(dto.jointMetrics) }
-          : {}),
+        ...(dto.humanMetrics !== undefined ? { humanMetrics: this.json(dto.humanMetrics) } : {}),
+        ...(dto.petMetrics !== undefined ? { petMetrics: this.json(dto.petMetrics) } : {}),
+        ...(dto.jointMetrics !== undefined ? { jointMetrics: this.json(dto.jointMetrics) } : {}),
       },
       include: this.activityInclude(),
     });
@@ -157,7 +146,7 @@ export class ActivitiesService {
       startedAt: Date;
       endedAt: Date | null;
       route: unknown;
-    },
+    }
   ) {
     if (!activity.petId || !activity.endedAt) return;
     const semantic = this.activitySemantic(activity.type);
@@ -165,7 +154,7 @@ export class ActivitiesService {
 
     const durationMinutes = Math.max(
       0,
-      Math.round((activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000),
+      Math.round((activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000)
     );
 
     try {
@@ -193,7 +182,7 @@ export class ActivitiesService {
       this.logger.warn(
         `Activity ${activity.id} saved, but Adventure reward emission failed: ${
           error instanceof Error ? error.message : 'unknown error'
-        }`,
+        }`
       );
     }
   }
@@ -259,9 +248,7 @@ export class ActivitiesService {
   }
 
   private json(value?: Record<string, unknown>) {
-    return value === undefined
-      ? undefined
-      : (value as Prisma.InputJsonValue);
+    return value === undefined ? undefined : (value as Prisma.InputJsonValue);
   }
 
   private activityInclude() {

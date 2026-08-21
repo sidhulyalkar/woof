@@ -1,7 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Camera, Image as ImageIcon, Loader2, Map, PawPrint, Sparkles, Star, Video } from 'lucide-react';
+import {
+  Camera,
+  Image as ImageIcon,
+  Loader2,
+  Map,
+  PawPrint,
+  Sparkles,
+  Star,
+  Video,
+} from 'lucide-react';
 import Link from 'next/link';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
@@ -46,11 +55,13 @@ export default function JourneyPage() {
         <section className="rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.1] via-card/90 to-secondary/[0.07] p-5">
           <p className="eyebrow">Adventure Book</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight">
-            {pet ? `${pet.name}'s world is becoming a story.` : 'Shared experiences become a story.'}
+            {pet
+              ? `${pet.name}'s world is becoming a story.`
+              : 'Shared experiences become a story.'}
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Memories are the evidence trail and the scrapbook, not the objective. The real reward comes
-            from the experience itself.
+            Memories are the evidence trail and the scrapbook, not the objective. The real reward
+            comes from the experience itself.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild>
@@ -75,7 +86,9 @@ export default function JourneyPage() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="eyebrow">Collections</p>
-                  <h2 className="mt-1 text-xl font-bold tracking-tight">Stamps from your actual life</h2>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight">
+                    Stamps from your actual life
+                  </h2>
                 </div>
                 <span className="text-xs text-muted-foreground">{albums.length} collections</span>
               </div>
@@ -88,7 +101,10 @@ export default function JourneyPage() {
                       href="/library"
                       className="surface-soft min-w-[148px] rounded-2xl p-4 transition-colors hover:border-primary/30"
                     >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-lg" aria-hidden="true">
+                      <span
+                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-lg"
+                        aria-hidden="true"
+                      >
                         {album.icon || '🐾'}
                       </span>
                       <p className="mt-4 text-sm font-semibold">{album.name}</p>
@@ -100,8 +116,8 @@ export default function JourneyPage() {
                 <div className="surface-soft mt-3 rounded-2xl p-5">
                   <p className="font-semibold">Your Adventure Book has room to grow.</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Keep a favorite walk, training win, first beach trip, or quiet recovery day when it is
-                    worth remembering.
+                    Keep a favorite walk, training win, first beach trip, or quiet recovery day when
+                    it is worth remembering.
                   </p>
                 </div>
               )}
@@ -111,7 +127,9 @@ export default function JourneyPage() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="eyebrow">Recent pages</p>
-                  <h2 className="mt-1 text-xl font-bold tracking-tight">Memories, not proof chores</h2>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight">
+                    Memories, not proof chores
+                  </h2>
                 </div>
                 <Button variant="ghost" size="sm" asChild className="text-primary">
                   <Link href="/library">See all →</Link>
@@ -127,11 +145,14 @@ export default function JourneyPage() {
                       className="group relative aspect-square overflow-hidden rounded-2xl border border-border/60 bg-muted"
                     >
                       {asset.url && asset.mediaType === 'image' ? (
-                        <img
-                          src={asset.url}
-                          alt={asset.filename}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                        />
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={asset.url}
+                            alt={asset.filename}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          />
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center text-muted-foreground">
                           {asset.mediaType === 'video' ? (
@@ -154,7 +175,8 @@ export default function JourneyPage() {
                   <PawPrint className="h-7 w-7 text-primary" aria-hidden="true" />
                   <p className="mt-3 font-semibold">No kept memories yet</p>
                   <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                    Photos stay optional. A completed quest is valuable even when the phone never leaves your pocket.
+                    Photos stay optional. A completed quest is valuable even when the phone never
+                    leaves your pocket.
                   </p>
                 </div>
               )}
@@ -166,9 +188,9 @@ export default function JourneyPage() {
                 <div>
                   <p className="font-semibold">What Journey will learn next</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Route semantics, favorite places, first-time locations, terrain, season, and paired
-                    outcome history can turn future outings into real map stamps without making location
-                    sharing mandatory.
+                    Route semantics, favorite places, first-time locations, terrain, season, and
+                    paired outcome history can turn future outings into real map stamps without
+                    making location sharing mandatory.
                   </p>
                 </div>
               </div>

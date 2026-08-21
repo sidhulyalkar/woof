@@ -8,14 +8,14 @@ The system is intentionally designed around **individual fit**, not maximum exer
 
 ## Product surfaces
 
-| Surface | Role |
-| --- | --- |
-| **Today** | Personalized three-card Quest Deck with one recommended quest, an alternative, and a wildcard |
-| **Compass** | Eight-pathway recent opportunity coverage, explicitly not a health score |
-| **Journey** | Adventure Book built on the private Media Library |
-| **Coach** | Reward-based Learn progression and dog-literacy feedback |
-| **Pack** | Compatibility-first social discovery and cooperative challenges |
-| **Health** | Separate high-stakes Health Lens; emergency/illness flows are outside competitive gamification |
+| Surface     | Role                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| **Today**   | Personalized three-card Quest Deck with one recommended quest, an alternative, and a wildcard  |
+| **Compass** | Eight-pathway recent opportunity coverage, explicitly not a health score                       |
+| **Journey** | Adventure Book built on the private Media Library                                              |
+| **Coach**   | Reward-based Learn progression and dog-literacy feedback                                       |
+| **Pack**    | Compatibility-first social discovery and cooperative challenges                                |
+| **Health**  | Separate high-stakes Health Lens; emergency/illness flows are outside competitive gamification |
 
 ### Pawprint Compass
 

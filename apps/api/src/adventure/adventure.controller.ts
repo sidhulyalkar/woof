@@ -22,7 +22,7 @@ export class AdventureController {
   selectQuest(
     @Request() req: any,
     @Param('questId') questId: string,
-    @Body() dto: QuestInteractionDto,
+    @Body() dto: QuestInteractionDto
   ) {
     return this.adventureService.recordInteraction(req.user.sub, dto.petId, questId, 'SELECTED');
   }
@@ -32,17 +32,19 @@ export class AdventureController {
   dismissQuest(
     @Request() req: any,
     @Param('questId') questId: string,
-    @Body() dto: QuestInteractionDto,
+    @Body() dto: QuestInteractionDto
   ) {
     return this.adventureService.recordInteraction(req.user.sub, dto.petId, questId, 'DISMISSED');
   }
 
   @Post('quests/:questId/complete')
-  @ApiOperation({ summary: 'Close the five-second outcome loop and issue server-calculated Bond XP' })
+  @ApiOperation({
+    summary: 'Close the five-second outcome loop and issue server-calculated Bond XP',
+  })
   completeQuest(
     @Request() req: any,
     @Param('questId') questId: string,
-    @Body() dto: CompleteQuestDto,
+    @Body() dto: CompleteQuestDto
   ) {
     return this.adventureService.completeQuest(req.user.sub, questId, dto);
   }

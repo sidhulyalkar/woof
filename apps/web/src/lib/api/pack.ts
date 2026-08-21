@@ -23,5 +23,7 @@ export type PackChallengesResponse = {
 
 export const packApi = {
   challenges: async () =>
-    (apiClient.get<PackChallengesResponse>('/pack/challenges') as unknown as Promise<PackChallengesResponse>),
+    apiClient.get<PackChallengesResponse>(
+      '/pack/challenges'
+    ) as unknown as Promise<PackChallengesResponse>,
 };

@@ -32,13 +32,15 @@ const pathwayMeta: Record<
   },
   EXPLORE: {
     icon: TreePine,
-    description: 'Nature, novelty, sniffing, and sensory exploration without turning miles into the goal.',
+    description:
+      'Nature, novelty, sniffing, and sensory exploration without turning miles into the goal.',
     href: '/journey',
     action: 'Journey',
   },
   ENRICH: {
     icon: Sparkles,
-    description: 'Searching, scent work, puzzles, foraging, and other species-appropriate enrichment.',
+    description:
+      'Searching, scent work, puzzles, foraging, and other species-appropriate enrichment.',
     href: '/',
     action: 'Quest deck',
   },
@@ -50,7 +52,8 @@ const pathwayMeta: Record<
   },
   CONNECT: {
     icon: HeartHandshake,
-    description: 'Comfortable social experiences where space, choice, and good matches matter more than volume.',
+    description:
+      'Comfortable social experiences where space, choice, and good matches matter more than volume.',
     href: '/pack',
     action: 'Pack',
   },
@@ -104,9 +107,9 @@ export default function CompassPage() {
             Notice what has had room lately.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            The Compass shows recent opportunity coverage. A full ring does not mean “healthy,” and an
-            empty one does not mean “bad owner.” Different dogs, seasons, restrictions, and life stages
-            should produce different shapes.
+            The Compass shows recent opportunity coverage. A full ring does not mean “healthy,” and
+            an empty one does not mean “bad owner.” Different dogs, seasons, restrictions, and life
+            stages should produce different shapes.
           </p>
         </section>
 
@@ -117,7 +120,9 @@ export default function CompassPage() {
         ) : error || !data ? (
           <div className="surface-soft mt-4 rounded-2xl p-5 text-center">
             <p className="font-semibold">Compass data is unavailable.</p>
-            <p className="mt-1 text-sm text-muted-foreground">The Adventure migration may still need to be applied.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The Adventure migration may still need to be applied.
+            </p>
           </div>
         ) : (
           <>
@@ -142,7 +147,9 @@ export default function CompassPage() {
                       </span>
                     </div>
                     <Progress className="mt-4 h-2" value={item.coverage} />
-                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{meta.description}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                      {meta.description}
+                    </p>
                     <Button variant="ghost" size="sm" asChild className="mt-3 px-0 text-primary">
                       <Link href={meta.href}>{meta.action} →</Link>
                     </Button>
@@ -157,14 +164,16 @@ export default function CompassPage() {
                 <div>
                   <p className="font-semibold">Care has a hard boundary</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Preventive routines can appear on the Compass. Emergency or illness flows do not award
-                    XP, show confetti, or become social competition.
+                    Preventive routines can appear on the Compass. Emergency or illness flows do not
+                    award XP, show confetti, or become social competition.
                   </p>
                 </div>
               </div>
             </section>
 
-            <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{data.disclaimer}</p>
+            <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
+              {data.disclaimer}
+            </p>
           </>
         )}
       </main>

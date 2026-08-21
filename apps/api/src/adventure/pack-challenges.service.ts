@@ -21,7 +21,8 @@ const CHALLENGES: ChallengeDefinition[] = [
   {
     id: 'sniff-explore-week',
     title: 'Sniff & Explore Week',
-    description: 'Together, make room for exploration and enrichment. Every useful session contributes once.',
+    description:
+      'Together, make room for exploration and enrichment. Every useful session contributes once.',
     pathways: ['EXPLORE', 'ENRICH'],
     target: 250,
     unit: 'shared adventures',
@@ -61,7 +62,7 @@ export class PackChallengesService {
           progress: Math.min(1, aggregate.total / challenge.target),
           completed: aggregate.total >= challenge.target,
         };
-      }),
+      })
     );
 
     return {

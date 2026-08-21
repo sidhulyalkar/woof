@@ -23,7 +23,7 @@ describe('rewardCareEvent', () => {
   it('rewards recovery rather than treating rest as failure', () => {
     const decision = rewardCareEvent(
       { ...baseEvent, eventType: 'QUEST_RECOVER', pathway: 'RECOVER' },
-      emptyContext,
+      emptyContext
     );
 
     expect(decision.bondXp).toBeGreaterThan(0);
@@ -38,7 +38,7 @@ describe('rewardCareEvent', () => {
         pathway: 'BOND',
         outcome: { safeOptOut: true, dogExperience: 'not_their_thing' },
       },
-      emptyContext,
+      emptyContext
     );
 
     expect(decision.bondXp).toBeGreaterThanOrEqual(18);
@@ -48,7 +48,7 @@ describe('rewardCareEvent', () => {
     const withoutMemory = rewardCareEvent(baseEvent, emptyContext);
     const withMemory = rewardCareEvent(
       { ...baseEvent, context: { memoryAdded: true } },
-      emptyContext,
+      emptyContext
     );
 
     expect(withMemory.bondXp - withoutMemory.bondXp).toBeLessThanOrEqual(2);
@@ -75,10 +75,7 @@ describe('rewardCareEvent', () => {
   });
 
   it('fails closed for a safety-ineligible event', () => {
-    const decision = rewardCareEvent(
-      { ...baseEvent, safetyEligible: false },
-      emptyContext,
-    );
+    const decision = rewardCareEvent({ ...baseEvent, safetyEligible: false }, emptyContext);
 
     expect(decision.bondXp).toBe(0);
     expect(decision.explanation).toContain('not safety-eligible');

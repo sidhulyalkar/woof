@@ -23,13 +23,7 @@ export const QUEST_EVENT_TYPES = {
 } as const satisfies Record<WellbeingPathway, string>;
 
 export type EvidenceType =
-  | 'SELF_REPORT'
-  | 'ACTIVITY'
-  | 'COACH'
-  | 'BEHAVIOR_VISION'
-  | 'LOCATION'
-  | 'MEDIA'
-  | 'CLINIC';
+  'SELF_REPORT' | 'ACTIVITY' | 'COACH' | 'BEHAVIOR_VISION' | 'LOCATION' | 'MEDIA' | 'CLINIC';
 
 export type CareEventInput = {
   userId: string;

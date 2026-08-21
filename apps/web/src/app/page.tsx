@@ -21,11 +21,7 @@ import { useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  adventureApi,
-  type AdventureQuest,
-  type WellbeingPathway,
-} from '@/lib/api/adventure';
+import { adventureApi, type AdventureQuest, type WellbeingPathway } from '@/lib/api/adventure';
 
 const pathwayIcons: Record<WellbeingPathway, typeof PawPrint> = {
   MOVE: Footprints,
@@ -83,7 +79,7 @@ export default function HomePage() {
     },
     onSuccess: async (result) => {
       setCompletionMessage(
-        `${result.message} ${result.reward.bondXp > 0 ? `+${result.reward.bondXp} Bond XP` : ''}`.trim(),
+        `${result.message} ${result.reward.bondXp > 0 ? `+${result.reward.bondXp} Bond XP` : ''}`.trim()
       );
       await queryClient.invalidateQueries({ queryKey: ['adventure', 'me'] });
     },
@@ -135,7 +131,9 @@ export default function HomePage() {
           <div className="flex min-h-[60vh] items-center justify-center" role="status">
             <div className="text-center">
               <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" aria-hidden="true" />
-              <p className="mt-3 text-sm text-muted-foreground">Building today&apos;s quest deck…</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Building today&apos;s quest deck…
+              </p>
             </div>
           </div>
         ) : error || !data ? (
@@ -143,10 +141,13 @@ export default function HomePage() {
             <PawPrint className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
             <h1 className="mt-3 text-xl font-bold">Adventure mode is unavailable</h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Your existing Coach, Health, Library, and social tools are still available. The new quest
-              ledger requires the latest database migration.
+              Your existing Coach, Health, Library, and social tools are still available. The new
+              quest ledger requires the latest database migration.
             </p>
-            <Button className="mt-5" onClick={() => queryClient.invalidateQueries({ queryKey: ['adventure'] })}>
+            <Button
+              className="mt-5"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['adventure'] })}
+            >
               Try again
             </Button>
           </section>
@@ -158,8 +159,8 @@ export default function HomePage() {
                 {data.pet.name} has {data.quests.length} adventures available.
               </h1>
               <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-                Woof recommends. You choose. Rest, changing your mind, or listening when your dog says
-                “not today” can all be the right play.
+                Woof recommends. You choose. Rest, changing your mind, or listening when your dog
+                says “not today” can all be the right play.
               </p>
 
               <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border/60 bg-background/55 p-3">
@@ -173,12 +174,15 @@ export default function HomePage() {
                       {data.rhythm.activeWeeks}/{data.rhythm.windowWeeks} weeks
                     </span>
                   </div>
-                  <Progress className="mt-2 h-1.5" value={(data.rhythm.activeWeeks / data.rhythm.windowWeeks) * 100} />
+                  <Progress
+                    className="mt-2 h-1.5"
+                    value={(data.rhythm.activeWeeks / data.rhythm.windowWeeks) * 100}
+                  />
                 </div>
               </div>
             </section>
 
-            <section className="mt-5 space-y-3" aria-label="Today&apos;s quests">
+            <section className="mt-5 space-y-3" aria-label="Today's quests">
               {data.quests.map((quest, index) => {
                 const Icon = pathwayIcons[quest.primaryPathway];
                 return (
@@ -194,7 +198,12 @@ export default function HomePage() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                              {index === 0 ? 'Best quest' : quest.variant === 'wildcard' ? 'Wildcard' : 'Alternative'} · {quest.primaryPathway.toLowerCase()}
+                              {index === 0
+                                ? 'Best quest'
+                                : quest.variant === 'wildcard'
+                                  ? 'Wildcard'
+                                  : 'Alternative'}{' '}
+                              · {quest.primaryPathway.toLowerCase()}
                             </p>
                             <h2 className="mt-1 text-lg font-bold tracking-tight">{quest.title}</h2>
                           </div>
@@ -203,11 +212,16 @@ export default function HomePage() {
                           </span>
                         </div>
                         <p className="mt-2 text-sm leading-relaxed">{quest.description}</p>
-                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{quest.why}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                          {quest.why}
+                        </p>
 
                         <div className="mt-4 flex flex-wrap gap-1.5">
                           {quest.pathways.map((pathway) => (
-                            <span key={pathway} className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span
+                              key={pathway}
+                              className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                            >
                               {pathway}
                             </span>
                           ))}
@@ -222,12 +236,21 @@ export default function HomePage() {
                               {quest.actionLabel}
                             </Link>
                           </Button>
-                          <Button variant="outline" size="sm" className="bg-transparent" onClick={() => openCompletion(quest)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-transparent"
+                            onClick={() => openCompletion(quest)}
+                          >
                             <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
                             Close the loop
                           </Button>
                           {quest.safeStopEligible && (
-                            <Button variant="ghost" size="sm" onClick={() => openCompletion(quest, true)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openCompletion(quest, true)}
+                            >
                               I listened and stopped
                             </Button>
                           )}
@@ -243,7 +266,9 @@ export default function HomePage() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="eyebrow">Pawprint Compass</p>
-                  <h2 className="mt-1 text-xl font-bold tracking-tight">Recent opportunities, not a score</h2>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight">
+                    Recent opportunities, not a score
+                  </h2>
                 </div>
                 <Link href="/compass" className="text-sm font-semibold text-primary">
                   Full compass →
@@ -262,7 +287,9 @@ export default function HomePage() {
                         <span className="text-xs font-bold text-primary">{item.recentDays}d</span>
                       </div>
                       <Progress className="mt-3 h-1.5" value={item.coverage} />
-                      <p className="mt-2 text-[11px] text-muted-foreground">{item.xp} pathway XP · 28-day window</p>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {item.xp} pathway XP · 28-day window
+                      </p>
                     </div>
                   );
                 })}
@@ -275,7 +302,10 @@ export default function HomePage() {
                 <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
                   {data.learningSummary.slice(0, 3).map((line) => (
                     <li key={line} className="flex gap-2">
-                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <Sparkles
+                        className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                        aria-hidden="true"
+                      />
                       <span>{line}</span>
                     </li>
                   ))}
@@ -283,20 +313,32 @@ export default function HomePage() {
               </section>
             )}
 
-            <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{data.disclaimer}</p>
+            <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
+              {data.disclaimer}
+            </p>
           </>
         )}
       </main>
 
       {closingQuest && data && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label="Quest outcome">
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-3 backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Quest outcome"
+        >
           <div className="w-full max-w-md rounded-3xl border border-border bg-card p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="eyebrow">Five-second learning loop</p>
                 <h2 className="mt-1 text-xl font-bold">{closingQuest.title}</h2>
               </div>
-              <Button variant="ghost" size="icon" onClick={closeOutcome} aria-label="Close outcome flow">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeOutcome}
+                aria-label="Close outcome flow"
+              >
                 <X className="h-5 w-5" aria-hidden="true" />
               </Button>
             </div>
@@ -323,7 +365,8 @@ export default function HomePage() {
                   <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/[0.05] p-4">
                     <p className="font-semibold text-primary">You listened.</p>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      Woof will treat giving space or ending the interaction as successful dog literacy.
+                      Woof will treat giving space or ending the interaction as successful dog
+                      literacy.
                     </p>
                   </div>
                 ) : !dogExperience ? (
@@ -337,7 +380,9 @@ export default function HomePage() {
                           onClick={() => setDogExperience(choice.value)}
                           className="rounded-2xl border border-border bg-background/55 p-3 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.05]"
                         >
-                          <span className="block text-2xl" aria-hidden="true">{choice.emoji}</span>
+                          <span className="block text-2xl" aria-hidden="true">
+                            {choice.emoji}
+                          </span>
                           <span className="mt-1 block text-xs font-semibold">{choice.label}</span>
                         </button>
                       ))}
@@ -354,10 +399,17 @@ export default function HomePage() {
                           key={choice.value}
                           type="button"
                           disabled={completeMutation.isPending}
-                          onClick={() => completeMutation.mutate({ quest: closingQuest, ownerExperience: choice.value })}
+                          onClick={() =>
+                            completeMutation.mutate({
+                              quest: closingQuest,
+                              ownerExperience: choice.value,
+                            })
+                          }
                           className="rounded-2xl border border-border bg-background/55 p-3 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.05] disabled:opacity-50"
                         >
-                          <span className="block text-2xl" aria-hidden="true">{choice.emoji}</span>
+                          <span className="block text-2xl" aria-hidden="true">
+                            {choice.emoji}
+                          </span>
                           <span className="mt-1 block text-xs font-semibold">{choice.label}</span>
                         </button>
                       ))}
@@ -366,7 +418,10 @@ export default function HomePage() {
                 )}
 
                 {completeMutation.isPending && (
-                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+                  <div
+                    className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+                    role="status"
+                  >
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     Learning from the outcome…
                   </div>

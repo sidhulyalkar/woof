@@ -748,7 +748,7 @@ export default function HealthPage() {
           </div>
         </section>
       </main>
-      <BottomNav />
+      {result?.assessment.triage !== 'emergency_now' && <BottomNav />}
     </div>
   );
 }
