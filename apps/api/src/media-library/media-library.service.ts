@@ -21,18 +21,14 @@ import {
   UpdateMediaAssetDto,
 } from './dto/media-library.dto';
 import {
-  MEDIA_ALBUM_EVENT,
-  MEDIA_ALBUM_SCHEMA_VERSION,
-  MEDIA_ASSET_EVENT,
-  MEDIA_ASSET_SCHEMA_VERSION,
   MEDIA_EXPORT_EVENT,
   MEDIA_IMPORT_EVENT,
   MEDIA_LIBRARY_SOURCE,
   SYSTEM_ALBUMS,
   normalizeMediaTags,
-  type MediaAlbumData,
   type MediaAssetData,
   type MediaSource,
+  type MediaTag,
 } from './media-library.types';
 
 const GOOGLE_PICKER_BASE = 'https://photospicker.googleapis.com/v1';
@@ -40,6 +36,7 @@ const GOOGLE_LIBRARY_BASE = 'https://photoslibrary.googleapis.com/v1';
 const DEFAULT_IMAGE_MAX = 25 * 1024 * 1024;
 const DEFAULT_VIDEO_MAX = 500 * 1024 * 1024;
 const DEFAULT_USER_QUOTA = 10 * 1024 * 1024 * 1024;
+const MAX_LIBRARY_SCAN = 5000;
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -51,6 +48,35 @@ const ALLOWED_MIME_TYPES = new Set([
   'video/webm',
   'video/quicktime',
 ]);
+
+type AssetRecord = {
+  id: string;
+  ownerId: string;
+  petId: string;
+  storageKey: string;
+  filename: string;
+  mimeType: string;
+  mediaType: string;
+  sizeBytes: bigint;
+  capturedAt: Date | null;
+  source: string;
+  provider: string | null;
+  providerItemId: string | null;
+  favorite: boolean;
+  status: string;
+  createdFrom: string;
+  sha256: string | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  uploadExpiresAt: Date | null;
+  completedAt: Date | null;
+  tags: Prisma.JsonValue;
+  linkedObservationIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  albumLinks?: Array<{ albumId: string }>;
+};
 
 @Injectable()
 export class MediaLibraryService {
@@ -90,7 +116,6 @@ export class MediaLibraryService {
     await this.enforceQuota(userId, dto.sizeBytes);
     const albumIds = await this.validateAlbumIds(userId, dto.petId, dto.albumIds ?? []);
     const source = dto.source ?? 'device-picker';
-
     const upload = await this.storage.createPrivateUploadIntent({
       filename: dto.filename,
       folder: `private/media/${userId}/${dto.petId}`,
@@ -99,39 +124,41 @@ export class MediaLibraryService {
       expiresIn: 900,
     });
 
-    const data: MediaAssetData = {
-      schemaVersion: MEDIA_ASSET_SCHEMA_VERSION,
-      status: 'PENDING',
-      storageKey: upload.key,
-      filename: this.cleanFilename(dto.filename),
-      mimeType: dto.mimeType,
-      sizeBytes: dto.sizeBytes,
-      capturedAt: dto.capturedAt ?? null,
-      source,
-      provider: source === 'apple-photos-picker' ? 'APPLE_PHOTOS' : source === 'device-picker' ? 'DEVICE' : null,
-      favorite: false,
-      albumIds,
-      tags: normalizeMediaTags([
-        ...this.sourceTags(source),
-        ...(dto.tags ?? []).map((label) => ({ label, source: 'owner' as const })),
-      ]),
-      linkedObservationIds: dto.linkedObservationId ? [dto.linkedObservationId] : [],
-      createdFrom: 'UPLOAD',
-      uploadExpiresAt: new Date(Date.now() + upload.expiresIn * 1000).toISOString(),
-      completedAt: null,
-      sha256: null,
-    };
-
-    const asset = await this.prisma.telemetry.create({
+    const asset = await this.prisma.mediaAsset.create({
       data: {
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ASSET_EVENT,
-        userId,
+        ownerId: userId,
         petId: dto.petId,
-        data: data as Prisma.InputJsonValue,
+        storageKey: upload.key,
+        filename: this.cleanFilename(dto.filename),
+        mimeType: dto.mimeType,
+        mediaType: dto.mimeType.startsWith('video/') ? 'video' : 'image',
+        sizeBytes: BigInt(dto.sizeBytes),
+        capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,
+        source,
+        provider:
+          source === 'apple-photos-picker'
+            ? 'APPLE_PHOTOS'
+            : source === 'device-picker'
+              ? 'DEVICE'
+              : null,
+        favorite: false,
+        status: 'PENDING',
+        createdFrom: 'UPLOAD',
+        tags: normalizeMediaTags([
+          ...this.sourceTags(source),
+          ...(dto.tags ?? []).map((label) => ({ label, source: 'owner' as const })),
+        ]) as Prisma.InputJsonValue,
+        linkedObservationIds: dto.linkedObservationId ? [dto.linkedObservationId] : [],
+        uploadExpiresAt: new Date(Date.now() + upload.expiresIn * 1000),
       },
-      select: { id: true, createdAt: true },
     });
+
+    if (albumIds.length) {
+      await this.prisma.mediaAlbumAsset.createMany({
+        data: albumIds.map((albumId) => ({ albumId, assetId: asset.id })),
+        skipDuplicates: true,
+      });
+    }
 
     return {
       assetId: asset.id,
@@ -147,27 +174,31 @@ export class MediaLibraryService {
   }
 
   async completeUpload(userId: string, dto: CompleteMediaUploadDto) {
-    const entry = await this.requireAssetEntry(userId, dto.assetId);
-    const data = this.parseAsset(entry.data);
-    if (!data) throw new BadRequestException('Media asset metadata is invalid');
-    if (data.status === 'READY') return this.decorateAsset(entry.id, entry.createdAt, data);
-    if (data.status !== 'PENDING') throw new BadRequestException('Media upload is not pending');
+    const asset = await this.requireAsset(userId, dto.assetId, true);
+    if (asset.status === 'READY') return this.decorateAsset(asset);
+    if (asset.status !== 'PENDING') throw new BadRequestException('Media upload is not pending');
+    if (asset.uploadExpiresAt && asset.uploadExpiresAt.getTime() < Date.now()) {
+      await this.storage.deleteFile(asset.storageKey).catch(() => undefined);
+      await this.prisma.mediaAsset.update({
+        where: { id: asset.id },
+        data: { status: 'FAILED', completedAt: new Date() },
+      });
+      throw new BadRequestException('Media upload intent expired before completion');
+    }
 
     let object;
     try {
-      object = await this.storage.headObject(data.storageKey);
+      object = await this.storage.headObject(asset.storageKey);
     } catch {
       throw new BadRequestException('Uploaded media object could not be verified');
     }
-
-    const sizeMatches = object.sizeBytes === data.sizeBytes;
-    const contentTypeMatches = !object.contentType || object.contentType === data.mimeType;
+    const sizeMatches = object.sizeBytes === Number(asset.sizeBytes);
+    const contentTypeMatches = !object.contentType || object.contentType === asset.mimeType;
     if (!sizeMatches || !contentTypeMatches) {
-      await this.storage.deleteFile(data.storageKey).catch(() => undefined);
-      const failed = { ...data, status: 'FAILED' as const, completedAt: new Date().toISOString() };
-      await this.prisma.telemetry.update({
-        where: { id: entry.id },
-        data: { data: failed as Prisma.InputJsonValue },
+      await this.storage.deleteFile(asset.storageKey).catch(() => undefined);
+      await this.prisma.mediaAsset.update({
+        where: { id: asset.id },
+        data: { status: 'FAILED', completedAt: new Date() },
       });
       throw new BadRequestException('Uploaded media did not match the declared size or content type');
     }
@@ -176,59 +207,41 @@ export class MediaLibraryService {
       throw new BadRequestException('sha256 must be a 64-character hexadecimal digest');
     }
 
-    const ready: MediaAssetData = {
-      ...data,
-      status: 'READY',
-      uploadExpiresAt: null,
-      completedAt: new Date().toISOString(),
-      sha256: dto.sha256?.toLowerCase() ?? null,
-    };
-    await this.prisma.telemetry.update({
-      where: { id: entry.id },
-      data: { data: ready as Prisma.InputJsonValue },
+    const ready = await this.prisma.mediaAsset.update({
+      where: { id: asset.id },
+      data: {
+        status: 'READY',
+        uploadExpiresAt: null,
+        completedAt: new Date(),
+        sha256: dto.sha256?.toLowerCase() ?? null,
+      },
+      include: { albumLinks: { select: { albumId: true } } },
     });
-    return this.decorateAsset(entry.id, entry.createdAt, ready);
+    return this.decorateAsset(ready);
   }
 
   async library(userId: string, query: MediaLibraryQueryDto) {
     await this.requireOwnedPet(userId, query.petId);
     const limit = Math.max(1, Math.min(100, query.limit ?? 60));
-    const entries = await this.prisma.telemetry.findMany({
-      where: {
-        userId,
-        petId: query.petId,
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ASSET_EVENT,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 300,
-      select: { id: true, createdAt: true, data: true },
+    const candidates = await this.prisma.mediaAsset.findMany({
+      where: { ownerId: userId, petId: query.petId, status: 'READY' },
+      orderBy: [{ capturedAt: 'desc' }, { createdAt: 'desc' }],
+      take: query.albumId?.startsWith('smart:') || query.tag ? MAX_LIBRARY_SCAN : Math.min(300, limit * 4),
+      include: { albumLinks: { select: { albumId: true } } },
     });
 
-    const ready = entries
-      .map((entry) => {
-        const data = this.parseAsset(entry.data);
-        return data?.status === 'READY' ? { ...entry, parsed: data } : null;
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-      .filter((entry) => this.matchesQuery(entry.parsed, entry.createdAt, query))
+    const filtered = candidates
+      .filter((asset) => this.matchesQuery(asset, query))
       .slice(0, limit);
-
-    const assets = await Promise.all(
-      ready.map((entry) => this.decorateAsset(entry.id, entry.createdAt, entry.parsed)),
-    );
-    const albums = await this.albums(userId, query.petId, entries);
-    const usedBytes = ready.reduce((sum, entry) => sum + entry.parsed.sizeBytes, 0);
+    const assets = await Promise.all(filtered.map((asset) => this.decorateAsset(asset)));
+    const albums = await this.albums(userId, query.petId);
+    const storage = await this.storageUsage(userId);
 
     return {
       petId: query.petId,
       assets,
       albums,
-      storage: {
-        usedBytes,
-        quotaBytes: this.userQuotaBytes,
-        storageConfigured: this.storage.isConfigured(),
-      },
+      storage: { ...storage, storageConfigured: this.storage.isConfigured() },
       importCapabilities: {
         devicePicker: true,
         appleSystemPicker: true,
@@ -238,30 +251,47 @@ export class MediaLibraryService {
     };
   }
 
-  async albums(userId: string, petId: string, prefetchedAssetEntries?: Array<{ id: string; createdAt: Date; data: Prisma.JsonValue | null }>) {
+  async albums(userId: string, petId: string) {
     await this.requireOwnedPet(userId, petId);
-    const [albumEntries, assetEntries] = await Promise.all([
-      this.prisma.telemetry.findMany({
-        where: { userId, petId, source: MEDIA_LIBRARY_SOURCE, event: MEDIA_ALBUM_EVENT },
+    const [custom, assets] = await Promise.all([
+      this.prisma.mediaAlbum.findMany({
+        where: { ownerId: userId, petId },
         orderBy: { createdAt: 'asc' },
-        select: { id: true, createdAt: true, data: true },
+        include: { _count: { select: { assets: true } } },
       }),
-      prefetchedAssetEntries
-        ? Promise.resolve(prefetchedAssetEntries)
-        : this.prisma.telemetry.findMany({
-            where: { userId, petId, source: MEDIA_LIBRARY_SOURCE, event: MEDIA_ASSET_EVENT },
-            orderBy: { createdAt: 'desc' },
-            take: 500,
-            select: { id: true, createdAt: true, data: true },
-          }),
+      this.prisma.mediaAsset.findMany({
+        where: { ownerId: userId, petId, status: 'READY' },
+        orderBy: { createdAt: 'desc' },
+        take: MAX_LIBRARY_SCAN,
+        select: {
+          id: true,
+          ownerId: true,
+          petId: true,
+          storageKey: true,
+          filename: true,
+          mimeType: true,
+          mediaType: true,
+          sizeBytes: true,
+          capturedAt: true,
+          source: true,
+          provider: true,
+          providerItemId: true,
+          favorite: true,
+          status: true,
+          createdFrom: true,
+          sha256: true,
+          width: true,
+          height: true,
+          durationMs: true,
+          uploadExpiresAt: true,
+          completedAt: true,
+          tags: true,
+          linkedObservationIds: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
     ]);
-
-    const assets = assetEntries
-      .map((entry) => {
-        const data = this.parseAsset(entry.data);
-        return data?.status === 'READY' ? { id: entry.id, createdAt: entry.createdAt, data } : null;
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
     const system = SYSTEM_ALBUMS.map((album) => ({
       id: album.id,
@@ -269,93 +299,76 @@ export class MediaLibraryService {
       description: album.description,
       icon: album.icon,
       kind: 'SMART' as const,
-      count: assets.filter((asset) => album.matches(asset.data, asset.createdAt)).length,
+      count: assets.filter((asset) => album.matches(this.toSmartAsset(asset), asset.createdAt)).length,
     }));
-
-    const custom = albumEntries
-      .map((entry) => {
-        const data = this.parseAlbum(entry.data);
-        if (!data) return null;
-        return {
-          id: entry.id,
-          name: data.name,
-          description: data.description,
-          icon: 'folder',
-          kind: 'USER' as const,
-          count: assets.filter((asset) => asset.data.albumIds.includes(entry.id)).length,
-          coverAssetId: data.coverAssetId,
-        };
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-    return [...system, ...custom];
+    return [
+      ...system,
+      ...custom.map((album) => ({
+        id: album.id,
+        name: album.name,
+        description: album.description,
+        icon: 'folder',
+        kind: 'USER' as const,
+        count: album._count.assets,
+        coverAssetId: album.coverAssetId,
+      })),
+    ];
   }
 
   async createAlbum(userId: string, dto: CreateMediaAlbumDto) {
     await this.requireOwnedPet(userId, dto.petId);
-    const existing = await this.prisma.telemetry.count({
-      where: { userId, petId: dto.petId, source: MEDIA_LIBRARY_SOURCE, event: MEDIA_ALBUM_EVENT },
-    });
+    const existing = await this.prisma.mediaAlbum.count({ where: { ownerId: userId, petId: dto.petId } });
     if (existing >= 40) throw new BadRequestException('A pet can have at most 40 custom albums');
-
-    const data: MediaAlbumData = {
-      schemaVersion: MEDIA_ALBUM_SCHEMA_VERSION,
-      name: dto.name.trim(),
-      description: dto.description?.trim() || null,
-      petId: dto.petId,
-      kind: 'USER',
-      coverAssetId: null,
-    };
-    if (!data.name) throw new BadRequestException('Album name is required');
-
-    const album = await this.prisma.telemetry.create({
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Album name is required');
+    const album = await this.prisma.mediaAlbum.create({
       data: {
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ALBUM_EVENT,
-        userId,
+        ownerId: userId,
         petId: dto.petId,
-        data: data as Prisma.InputJsonValue,
+        name,
+        description: dto.description?.trim() || null,
       },
-      select: { id: true, createdAt: true },
     });
-    return { id: album.id, ...data, createdAt: album.createdAt.toISOString(), count: 0 };
+    return { ...album, count: 0, kind: 'USER' as const, icon: 'folder' };
   }
 
   async updateAsset(userId: string, assetId: string, dto: UpdateMediaAssetDto) {
-    const entry = await this.requireAssetEntry(userId, assetId);
-    const data = this.parseAsset(entry.data);
-    if (!data) throw new BadRequestException('Media asset metadata is invalid');
-    const petId = entry.petId;
-    if (!petId) throw new BadRequestException('Media asset is missing pet context');
-
+    const asset = await this.requireAsset(userId, assetId, true);
     const albumIds = dto.albumIds
-      ? await this.validateAlbumIds(userId, petId, dto.albumIds)
-      : data.albumIds;
-    const systemTags = data.tags.filter((tag) => tag.source !== 'owner');
+      ? await this.validateAlbumIds(userId, asset.petId, dto.albumIds)
+      : (asset.albumLinks ?? []).map((link) => link.albumId);
+    const existingTags = this.parseTags(asset.tags);
+    const systemTags = existingTags.filter((tag) => tag.source !== 'owner');
     const ownerTags = dto.tags
       ? dto.tags.map((label) => ({ label, source: 'owner' as const }))
-      : data.tags.filter((tag) => tag.source === 'owner');
-    const updated: MediaAssetData = {
-      ...data,
-      favorite: dto.favorite ?? data.favorite,
-      albumIds,
-      tags: normalizeMediaTags([...systemTags, ...ownerTags]),
-    };
+      : existingTags.filter((tag) => tag.source === 'owner');
 
-    await this.prisma.telemetry.update({
-      where: { id: entry.id },
-      data: { data: updated as Prisma.InputJsonValue },
-    });
-    return this.decorateAsset(entry.id, entry.createdAt, updated);
+    await this.prisma.$transaction([
+      this.prisma.mediaAsset.update({
+        where: { id: asset.id },
+        data: {
+          favorite: dto.favorite ?? asset.favorite,
+          tags: normalizeMediaTags([...systemTags, ...ownerTags]) as Prisma.InputJsonValue,
+        },
+      }),
+      this.prisma.mediaAlbumAsset.deleteMany({ where: { assetId: asset.id } }),
+      ...(albumIds.length
+        ? [
+            this.prisma.mediaAlbumAsset.createMany({
+              data: albumIds.map((albumId) => ({ albumId, assetId: asset.id })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.decorateAsset(await this.requireAsset(userId, asset.id, true));
   }
 
   async deleteAsset(userId: string, assetId: string) {
-    const entry = await this.requireAssetEntry(userId, assetId);
-    const data = this.parseAsset(entry.data);
-    if (!data) throw new BadRequestException('Media asset metadata is invalid');
-
-    await this.storage.deleteFile(data.storageKey).catch(() => undefined);
-    await this.prisma.telemetry.delete({ where: { id: entry.id } });
+    const asset = await this.requireAsset(userId, assetId);
+    await this.storage.deleteFile(asset.storageKey);
+    await this.prisma.mediaAsset.delete({ where: { id: asset.id } });
     return { deleted: true, assetId };
   }
 
@@ -374,13 +387,12 @@ export class MediaLibraryService {
     if (!pickerUri || !sessionId) {
       throw new ServiceUnavailableException('Google Photos returned an invalid picker session');
     }
-
     return {
       sessionId,
       pickerUri: `${pickerUri.replace(/\/$/, '')}/autoclose`,
-      pollingConfig: payload.pollingConfig ?? null,
+      pollingConfig: this.isObject(payload.pollingConfig) ? payload.pollingConfig : null,
       privacy:
-        'Woof receives only the photos and videos you explicitly choose in Google Photos. The OAuth token is used for this request and is not written to the media timeline.',
+        'Woof receives only the photos and videos you explicitly choose in Google Photos. The OAuth token is used for this request and is not persisted.',
     };
   }
 
@@ -388,7 +400,6 @@ export class MediaLibraryService {
     await this.requireOwnedPet(userId, dto.petId);
     this.assertStorageReady();
     const albumIds = await this.validateAlbumIds(userId, dto.petId, dto.albumIds ?? []);
-
     const sessionResponse = await fetch(
       `${GOOGLE_PICKER_BASE}/sessions/${encodeURIComponent(dto.sessionId)}`,
       { headers: { Authorization: `Bearer ${dto.accessToken}` } },
@@ -398,138 +409,154 @@ export class MediaLibraryService {
       'Could not read Google Photos picker session',
     );
     if (session.mediaItemsSet !== true) {
-      return { ready: false, imported: [], pollingConfig: session.pollingConfig ?? null };
+      return {
+        ready: false,
+        imported: [],
+        pollingConfig: this.isObject(session.pollingConfig) ? session.pollingConfig : null,
+      };
     }
 
     const selected = await this.listGooglePickedItems(dto.accessToken, dto.sessionId);
-    if (selected.length > 50) {
-      throw new BadRequestException('Import at most 50 Google Photos items at a time');
-    }
-
+    if (selected.length > 50) throw new BadRequestException('Import at most 50 Google Photos items at a time');
     const imported = [];
-    for (const item of selected) {
-      const mediaFile = this.asObject(item.mediaFile);
-      const mimeType = typeof mediaFile.mimeType === 'string' ? mediaFile.mimeType : '';
-      const baseUrl = typeof mediaFile.baseUrl === 'string' ? mediaFile.baseUrl : '';
-      const filename =
-        typeof mediaFile.filename === 'string' ? mediaFile.filename : `google-photo-${item.id ?? Date.now()}`;
-      if (!ALLOWED_MIME_TYPES.has(mimeType) || !baseUrl) continue;
 
-      const isVideo = mimeType.startsWith('video/');
-      const downloadUrl = `${baseUrl}=${isVideo ? 'dv' : 'd'}`;
-      const mediaResponse = await fetch(downloadUrl, {
+    for (const item of selected) {
+      const mediaFile = this.objectField(item, 'mediaFile');
+      const mimeType = this.stringField(mediaFile, 'mimeType');
+      const baseUrl = this.stringField(mediaFile, 'baseUrl');
+      const providerItemId = this.stringField(item, 'id');
+      const filename =
+        this.stringField(mediaFile, 'filename') || `google-photo-${providerItemId || Date.now()}`;
+      if (!mimeType || !baseUrl || !ALLOWED_MIME_TYPES.has(mimeType)) continue;
+
+      if (providerItemId) {
+        const duplicate = await this.prisma.mediaExternalReference.findFirst({
+          where: { ownerId: userId, petId: dto.petId, provider: 'GOOGLE_PHOTOS', providerItemId },
+          select: { assetId: true },
+        });
+        if (duplicate) continue;
+      }
+
+      const mediaResponse = await fetch(`${baseUrl}=${mimeType.startsWith('video/') ? 'dv' : 'd'}`, {
         headers: { Authorization: `Bearer ${dto.accessToken}` },
       });
       if (!mediaResponse.ok) continue;
       const declared = Number(mediaResponse.headers.get('content-length') || 0);
-      const maxBytes = isVideo ? this.videoMaxBytes : this.imageMaxBytes;
+      const maxBytes = mimeType.startsWith('video/') ? this.videoMaxBytes : this.imageMaxBytes;
       if (declared > maxBytes) continue;
-      const bytes = Buffer.from(await mediaResponse.arrayBuffer());
-      this.assertAllowedMedia(mimeType, bytes.byteLength);
-      await this.enforceQuota(userId, bytes.byteLength);
 
-      const stored = await this.storage.uploadPrivateBytes({
-        bytes,
-        filename,
-        contentType: mimeType,
-        folder: `private/media/${userId}/${dto.petId}`,
-      });
-      const assetData: MediaAssetData = {
-        schemaVersion: MEDIA_ASSET_SCHEMA_VERSION,
-        status: 'READY',
-        storageKey: stored.key,
-        filename: this.cleanFilename(filename),
-        mimeType,
-        sizeBytes: bytes.byteLength,
-        capturedAt: typeof item.createTime === 'string' ? item.createTime : null,
-        source: 'google-photos-picker',
-        provider: 'GOOGLE_PHOTOS',
-        providerItemId: typeof item.id === 'string' ? item.id : null,
-        favorite: false,
-        albumIds,
-        tags: normalizeMediaTags([
-          { label: 'imported', source: 'system' },
-          { label: 'google photos', source: 'system' },
-        ]),
-        linkedObservationIds: [],
-        createdFrom: 'IMPORT',
-        completedAt: new Date().toISOString(),
-        sha256: null,
-      };
-      const created = await this.prisma.telemetry.create({
+      let stored;
+      let sizeBytes: number;
+      if (declared > 0 && mediaResponse.body) {
+        await this.enforceQuota(userId, declared);
+        stored = await this.storage.uploadPrivateWebStream({
+          body: mediaResponse.body,
+          contentLength: declared,
+          filename,
+          contentType: mimeType,
+          folder: `private/media/${userId}/${dto.petId}`,
+        });
+        sizeBytes = declared;
+      } else {
+        const bytes = Buffer.from(await mediaResponse.arrayBuffer());
+        this.assertAllowedMedia(mimeType, bytes.byteLength);
+        await this.enforceQuota(userId, bytes.byteLength);
+        stored = await this.storage.uploadPrivateBytes({
+          bytes,
+          filename,
+          contentType: mimeType,
+          folder: `private/media/${userId}/${dto.petId}`,
+        });
+        sizeBytes = bytes.byteLength;
+      }
+
+      const capturedAtValue = this.stringField(item, 'createTime');
+      const asset = await this.prisma.mediaAsset.create({
         data: {
-          source: MEDIA_LIBRARY_SOURCE,
-          event: MEDIA_ASSET_EVENT,
-          userId,
+          ownerId: userId,
           petId: dto.petId,
-          data: assetData as Prisma.InputJsonValue,
+          storageKey: stored.key,
+          filename: this.cleanFilename(filename),
+          mimeType,
+          mediaType: mimeType.startsWith('video/') ? 'video' : 'image',
+          sizeBytes: BigInt(sizeBytes),
+          capturedAt: capturedAtValue ? new Date(capturedAtValue) : null,
+          source: 'google-photos-picker',
+          provider: 'GOOGLE_PHOTOS',
+          providerItemId: providerItemId || null,
+          status: 'READY',
+          createdFrom: 'IMPORT',
+          tags: normalizeMediaTags([
+            { label: 'imported', source: 'system' },
+            { label: 'google photos', source: 'system' },
+          ]) as Prisma.InputJsonValue,
+          completedAt: new Date(),
         },
-        select: { id: true, createdAt: true },
       });
-      imported.push(await this.decorateAsset(created.id, created.createdAt, assetData));
+      if (albumIds.length) {
+        await this.prisma.mediaAlbumAsset.createMany({
+          data: albumIds.map((albumId) => ({ albumId, assetId: asset.id })),
+          skipDuplicates: true,
+        });
+      }
+      if (providerItemId) {
+        await this.prisma.mediaExternalReference.create({
+          data: {
+            assetId: asset.id,
+            ownerId: userId,
+            petId: dto.petId,
+            provider: 'GOOGLE_PHOTOS',
+            providerItemId,
+          },
+        });
+      }
+      imported.push(await this.decorateAsset(await this.requireAsset(userId, asset.id, true)));
     }
 
     await fetch(`${GOOGLE_PICKER_BASE}/sessions/${encodeURIComponent(dto.sessionId)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${dto.accessToken}` },
     }).catch(() => undefined);
-
-    await this.prisma.telemetry.create({
-      data: {
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_IMPORT_EVENT,
-        userId,
-        petId: dto.petId,
-        data: {
-          provider: 'GOOGLE_PHOTOS',
-          importedCount: imported.length,
-          occurredAt: new Date().toISOString(),
-        } as Prisma.InputJsonValue,
-      },
+    await this.recordProviderEvent(userId, dto.petId, MEDIA_IMPORT_EVENT, {
+      provider: 'GOOGLE_PHOTOS',
+      importedCount: imported.length,
     });
-
     return { ready: true, imported };
   }
 
   async exportToGooglePhotos(userId: string, dto: GooglePhotosExportDto) {
     await this.requireOwnedPet(userId, dto.petId);
-    if (dto.assetIds.length === 0) throw new BadRequestException('Choose at least one media asset');
-
-    const entries = await this.prisma.telemetry.findMany({
+    if (!dto.assetIds.length) throw new BadRequestException('Choose at least one media asset');
+    const entries = await this.prisma.mediaAsset.findMany({
       where: {
-        id: { in: dto.assetIds },
-        userId,
+        id: { in: [...new Set(dto.assetIds)] },
+        ownerId: userId,
         petId: dto.petId,
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ASSET_EVENT,
+        status: 'READY',
       },
-      select: { id: true, data: true },
     });
     if (entries.length !== new Set(dto.assetIds).size) {
       throw new ForbiddenException('One or more media assets are unavailable');
     }
 
-    const uploadTokens: Array<{ uploadToken: string; fileName: string; assetId: string }> = [];
-    for (const entry of entries) {
-      const data = this.parseAsset(entry.data);
-      if (!data || data.status !== 'READY') continue;
-      const bytes = await this.storage.getObjectBytes(data.storageKey, this.videoMaxBytes);
-      const uploadResponse = await fetch(`${GOOGLE_LIBRARY_BASE}/uploads`, {
+    const uploadTokens: Array<{ uploadToken: string; fileName: string }> = [];
+    for (const asset of entries) {
+      const bytes = await this.storage.getObjectBytes(asset.storageKey, this.videoMaxBytes);
+      const response = await fetch(`${GOOGLE_LIBRARY_BASE}/uploads`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${dto.accessToken}`,
           'Content-Type': 'application/octet-stream',
-          'X-Goog-Upload-Content-Type': data.mimeType,
+          'X-Goog-Upload-Content-Type': asset.mimeType,
           'X-Goog-Upload-Protocol': 'raw',
         },
         body: new Uint8Array(bytes),
       });
-      if (!uploadResponse.ok) continue;
-      const uploadToken = (await uploadResponse.text()).trim();
-      if (uploadToken) uploadTokens.push({ uploadToken, fileName: data.filename, assetId: entry.id });
+      if (!response.ok) continue;
+      const uploadToken = (await response.text()).trim();
+      if (uploadToken) uploadTokens.push({ uploadToken, fileName: asset.filename });
     }
-
-    if (uploadTokens.length === 0) {
+    if (!uploadTokens.length) {
       throw new ServiceUnavailableException('No selected media could be uploaded to Google Photos');
     }
 
@@ -543,22 +570,11 @@ export class MediaLibraryService {
       }),
     });
     const result = await this.requireGoogleJson(createResponse, 'Could not finish Google Photos export');
-
-    await this.prisma.telemetry.create({
-      data: {
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_EXPORT_EVENT,
-        userId,
-        petId: dto.petId,
-        data: {
-          provider: 'GOOGLE_PHOTOS',
-          requestedCount: dto.assetIds.length,
-          uploadedCount: uploadTokens.length,
-          occurredAt: new Date().toISOString(),
-        } as Prisma.InputJsonValue,
-      },
+    await this.recordProviderEvent(userId, dto.petId, MEDIA_EXPORT_EVENT, {
+      provider: 'GOOGLE_PHOTOS',
+      requestedCount: dto.assetIds.length,
+      uploadedCount: uploadTokens.length,
     });
-
     return {
       provider: 'GOOGLE_PHOTOS',
       requested: dto.assetIds.length,
@@ -570,130 +586,150 @@ export class MediaLibraryService {
 
   async exportManifest(userId: string, dto: MediaExportManifestDto) {
     const pet = await this.requireOwnedPet(userId, dto.petId);
-    const whereIds = dto.assetIds?.length ? { id: { in: dto.assetIds } } : {};
-    const entries = await this.prisma.telemetry.findMany({
+    const entries = await this.prisma.mediaAsset.findMany({
       where: {
-        ...whereIds,
-        userId,
+        ...(dto.assetIds?.length ? { id: { in: dto.assetIds } } : {}),
+        ownerId: userId,
         petId: dto.petId,
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ASSET_EVENT,
+        status: 'READY',
       },
       orderBy: { createdAt: 'asc' },
       take: 100,
-      select: { id: true, createdAt: true, data: true },
+      include: { albumLinks: { select: { albumId: true } } },
     });
-
     const assets = await Promise.all(
-      entries.map(async (entry) => {
-        const data = this.parseAsset(entry.data);
-        if (!data || data.status !== 'READY') return null;
-        return {
-          id: entry.id,
-          filename: data.filename,
-          mimeType: data.mimeType,
-          sizeBytes: data.sizeBytes,
-          capturedAt: data.capturedAt,
-          createdAt: entry.createdAt.toISOString(),
-          source: data.source,
-          favorite: data.favorite,
-          tags: data.tags,
-          linkedObservationIds: data.linkedObservationIds,
-          downloadUrl: await this.storage.getSignedUrl(data.storageKey, 900),
-          downloadUrlExpiresInSeconds: 900,
-        };
-      }),
+      entries.map(async (asset) => ({
+        id: asset.id,
+        filename: asset.filename,
+        mimeType: asset.mimeType,
+        sizeBytes: Number(asset.sizeBytes),
+        capturedAt: asset.capturedAt?.toISOString() ?? null,
+        createdAt: asset.createdAt.toISOString(),
+        source: asset.source,
+        favorite: asset.favorite,
+        tags: this.parseTags(asset.tags),
+        albumIds: asset.albumLinks.map((link) => link.albumId),
+        linkedObservationIds: asset.linkedObservationIds,
+        downloadUrl: await this.storage.getSignedUrl(asset.storageKey, 900),
+        downloadUrlExpiresInSeconds: 900,
+      })),
     );
-
     return {
       schemaVersion: 'woof-media-export-v1',
       generatedAt: new Date().toISOString(),
       pet: { id: pet.id, name: pet.name, species: pet.species },
-      assets: assets.filter((asset): asset is NonNullable<typeof asset> => asset !== null),
+      assets,
       portability:
         'Download URLs are intentionally short-lived. Asset metadata remains portable and does not expose Woof object-storage keys.',
     };
   }
 
-  private matchesQuery(asset: MediaAssetData, createdAt: Date, query: MediaLibraryQueryDto) {
+  private matchesQuery(asset: AssetRecord, query: MediaLibraryQueryDto) {
+    const tags = this.parseTags(asset.tags);
     if (query.tag) {
       const tag = query.tag.trim().toLowerCase();
-      if (!asset.tags.some((entry) => entry.label.toLowerCase() === tag)) return false;
+      if (!tags.some((entry) => entry.label.toLowerCase() === tag)) return false;
     }
     if (!query.albumId) return true;
     if (query.albumId.startsWith('smart:')) {
       const smart = SYSTEM_ALBUMS.find((album) => album.id === query.albumId);
-      return smart ? smart.matches(asset, createdAt) : false;
+      return smart ? smart.matches(this.toSmartAsset(asset), asset.createdAt) : false;
     }
-    return asset.albumIds.includes(query.albumId);
+    return (asset.albumLinks ?? []).some((link) => link.albumId === query.albumId);
   }
 
-  private async decorateAsset(id: string, createdAt: Date, data: MediaAssetData) {
-    const signedUrl = data.status === 'READY' ? await this.storage.getSignedUrl(data.storageKey, 900).catch(() => null) : null;
+  private async decorateAsset(asset: AssetRecord) {
+    const url =
+      asset.status === 'READY'
+        ? await this.storage.getSignedUrl(asset.storageKey, 900).catch(() => null)
+        : null;
+    const tags = this.parseTags(asset.tags);
+    const smart = this.toSmartAsset(asset);
     return {
-      id,
-      createdAt: createdAt.toISOString(),
-      filename: data.filename,
-      mimeType: data.mimeType,
-      mediaType: data.mimeType.startsWith('video/') ? 'video' : 'image',
-      sizeBytes: data.sizeBytes,
-      capturedAt: data.capturedAt,
-      source: data.source,
-      provider: data.provider ?? null,
-      favorite: data.favorite,
-      albumIds: data.albumIds,
-      smartAlbumIds: SYSTEM_ALBUMS.filter((album) => album.matches(data, createdAt)).map((album) => album.id),
-      tags: data.tags,
-      linkedObservationIds: data.linkedObservationIds,
-      url: signedUrl,
-      urlExpiresInSeconds: signedUrl ? 900 : null,
-      status: data.status,
+      id: asset.id,
+      createdAt: asset.createdAt.toISOString(),
+      filename: asset.filename,
+      mimeType: asset.mimeType,
+      mediaType: asset.mediaType === 'video' ? 'video' : 'image',
+      sizeBytes: Number(asset.sizeBytes),
+      capturedAt: asset.capturedAt?.toISOString() ?? null,
+      source: asset.source,
+      provider: asset.provider,
+      favorite: asset.favorite,
+      albumIds: (asset.albumLinks ?? []).map((link) => link.albumId),
+      smartAlbumIds: SYSTEM_ALBUMS.filter((album) => album.matches(smart, asset.createdAt)).map(
+        (album) => album.id,
+      ),
+      tags,
+      linkedObservationIds: asset.linkedObservationIds,
+      url,
+      urlExpiresInSeconds: url ? 900 : null,
+      status: asset.status,
+    };
+  }
+
+  private toSmartAsset(asset: AssetRecord): MediaAssetData {
+    return {
+      schemaVersion: 'woof-media-asset-v1',
+      status: asset.status as MediaAssetData['status'],
+      storageKey: asset.storageKey,
+      filename: asset.filename,
+      mimeType: asset.mimeType,
+      sizeBytes: Number(asset.sizeBytes),
+      capturedAt: asset.capturedAt?.toISOString() ?? null,
+      source: asset.source as MediaAssetData['source'],
+      provider: asset.provider as MediaAssetData['provider'],
+      providerItemId: asset.providerItemId,
+      favorite: asset.favorite,
+      albumIds: (asset.albumLinks ?? []).map((link) => link.albumId),
+      tags: this.parseTags(asset.tags),
+      linkedObservationIds: asset.linkedObservationIds,
+      createdFrom: asset.createdFrom as MediaAssetData['createdFrom'],
+      uploadExpiresAt: asset.uploadExpiresAt?.toISOString() ?? null,
+      completedAt: asset.completedAt?.toISOString() ?? null,
+      sha256: asset.sha256,
+      width: asset.width,
+      height: asset.height,
+      durationMs: asset.durationMs,
     };
   }
 
   private async validateAlbumIds(userId: string, petId: string, albumIds: string[]) {
-    const unique = [...new Set(albumIds)].slice(0, 12);
-    const custom = unique.filter((id) => !id.startsWith('smart:'));
-    if (!custom.length) return [];
-    const owned = await this.prisma.telemetry.findMany({
-      where: {
-        id: { in: custom },
-        userId,
-        petId,
-        source: MEDIA_LIBRARY_SOURCE,
-        event: MEDIA_ALBUM_EVENT,
-      },
-      select: { id: true },
+    const unique = [...new Set(albumIds.filter((id) => !id.startsWith('smart:')))].slice(0, 12);
+    if (!unique.length) return [];
+    const count = await this.prisma.mediaAlbum.count({
+      where: { id: { in: unique }, ownerId: userId, petId },
     });
-    if (owned.length !== custom.length) {
-      throw new ForbiddenException('One or more albums are unavailable');
-    }
-    return owned.map((album) => album.id);
+    if (count !== unique.length) throw new ForbiddenException('One or more albums are unavailable');
+    return unique;
+  }
+
+  private async storageUsage(userId: string) {
+    const aggregate = await this.prisma.mediaAsset.aggregate({
+      where: { ownerId: userId, status: { in: ['PENDING', 'READY'] } },
+      _sum: { sizeBytes: true },
+    });
+    return {
+      usedBytes: Number(aggregate._sum.sizeBytes ?? 0n),
+      quotaBytes: this.userQuotaBytes,
+    };
   }
 
   private async enforceQuota(userId: string, incomingBytes: number) {
-    const entries = await this.prisma.telemetry.findMany({
-      where: { userId, source: MEDIA_LIBRARY_SOURCE, event: MEDIA_ASSET_EVENT },
-      select: { data: true },
-      take: 5000,
-    });
-    const used = entries.reduce((sum, entry) => {
-      const data = this.parseAsset(entry.data);
-      return data && data.status !== 'FAILED' && data.status !== 'DELETED' ? sum + data.sizeBytes : sum;
-    }, 0);
-    if (used + incomingBytes > this.userQuotaBytes) {
+    const usage = await this.storageUsage(userId);
+    if (usage.usedBytes + incomingBytes > this.userQuotaBytes) {
       throw new BadRequestException('This upload would exceed the private media storage quota');
     }
   }
 
   private assertAllowedMedia(mimeType: string, sizeBytes: number) {
-    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      throw new BadRequestException('Unsupported media type');
-    }
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) throw new BadRequestException('Unsupported media type');
     const max = mimeType.startsWith('video/') ? this.videoMaxBytes : this.imageMaxBytes;
     if (sizeBytes > max) {
       throw new BadRequestException(
-        mimeType.startsWith('video/') ? 'Video exceeds the media-library size limit' : 'Image exceeds the media-library size limit',
+        mimeType.startsWith('video/')
+          ? 'Video exceeds the media-library size limit'
+          : 'Image exceeds the media-library size limit',
       );
     }
   }
@@ -704,11 +740,32 @@ export class MediaLibraryService {
     }
   }
 
-  private sourceTags(source: MediaSource) {
-    if (source === 'behavior-vision') return [{ label: 'behavior', source: 'behavior' as const }];
-    if (source === 'health-lens') return [{ label: 'health', source: 'health' as const }];
-    if (source === 'coach') return [{ label: 'training', source: 'coach' as const }];
+  private sourceTags(source: MediaSource): MediaTag[] {
+    if (source === 'behavior-vision') return [{ label: 'behavior', source: 'behavior' }];
+    if (source === 'health-lens') return [{ label: 'health', source: 'health' }];
+    if (source === 'coach') return [{ label: 'training', source: 'coach' }];
     return [];
+  }
+
+  private parseTags(value: Prisma.JsonValue): MediaTag[] {
+    if (!Array.isArray(value)) return [];
+    const tags: MediaTag[] = [];
+    for (const item of value) {
+      if (!this.isObject(item)) continue;
+      const label = this.stringField(item, 'label');
+      const source = this.stringField(item, 'source');
+      if (!label || !['owner', 'behavior', 'health', 'coach', 'system'].includes(source)) continue;
+      const confidenceValue = item.confidence;
+      tags.push({
+        label,
+        source: source as MediaTag['source'],
+        confidence:
+          typeof confidenceValue === 'number'
+            ? Math.max(0, Math.min(1, confidenceValue))
+            : undefined,
+      });
+    }
+    return normalizeMediaTags(tags);
   }
 
   private async listGooglePickedItems(accessToken: string, sessionId: string) {
@@ -720,41 +777,39 @@ export class MediaLibraryService {
       url.searchParams.set('pageSize', '100');
       if (pageToken) url.searchParams.set('pageToken', pageToken);
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const payload = await this.requireGoogleJson(response, 'Could not list selected Google Photos media');
+      const payload = await this.requireGoogleJson(
+        response,
+        'Could not list selected Google Photos media',
+      );
       const pageItems = Array.isArray(payload.mediaItems) ? payload.mediaItems : [];
       items.push(...pageItems.filter((item): item is Record<string, unknown> => this.isObject(item)));
-      pageToken = typeof payload.nextPageToken === 'string' ? payload.nextPageToken : null;
+      pageToken = this.stringField(payload, 'nextPageToken') || null;
     } while (pageToken && items.length < 100);
     return items.slice(0, 100);
   }
 
   private googleHeaders(accessToken: string) {
-    return {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    };
+    return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
   }
 
-  private async requireGoogleJson(response: Response, message: string) {
+  private async requireGoogleJson(response: Response, message: string): Promise<Record<string, unknown>> {
     const text = await response.text();
-    if (!response.ok) {
-      throw new ServiceUnavailableException(`${message} (${response.status})`);
-    }
+    if (!response.ok) throw new ServiceUnavailableException(`${message} (${response.status})`);
     try {
-      const parsed = text ? JSON.parse(text) : {};
+      const parsed: unknown = text ? JSON.parse(text) : {};
       return this.isObject(parsed) ? parsed : {};
     } catch {
       throw new ServiceUnavailableException(`${message}: invalid provider response`);
     }
   }
 
-  private async requireAssetEntry(userId: string, assetId: string) {
-    const entry = await this.prisma.telemetry.findFirst({
-      where: { id: assetId, userId, source: MEDIA_LIBRARY_SOURCE, event: MEDIA_ASSET_EVENT },
-      select: { id: true, userId: true, petId: true, createdAt: true, data: true },
+  private async requireAsset(userId: string, assetId: string, includeAlbums = false) {
+    const asset = await this.prisma.mediaAsset.findFirst({
+      where: { id: assetId, ownerId: userId },
+      include: includeAlbums ? { albumLinks: { select: { albumId: true } } } : undefined,
     });
-    if (!entry) throw new NotFoundException('Media asset not found');
-    return entry;
+    if (!asset) throw new NotFoundException('Media asset not found');
+    return asset as AssetRecord;
   }
 
   private async requireOwnedPet(userId: string, petId: string) {
@@ -766,38 +821,31 @@ export class MediaLibraryService {
     return pet;
   }
 
-  private parseAsset(value: Prisma.JsonValue | null): MediaAssetData | null {
-    const data = this.asObject(value);
-    if (
-      data.schemaVersion !== MEDIA_ASSET_SCHEMA_VERSION ||
-      typeof data.storageKey !== 'string' ||
-      typeof data.filename !== 'string' ||
-      typeof data.mimeType !== 'string' ||
-      typeof data.sizeBytes !== 'number' ||
-      !Array.isArray(data.albumIds) ||
-      !Array.isArray(data.tags) ||
-      !Array.isArray(data.linkedObservationIds)
-    ) {
-      return null;
-    }
-    return data as unknown as MediaAssetData;
+  private async recordProviderEvent(
+    userId: string,
+    petId: string,
+    event: string,
+    data: Record<string, Prisma.InputJsonValue>,
+  ) {
+    await this.prisma.telemetry.create({
+      data: {
+        source: MEDIA_LIBRARY_SOURCE,
+        event,
+        userId,
+        petId,
+        data: { ...data, occurredAt: new Date().toISOString() } as Prisma.InputJsonValue,
+      },
+    });
   }
 
-  private parseAlbum(value: Prisma.JsonValue | null): MediaAlbumData | null {
-    const data = this.asObject(value);
-    if (
-      data.schemaVersion !== MEDIA_ALBUM_SCHEMA_VERSION ||
-      typeof data.name !== 'string' ||
-      typeof data.petId !== 'string'
-    ) {
-      return null;
-    }
-    return data as unknown as MediaAlbumData;
+  private objectField(value: Record<string, unknown>, key: string) {
+    const candidate = value[key];
+    return this.isObject(candidate) ? candidate : {};
   }
 
-  private asObject(value: unknown): Record<string, any> {
-    if (!value || Array.isArray(value) || typeof value !== 'object') return {};
-    return value as Record<string, any>;
+  private stringField(value: Record<string, unknown>, key: string) {
+    const candidate = value[key];
+    return typeof candidate === 'string' ? candidate : '';
   }
 
   private isObject(value: unknown): value is Record<string, unknown> {
