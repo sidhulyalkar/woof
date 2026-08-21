@@ -1,66 +1,56 @@
-import { Controller, Get, Post, Body, Query, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CoActivityService } from './co-activity.service';
 import { TrackLocationDto } from './dto/track-location.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('co-activity')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('co-activity')
 export class CoActivityController {
   constructor(private readonly coActivityService: CoActivityService) {}
 
   @Post('track')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Track user location' })
-  @ApiResponse({ status: 201, description: 'Location tracked successfully' })
-  async trackLocation(@Request() req: any, @Body() trackLocationDto: TrackLocationDto) {
-    return this.coActivityService.trackLocation(req.user.id, trackLocationDto);
+  @ApiOperation({ summary: 'Store a short-lived location ping after explicit consent' })
+  trackLocation(@Request() req: any, @Body() dto: TrackLocationDto) {
+    return this.coActivityService.trackLocation(req.user.sub, dto);
   }
 
-  @Get('me/locations')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get current user location history' })
-  @ApiQuery({ name: 'hours', required: false, description: 'Hours to look back', example: 24 })
-  @ApiResponse({ status: 200, description: 'Location history retrieved' })
-  async getMyLocations(@Request() req: any, @Query('hours') hours?: string) {
-    const hoursNum = hours ? parseInt(hours, 10) : 24;
-    return this.coActivityService.getUserLocations(req.user.id, hoursNum);
+  @Get('me/location-summary')
+  @ApiOperation({ summary: 'Get retained location metadata without coordinates' })
+  getLocationSummary(@Request() req: any) {
+    return this.coActivityService.getLocationSummary(req.user.sub);
   }
 
   @Get('overlaps/:userId')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Detect co-activity overlaps with another user' })
-  @ApiQuery({ name: 'hours', required: false, description: 'Hours to look back', example: 168 })
-  @ApiResponse({ status: 200, description: 'Overlaps detected' })
-  async detectOverlaps(
+  @ApiOperation({ summary: 'Get a mutual-opt-in proximity summary without coordinates' })
+  @ApiQuery({ name: 'hours', required: false, description: 'Lookback, capped at 24 hours' })
+  detectOverlaps(
     @Request() req: any,
     @Param('userId') userId: string,
     @Query('hours') hours?: string,
   ) {
-    const hoursNum = hours ? parseInt(hours, 10) : 168; // Default 7 days
-    return this.coActivityService.detectOverlaps(req.user.id, userId, hoursNum);
+    return this.coActivityService.detectOverlaps(
+      req.user.sub,
+      userId,
+      hours ? parseInt(hours, 10) : 12,
+    );
   }
 
   @Get('me/matches')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Find potential co-activity matches' })
-  @ApiQuery({ name: 'hours', required: false, description: 'Hours to look back', example: 168 })
-  @ApiResponse({ status: 200, description: 'Potential matches found' })
-  async findMatches(@Request() req: any, @Query('hours') hours?: string) {
-    const hoursNum = hours ? parseInt(hours, 10) : 168; // Default 7 days
-    return this.coActivityService.findPotentialMatches(req.user.id, hoursNum);
+  @ApiOperation({ summary: 'Find mutual-opt-in proximity candidates without disclosing coordinates' })
+  @ApiQuery({ name: 'hours', required: false, description: 'Lookback, capped at 24 hours' })
+  findMatches(@Request() req: any, @Query('hours') hours?: string) {
+    return this.coActivityService.findPotentialMatches(
+      req.user.sub,
+      hours ? parseInt(hours, 10) : 12,
+    );
   }
 
   @Get('me/stats')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get co-activity statistics for current user' })
-  @ApiResponse({ status: 200, description: 'Statistics retrieved' })
-  async getMyStats(@Request() req: any) {
-    return this.coActivityService.getStats(req.user.id);
+  @ApiOperation({ summary: 'Get privacy-aware co-activity statistics' })
+  getMyStats(@Request() req: any) {
+    return this.coActivityService.getStats(req.user.sub);
   }
 }

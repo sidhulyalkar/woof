@@ -1,491 +1,313 @@
-"""
-FastAPI ML Service for Woof/PetPath
+"""Woof internal ML compatibility service.
 
-Serves machine learning models for:
-- Pet compatibility prediction (GNN + basic model)
-- Energy state classification
-- Activity recommendations (Temporal Transformer)
-- Graph-based social suggestions
+The product API owns authorization, safety filters, model routing and fallback behavior.
+This process has one job: accept the canonical compatibility feature contract and
+return the same score envelope used by the deterministic scorer.
 
-Architecture:
-- FastAPI for REST API
-- Redis for caching predictions
-- Model hot-loading without downtime
-- Batch prediction support
-- Health monitoring and metrics
+The historical neural checkpoint is intentionally exposed as a *shadow adapter*.
+It was trained on older synthetic features (including size/weight) that the current
+product does not require. We therefore use neutral legacy placeholders, cap its
+confidence, and mark it uncalibrated so it cannot be promoted accidentally.
 """
 
-import os
-import json
-import torch
-import numpy as np
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-import redis
-from datetime import datetime, timedelta
+from __future__ import annotations
+
 import hashlib
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-# Import models
-from models.compatibility_model import CompatibilityModel, load_model as load_compat_model
-from models.energy_model import EnergyStateModel, load_model as load_energy_model
+import redis
+import torch
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
-# Initialize FastAPI app
+from models.compatibility_model import load_model as load_compat_model
+
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_VERSION = "legacy-neural-adapter-v1"
+FEATURE_VERSION = "compatibility-features-v1"
+CALIBRATION_VERSION = "uncalibrated-shadow-v1"
+MODEL_PATH = BASE_DIR / "models" / "compatibility_model.pth"
+BREED_ENCODING_PATH = BASE_DIR / "data" / "breed_encoding.json"
+
 app = FastAPI(
-    title="Woof ML API",
-    description="Machine Learning service for pet compatibility and activity prediction",
-    version="2.0.0",
+    title="Woof Compatibility Model Service",
+    description="Internal learned compatibility scoring behind the Woof API router.",
+    version="3.0.0-beta.1",
 )
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+MODELS: Dict[str, Any] = {}
 
-# Redis cache (optional)
 try:
     redis_client = redis.Redis(
-        host=os.getenv('REDIS_HOST', 'localhost'),
-        port=int(os.getenv('REDIS_PORT', 6379)),
-        db=0,
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        db=int(os.getenv("REDIS_DB", "0")),
         decode_responses=True,
+        socket_connect_timeout=0.25,
+        socket_timeout=0.25,
     )
     redis_client.ping()
     REDIS_AVAILABLE = True
-except:
+except Exception:
+    redis_client = None
     REDIS_AVAILABLE = False
-    print("⚠️  Redis not available, caching disabled")
-
-# Model storage
-MODELS = {}
 
 
-# ===== Request/Response Models =====
+class BehaviorFeatures(BaseModel):
+    energy: Optional[float] = Field(default=None, ge=0, le=1)
+    sociability: Optional[float] = Field(default=None, ge=0, le=1)
+    caution: Optional[float] = Field(default=None, ge=0, le=1)
+    excitability: Optional[float] = Field(default=None, ge=0, le=1)
+    trainability: Optional[float] = Field(default=None, ge=0, le=1)
+    socialRisk: Optional[float] = Field(default=None, ge=0, le=1)
+    coverage: float = Field(ge=0, le=1)
 
-class PetFeatures(BaseModel):
-    """Pet feature schema"""
-    breed: str
-    size: str  # small, medium, large
-    energy: str  # low, medium, high
-    temperament: str
-    age: float = Field(gt=0, le=20)
-    social: float = Field(ge=0, le=1)
-    weight: float = Field(gt=0)
+
+class CanonicalPetFeatures(BaseModel):
+    species: str
+    breed: Optional[str] = None
+    ageYears: Optional[float] = Field(default=None, ge=0, le=40)
+    behavior: BehaviorFeatures
+
+
+class OutcomeFeatures(BaseModel):
+    sampleCount: int = Field(ge=0, le=1000)
+    meanRating: Optional[float] = Field(default=None, ge=1, le=5)
+    positiveRate: Optional[float] = Field(default=None, ge=0, le=1)
+    repeatMeetupCount: int = Field(ge=0, le=1000)
+    lastOutcomeDaysAgo: Optional[float] = Field(default=None, ge=0)
 
 
 class CompatibilityRequest(BaseModel):
-    """Compatibility prediction request"""
-    pet1: PetFeatures
-    pet2: PetFeatures
+    featureVersion: str
+    petA: CanonicalPetFeatures
+    petB: CanonicalPetFeatures
+    outcomes: OutcomeFeatures
+
+
+class Provenance(BaseModel):
+    scorer: str
+    modelVersion: str
+    featureVersion: str
+    calibrationVersion: str
+    generatedAt: str
+    fallback: bool = False
+    fallbackReason: Optional[str] = None
 
 
 class CompatibilityResponse(BaseModel):
-    """Compatibility prediction response"""
-    compatibility_score: float = Field(ge=0, le=1)
+    compatibilityScore: float = Field(ge=0, le=1)
     confidence: float = Field(ge=0, le=1)
-    factors: Dict[str, Any]
-    cached: bool = False
+    source: str
+    factors: Dict[str, float]
+    explanation: list[str]
+    provenance: Provenance
 
 
-class EnergyRequest(BaseModel):
-    """Energy state prediction request"""
-    age: float
-    breed: str
-    base_energy_level: str
-    hours_since_last_activity: float
-    total_distance_24h: float  # meters
-    total_duration_24h: float  # minutes
-    num_activities_24h: int
-    hour_of_day: int = Field(ge=0, le=23)
-    day_of_week: int = Field(ge=0, le=6)
+def _cache_key(request: CompatibilityRequest) -> str:
+    payload = request.model_dump_json(exclude_none=True)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return f"woof:compatibility:v1:{digest}"
 
 
-class EnergyResponse(BaseModel):
-    """Energy state prediction response"""
-    energy_state: str  # low, medium, high
-    probabilities: Dict[str, float]
-    confidence: float
-    recommendation: str
-    cached: bool = False
-
-
-class BatchCompatibilityRequest(BaseModel):
-    """Batch compatibility predictions"""
-    pairs: List[CompatibilityRequest]
-
-
-class ActivitySequence(BaseModel):
-    """Activity sequence for temporal prediction"""
-    activity_types: List[int]  # Activity type IDs
-    features: List[List[float]]  # Features per activity
-    hours: List[int]
-    days: List[int]
-
-
-class ActivityRecommendationRequest(BaseModel):
-    """Request for activity recommendations"""
-    pet_id: str
-    recent_activities: ActivitySequence
-    current_energy: str
-    preferences: Optional[Dict[str, Any]] = None
-
-
-class ActivityRecommendation(BaseModel):
-    """Activity recommendation"""
-    activity_type: str
-    probability: float
-    optimal_time: int  # Hour of day
-    expected_duration: float  # Minutes
-    energy_requirement: str
-
-
-class ActivityRecommendationResponse(BaseModel):
-    """Activity recommendation response"""
-    recommendations: List[ActivityRecommendation]
-    predicted_energy: str
-    confidence: float
-
-
-# ===== Helper Functions =====
-
-def generate_cache_key(prefix: str, data: Dict) -> str:
-    """Generate cache key from data"""
-    data_str = json.dumps(data, sort_keys=True)
-    hash_value = hashlib.md5(data_str.encode()).hexdigest()
-    return f"{prefix}:{hash_value}"
-
-
-def get_cached_prediction(key: str) -> Optional[Dict]:
-    """Get cached prediction from Redis"""
-    if not REDIS_AVAILABLE:
+def _get_cached(key: str) -> Optional[Dict[str, Any]]:
+    if not REDIS_AVAILABLE or redis_client is None:
+        return None
+    try:
+        value = redis_client.get(key)
+        return json.loads(value) if value else None
+    except Exception:
         return None
 
+
+def _set_cached(key: str, value: Dict[str, Any]) -> None:
+    if not REDIS_AVAILABLE or redis_client is None:
+        return
     try:
-        cached = redis_client.get(key)
-        if cached:
-            return json.loads(cached)
-    except Exception as e:
-        print(f"Redis error: {e}")
-
-    return None
-
-
-def cache_prediction(key: str, value: Dict, ttl: int = 3600):
-    """Cache prediction in Redis"""
-    if not REDIS_AVAILABLE:
+        redis_client.setex(key, 900, json.dumps(value))
+    except Exception:
         return
 
-    try:
-        redis_client.setex(key, ttl, json.dumps(value))
-    except Exception as e:
-        print(f"Redis error: {e}")
+
+def _energy_bucket(value: Optional[float]) -> str:
+    if value is None:
+        return "medium"
+    if value < 0.34:
+        return "low"
+    if value > 0.66:
+        return "high"
+    return "medium"
 
 
-def load_models():
-    """Load all ML models"""
-    global MODELS
+def _temperament_bucket(behavior: BehaviorFeatures) -> str:
+    candidates = [
+        (behavior.sociability, "friendly"),
+        (behavior.excitability, "playful"),
+        (behavior.trainability, "intelligent"),
+        (behavior.caution, "nervous"),
+    ]
+    present = [(value, label) for value, label in candidates if value is not None]
+    if not present:
+        return "calm"
+    value, label = max(present, key=lambda item: item[0])
+    return label if value >= 0.55 else "calm"
 
-    print("Loading ML models...")
 
-    # Load compatibility model
-    try:
-        compat_model, breed_to_idx, temp_to_idx = load_compat_model(
-            'models/compatibility_model.pth',
-            'data/breed_encoding.json'
+def _legacy_pet(pet: CanonicalPetFeatures) -> Dict[str, Any]:
+    """Map canonical evidence into the historical checkpoint's input surface.
+
+    `size` and `weight` are neutral constants because the beta no longer requires
+    those fields. This is why the adapter remains shadow-only and low confidence.
+    """
+    return {
+        "breed": pet.breed or "unknown",
+        "size": "medium",
+        "energy": _energy_bucket(pet.behavior.energy),
+        "temperament": _temperament_bucket(pet.behavior),
+        "age": pet.ageYears if pet.ageYears is not None else 5.0,
+        "social": pet.behavior.sociability if pet.behavior.sociability is not None else 0.5,
+        "weight": 30.0,
+    }
+
+
+def _legacy_predict(model_data: Dict[str, Any], pet_a: Dict[str, Any], pet_b: Dict[str, Any]) -> float:
+    """Run the repaired historical model without constructing tensors from strings."""
+    model = model_data["model"]
+    breed_to_idx = model_data["breed_to_idx"]
+    temp_to_idx = model_data["temp_to_idx"]
+    model.eval()
+
+    with torch.no_grad():
+        score = model.forward(
+            torch.tensor([breed_to_idx.get(pet_a["breed"], 0)]),
+            [pet_a["size"]],
+            [pet_a["energy"]],
+            torch.tensor([temp_to_idx.get(pet_a["temperament"], 0)]),
+            torch.tensor([pet_a["age"]], dtype=torch.float32),
+            torch.tensor([pet_a["social"]], dtype=torch.float32),
+            torch.tensor([pet_a["weight"]], dtype=torch.float32),
+            torch.tensor([breed_to_idx.get(pet_b["breed"], 0)]),
+            [pet_b["size"]],
+            [pet_b["energy"]],
+            torch.tensor([temp_to_idx.get(pet_b["temperament"], 0)]),
+            torch.tensor([pet_b["age"]], dtype=torch.float32),
+            torch.tensor([pet_b["social"]], dtype=torch.float32),
+            torch.tensor([pet_b["weight"]], dtype=torch.float32),
         )
-        MODELS['compatibility'] = {
-            'model': compat_model,
-            'breed_to_idx': breed_to_idx,
-            'temp_to_idx': temp_to_idx,
-        }
-        print("✅ Compatibility model loaded")
-    except Exception as e:
-        print(f"⚠️  Compatibility model not loaded: {e}")
+    return float(score.item())
 
-    # Load energy model
+
+def load_models() -> None:
+    MODELS.clear()
     try:
-        energy_model, breed_to_idx = load_energy_model(
-            'models/energy_model.pth',
-            'data/breed_encoding.json'
+        model, breed_to_idx, temp_to_idx = load_compat_model(
+            str(MODEL_PATH),
+            str(BREED_ENCODING_PATH),
         )
-        MODELS['energy'] = {
-            'model': energy_model,
-            'breed_to_idx': breed_to_idx,
+        MODELS["compatibility"] = {
+            "model": model,
+            "breed_to_idx": breed_to_idx,
+            "temp_to_idx": temp_to_idx,
         }
-        print("✅ Energy model loaded")
-    except Exception as e:
-        print(f"⚠️  Energy model not loaded: {e}")
+    except Exception as exc:
+        print(f"Compatibility shadow model not loaded: {exc}")
 
-    # Note: GNN and Transformer models would be loaded here when trained
-    # MODELS['gnn'] = load_gnn_model(...)
-    # MODELS['transformer'] = load_transformer_model(...)
-
-
-def analyze_compatibility_factors(pet1: PetFeatures, pet2: PetFeatures) -> Dict[str, Any]:
-    """Analyze factors contributing to compatibility"""
-    factors = {}
-
-    # Energy match
-    energy_map = {'low': 1, 'medium': 2, 'high': 3}
-    energy_diff = abs(energy_map[pet1.energy] - energy_map[pet2.energy])
-    factors['energy_match'] = 1.0 - (energy_diff / 2.0)
-
-    # Size compatibility
-    size_map = {'small': 1, 'medium': 2, 'large': 3}
-    size_diff = abs(size_map[pet1.size] - size_map[pet2.size])
-    factors['size_compatibility'] = 1.0 - (size_diff / 2.0)
-
-    # Age proximity
-    age_diff = abs(pet1.age - pet2.age)
-    factors['age_proximity'] = max(0, 1.0 - (age_diff / 10.0))
-
-    # Social scores
-    factors['social_affinity'] = (pet1.social + pet2.social) / 2.0
-
-    return factors
-
-
-# ===== API Endpoints =====
 
 @app.on_event("startup")
-async def startup_event():
-    """Load models on startup"""
+async def startup_event() -> None:
     load_models()
 
 
-@app.get("/")
-async def root():
-    """API root"""
-    return {
-        "name": "Woof ML API",
-        "version": "2.0.0",
-        "status": "operational",
-        "models": list(MODELS.keys()),
-        "redis": "connected" if REDIS_AVAILABLE else "unavailable",
-    }
-
-
 @app.get("/health")
-async def health_check():
-    """Health check endpoint"""
+async def health_check() -> Dict[str, Any]:
     return {
         "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "models_loaded": len(MODELS),
+        "serviceVersion": app.version,
+        "featureVersion": FEATURE_VERSION,
+        "modelVersion": MODEL_VERSION,
+        "calibrationVersion": CALIBRATION_VERSION,
+        "compatibilityModelLoaded": "compatibility" in MODELS,
         "redis": REDIS_AVAILABLE,
+        "servingMode": "shadow-only",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
-@app.post("/predict/compatibility", response_model=CompatibilityResponse)
-async def predict_compatibility(request: CompatibilityRequest):
-    """
-    Predict compatibility score between two pets
+@app.post("/v1/compatibility/score", response_model=CompatibilityResponse)
+async def score_compatibility(request: CompatibilityRequest) -> CompatibilityResponse:
+    if request.featureVersion != FEATURE_VERSION:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported featureVersion: {request.featureVersion}",
+        )
+    if request.petA.species != request.petB.species:
+        raise HTTPException(status_code=422, detail="Cross-species learned scoring is out of domain")
+    if "compatibility" not in MODELS:
+        raise HTTPException(status_code=503, detail="Compatibility shadow model is unavailable")
 
-    Uses trained neural network model considering:
-    - Breed characteristics
-    - Size and energy level matching
-    - Temperament compatibility
-    - Age and social factors
-    """
-    # Check cache
-    cache_key = generate_cache_key("compat", request.dict())
-    cached = get_cached_prediction(cache_key)
+    key = _cache_key(request)
+    cached = _get_cached(key)
     if cached:
-        cached['cached'] = True
+        cached["provenance"]["generatedAt"] = datetime.now(timezone.utc).isoformat()
         return CompatibilityResponse(**cached)
 
-    # Get model
-    if 'compatibility' not in MODELS:
-        raise HTTPException(status_code=503, detail="Compatibility model not loaded")
-
-    model_data = MODELS['compatibility']
-    model = model_data['model']
-    breed_to_idx = model_data['breed_to_idx']
-    temp_to_idx = model_data['temp_to_idx']
-
-    # Prepare data
-    pet1_dict = request.pet1.dict()
-    pet2_dict = request.pet2.dict()
-
-    # Predict
     try:
-        score = model.predict(pet1_dict, pet2_dict, breed_to_idx, temp_to_idx)
+        pet_a = _legacy_pet(request.petA)
+        pet_b = _legacy_pet(request.petB)
+        raw_score = _legacy_predict(MODELS["compatibility"], pet_a, pet_b)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Compatibility inference failed") from exc
 
-        # Analyze factors
-        factors = analyze_compatibility_factors(request.pet1, request.pet2)
+    coverage = min(request.petA.behavior.coverage, request.petB.behavior.coverage)
+    outcome_signal = request.outcomes.positiveRate
+    # Confidence is deliberately capped below the API promotion threshold. The old
+    # checkpoint has not been calibrated on the canonical post-meetup outcome task.
+    confidence = min(0.55, 0.25 + 0.25 * coverage + 0.05 * min(request.outcomes.sampleCount, 1))
 
-        # Calculate confidence (based on model certainty)
-        confidence = min(0.95, max(0.6, 1.0 - abs(score - 0.5) * 2))
-
-        response = {
-            "compatibility_score": float(score),
-            "confidence": float(confidence),
-            "factors": factors,
-            "cached": False,
-        }
-
-        # Cache result
-        cache_prediction(cache_key, response, ttl=3600)
-
-        return CompatibilityResponse(**response)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-
-@app.post("/predict/energy", response_model=EnergyResponse)
-async def predict_energy(request: EnergyRequest):
-    """
-    Predict current energy state of a pet
-
-    Considers:
-    - Recent activity history
-    - Time of day and day of week
-    - Breed characteristics
-    - Age and base energy level
-    """
-    # Check cache
-    cache_key = generate_cache_key("energy", request.dict())
-    cached = get_cached_prediction(cache_key)
-    if cached:
-        cached['cached'] = True
-        return EnergyResponse(**cached)
-
-    # Get model
-    if 'energy' not in MODELS:
-        raise HTTPException(status_code=503, detail="Energy model not loaded")
-
-    model_data = MODELS['energy']
-    model = model_data['model']
-    breed_to_idx = model_data['breed_to_idx']
-
-    # Prepare data
-    features = request.dict()
-
-    # Predict
-    try:
-        predicted_class, probs, class_name = model.predict(features, breed_to_idx)
-
-        # Map probabilities
-        prob_dict = {
-            'low': probs[0],
-            'medium': probs[1],
-            'high': probs[2],
-        }
-
-        # Generate recommendation
-        if class_name == 'high':
-            recommendation = "Great time for an active walk or play session!"
-        elif class_name == 'medium':
-            recommendation = "Moderate activity recommended - a casual walk or gentle play."
-        else:
-            recommendation = "Pet needs rest. Light activity or quiet time recommended."
-
-        confidence = max(probs)
-
-        response = {
-            "energy_state": class_name,
-            "probabilities": prob_dict,
-            "confidence": float(confidence),
-            "recommendation": recommendation,
-            "cached": False,
-        }
-
-        # Cache result (shorter TTL since energy changes)
-        cache_prediction(cache_key, response, ttl=300)
-
-        return EnergyResponse(**response)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-
-@app.post("/predict/compatibility/batch")
-async def batch_predict_compatibility(request: BatchCompatibilityRequest):
-    """Batch compatibility predictions for efficiency"""
-    results = []
-
-    for pair in request.pairs:
-        try:
-            result = await predict_compatibility(pair)
-            results.append(result.dict())
-        except Exception as e:
-            results.append({"error": str(e)})
-
-    return {"results": results, "count": len(results)}
-
-
-@app.post("/recommend/activities", response_model=ActivityRecommendationResponse)
-async def recommend_activities(request: ActivityRecommendationRequest):
-    """
-    Recommend activities based on temporal patterns
-
-    NOTE: Requires trained Temporal Transformer model
-    Currently returns rule-based recommendations
-    """
-    # TODO: Use Temporal Transformer when trained
-
-    # Simple rule-based recommendations for now
-    energy_map = {'low': 1, 'medium': 2, 'high': 3}
-    current_energy_level = energy_map.get(request.current_energy, 2)
-
-    recommendations = []
-
-    if current_energy_level >= 2:
-        recommendations.append(ActivityRecommendation(
-            activity_type="walk",
-            probability=0.85,
-            optimal_time=9,
-            expected_duration=30.0,
-            energy_requirement="medium"
-        ))
-        recommendations.append(ActivityRecommendation(
-            activity_type="play",
-            probability=0.75,
-            optimal_time=16,
-            expected_duration=20.0,
-            energy_requirement="high"
-        ))
-
-    recommendations.append(ActivityRecommendation(
-        activity_type="training",
-        probability=0.60,
-        optimal_time=10,
-        expected_duration=15.0,
-        energy_requirement="low"
-    ))
-
-    return ActivityRecommendationResponse(
-        recommendations=recommendations,
-        predicted_energy="medium",
-        confidence=0.70
+    response = CompatibilityResponse(
+        compatibilityScore=max(0.0, min(1.0, raw_score)),
+        confidence=confidence,
+        source=MODEL_VERSION,
+        factors={
+            "legacyNeuralRaw": max(0.0, min(1.0, raw_score)),
+            "behaviorCoverage": coverage,
+            "outcomeSignal": outcome_signal if outcome_signal is not None else 0.5,
+        },
+        explanation=[
+            "Learned score from Woof's historical neural compatibility checkpoint.",
+            "This checkpoint is shadow-only because its original synthetic feature set predates the beta contract.",
+            "The production router continues to use the calibrated deterministic baseline until a canonical learned model earns promotion.",
+        ],
+        provenance=Provenance(
+            scorer="learned",
+            modelVersion=MODEL_VERSION,
+            featureVersion=FEATURE_VERSION,
+            calibrationVersion=CALIBRATION_VERSION,
+            generatedAt=datetime.now(timezone.utc).isoformat(),
+            fallback=False,
+        ),
     )
+    _set_cached(key, response.model_dump())
+    return response
 
 
 @app.delete("/cache/clear")
-async def clear_cache():
-    """Clear all cached predictions"""
-    if not REDIS_AVAILABLE:
-        return {"message": "Redis not available"}
-
+async def clear_cache() -> Dict[str, str]:
+    if not REDIS_AVAILABLE or redis_client is None:
+        return {"message": "Cache is disabled"}
     try:
         redis_client.flushdb()
-        return {"message": "Cache cleared successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
+        return {"message": "Cache cleared"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Cache clear failed") from exc
 
 
 @app.post("/models/reload")
-async def reload_models(background_tasks: BackgroundTasks):
-    """
-    Reload models without downtime
-    Loads new models in background and hot-swaps them
-    """
+async def reload_models(background_tasks: BackgroundTasks) -> Dict[str, str]:
     background_tasks.add_task(load_models)
     return {"message": "Model reload initiated"}
 
@@ -493,10 +315,4 @@ async def reload_models(background_tasks: BackgroundTasks):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8001,
-        log_level="info",
-        reload=False,  # Disable in production
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info", reload=False)

@@ -1,234 +1,216 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { PrivacyService } from '../privacy/privacy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TrackLocationDto } from './dto/track-location.dto';
 
 @Injectable()
 export class CoActivityService {
-  constructor(private prisma: PrismaService) {}
+  private readonly PROXIMITY_THRESHOLD_M = 50;
+  private readonly TIME_WINDOW_MINUTES = 30;
+  private readonly MAX_QUERY_HOURS = 24;
+  private readonly MAX_CLOCK_SKEW_MINUTES = 5;
 
-  // Distance threshold for detecting co-activity (in meters)
-  private readonly PROXIMITY_THRESHOLD = 50; // 50 meters
-  private readonly TIME_WINDOW_MINUTES = 30; // 30 minutes
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly privacyService: PrivacyService,
+  ) {}
 
-  /**
-   * Track a user's location
-   */
   async trackLocation(userId: string, dto: TrackLocationDto) {
-    return this.prisma.locationPing.create({
+    const preferences = await this.privacyService.requirePreciseLocation(userId);
+    const observedAt = dto.timestamp ? new Date(dto.timestamp) : new Date();
+    const skewMinutes = Math.abs(Date.now() - observedAt.getTime()) / (60 * 1000);
+    if (!Number.isFinite(observedAt.getTime()) || skewMinutes > this.MAX_CLOCK_SKEW_MINUTES) {
+      throw new BadRequestException('Location timestamp must be within five minutes of server time');
+    }
+
+    await this.privacyService.pruneLocationHistory(userId, preferences.locationRetentionHours);
+    const ping = await this.prisma.locationPing.create({
       data: {
         userId,
         lat: dto.lat,
         lng: dto.lng,
-        timestamp: new Date(dto.timestamp),
+        timestamp: observedAt,
         activityType: dto.activityType,
       },
+      select: { id: true, timestamp: true },
     });
+
+    return {
+      accepted: true,
+      id: ping.id,
+      observedAt: ping.timestamp,
+      retainedUntil: new Date(
+        ping.timestamp.getTime() + preferences.locationRetentionHours * 60 * 60 * 1000,
+      ),
+    };
   }
 
-  /**
-   * Get user's recent location history
-   */
-  async getUserLocations(userId: string, hours: number = 24) {
-    const since = new Date();
-    since.setHours(since.getHours() - hours);
-
-    return this.prisma.locationPing.findMany({
-      where: {
-        userId,
-        timestamp: {
-          gte: since,
-        },
-      },
-      orderBy: { timestamp: 'desc' },
-    });
+  async getLocationSummary(userId: string) {
+    return this.privacyService.getLocationSummary(userId);
   }
 
-  /**
-   * Detect co-activity overlaps between two users
-   * Returns instances where both users were in the same place at the same time
-   */
-  async detectOverlaps(userId1: string, userId2: string, hoursBack: number = 168) {
-    const since = new Date();
-    since.setHours(since.getHours() - hoursBack);
+  async detectOverlaps(userId1: string, userId2: string, hoursBack = 12) {
+    if (userId1 === userId2) throw new BadRequestException('Choose another member');
+    if (!(await this.privacyService.bothAllowProximity(userId1, userId2))) {
+      throw new ForbiddenException(
+        'Co-activity requires both members to opt into proximity suggestions and neither member to be blocked.',
+      );
+    }
 
-    // Get both users' location histories
+    const hours = this.safeHours(hoursBack);
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
     const [user1Locations, user2Locations] = await Promise.all([
       this.prisma.locationPing.findMany({
         where: { userId: userId1, timestamp: { gte: since } },
         orderBy: { timestamp: 'asc' },
+        take: 500,
       }),
       this.prisma.locationPing.findMany({
         where: { userId: userId2, timestamp: { gte: since } },
         orderBy: { timestamp: 'asc' },
+        take: 500,
       }),
     ]);
 
-    const overlaps: any[] = [];
+    const overlaps = this.findOverlapWindows(user1Locations, user2Locations);
+    const latest = overlaps.at(-1);
+    return {
+      userId: userId2,
+      overlapCount: overlaps.length,
+      proximity: overlaps.length > 0 ? 'WITHIN_50M' : 'NONE_DETECTED',
+      latestOverlapAt: latest?.timestamp ?? null,
+      queryHours: hours,
+      coordinatesDisclosed: false,
+    };
+  }
 
-    // Check each location pair for proximity
+  async findPotentialMatches(userId: string, hoursBack = 12) {
+    if (!(await this.privacyService.canUseProximity(userId))) {
+      throw new ForbiddenException('Enable precise location and proximity suggestions first');
+    }
+
+    const preferences = await this.privacyService.getPreferences(userId);
+    await this.privacyService.pruneLocationHistory(userId, preferences.locationRetentionHours);
+    const hours = Math.min(this.safeHours(hoursBack), preferences.locationRetentionHours);
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+    const [userLocations, otherLocations, blocks] = await Promise.all([
+      this.prisma.locationPing.findMany({
+        where: { userId, timestamp: { gte: since } },
+        orderBy: { timestamp: 'asc' },
+        take: 500,
+      }),
+      this.prisma.locationPing.findMany({
+        where: { userId: { not: userId }, timestamp: { gte: since } },
+        include: {
+          user: { select: { id: true, handle: true, avatarUrl: true, visibility: true } },
+        },
+        orderBy: { timestamp: 'asc' },
+        take: 5000,
+      }),
+      this.prisma.blockedUser.findMany({
+        where: { OR: [{ userId }, { blockedId: userId }] },
+        select: { userId: true, blockedId: true },
+      }),
+    ]);
+    if (userLocations.length === 0) return [];
+
+    const blockedIds = new Set(
+      blocks.map((block) => (block.userId === userId ? block.blockedId : block.userId)),
+    );
+    const otherUserIds = [...new Set(otherLocations.map((location) => location.userId))];
+    const privacy = await this.privacyService.getPreferencesForUsers(otherUserIds);
+    const locationsByUser = new Map<string, typeof otherLocations>();
+
+    for (const location of otherLocations) {
+      const prefs = privacy.get(location.userId);
+      if (
+        blockedIds.has(location.userId) ||
+        location.user.visibility === 'PRIVATE' ||
+        !prefs?.preciseLocation ||
+        !prefs.proximitySuggestions
+      ) {
+        continue;
+      }
+      const existing = locationsByUser.get(location.userId) ?? [];
+      existing.push(location);
+      locationsByUser.set(location.userId, existing);
+    }
+
+    const matches = [];
+    for (const [otherUserId, otherUserLocations] of locationsByUser.entries()) {
+      const overlaps = this.findOverlapWindows(userLocations, otherUserLocations);
+      if (overlaps.length === 0) continue;
+      matches.push({
+        user: otherUserLocations[0].user,
+        overlapCount: overlaps.length,
+        proximity: 'WITHIN_50M',
+        latestOverlapAt: overlaps.at(-1)?.timestamp ?? null,
+        coordinatesDisclosed: false,
+      });
+    }
+
+    return matches.sort((a, b) => b.overlapCount - a.overlapCount).slice(0, 20);
+  }
+
+  async getStats(userId: string) {
+    const summary = await this.privacyService.getLocationSummary(userId);
+    if (!summary.preferences.proximitySuggestions) {
+      return {
+        ...summary,
+        potentialMatches: 0,
+        proximitySuggestionsEnabled: false,
+      };
+    }
+    const matches = await this.findPotentialMatches(
+      userId,
+      summary.preferences.locationRetentionHours,
+    );
+    return {
+      ...summary,
+      potentialMatches: matches.length,
+      proximitySuggestionsEnabled: true,
+    };
+  }
+
+  private findOverlapWindows(
+    user1Locations: Array<{ lat: number; lng: number; timestamp: Date }>,
+    user2Locations: Array<{ lat: number; lng: number; timestamp: Date }>,
+  ) {
+    const overlaps: Array<{ timestamp: Date }> = [];
+    let lastRecordedAt = 0;
+
     for (const loc1 of user1Locations) {
       for (const loc2 of user2Locations) {
-        const distance = this.calculateDistance(
-          loc1.lat,
-          loc1.lng,
-          loc2.lat,
-          loc2.lng,
-        );
+        const timeDiffMinutes =
+          Math.abs(loc1.timestamp.getTime() - loc2.timestamp.getTime()) / (60 * 1000);
+        if (timeDiffMinutes > this.TIME_WINDOW_MINUTES) continue;
+        const distance = this.calculateDistance(loc1.lat, loc1.lng, loc2.lat, loc2.lng);
+        if (distance > this.PROXIMITY_THRESHOLD_M) continue;
 
-        const timeDiff = Math.abs(
-          new Date(loc1.timestamp).getTime() - new Date(loc2.timestamp).getTime(),
-        ) / (1000 * 60); // minutes
-
-        // If within proximity threshold and time window
-        if (distance <= this.PROXIMITY_THRESHOLD && timeDiff <= this.TIME_WINDOW_MINUTES) {
-          overlaps.push({
-            location: { lat: loc1.lat, lng: loc1.lng },
-            timestamp: loc1.timestamp,
-            distance: Math.round(distance),
-            timeDiff: Math.round(timeDiff),
-            activityType: loc1.activityType || loc2.activityType,
-          });
-        }
+        const midpointTime = Math.round((loc1.timestamp.getTime() + loc2.timestamp.getTime()) / 2);
+        // Collapse dense GPS samples into one privacy-preserving encounter window.
+        if (midpointTime - lastRecordedAt < this.TIME_WINDOW_MINUTES * 60 * 1000) continue;
+        overlaps.push({ timestamp: new Date(midpointTime) });
+        lastRecordedAt = midpointTime;
       }
     }
-
-    return {
-      userId1,
-      userId2,
-      overlapCount: overlaps.length,
-      overlaps,
-    };
+    return overlaps;
   }
 
-  /**
-   * Find potential co-activity matches for a user
-   * Returns other users who were in same places at same times
-   */
-  async findPotentialMatches(userId: string, hoursBack: number = 168) {
-    const since = new Date();
-    since.setHours(since.getHours() - hoursBack);
-
-    // Get user's location history
-    const userLocations = await this.prisma.locationPing.findMany({
-      where: { userId, timestamp: { gte: since } },
-      orderBy: { timestamp: 'asc' },
-    });
-
-    if (userLocations.length === 0) {
-      return [];
-    }
-
-    // Get all other users' locations in the same time window
-    const otherLocations = await this.prisma.locationPing.findMany({
-      where: {
-        userId: { not: userId },
-        timestamp: { gte: since },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            handle: true,
-            avatarUrl: true,
-          },
-        },
-      },
-      orderBy: { timestamp: 'asc' },
-    });
-
-    // Group by user
-    const locationsByUser = new Map<string, any[]>();
-    for (const loc of otherLocations) {
-      if (!locationsByUser.has(loc.userId)) {
-        locationsByUser.set(loc.userId, []);
-      }
-      locationsByUser.get(loc.userId)!.push(loc);
-    }
-
-    // Calculate overlaps for each user
-    const matches: any[] = [];
-
-    for (const [otherUserId, otherLocs] of locationsByUser.entries()) {
-      let overlapCount = 0;
-      const overlaps: any[] = [];
-
-      for (const userLoc of userLocations) {
-        for (const otherLoc of otherLocs) {
-          const distance = this.calculateDistance(
-            userLoc.lat,
-            userLoc.lng,
-            otherLoc.lat,
-            otherLoc.lng,
-          );
-
-          const timeDiff = Math.abs(
-            new Date(userLoc.timestamp).getTime() - new Date(otherLoc.timestamp).getTime(),
-          ) / (1000 * 60);
-
-          if (distance <= this.PROXIMITY_THRESHOLD && timeDiff <= this.TIME_WINDOW_MINUTES) {
-            overlapCount++;
-            overlaps.push({
-              location: { lat: userLoc.lat, lng: userLoc.lng },
-              timestamp: userLoc.timestamp,
-              distance: Math.round(distance),
-            });
-          }
-        }
-      }
-
-      if (overlapCount > 0) {
-        const otherUser = otherLocs[0].user;
-        matches.push({
-          user: otherUser,
-          overlapCount,
-          overlaps: overlaps.slice(0, 5), // Return first 5 overlaps
-        });
-      }
-    }
-
-    // Sort by overlap count descending
-    matches.sort((a, b) => b.overlapCount - a.overlapCount);
-
-    return matches;
+  private safeHours(value: number) {
+    return Math.max(1, Math.min(Number(value) || 12, this.MAX_QUERY_HOURS));
   }
 
-  /**
-   * Calculate distance between two points using Haversine formula
-   * Returns distance in meters
-   */
   private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lng2 - lng1) * Math.PI) / 180;
-
+    const earthRadiusM = 6371e3;
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lng2 - lng1) * Math.PI) / 180;
     const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
-  }
-
-  /**
-   * Get co-activity statistics for a user
-   */
-  async getStats(userId: string) {
-    const since = new Date();
-    since.setDate(since.getDate() - 30); // Last 30 days
-
-    const totalPings = await this.prisma.locationPing.count({
-      where: { userId, timestamp: { gte: since } },
-    });
-
-    const matches = await this.findPotentialMatches(userId, 30 * 24);
-
-    return {
-      totalLocationPings: totalPings,
-      potentialMatches: matches.length,
-      topMatches: matches.slice(0, 5),
-    };
+      Math.sin(deltaPhi / 2) ** 2 +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+    return earthRadiusM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 }

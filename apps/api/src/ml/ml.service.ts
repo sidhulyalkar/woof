@@ -1,213 +1,137 @@
-/**
- * ML Service Integration
- *
- * Connects NestJS API to FastAPI ML service for predictions
- */
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  CompatibilityScore,
+  isCompatibilityScore,
+  LearnedCompatibilityRequest,
+} from '../compatibility/compatibility.types';
 
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+export type MLCompatibilityMode = 'off' | 'shadow' | 'promoted';
 
-export interface PetFeatures {
-  breed: string;
-  size: string;
-  energy: string;
-  temperament: string;
-  age: number;
-  social: number;
-  weight: number;
-}
+export type MLCompatibilityAttempt = {
+  score: CompatibilityScore | null;
+  latencyMs: number;
+  fallbackReason?: string;
+};
 
-export interface CompatibilityPrediction {
-  compatibility_score: number;
-  confidence: number;
-  factors: {
-    energy_match: number;
-    size_compatibility: number;
-    age_proximity: number;
-    social_affinity: number;
-  };
-  cached: boolean;
-}
-
-export interface EnergyPrediction {
-  energy_state: 'low' | 'medium' | 'high';
-  probabilities: {
-    low: number;
-    medium: number;
-    high: number;
-  };
-  confidence: number;
-  recommendation: string;
-  cached: boolean;
-}
-
-export interface ActivityRecommendation {
-  activity_type: string;
-  probability: number;
-  optimal_time: number;
-  expected_duration: number;
-  energy_requirement: string;
-}
+export type MLServiceStatus = {
+  enabled: boolean;
+  mode: MLCompatibilityMode;
+  serviceUrlConfigured: boolean;
+  modelRoute: string;
+  timeoutMs: number;
+};
 
 @Injectable()
 export class MLService {
   private readonly logger = new Logger(MLService.name);
-  private readonly client: AxiosInstance;
-  private readonly ML_SERVICE_URL: string;
+  private readonly serviceUrl: string | null;
+  private readonly enabled: boolean;
+  private readonly mode: MLCompatibilityMode;
+  private readonly timeoutMs: number;
+  private readonly modelRoute = '/v1/compatibility/score';
 
-  constructor() {
-    this.ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
-
-    this.client = axios.create({
-      baseURL: this.ML_SERVICE_URL,
-      timeout: 5000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Health check on startup
-    this.checkHealth();
+  constructor(private readonly config: ConfigService) {
+    const configuredUrl = this.config.get<string>('ML_SERVICE_URL')?.trim();
+    const requestedMode = this.config.get<string>('ML_COMPATIBILITY_MODE')?.toLowerCase();
+    this.serviceUrl = configuredUrl ? configuredUrl.replace(/\/$/, '') : null;
+    this.enabled = this.config.get<string>('ML_SERVICE_ENABLED') === 'true';
+    this.mode = !this.enabled
+      ? 'off'
+      : requestedMode === 'promoted'
+        ? 'promoted'
+        : 'shadow';
+    this.timeoutMs = Math.max(
+      250,
+      Math.min(Number(this.config.get<string>('ML_SERVICE_TIMEOUT_MS')) || 1500, 5000),
+    );
   }
 
-  private async checkHealth(): Promise<void> {
-    try {
-      const response = await this.client.get('/health');
-      this.logger.log(`ML Service connected: ${JSON.stringify(response.data)}`);
-    } catch (error) {
-      this.logger.warn(`ML Service not available: ${error.message}`);
+  getStatus(): MLServiceStatus {
+    return {
+      enabled: this.enabled,
+      mode: this.mode,
+      serviceUrlConfigured: this.serviceUrl !== null,
+      modelRoute: this.modelRoute,
+      timeoutMs: this.timeoutMs,
+    };
+  }
+
+  getCompatibilityMode(): MLCompatibilityMode {
+    return this.mode;
+  }
+
+  async tryPredictCompatibility(
+    request: LearnedCompatibilityRequest,
+  ): Promise<MLCompatibilityAttempt> {
+    const startedAt = Date.now();
+
+    if (!this.enabled) {
+      return { score: null, latencyMs: 0, fallbackReason: 'ml_disabled' };
     }
-  }
 
-  /**
-   * Predict compatibility between two pets
-   */
-  async predictCompatibility(
-    pet1: PetFeatures,
-    pet2: PetFeatures,
-  ): Promise<CompatibilityPrediction> {
-    try {
-      const response = await this.client.post<CompatibilityPrediction>(
-        '/predict/compatibility',
-        { pet1, pet2 },
-      );
-
-      this.logger.debug(
-        `Compatibility prediction: ${response.data.compatibility_score} (cached: ${response.data.cached})`,
-      );
-
-      return response.data;
-    } catch (error) {
-      this.logger.error(`Compatibility prediction failed: ${error.message}`);
-      throw new HttpException(
-        'ML prediction service unavailable',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
+    if (!this.serviceUrl) {
+      return {
+        score: null,
+        latencyMs: 0,
+        fallbackReason: 'ml_service_url_missing',
+      };
     }
-  }
 
-  /**
-   * Predict current energy state of a pet
-   */
-  async predictEnergy(params: {
-    age: number;
-    breed: string;
-    base_energy_level: string;
-    hours_since_last_activity: number;
-    total_distance_24h: number;
-    total_duration_24h: number;
-    num_activities_24h: number;
-    hour_of_day: number;
-    day_of_week: number;
-  }): Promise<EnergyPrediction> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
     try {
-      const response = await this.client.post<EnergyPrediction>(
-        '/predict/energy',
-        params,
-      );
+      const response = await fetch(`${this.serviceUrl}${this.modelRoute}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
 
-      this.logger.debug(
-        `Energy prediction: ${response.data.energy_state} (confidence: ${response.data.confidence})`,
-      );
+      const latencyMs = Date.now() - startedAt;
+      if (!response.ok) {
+        this.logger.warn(
+          `Learned compatibility service returned HTTP ${response.status}; baseline will be used`,
+        );
+        return {
+          score: null,
+          latencyMs,
+          fallbackReason: `ml_http_${response.status}`,
+        };
+      }
 
-      return response.data;
+      const payload: unknown = await response.json();
+      if (!isCompatibilityScore(payload)) {
+        this.logger.warn('Learned compatibility response failed contract validation');
+        return {
+          score: null,
+          latencyMs,
+          fallbackReason: 'ml_contract_invalid',
+        };
+      }
+
+      if (payload.provenance.scorer !== 'learned') {
+        return {
+          score: null,
+          latencyMs,
+          fallbackReason: 'ml_provenance_invalid',
+        };
+      }
+
+      return { score: payload, latencyMs };
     } catch (error) {
-      this.logger.error(`Energy prediction failed: ${error.message}`);
-      throw new HttpException(
-        'ML prediction service unavailable',
-        HttpStatus.SERVICE_UNAVAILABLE,
+      const latencyMs = Date.now() - startedAt;
+      const fallbackReason =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'ml_timeout'
+          : 'ml_unavailable';
+      this.logger.warn(
+        `Learned compatibility unavailable (${fallbackReason}); deterministic baseline will be used`,
       );
-    }
-  }
-
-  /**
-   * Batch compatibility predictions for multiple pet pairs
-   */
-  async batchCompatibility(
-    pairs: Array<{ pet1: PetFeatures; pet2: PetFeatures }>,
-  ): Promise<CompatibilityPrediction[]> {
-    try {
-      const response = await this.client.post<{ results: CompatibilityPrediction[] }>(
-        '/predict/compatibility/batch',
-        { pairs },
-      );
-
-      return response.data.results;
-    } catch (error) {
-      this.logger.error(`Batch compatibility prediction failed: ${error.message}`);
-      throw new HttpException(
-        'ML prediction service unavailable',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-  }
-
-  /**
-   * Get activity recommendations
-   */
-  async recommendActivities(params: {
-    pet_id: string;
-    recent_activities: any;
-    current_energy: string;
-    preferences?: any;
-  }): Promise<{
-    recommendations: ActivityRecommendation[];
-    predicted_energy: string;
-    confidence: number;
-  }> {
-    try {
-      const response = await this.client.post('/recommend/activities', params);
-      return response.data;
-    } catch (error) {
-      this.logger.error(`Activity recommendation failed: ${error.message}`);
-      throw new HttpException(
-        'ML prediction service unavailable',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-  }
-
-  /**
-   * Clear ML service cache
-   */
-  async clearCache(): Promise<void> {
-    try {
-      await this.client.delete('/cache/clear');
-      this.logger.log('ML service cache cleared');
-    } catch (error) {
-      this.logger.error(`Cache clear failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Trigger model reload
-   */
-  async reloadModels(): Promise<void> {
-    try {
-      await this.client.post('/models/reload');
-      this.logger.log('ML models reload initiated');
-    } catch (error) {
-      this.logger.error(`Model reload failed: ${error.message}`);
+      return { score: null, latencyMs, fallbackReason };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

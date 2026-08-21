@@ -1,6 +1,6 @@
 {
   "name": "@woof/web",
-  "version": "0.2.0-beta.1",
+  "version": "0.3.0-beta.1",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
@@ -13,7 +13,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:a11y": "playwright test e2e/accessibility.spec.ts --project=chromium",
+    "test:visual": "playwright test e2e/visual-regression.spec.ts --project=chromium"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",
@@ -74,6 +76,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.56.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",

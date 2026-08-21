@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { AuthGuard } from './auth-guard';
 
-const mockReplace = vi.fn();
+const { mockMe, mockReplace } = vi.hoisted(() => ({
+  mockMe: vi.fn(),
+  mockReplace: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace }),
   usePathname: () => '/test',
@@ -12,13 +16,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/api', () => ({
   authApi: {
-    me: vi.fn(() =>
-      Promise.resolve({
-        id: '123',
-        handle: 'testuser',
-        email: 'test@example.com',
-      }),
-    ),
+    me: mockMe,
   },
 }));
 
@@ -26,6 +24,11 @@ describe('AuthGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    mockMe.mockResolvedValue({
+      id: '123',
+      handle: 'testuser',
+      email: 'test@example.com',
+    });
     useAuthStore.setState({
       user: null,
       token: null,
@@ -34,7 +37,10 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('shows a loading state while session hydration runs', () => {
+  it('shows a loading state while a persisted session is being hydrated', () => {
+    localStorage.setItem('authToken', 'persisted-token');
+    mockMe.mockImplementation(() => new Promise(() => undefined));
+
     render(
       <AuthGuard>
         <div>Protected Content</div>
@@ -42,6 +48,7 @@ describe('AuthGuard', () => {
     );
 
     expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
   it('redirects unauthenticated visitors to login', async () => {
@@ -54,6 +61,23 @@ describe('AuthGuard', () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/login');
     });
+    expect(mockMe).not.toHaveBeenCalled();
+  });
+
+  it('hydrates a valid persisted session before rendering protected content', async () => {
+    localStorage.setItem('authToken', 'persisted-token');
+
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Protected Content')).toBeInTheDocument();
+    });
+    expect(mockMe).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
   it('renders protected children for an authenticated session', async () => {
@@ -73,5 +97,6 @@ describe('AuthGuard', () => {
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
+    expect(mockMe).not.toHaveBeenCalled();
   });
 });

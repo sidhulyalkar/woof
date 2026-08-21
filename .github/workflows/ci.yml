@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'agent/beta-learning-platform-v1']
   pull_request:
     branches: [main, develop]
 
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
 
 jobs:
@@ -33,17 +33,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Capture resolved dependency graph
-        uses: actions/upload-artifact@v4
-        with:
-          name: resolved-pnpm-lock-${{ github.run_id }}
-          path: pnpm-lock.yaml
-          if-no-files-found: error
-          retention-days: 7
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
@@ -57,7 +50,9 @@ jobs:
           apps/api/test/jest-e2e.json
           apps/web/package.json
           apps/web/vitest.config.ts
+          apps/web/playwright.config.ts
           apps/web/src/lib/api-client.ts
+          apps/web/e2e
           packages/ui/package.json
 
       - name: Lint
@@ -65,6 +60,15 @@ jobs:
 
       - name: Type-check
         run: pnpm type-check
+
+      - name: Compile ML research code
+        run: python -m compileall -q ml
+
+      - name: Run lightweight ML policy contracts
+        run: >-
+          python -m unittest
+          ml.evaluation.test_promotion_gate
+          ml.simulation.test_generate_pair_scenarios
 
   test-backend:
     name: Backend tests
@@ -77,7 +81,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: woof_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d woof_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -89,6 +93,7 @@ jobs:
       SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
       JWT_SECRET: ci-only-test-secret
       NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
 
     steps:
       - uses: actions/checkout@v4
@@ -102,9 +107,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
@@ -113,10 +119,10 @@ jobs:
         run: pnpm --filter @woof/database db:migrate:deploy
 
       - name: Run backend unit tests
-        run: pnpm --filter @woof/api test -- --runInBand
+        run: pnpm --filter @woof/api exec jest --runInBand
 
       - name: Run backend API tests
-        run: pnpm --filter @woof/api test:e2e -- --runInBand
+        run: pnpm --filter @woof/api exec jest --config ./test/jest-e2e.json --runInBand
 
   test-frontend:
     name: Frontend tests
@@ -136,9 +142,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run frontend unit tests
         run: pnpm --filter @woof/web test
@@ -146,14 +153,14 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
 
-      - name: Run browser smoke tests
-        run: pnpm --filter @woof/web test:e2e -- --project=chromium
+      - name: Run browser smoke, accessibility and visual contracts
+        run: pnpm --filter @woof/web exec playwright test --project=chromium
 
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}
           path: apps/web/playwright-report
           if-no-files-found: ignore
           retention-days: 7
@@ -164,6 +171,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+      ML_SERVICE_ENABLED: 'false'
 
     steps:
       - uses: actions/checkout@v4
@@ -177,9 +185,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install dependencies from committed lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "woof-public-ml-sources-v1",
+  "reviewedAt": "2026-08-20",
+  "policy": {
+    "automaticDownload": false,
+    "commercialUseAssumed": false,
+    "sourceLicenseMustBeReviewed": true,
+    "underlyingMediaRightsMustBeReviewed": true,
+    "syntheticDataMayNotEnterPromotionHoldouts": true
+  },
+  "sources": [
+    {
+      "id": "dog-aging-project-2025",
+      "name": "Dog Aging Project 2025 Curated Data",
+      "modality": ["survey", "behavior", "demographics", "environment", "health"],
+      "woofRole": ["behavior-state priors", "trait normalization", "population shift audits"],
+      "sourceUrl": "https://data.dogagingproject.org/",
+      "accessStatus": "application_required_via_terra",
+      "artifactStatus": "not_vendored",
+      "licenseStatus": "data_use_terms_require_review",
+      "commercialReviewRequired": true,
+      "usageStatus": "research_candidate_only",
+      "notes": "HLES contains 200+ questions and the behavior survey includes excitability, aggression, fear/anxiety, attachment and trainability. Curated data are de-identified. Geographic identifiers are deliberately restricted. Do not download or train until the current DAP data-use terms and intended Woof use have been approved."
+    },
+    {
+      "id": "animal-kingdom-cvpr-2022",
+      "name": "Animal Kingdom",
+      "modality": ["video", "action labels", "pose", "video grounding"],
+      "woofRole": ["generic animal behavior representation pretraining", "pose/action auxiliary tasks"],
+      "sourceUrl": "https://sutdcv.github.io/Animal-Kingdom/",
+      "accessStatus": "public_project_page",
+      "artifactStatus": "external_only",
+      "licenseStatus": "dataset_terms_must_be_verified_before_use",
+      "commercialReviewRequired": true,
+      "usageStatus": "candidate",
+      "notes": "Dataset reports 50 hours of annotated video, 30K video sequences, 33K pose frames and 850 species. Use only as representation pretraining or auxiliary supervision, never as pair-compatibility labels."
+    },
+    {
+      "id": "sydog-video-ijcv-2024",
+      "name": "SyDog-Video",
+      "modality": ["synthetic video", "dog pose", "segmentation", "bounding boxes"],
+      "woofRole": ["dog pose pretraining", "domain randomization", "occlusion robustness", "synthetic-to-real transfer"],
+      "sourceUrl": "https://link.springer.com/article/10.1007/s11263-023-01946-z",
+      "accessStatus": "open_access_publication",
+      "artifactStatus": "external_only",
+      "licenseStatus": "dataset_and_asset_terms_must_be_verified_before_use",
+      "commercialReviewRequired": true,
+      "usageStatus": "high_priority_candidate",
+      "notes": "Paper reports 500 synthetic videos x 175 frames (87,500 frames), 33 keypoints and domain randomization across lighting, backgrounds, camera, appearance and pose. The paper demonstrates synthetic pretraining can help small real dog pose datasets. Treat this as precedent for Woof simulation, not evidence that synthetic compatibility labels transfer."
+    },
+    {
+      "id": "decade-cvpr-2018",
+      "name": "DECADE (Dataset of Ego-Centric Actions in a Dog Environment)",
+      "modality": ["egocentric dog video", "IMU", "joint movement"],
+      "woofRole": ["motion representation pretraining", "video-to-movement auxiliary supervision", "wearable representation research"],
+      "sourceUrl": "https://openaccess.thecvf.com/content_cvpr_2018/html/Ehsani_Who_Let_the_CVPR_2018_paper.html",
+      "accessStatus": "publication_public_dataset_availability_to_verify",
+      "artifactStatus": "not_vendored",
+      "licenseStatus": "rights_must_be_verified_before_use",
+      "commercialReviewRequired": true,
+      "usageStatus": "research_candidate",
+      "notes": "Pairs first-person dog video with corresponding movement and IMU-derived joint/body signals. Useful for motion representations if current data availability and rights are verified."
+    },
+    {
+      "id": "animal-pose-iccv-2019",
+      "name": "Animal Pose / Cross-Domain Adaptation for Animal Pose Estimation",
+      "modality": ["images", "pose keypoints", "domain adaptation"],
+      "woofRole": ["pose warm start", "cross-species domain adaptation", "pseudo-labeling research"],
+      "sourceUrl": "https://openaccess.thecvf.com/content_ICCV_2019/html/Cao_Cross-Domain_Adaptation_for_Animal_Pose_Estimation_ICCV_2019_paper.html",
+      "accessStatus": "publication_public_dataset_availability_to_verify",
+      "artifactStatus": "external_only",
+      "licenseStatus": "dataset_terms_must_be_verified_before_use",
+      "commercialReviewRequired": true,
+      "usageStatus": "candidate",
+      "notes": "Useful as a pose/domain-adaptation prior. High-confidence pseudo-labeling can expand dog-specific unlabeled data, but pseudo-labels must never become meetup-outcome labels."
+    },
+    {
+      "id": "ethoclip-animalband-cvpr-2026",
+      "name": "EthoCLIP / AnimalBand",
+      "modality": ["video", "text", "behavior ontology"],
+      "woofRole": ["animal behavior video-language representation", "ontology alignment", "behavior label transfer"],
+      "sourceUrl": "https://openaccess.thecvf.com/content/CVPR2026/html/Jing_EthoCLIP_Ontology-Enhanced_Video-Language_Pretraining_for_Animal_Behavior_Understanding_CVPR_2026_paper.html",
+      "accessStatus": "paper_public_release_artifacts_must_be_verified",
+      "artifactStatus": "do_not_assume_checkpoint_available",
+      "licenseStatus": "code_data_and_media_terms_must_be_verified",
+      "commercialReviewRequired": true,
+      "usageStatus": "watchlist_high_priority",
+      "notes": "CVPR 2026 paper reports AnimalBand with 74,671 videos and ontology-enhanced behavior pretraining. Treat as a strong future encoder candidate only after code/data/checkpoint release and rights are verified."
+    },
+    {
+      "id": "animal-cot-icic-2026",
+      "name": "Animal-CoT",
+      "modality": ["video", "structured behavior reasoning", "vision-language"],
+      "woofRole": ["behavior reasoning distillation", "pose-to-context auxiliary supervision", "explanation schema research"],
+      "sourceUrl": "https://github.com/WesLee88524/Animal-CoT",
+      "accessStatus": "repository_public",
+      "artifactStatus": "annotations_and_code_released_checkpoints_may_change",
+      "licenseStatus": "project_apache_2_underlying_source_dataset_terms_separate",
+      "commercialReviewRequired": true,
+      "usageStatus": "research_candidate",
+      "notes": "Repository reports 8,220 structured video/text reasoning pairs across CBVD-L and KABR-L and uses Qwen2.5-VL-7B-Instruct LoRA. The repository license does not automatically relicense underlying CBVD/KABR media. Prefer distillation into compact behavior features over serving a large VLM in the critical compatibility path."
+    }
+  ]
+}

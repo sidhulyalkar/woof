@@ -23,10 +23,12 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { NudgesModule } from './nudges/nudges.module';
 import { PetsModule } from './pets/pets.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrivacyModule } from './privacy/privacy.module';
 import { QuizModule } from './quiz/quiz.module';
 import { ServicesModule } from './services/services.module';
 import { SocialModule } from './social/social.module';
 import { StorageModule } from './storage/storage.module';
+import { TrustSafetyModule } from './trust-safety/trust-safety.module';
 import { UsersModule } from './users/users.module';
 import { VerificationModule } from './verification/verification.module';
 
@@ -43,6 +45,8 @@ import { VerificationModule } from './verification/verification.module';
       { name: 'long', ttl: 60000, limit: 100 },
     ]),
     PrismaModule,
+    PrivacyModule,
+    TrustSafetyModule,
     AuthModule,
     UsersModule,
     PetsModule,

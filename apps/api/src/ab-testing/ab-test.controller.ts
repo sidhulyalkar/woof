@@ -1,78 +1,26 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
-import { ABTestService, ModelVariant } from './ab-test.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ABTestService } from './ab-test.service';
 
-@Controller('api/v1/ab-test')
+/**
+ * Legacy experiment-assignment surface.
+ *
+ * Woof no longer accepts client-authored prediction/outcome events or exposes
+ * aggregate experiment administration through the member API. Compatibility
+ * provenance and post-meetup outcomes are recorded by the server-side product
+ * flow instead. This endpoint remains only for deterministic assignment while
+ * the older experiment service is retired.
+ */
+@Controller('ab-test')
 @UseGuards(JwtAuthGuard)
 export class ABTestController {
   constructor(private readonly abTestService: ABTestService) {}
 
-  @Get('variant/:userId')
-  getVariant(@Param('userId') userId: string) {
-    const variant = this.abTestService.assignVariant(userId);
-    return { variant };
-  }
-
-  @Post('log/prediction')
-  logPrediction(@Body() body: {
-    userId: string;
-    variant: ModelVariant;
-    prediction: number;
-    confidence?: number;
-    metadata?: any;
-  }) {
-    this.abTestService.logPrediction(
-      body.userId,
-      body.variant,
-      body.prediction,
-      body.confidence,
-      body.metadata
-    );
-    return { success: true };
-  }
-
-  @Post('log/outcome')
-  logOutcome(@Body() body: {
-    userId: string;
-    variant: ModelVariant;
-    satisfaction: number;
-    actualMatch: boolean;
-  }) {
-    this.abTestService.logOutcome(
-      body.userId,
-      body.variant,
-      body.satisfaction,
-      body.actualMatch
-    );
-    return { success: true };
-  }
-
-  @Get('results/:experimentName')
-  getResults(@Param('experimentName') experimentName: string) {
-    const results = this.abTestService.getExperimentResults(experimentName);
-    const significance = this.abTestService.getStatisticalSignificance(experimentName);
-
+  @Get('variant')
+  getVariant(@Request() req: any) {
     return {
-      results,
-      significance,
+      variant: this.abTestService.assignVariant(req.user.sub),
+      authority: 'experimental-only',
     };
-  }
-
-  @Get('report/:experimentName')
-  getReport(@Param('experimentName') experimentName: string) {
-    const report = this.abTestService.generateReport(experimentName);
-    return { report };
-  }
-
-  @Get('experiments')
-  getActiveExperiments() {
-    const experiments = this.abTestService.getActiveExperiments();
-    return { experiments };
-  }
-
-  @Post('experiment/:experimentName/end')
-  endExperiment(@Param('experimentName') experimentName: string) {
-    this.abTestService.endExperiment(experimentName);
-    return { success: true };
   }
 }
