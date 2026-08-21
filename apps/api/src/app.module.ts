@@ -16,6 +16,7 @@ import { validateEnvironment } from './config/env.validation';
 import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { GoalsModule } from './goals/goals.module';
+import { HealthLensModule } from './health-lens/health-lens.module';
 import { InsightsModule } from './insights/insights.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
 import { MeetupsModule } from './meetups/meetups.module';
@@ -67,6 +68,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     VerificationModule,
     CoActivityModule,
     CoachingModule,
+    HealthLensModule,
     AnalyticsModule,
     StorageModule,
     ChatModule,
