@@ -56,7 +56,6 @@ export type CompleteQuestInput = {
   dogExperience: 'loved_it' | 'comfortable' | 'not_their_thing';
   ownerExperience: 'great' | 'fine' | 'a_lot_today';
   safeOptOut?: boolean;
-  newPlace?: boolean;
   memoryAssetId?: string;
   note?: string;
 };
