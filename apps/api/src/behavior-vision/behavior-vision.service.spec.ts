@@ -1,3 +1,5 @@
+import { PrismaService } from '../prisma/prisma.service';
+import { BehaviorVisionModelService } from './behavior-vision.model';
 import { BehaviorVisionService } from './behavior-vision.service';
 
 function makePrisma() {
@@ -33,6 +35,7 @@ const dto = {
   leashState: 'loose' as const,
   phase: 'baseline' as const,
   handlerAction: 'none' as const,
+  includeAudio: false,
   ownerNote: 'Another dog crossed the street.',
   saveToTimeline: true,
 };
@@ -50,7 +53,10 @@ describe('BehaviorVisionService', () => {
       isConfigured: jest.fn().mockReturnValue(false),
       analyze: jest.fn(),
     };
-    const service = new BehaviorVisionService(prisma as any, model as any);
+    const service = new BehaviorVisionService(
+      prisma as unknown as PrismaService,
+      model as unknown as BehaviorVisionModelService
+    );
 
     const result = await service.analyze('user-1', dto, media);
 
@@ -59,11 +65,13 @@ describe('BehaviorVisionService', () => {
     expect(result.analysis.dimensions).toEqual([]);
     expect(model.analyze).not.toHaveBeenCalled();
     expect(result.privacy.mediaStoredByWoof).toBe(false);
+    expect(result.privacy.audioAnalysisAllowed).toBe(false);
 
     const createCall = prisma.telemetry.create.mock.calls[0][0];
     const persisted = JSON.stringify(createCall);
     expect(persisted).not.toContain('private-video-bytes-that-must-not-be-persisted');
     expect(persisted).toContain('mediaSha256');
+    expect(persisted).toContain('"audioAnalysisAllowed":false');
   });
 
   it('keeps direct greeting out of the automated coaching recommendation', async () => {
@@ -104,11 +112,19 @@ describe('BehaviorVisionService', () => {
         uncertainty: 'Internal motivation cannot be determined from this clip alone.',
       }),
     };
-    const service = new BehaviorVisionService(prisma as any, model as any);
+    const service = new BehaviorVisionService(
+      prisma as unknown as PrismaService,
+      model as unknown as BehaviorVisionModelService
+    );
 
     const result = await service.analyze('user-1', dto, media);
 
     expect(result.profile.recommendation.neverAutoRecommendGreeting).toBe(true);
     expect(result.coach.socialSafety).toContain('does not infer “needs to greet”');
+    expect(model.analyze).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ audioAnalysisAllowed: false }),
+      })
+    );
   });
 });
