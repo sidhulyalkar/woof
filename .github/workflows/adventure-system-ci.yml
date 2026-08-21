@@ -82,11 +82,31 @@ jobs:
       - name: Validate Prisma schema
         run: pnpm --filter @woof/database exec prisma validate
 
+      - name: Check Prisma schema formatting
+        run: |
+          pnpm --filter @woof/database exec prisma format
+          git diff --exit-code -- packages/database/prisma/schema.prisma
+
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
+      - name: Reject destructive Adventure migration operations
+        run: |
+          migration="packages/database/prisma/migrations/20260821223000_add_woof_adventure_system/migration.sql"
+          if grep -Ein '\b(DROP[[:space:]]+(TABLE|COLUMN|INDEX|CONSTRAINT)|TRUNCATE|DELETE[[:space:]]+FROM)\b' "$migration"; then
+            echo "Adventure migration must remain additive; destructive SQL was detected."
+            exit 1
+          fi
+
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Verify migrated database matches Prisma datamodel
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
 
       - name: Check redesign formatting
         run: >-
