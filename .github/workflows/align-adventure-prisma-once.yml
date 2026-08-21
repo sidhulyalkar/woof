@@ -1,0 +1,47 @@
+name: Align Adventure Prisma Once
+
+on:
+  push:
+    branches: [agent/woof-adventure-system-v1]
+    paths:
+      - '.github/workflows/align-adventure-prisma-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/woof-adventure-system-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: python scripts/align-adventure-prisma.py
+      - run: pnpm --filter @woof/database exec prisma format
+      - run: pnpm --filter @woof/database exec prisma validate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_alignment
+          SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_alignment_shadow
+      - run: git diff --check
+
+      - name: Commit deterministic schema alignment and remove one-run machinery
+        run: |
+          rm scripts/align-adventure-prisma.py
+          rm .github/workflows/align-adventure-prisma-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/database/prisma/schema.prisma scripts/align-adventure-prisma.py .github/workflows/align-adventure-prisma-once.yml
+          git commit -m "Align Adventure tables with Prisma schema"
+          git push origin HEAD:agent/woof-adventure-system-v1
