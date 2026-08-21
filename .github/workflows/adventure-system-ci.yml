@@ -103,8 +103,6 @@ jobs:
           apps/api/src/coaching/coaching.module.ts
           apps/api/src/gamification/gamification.controller.ts
           apps/api/src/behavior-vision/behavior-profile.spec.ts
-          apps/api/src/behavior-vision/behavior-vision.service.ts
-          apps/api/src/chat/chat.gateway.ts
           apps/api/src/goals/goals.controller.ts
           apps/api/src/app.module.ts
           apps/web/src/app/page.tsx
