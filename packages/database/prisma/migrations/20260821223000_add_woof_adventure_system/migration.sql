@@ -88,6 +88,8 @@ CREATE TABLE "quest_interactions" (
     CONSTRAINT "quest_interactions_pathway_check" CHECK ("pathway" IN ('MOVE', 'EXPLORE', 'ENRICH', 'LEARN', 'CONNECT', 'CARE', 'RECOVER', 'BOND'))
 );
 
+CREATE UNIQUE INDEX "quest_interactions_user_id_pet_id_quest_id_interaction_key"
+    ON "quest_interactions"("user_id", "pet_id", "quest_id", "interaction");
 CREATE INDEX "quest_interactions_user_pet_created_at_idx"
     ON "quest_interactions"("user_id", "pet_id", "created_at" DESC);
 CREATE INDEX "quest_interactions_quest_id_idx"
