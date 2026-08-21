@@ -20,10 +20,6 @@ export class CompleteQuestDto {
   safeOptOut?: boolean;
 
   @IsOptional()
-  @IsBoolean()
-  newPlace?: boolean;
-
-  @IsOptional()
   @IsString()
   memoryAssetId?: string;
 
