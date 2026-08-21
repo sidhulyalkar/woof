@@ -9,6 +9,9 @@ on:
       - 'apps/api/src/care-events/**'
       - 'apps/api/src/activities/**'
       - 'apps/api/src/coaching/**'
+      - 'apps/api/src/auth/authenticated-request.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/gamification/gamification.controller.ts'
       - 'apps/web/.eslintrc.js'
       - 'apps/web/src/app/**'
       - 'apps/web/src/components/bottom-nav.tsx'
@@ -53,6 +56,7 @@ jobs:
       JWT_SECRET: ci-only-adventure-secret
       NODE_ENV: test
       ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +88,8 @@ jobs:
           apps/web/.eslintrc.js
           apps/api/src/adventure
           apps/api/src/care-events
+          apps/api/src/auth/authenticated-request.ts
+          apps/api/src/config/env.validation.ts
           apps/api/src/activities/activities.module.ts
           apps/api/src/activities/activities.service.ts
           apps/api/src/coaching/coaching.controller.ts
@@ -104,6 +110,8 @@ jobs:
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           'src/adventure/**/*.ts'
           'src/care-events/**/*.ts'
+          src/auth/authenticated-request.ts
+          src/config/env.validation.ts
           src/activities/activities.module.ts
           src/activities/activities.service.ts
           src/coaching/coaching.controller.ts
@@ -131,6 +139,12 @@ jobs:
 
       - name: Run reward policy contract tests
         run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
+
+      - name: Run reward ledger integrity tests
+        run: pnpm --filter @woof/api exec jest src/care-events/care-events.integration.spec.ts --runInBand
+
+      - name: Run quest engine contract tests
+        run: pnpm --filter @woof/api exec jest src/adventure/adventure.service.spec.ts --runInBand
 
       - name: Run API tests
         run: pnpm --filter @woof/api exec jest --runInBand
