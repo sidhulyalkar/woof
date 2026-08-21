@@ -1,5 +1,6 @@
 import { Controller, Get, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GamificationService } from './gamification.service';
 
@@ -16,7 +17,7 @@ export class GamificationController {
     description:
       'Read-only compatibility endpoint. All new rewards are issued by trusted domain events through the Adventure System.',
   })
-  async getMySummary(@Request() req: any) {
+  async getMySummary(@Request() req: AuthenticatedRequest) {
     const userId = req.user.sub;
     const [points, badges, streak] = await Promise.all([
       this.gamificationService.getUserPoints(userId),
@@ -26,7 +27,7 @@ export class GamificationController {
 
     return {
       points: points.totalPoints,
-      badges: badges.map((badge: any) => badge.badgeType),
+      badges: badges.map((badge) => badge.badgeType),
       badgeCount: badges.length,
       streak: streak.currentWeek,
       lastActivity: streak.lastActivityAt,
