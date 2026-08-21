@@ -25,8 +25,8 @@ import {
   type HandlerAction,
   behaviorVisionApi,
 } from '@/lib/api/behavior-vision';
-import { useSessionStore } from '@/store/session';
 import { cn } from '@/lib/utils';
+import { useSessionStore } from '@/store/session';
 
 const contexts: Array<{ value: BehaviorContext; label: string }> = [
   { value: 'home', label: 'Home' },
@@ -91,6 +91,8 @@ export default function BehaviorObservePage() {
   const [result, setResult] = useState<BehaviorVisionResult | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [includeAudio, setIncludeAudio] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -135,6 +137,7 @@ export default function BehaviorObservePage() {
         handlerAction,
         leashState,
         otherDogsPresent,
+        includeAudio,
         ownerNote: ownerNote.trim() || undefined,
         question: question.trim() || undefined,
         saveToTimeline: true,
@@ -143,6 +146,7 @@ export default function BehaviorObservePage() {
     onSuccess: (next) => {
       setResult(next);
       void queryClient.invalidateQueries({ queryKey: ['behavior-profile', petId] });
+      void queryClient.invalidateQueries({ queryKey: ['behavior-timeline', petId] });
     },
   });
 
@@ -153,54 +157,88 @@ export default function BehaviorObservePage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['behavior-profile', petId] });
+      void queryClient.invalidateQueries({ queryKey: ['behavior-timeline', petId] });
     },
   });
 
   const selectedPet = pets.find((pet) => pet.id === petId) ?? null;
-  const isVideo = media instanceof File ? media.type.startsWith('video/') : media?.type.startsWith('video/');
+  const isVideo = Boolean(media?.type.startsWith('video/'));
+  const recordingSupported = typeof MediaRecorder !== 'undefined';
 
-  const stopCamera = () => {
-    recorderRef.current?.state === 'recording' && recorderRef.current.stop();
+  const releaseCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    setRecording(false);
+    if (videoRef.current) videoRef.current.srcObject = null;
     setCameraOpen(false);
+    setRecording(false);
+  };
+
+  const cancelCamera = () => {
+    const recorder = recorderRef.current;
+    if (recorder?.state === 'recording') {
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    recorderRef.current = null;
+    chunksRef.current = [];
+    releaseCamera();
   };
 
   const openCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: true,
-    });
-    streamRef.current = stream;
-    setCameraOpen(true);
-    requestAnimationFrame(() => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        void videoRef.current.play();
-      }
-    });
+    setCaptureError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCaptureError('This browser does not expose camera capture. Upload a photo or video instead.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: includeAudio,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      });
+    } catch (error) {
+      setCaptureError(
+        error instanceof Error && error.name === 'NotAllowedError'
+          ? 'Camera permission was not granted. You can still upload existing media.'
+          : 'Woof could not start the camera. Try again or upload existing media.'
+      );
+    }
   };
 
   const capturePhoto = () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) return;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCaptureError('The camera is not ready yet. Try again in a moment.');
+      return;
+    }
     const canvas = document.createElement('canvas');
     const maxWidth = 1280;
     const scale = Math.min(1, maxWidth / video.videoWidth);
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     const context2d = canvas.getContext('2d');
-    if (!context2d) return;
+    if (!context2d) {
+      setCaptureError('This browser could not capture a still image.');
+      return;
+    }
     context2d.drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
-        if (blob) {
-          setMedia(blob);
-          setResult(null);
-          stopCamera();
+        if (!blob) {
+          setCaptureError('Woof could not encode the captured photo.');
+          return;
         }
+        setMedia(blob);
+        setResult(null);
+        releaseCamera();
       },
       'image/jpeg',
       0.88
@@ -210,6 +248,11 @@ export default function BehaviorObservePage() {
   const toggleRecording = () => {
     const stream = streamRef.current;
     if (!stream) return;
+    if (typeof MediaRecorder === 'undefined') {
+      setCaptureError('Video recording is not supported in this browser. Use a photo or file upload.');
+      return;
+    }
+
     if (recorderRef.current?.state === 'recording') {
       recorderRef.current.stop();
       return;
@@ -229,9 +272,12 @@ export default function BehaviorObservePage() {
       if (blob.size) {
         setMedia(blob);
         setResult(null);
+      } else {
+        setCaptureError('The recorded clip was empty. Try a shorter clip or upload a file.');
       }
-      setRecording(false);
-      stopCamera();
+      recorderRef.current = null;
+      chunksRef.current = [];
+      releaseCamera();
     };
     recorder.start(500);
     setRecording(true);
@@ -246,12 +292,14 @@ export default function BehaviorObservePage() {
     setHandlerAction('none');
     setMedia(null);
     setResult(null);
+    setCaptureError(null);
   };
 
   const advanceToRecovery = () => {
     setPhase('recovery');
     setMedia(null);
     setResult(null);
+    setCaptureError(null);
   };
 
   const profile = result?.profile ?? profileQuery.data;
@@ -428,6 +476,24 @@ export default function BehaviorObservePage() {
             </p>
           </div>
 
+          <div className="rounded-2xl border border-border/60 p-4">
+            <label className="flex min-h-11 items-center justify-between gap-4 text-sm font-medium">
+              <span>
+                Include sound
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                  Off by default. Useful only when vocal timing matters.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={includeAudio}
+                disabled={cameraOpen || recording}
+                onChange={(event) => setIncludeAudio(event.target.checked)}
+                className="h-5 w-5"
+              />
+            </label>
+          </div>
+
           {!media && !cameraOpen && (
             <div className="grid grid-cols-2 gap-3">
               <Button type="button" variant="outline" className="h-24 flex-col gap-2" onClick={openCamera}>
@@ -446,6 +512,7 @@ export default function BehaviorObservePage() {
                     if (file) {
                       setMedia(file);
                       setResult(null);
+                      setCaptureError(null);
                     }
                   }}
                 />
@@ -459,7 +526,7 @@ export default function BehaviorObservePage() {
                 <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
                 <button
                   type="button"
-                  onClick={stopCamera}
+                  onClick={cancelCamera}
                   className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white"
                   aria-label="Close camera"
                 >
@@ -471,13 +538,13 @@ export default function BehaviorObservePage() {
                   <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
                   Photo
                 </Button>
-                <Button type="button" onClick={toggleRecording}>
+                <Button type="button" onClick={toggleRecording} disabled={!recordingSupported}>
                   {recording ? (
                     <PauseCircle className="mr-2 h-4 w-4" aria-hidden="true" />
                   ) : (
                     <Video className="mr-2 h-4 w-4" aria-hidden="true" />
                   )}
-                  {recording ? 'Stop' : 'Record 20s'}
+                  {recording ? 'Stop' : recordingSupported ? 'Record 20s' : 'Video unavailable'}
                 </Button>
               </div>
             </div>
@@ -505,9 +572,23 @@ export default function BehaviorObservePage() {
                 </button>
               </div>
               <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-                {isVideo ? <Film className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                Raw media will not be added to your Woof timeline.
+                {isVideo ? (
+                  <Film className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Camera className="h-4 w-4" aria-hidden="true" />
+                )}
+                Raw media will not be added to your Woof timeline. Audio analysis is{' '}
+                {includeAudio ? 'enabled for this observation' : 'disabled'}.
               </div>
+            </div>
+          )}
+
+          {captureError && (
+            <div
+              role="alert"
+              className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm"
+            >
+              {captureError}
             </div>
           )}
         </section>
@@ -525,7 +606,8 @@ export default function BehaviorObservePage() {
             />
           </label>
           <label className="block text-sm font-semibold">
-            What are you trying to understand? <span className="font-normal text-muted-foreground">Optional</span>
+            What are you trying to understand?{' '}
+            <span className="font-normal text-muted-foreground">Optional</span>
             <input
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
@@ -551,7 +633,10 @@ export default function BehaviorObservePage() {
         </Button>
 
         {analyzeMutation.isError && (
-          <div role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <div
+            role="alert"
+            className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm"
+          >
             {analyzeMutation.error instanceof Error
               ? analyzeMutation.error.message
               : 'Behavior analysis could not be completed.'}
@@ -638,7 +723,9 @@ export default function BehaviorObservePage() {
 
             {result.observationId && (
               <div className="border-t border-border/60 pt-4">
-                <p className="text-xs font-medium text-muted-foreground">Did Woof read the visible behavior correctly?</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Did Woof describe the visible behavior correctly?
+                </p>
                 <div className="mt-2 flex gap-2">
                   <Button
                     type="button"
@@ -647,7 +734,7 @@ export default function BehaviorObservePage() {
                     onClick={() => feedbackMutation.mutate({ accurate: true })}
                     disabled={feedbackMutation.isPending}
                   >
-                    <CheckCircle2 className="mr-1.5 h-4 w-4" /> Yes
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" aria-hidden="true" /> Yes
                   </Button>
                   <Button
                     type="button"
@@ -663,7 +750,12 @@ export default function BehaviorObservePage() {
             )}
 
             {phase === 'baseline' && (
-              <Button type="button" variant="secondary" className="w-full" onClick={advanceToRecovery}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={advanceToRecovery}
+              >
                 I changed one thing · record recovery
               </Button>
             )}
