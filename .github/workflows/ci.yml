@@ -49,23 +49,35 @@ jobs:
           apps/api/jest.config.js
           apps/api/test/jest-e2e.json
           apps/api/test/auth.e2e-spec.ts
+          apps/api/src/adventure
+          apps/api/src/care-events
+          apps/api/src/activities/activities.module.ts
+          apps/api/src/activities/activities.service.ts
           apps/api/src/behavior-vision
           apps/api/src/coaching
           apps/api/src/compatibility/compatibility.types.ts
+          apps/api/src/gamification/gamification.controller.ts
           apps/api/src/ml/ml.service.ts
           apps/api/src/ml/ml.service.spec.ts
           apps/web/package.json
           apps/web/vitest.config.ts
           apps/web/playwright.config.ts
           apps/web/src/lib/api-client.ts
+          apps/web/src/lib/api/adventure.ts
           apps/web/src/lib/api/behavior-vision.ts
           apps/web/src/lib/api/coaching.ts
+          apps/web/src/lib/api/pack.ts
           apps/web/src/components/bottom-nav.tsx
+          apps/web/src/app/page.tsx
+          apps/web/src/app/compass
+          apps/web/src/app/journey
+          apps/web/src/app/pack
           apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/page.tsx
           apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/coach/observe/history/page.tsx
           apps/web/e2e
-          ml/behavior_vision/model_registry.json
+          ml/behavior_vision
           packages/ui/package.json
 
       - name: Lint
@@ -83,6 +95,7 @@ jobs:
           ml.evaluation.test_promotion_gate
           ml.evaluation.test_release_attestation
           ml.simulation.test_generate_pair_scenarios
+          ml.behavior_vision.test_pipeline
 
   test-backend:
     name: Backend tests
