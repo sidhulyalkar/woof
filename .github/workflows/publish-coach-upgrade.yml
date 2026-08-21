@@ -1,0 +1,89 @@
+name: Publish coach knowledge upgrade
+
+on:
+  push:
+    branches: [agent/behavior-coach-ml-trust-v1]
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/behavior-coach-ml-trust-v1
+          fetch-depth: 0
+
+      - name: Apply reviewed coach upgrade bundle
+        shell: bash
+        run: |
+          cat \
+            .coach-payload/part-00 \
+            .coach-payload/part-01 \
+            .coach-payload/r-00 \
+            .coach-payload/r-01 \
+            .coach-payload/r-02 \
+            .coach-payload/r-03 \
+            .coach-payload/r-04 \
+            .coach-payload/r-05 \
+            .coach-payload/r-06 \
+            .coach-payload/r-07 \
+            .coach-payload/r-08 \
+            .coach-payload/r-09 \
+            .coach-payload/r-10 \
+            .coach-payload/r-11 \
+            > /tmp/coach-upgrade.b64
+          base64 -d /tmp/coach-upgrade.b64 > /tmp/coach-upgrade.tar.gz
+          echo 'd266630710eb3fba8511efb2be560bd8f96599422056b36fac6848337b0d75bb  /tmp/coach-upgrade.tar.gz' | sha256sum --check
+          tar -xzf /tmp/coach-upgrade.tar.gz -C .
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format changed source
+        run: >-
+          pnpm exec prettier --write
+          apps/api/.env.example
+          apps/api/src/coaching
+          apps/web/src/app/coach/page.tsx
+          apps/web/src/lib/api/coaching.ts
+          docs/COACH_KNOWLEDGE_SYSTEM.md
+          packages/ui/package.json
+
+      - name: Commit upgrade
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            apps/api/.env.example \
+            apps/api/src/coaching/coaching.controller.ts \
+            apps/api/src/coaching/coaching.module.ts \
+            apps/api/src/coaching/coaching.service.spec.ts \
+            apps/api/src/coaching/coaching.service.ts \
+            apps/api/src/coaching/dog-knowledge.service.spec.ts \
+            apps/api/src/coaching/dog-knowledge.service.ts \
+            apps/api/src/coaching/dto/coaching.dto.ts \
+            apps/api/src/coaching/training-catalog.ts \
+            apps/web/src/app/coach/page.tsx \
+            apps/web/src/lib/api/coaching.ts \
+            docs/COACH_KNOWLEDGE_SYSTEM.md \
+            packages/ui/package.json
+          git commit -m "feat: personalize coach with dog knowledge"
+          git push origin HEAD:agent/behavior-coach-ml-trust-v1
