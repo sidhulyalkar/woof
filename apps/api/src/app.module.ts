@@ -8,6 +8,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { BehaviorVisionModule } from './behavior-vision/behavior-vision.module';
 import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
@@ -68,6 +69,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     VerificationModule,
     CoActivityModule,
     CoachingModule,
+    BehaviorVisionModule,
     HealthLensModule,
     AnalyticsModule,
     StorageModule,
