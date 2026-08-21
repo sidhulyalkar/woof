@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock3, Video } from 'lucide-react';
+import { Clock3, Images, Video } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -16,13 +16,22 @@ export default function CoachLayout({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <Link
-        href={href}
-        className="fixed bottom-24 right-4 z-40 flex min-h-11 items-center gap-2 rounded-full border border-primary/20 bg-background/95 px-4 py-2 text-sm font-semibold text-primary shadow-lg backdrop-blur-xl transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5"
-      >
-        <Icon className="h-4 w-4" aria-hidden="true" />
-        {label}
-      </Link>
+      <div className="fixed bottom-24 right-4 z-40 flex items-center gap-2">
+        <Link
+          href="/library"
+          aria-label="Open private pet media library"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-background/95 text-muted-foreground shadow-lg backdrop-blur-xl transition-transform hover:-translate-y-0.5 hover:text-foreground focus-visible:-translate-y-0.5"
+        >
+          <Images className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        <Link
+          href={href}
+          className="flex min-h-11 items-center gap-2 rounded-full border border-primary/20 bg-background/95 px-4 py-2 text-sm font-semibold text-primary shadow-lg backdrop-blur-xl transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5"
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+          {label}
+        </Link>
+      </div>
     </>
   );
 }
