@@ -64,7 +64,9 @@ const EMERGENCY_PATTERNS: Array<{ id: string; patterns: RegExp[] }> = [
     id: 'gdv-bloat',
     patterns: [
       /(?:swollen|distended|bloated|hard) (?:belly|abdomen).*(?:retch|dry heav|trying to vomit)/i,
+      /(?:belly|abdomen).*(?:swollen|distended|bloated|hard).*(?:retch|dry heav|trying to vomit)/i,
       /(?:retch|dry heav|trying to vomit).*(?:swollen|distended|bloated|hard) (?:belly|abdomen)/i,
+      /(?:retch|dry heav|trying to vomit).*(?:belly|abdomen).*(?:swollen|distended|bloated|hard)/i,
     ],
   },
   {
