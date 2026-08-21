@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Brain,
   Check,
-  Compass,
   Footprints,
   Heart,
   HeartHandshake,
