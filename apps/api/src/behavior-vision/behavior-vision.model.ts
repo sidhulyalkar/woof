@@ -59,6 +59,7 @@ export class BehaviorVisionModelService {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const audioAllowed = input.context.audioAnalysisAllowed === true;
 
     try {
       const form = new FormData();
@@ -76,6 +77,7 @@ export class BehaviorVisionModelService {
             noAutomaticGreetingRecommendation: true,
             noHumanFaceRecognition: true,
             noBiometricIdentityInference: true,
+            audioAnalysisAllowed: audioAllowed,
           },
         })
       );
@@ -106,7 +108,7 @@ export class BehaviorVisionModelService {
       }
 
       const payload = (await response.json()) as BehaviorVisionModelAnalysis;
-      return this.validate(payload);
+      return this.validate(payload, audioAllowed);
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
@@ -121,7 +123,10 @@ export class BehaviorVisionModelService {
     }
   }
 
-  private validate(result: BehaviorVisionModelAnalysis): BehaviorVisionModelAnalysis {
+  private validate(
+    result: BehaviorVisionModelAnalysis,
+    audioAllowed: boolean
+  ): BehaviorVisionModelAnalysis {
     if (
       !result ||
       result.schemaVersion !== BEHAVIOR_OBSERVATION_SCHEMA_VERSION ||
@@ -141,11 +146,27 @@ export class BehaviorVisionModelService {
     const allowedDimensions = new Set<BehaviorDimension>(BEHAVIOR_DIMENSIONS);
     const dimensions = result.dimensions
       .filter((entry) => allowedDimensions.has(entry.dimension))
+      .filter(
+        (entry) =>
+          audioAllowed ||
+          !Array.isArray(entry.basis) ||
+          !entry.basis.some((basis) => basis.toLowerCase().includes('audio'))
+      )
       .map((entry) => ({
         ...entry,
         value: this.clamp01(entry.value),
         confidence: this.clamp01(entry.confidence),
-        basis: Array.isArray(entry.basis) ? entry.basis.slice(0, 8) : [],
+        basis: Array.isArray(entry.basis)
+          ? entry.basis.filter((basis) => audioAllowed || !basis.toLowerCase().includes('audio')).slice(0, 8)
+          : [],
+      }));
+
+    const evidence = result.evidence
+      .filter((entry) => audioAllowed || entry.source !== 'audio')
+      .slice(0, 40)
+      .map((entry) => ({
+        ...entry,
+        confidence: this.clamp01(entry.confidence),
       }));
 
     return {
@@ -160,10 +181,7 @@ export class BehaviorVisionModelService {
           ? result.mediaQuality.recaptureInstructions.slice(0, 6)
           : [],
       },
-      evidence: result.evidence.slice(0, 40).map((entry) => ({
-        ...entry,
-        confidence: this.clamp01(entry.confidence),
-      })),
+      evidence,
       dimensions,
       hypotheses: result.hypotheses.slice(0, 6).map((entry) => ({
         ...entry,
