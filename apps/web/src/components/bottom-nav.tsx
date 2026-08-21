@@ -1,6 +1,6 @@
 'use client';
 
-import { Brain, Compass, Home, MessageCircle, User } from 'lucide-react';
+import { Brain, Compass, HeartPulse, Home, User } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,7 @@ const navItems = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/discover', icon: Compass, label: 'Discover' },
   { href: '/coach', icon: Brain, label: 'Coach', isSpecial: true },
-  { href: '/inbox', icon: MessageCircle, label: 'Inbox' },
+  { href: '/health', icon: HeartPulse, label: 'Health' },
   { href: '/profile', icon: User, label: 'Profile' },
 ];
 
@@ -38,10 +38,7 @@ export function BottomNav() {
                   isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20'
                 )}
               >
-                <Icon
-                  className="h-6 w-6 transition-transform group-hover:scale-105"
-                  aria-hidden="true"
-                />
+                <Icon className="h-6 w-6 transition-transform group-hover:scale-105" aria-hidden="true" />
                 <span className="sr-only">{item.label}</span>
               </Link>
             );
