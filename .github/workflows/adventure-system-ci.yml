@@ -1,0 +1,113 @@
+name: Adventure System CI
+
+on:
+  push:
+    branches: [agent/woof-adventure-system-v1]
+  pull_request:
+    paths:
+      - 'apps/api/src/adventure/**'
+      - 'apps/api/src/care-events/**'
+      - 'apps/api/src/activities/**'
+      - 'apps/api/src/coaching/**'
+      - 'apps/web/src/app/**'
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/lib/api/**'
+      - 'packages/database/prisma/migrations/**'
+      - '.github/workflows/adventure-system-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adventure-system-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+jobs:
+  qualify:
+    name: Adventure redesign qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-adventure-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check redesign formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/adventure
+          apps/api/src/care-events
+          apps/api/src/activities/activities.module.ts
+          apps/api/src/activities/activities.service.ts
+          apps/api/src/coaching/coaching.controller.ts
+          apps/api/src/coaching/coaching.module.ts
+          apps/api/src/gamification/gamification.controller.ts
+          apps/api/src/app.module.ts
+          apps/web/src/app/page.tsx
+          apps/web/src/app/compass
+          apps/web/src/app/journey
+          apps/web/src/app/pack
+          apps/web/src/components/bottom-nav.tsx
+          apps/web/src/lib/api/adventure.ts
+          apps/web/src/lib/api/pack.ts
+
+      - name: Lint monorepo
+        run: pnpm lint
+
+      - name: Type-check monorepo
+        run: pnpm type-check
+
+      - name: Run reward policy contract tests
+        run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
+
+      - name: Run API tests
+        run: pnpm --filter @woof/api exec jest --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
