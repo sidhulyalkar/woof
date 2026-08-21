@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
@@ -24,6 +25,8 @@ import {
 @UseGuards(JwtAuthGuard)
 @Controller('coaching')
 export class CoachingController {
+  private readonly logger = new Logger(CoachingController.name);
+
   constructor(
     private readonly coachingService: CoachingService,
     private readonly careEvents: CareEventsService
@@ -64,29 +67,38 @@ export class CoachingController {
     if (petId) {
       const concernSignals = dto.stressSignals ?? [];
       const listenedAndStopped = Boolean(dto.stoppedEarly && concernSignals.length > 0);
-      await this.careEvents.record({
-        userId: req.user.sub,
-        petId,
-        eventType: listenedAndStopped ? 'SAFE_OPT_OUT' : 'TRAINING_SESSION',
-        pathway: listenedAndStopped ? 'BOND' : 'LEARN',
-        source: 'WOOF_COACH',
-        evidenceType: 'COACH',
-        evidenceConfidence: 0.86,
-        dedupeKey: `coach:${result.activityId}`,
-        safetyEligible: listenedAndStopped || concernSignals.length === 0,
-        context: {
-          planId,
-          activityId: result.activityId,
-          attempts: dto.attempts,
-          successes: dto.successes,
-          durationSeconds: dto.durationSeconds,
-        },
-        outcome: {
-          stressSignals: concernSignals,
-          stoppedEarly: dto.stoppedEarly ?? false,
-          safeOptOut: listenedAndStopped,
-        },
-      });
+
+      try {
+        await this.careEvents.record({
+          userId: req.user.sub,
+          petId,
+          eventType: listenedAndStopped ? 'SAFE_OPT_OUT' : 'TRAINING_SESSION',
+          pathway: listenedAndStopped ? 'BOND' : 'LEARN',
+          source: 'WOOF_COACH',
+          evidenceType: 'COACH',
+          evidenceConfidence: 0.86,
+          dedupeKey: `coach:${result.activityId}`,
+          safetyEligible: listenedAndStopped || concernSignals.length === 0,
+          context: {
+            planId,
+            activityId: result.activityId,
+            attempts: dto.attempts,
+            successes: dto.successes,
+            durationSeconds: dto.durationSeconds,
+          },
+          outcome: {
+            stressSignals: concernSignals,
+            stoppedEarly: dto.stoppedEarly ?? false,
+            safeOptOut: listenedAndStopped,
+          },
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Coach session ${result.activityId} was saved, but Adventure reward emission failed: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`
+        );
+      }
     }
 
     return result;
