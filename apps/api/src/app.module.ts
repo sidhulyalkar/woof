@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule, type ThrottlerModuleOptions } from '@nestjs/throttler';
 import { ABTestModule } from './ab-testing/ab-test.module';
 import { ActivitiesModule } from './activities/activities.module';
+import { AdventureModule } from './adventure/adventure.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -62,6 +63,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     UsersModule,
     PetsModule,
     ActivitiesModule,
+    AdventureModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,
