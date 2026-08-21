@@ -63,6 +63,11 @@ export class AnalyzeBehaviorMediaDto {
   familiarDog?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeAudio?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(800)
   ownerNote?: string;
