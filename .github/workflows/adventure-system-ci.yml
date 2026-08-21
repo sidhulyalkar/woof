@@ -101,7 +101,7 @@ jobs:
 
       - name: Lint Adventure API changes
         run: >-
-          pnpm --filter @woof/api exec eslint --quiet --max-warnings=0
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           'src/adventure/**/*.ts'
           'src/care-events/**/*.ts'
           src/activities/activities.module.ts
@@ -113,7 +113,7 @@ jobs:
 
       - name: Lint Adventure web changes
         run: >-
-          pnpm --filter @woof/web exec eslint --quiet --max-warnings=0
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           src/app/page.tsx
           src/app/compass/page.tsx
           src/app/health/page.tsx
