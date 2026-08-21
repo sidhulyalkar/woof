@@ -100,19 +100,35 @@ export class StorageService {
     file: Express.Multer.File,
     folder = 'private/uploads',
   ): Promise<PrivateUploadResult> {
+    return this.uploadPrivateBytes({
+      bytes: file.buffer,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      folder,
+    });
+  }
+
+  async uploadPrivateBytes(input: {
+    bytes: Buffer | Uint8Array;
+    filename: string;
+    contentType: string;
+    folder?: string;
+  }): Promise<PrivateUploadResult> {
     const client = this.requireClient();
-    const key = this.generateKey(file.originalname, folder);
+    const folder = input.folder ?? 'private/uploads';
+    const key = this.generateKey(input.filename, folder);
+    const bytes = Buffer.isBuffer(input.bytes) ? input.bytes : Buffer.from(input.bytes);
 
     try {
       await client.send(
         new PutObjectCommand({
           Bucket: this.bucket,
           Key: key,
-          Body: file.buffer,
-          ContentType: file.mimetype,
+          Body: bytes,
+          ContentType: input.contentType,
           Metadata: {
-            originalName: file.originalname.slice(0, 240),
-            size: String(file.size),
+            originalName: input.filename.slice(0, 240),
+            size: String(bytes.byteLength),
           },
         }),
       );
