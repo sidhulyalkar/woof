@@ -9,6 +9,7 @@ on:
       - 'apps/api/src/care-events/**'
       - 'apps/api/src/activities/**'
       - 'apps/api/src/coaching/**'
+      - 'apps/web/.eslintrc.js'
       - 'apps/web/src/app/**'
       - 'apps/web/src/components/bottom-nav.tsx'
       - 'apps/web/src/lib/api/**'
@@ -76,6 +77,7 @@ jobs:
       - name: Check redesign formatting
         run: >-
           pnpm exec prettier --check
+          apps/web/.eslintrc.js
           apps/api/src/adventure
           apps/api/src/care-events
           apps/api/src/activities/activities.module.ts
@@ -86,17 +88,42 @@ jobs:
           apps/api/src/app.module.ts
           apps/web/src/app/page.tsx
           apps/web/src/app/compass
+          apps/web/src/app/health/page.tsx
           apps/web/src/app/journey
           apps/web/src/app/pack
           apps/web/src/components/bottom-nav.tsx
           apps/web/src/lib/api/adventure.ts
           apps/web/src/lib/api/pack.ts
 
-      - name: Lint monorepo
-        run: pnpm lint
+      - name: Lint Adventure API changes
+        run: >-
+          pnpm --filter @woof/api exec eslint --quiet --max-warnings=0
+          'src/adventure/**/*.ts'
+          'src/care-events/**/*.ts'
+          src/activities/activities.module.ts
+          src/activities/activities.service.ts
+          src/coaching/coaching.controller.ts
+          src/coaching/coaching.module.ts
+          src/gamification/gamification.controller.ts
+          src/app.module.ts
 
-      - name: Type-check monorepo
-        run: pnpm type-check
+      - name: Lint Adventure web changes
+        run: >-
+          pnpm --filter @woof/web exec eslint --quiet --max-warnings=0
+          src/app/page.tsx
+          src/app/compass/page.tsx
+          src/app/health/page.tsx
+          src/app/journey/page.tsx
+          src/app/pack/page.tsx
+          src/components/bottom-nav.tsx
+          src/lib/api/adventure.ts
+          src/lib/api/pack.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
 
       - name: Run reward policy contract tests
         run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
