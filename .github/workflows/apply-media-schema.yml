@@ -1,0 +1,204 @@
+name: Apply Pet Media Prisma schema
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  schema:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install exact locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Patch Prisma catalog models
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/database/prisma/schema.prisma')
+          text = path.read_text()
+          if 'model MediaAsset {' in text:
+              print('Media schema already present')
+              raise SystemExit(0)
+
+          user_anchor = '  locationPings           LocationPing[] @relation("UserLocationPings")\n\n  @@map("users")'
+          user_replacement = '''  locationPings           LocationPing[] @relation("UserLocationPings")
+          mediaAssets             MediaAsset[]
+          mediaAlbums             MediaAlbum[]
+          mediaExternalReferences MediaExternalReference[]
+
+          @@map("users")'''
+          if user_anchor not in text:
+              raise SystemExit('Could not find User relation anchor')
+          text = text.replace(user_anchor, user_replacement, 1)
+
+          pet_anchor = '  verifications Verification[] @relation("PetVerifications")\n\n  @@index([ownerId])'
+          pet_replacement = '''  verifications            Verification[] @relation("PetVerifications")
+          mediaAssets              MediaAsset[]
+          mediaAlbums              MediaAlbum[]
+          mediaExternalReferences MediaExternalReference[]
+
+          @@index([ownerId])'''
+          if pet_anchor not in text:
+              raise SystemExit('Could not find Pet relation anchor')
+          text = text.replace(pet_anchor, pet_replacement, 1)
+
+          text += r'''
+
+          // ============================================
+          // PRIVATE PET MEDIA LIBRARY
+          // ============================================
+
+          model MediaAsset {
+            id                   String   @id @default(uuid())
+            ownerId              String   @map("owner_id")
+            petId                String   @map("pet_id")
+            storageKey           String   @unique @map("storage_key")
+            filename             String
+            mimeType             String   @map("mime_type")
+            mediaType            String   @map("media_type")
+            sizeBytes            BigInt   @map("size_bytes")
+            capturedAt           DateTime? @map("captured_at")
+            source               String
+            provider             String?
+            providerItemId       String?  @map("provider_item_id")
+            favorite             Boolean  @default(false)
+            status               String   @default("PENDING")
+            createdFrom          String   @map("created_from")
+            sha256               String?
+            width                Int?
+            height               Int?
+            durationMs           Int?     @map("duration_ms")
+            uploadExpiresAt      DateTime? @map("upload_expires_at")
+            completedAt          DateTime? @map("completed_at")
+            tags                 Json     @default("[]")
+            linkedObservationIds String[] @default([]) @map("linked_observation_ids")
+            createdAt            DateTime @default(now()) @map("created_at")
+            updatedAt            DateTime @updatedAt @map("updated_at")
+
+            owner        User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+            pet          Pet                      @relation(fields: [petId], references: [id], onDelete: Cascade)
+            albumLinks   MediaAlbumAsset[]
+            derivatives  MediaDerivative[]
+            externalRefs MediaExternalReference[]
+
+            @@index([ownerId, createdAt(sort: Desc)])
+            @@index([petId, capturedAt(sort: Desc)])
+            @@index([petId, mediaType, capturedAt(sort: Desc)])
+            @@index([provider, providerItemId])
+            @@index([sha256])
+            @@index([status, createdAt])
+            @@map("media_assets")
+          }
+
+          model MediaAlbum {
+            id           String   @id @default(uuid())
+            ownerId      String   @map("owner_id")
+            petId        String   @map("pet_id")
+            name         String
+            description  String?
+            coverAssetId String?  @map("cover_asset_id")
+            createdAt    DateTime @default(now()) @map("created_at")
+            updatedAt    DateTime @updatedAt @map("updated_at")
+
+            owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+            pet   Pet  @relation(fields: [petId], references: [id], onDelete: Cascade)
+            assets MediaAlbumAsset[]
+
+            @@index([ownerId, petId, createdAt])
+            @@map("media_albums")
+          }
+
+          model MediaAlbumAsset {
+            albumId String   @map("album_id")
+            assetId String   @map("asset_id")
+            addedAt DateTime @default(now()) @map("added_at")
+
+            album MediaAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+            asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+            @@id([albumId, assetId])
+            @@index([assetId])
+            @@map("media_album_assets")
+          }
+
+          model MediaDerivative {
+            id               String   @id @default(uuid())
+            assetId          String   @map("asset_id")
+            kind             String
+            processorVersion String   @map("processor_version")
+            storageKey       String   @unique @map("storage_key")
+            mimeType         String?  @map("mime_type")
+            sizeBytes        BigInt?  @map("size_bytes")
+            status           String   @default("PENDING")
+            metadata         Json?
+            createdAt        DateTime @default(now()) @map("created_at")
+            updatedAt        DateTime @updatedAt @map("updated_at")
+
+            asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+            @@unique([assetId, kind, processorVersion])
+            @@index([status, createdAt])
+            @@map("media_derivatives")
+          }
+
+          model MediaExternalReference {
+            id             String   @id @default(uuid())
+            assetId        String   @map("asset_id")
+            ownerId        String   @map("owner_id")
+            petId          String   @map("pet_id")
+            provider       String
+            providerItemId String?  @map("provider_item_id")
+            metadata       Json?
+            createdAt      DateTime @default(now()) @map("created_at")
+
+            asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+            owner User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+            pet   Pet        @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+            @@index([ownerId, provider, providerItemId])
+            @@index([petId, provider])
+            @@map("media_external_references")
+          }
+          '''
+
+          path.write_text(text)
+          PY
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @woof/database exec prisma format && pnpm --filter @woof/database db:generate
+
+      - name: Commit schema
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/database/prisma/schema.prisma
+          if git diff --cached --quiet; then
+            echo "No schema change required."
+            exit 0
+          fi
+          git commit -m "feat(db): register private pet media Prisma models"
+          git push origin HEAD:agent/pet-media-library-v1
