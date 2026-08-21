@@ -22,6 +22,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(20).optional(),
   OPENAI_HEALTH_MODEL: z.string().default('gpt-5.6-luna'),
   OPENAI_HEALTH_TIMEOUT_MS: z.coerce.number().int().min(3000).max(30000).default(12000),
+  BEHAVIOR_VISION_SERVICE_URL: z.string().url().optional(),
+  BEHAVIOR_VISION_SERVICE_TOKEN: z.string().min(16).optional(),
+  BEHAVIOR_VISION_TIMEOUT_MS: z.coerce.number().int().min(5000).max(90000).default(45000),
 });
 
 export function validateEnvironment(config: Record<string, unknown>) {
@@ -46,6 +49,12 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
     if (env.VAPID_PRIVATE_KEY && knownDevelopmentSecret.test(env.VAPID_PRIVATE_KEY)) {
       throw new Error('VAPID_PRIVATE_KEY must be replaced with a production key before startup');
+    }
+
+    if (env.BEHAVIOR_VISION_SERVICE_URL && !env.BEHAVIOR_VISION_SERVICE_TOKEN) {
+      throw new Error(
+        'BEHAVIOR_VISION_SERVICE_TOKEN is required when the behavior vision service is enabled in production'
+      );
     }
   }
 
