@@ -16,6 +16,7 @@ import MapScreen from '../screens/MapScreen';
 import EventsScreen from '../screens/EventsScreen';
 import PetsListScreen from '../screens/PetsListScreen';
 import GoalsScreen from '../screens/GoalsScreen';
+import MediaLibraryScreen from '../screens/MediaLibraryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 export type RootStackParamList = {
@@ -30,6 +31,7 @@ export type MainTabParamList = {
   Events: undefined;
   Pets: undefined;
   Goals: undefined;
+  Library: undefined;
   Profile: undefined;
 };
 
@@ -53,6 +55,8 @@ const MainTabs = () => {
             iconName = focused ? 'paw' : 'paw-outline';
           } else if (route.name === 'Goals') {
             iconName = focused ? 'trophy' : 'trophy-outline';
+          } else if (route.name === 'Library') {
+            iconName = focused ? 'images' : 'images-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -62,13 +66,14 @@ const MainTabs = () => {
         tabBarActiveTintColor: '#8B5CF6',
         tabBarInactiveTintColor: '#6b7280',
         headerShown: false,
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '600' },
         tabBarStyle: {
           backgroundColor: '#ffffff',
           borderTopWidth: 1,
           borderTopColor: '#e5e7eb',
           paddingBottom: 5,
           paddingTop: 5,
-          height: 60,
+          height: 64,
         },
       })}
     >
@@ -77,6 +82,7 @@ const MainTabs = () => {
       <Tab.Screen name="Events" component={EventsScreen} />
       <Tab.Screen name="Pets" component={PetsListScreen} />
       <Tab.Screen name="Goals" component={GoalsScreen} />
+      <Tab.Screen name="Library" component={MediaLibraryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -107,9 +113,7 @@ export const AppNavigator = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
-          <>
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-          </>
+          <Stack.Screen name="MainTabs" component={MainTabs} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
