@@ -1,13 +1,15 @@
-"""Woof internal ML compatibility service.
+"""Woof internal learned compatibility service.
 
-The product API owns authorization, safety filters, model routing and fallback behavior.
-This process has one job: accept the canonical compatibility feature contract and
-return the same score envelope used by the deterministic scorer.
+The service supports two learned paths:
 
-The historical neural checkpoint is intentionally exposed as a *shadow adapter*.
-It was trained on older synthetic features (including size/weight) that the current
-product does not require. We therefore use neutral legacy placeholders, cap its
-confidence, and mark it uncalibrated so it cannot be promoted accidentally.
+1. A canonical tabular candidate trained on the same behavior/outcome contract as
+   the product API. It may emit ``releaseStatus=promoted`` only when its exact
+   model, calibration, feature-contract and training-manifest bytes verify against
+   a signed promotion receipt.
+2. The historical neural checkpoint, retained as a low-confidence shadow adapter.
+
+The NestJS API remains the authorization, safety-filtering and deterministic
+fallback authority.
 """
 
 from __future__ import annotations
@@ -19,27 +21,42 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import joblib
+import numpy as np
 import redis
 import torch
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from ml.common.attestation import load_json, sha256_file, verify_release_receipt
 from models.compatibility_model import load_model as load_compat_model
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_VERSION = "legacy-neural-adapter-v1"
 FEATURE_VERSION = "compatibility-features-v1"
-CALIBRATION_VERSION = "uncalibrated-shadow-v1"
-MODEL_PATH = BASE_DIR / "models" / "compatibility_model.pth"
+LEGACY_MODEL_VERSION = "legacy-neural-adapter-v1"
+LEGACY_CALIBRATION_VERSION = "uncalibrated-shadow-v1"
+LEGACY_MODEL_PATH = BASE_DIR / "models" / "compatibility_model.pth"
 BREED_ENCODING_PATH = BASE_DIR / "data" / "breed_encoding.json"
+CANONICAL_DIR = Path(os.getenv("ML_CANONICAL_CANDIDATE_DIR", str(BASE_DIR / "artifacts" / "canonical")))
+CANONICAL_MODEL_PATH = CANONICAL_DIR / "compatibility_model.joblib"
+CANONICAL_CALIBRATION_PATH = CANONICAL_DIR / "calibration.joblib"
+CANONICAL_MANIFEST_PATH = CANONICAL_DIR / "training_manifest.json"
+CANONICAL_FEATURE_CONTRACT_PATH = CANONICAL_DIR / "feature_contract.json"
+CANONICAL_RECEIPT_PATH = CANONICAL_DIR / "promotion_receipt.json"
 
 app = FastAPI(
     title="Woof Compatibility Model Service",
     description="Internal learned compatibility scoring behind the Woof API router.",
-    version="3.0.0-beta.1",
+    version="4.0.0-beta.1",
 )
 
 MODELS: Dict[str, Any] = {}
+RELEASE_STATE: Dict[str, Any] = {
+    "canonicalLoaded": False,
+    "attestationVerified": False,
+    "attestationFailures": [],
+    "releaseStatus": "shadow",
+}
 
 try:
     redis_client = redis.Redis(
@@ -89,6 +106,13 @@ class CompatibilityRequest(BaseModel):
     outcomes: OutcomeFeatures
 
 
+class ArtifactHashes(BaseModel):
+    modelSha256: str
+    calibrationSha256: str
+    trainingManifestSha256: str
+    featureContractSha256: str
+
+
 class Provenance(BaseModel):
     scorer: str
     modelVersion: str
@@ -97,6 +121,10 @@ class Provenance(BaseModel):
     generatedAt: str
     fallback: bool = False
     fallbackReason: Optional[str] = None
+    releaseStatus: str = "shadow"
+    attestationId: Optional[str] = None
+    promotionReceiptSha256: Optional[str] = None
+    artifactHashes: Optional[ArtifactHashes] = None
 
 
 class CompatibilityResponse(BaseModel):
@@ -108,10 +136,23 @@ class CompatibilityResponse(BaseModel):
     provenance: Provenance
 
 
+def _active_identity() -> str:
+    if "canonical" in MODELS:
+        canonical = MODELS["canonical"]
+        return ":".join(
+            [
+                str(canonical["modelVersion"]),
+                str(RELEASE_STATE.get("releaseStatus", "shadow")),
+                str(RELEASE_STATE.get("attestationId") or "unattested"),
+            ]
+        )
+    return LEGACY_MODEL_VERSION
+
+
 def _cache_key(request: CompatibilityRequest) -> str:
     payload = request.model_dump_json(exclude_none=True)
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-    return f"woof:compatibility:v1:{digest}"
+    digest = hashlib.sha256(f"{_active_identity()}:{payload}".encode("utf-8")).hexdigest()
+    return f"woof:compatibility:v2:{digest}"
 
 
 def _get_cached(key: str) -> Optional[Dict[str, Any]]:
@@ -131,6 +172,79 @@ def _set_cached(key: str, value: Dict[str, Any]) -> None:
         redis_client.setex(key, 900, json.dumps(value))
     except Exception:
         return
+
+
+def _clip(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
+
+
+def _canonical_feature_row(request: CompatibilityRequest) -> Dict[str, float]:
+    pet_a = request.petA
+    pet_b = request.petB
+    output: Dict[str, float] = {}
+    trait_names = ("energy", "sociability", "caution", "excitability", "trainability")
+    observed_a = 0
+    observed_b = 0
+    for trait in trait_names:
+        raw_a = getattr(pet_a.behavior, trait)
+        raw_b = getattr(pet_b.behavior, trait)
+        observed_a += int(raw_a is not None)
+        observed_b += int(raw_b is not None)
+        a = _clip(float(raw_a if raw_a is not None else 0.5), 0.0, 1.0)
+        b = _clip(float(raw_b if raw_b is not None else 0.5), 0.0, 1.0)
+        output[f"{trait}_mean"] = (a + b) / 2.0
+        output[f"{trait}_gap"] = abs(a - b)
+
+    risk_a = _clip(float(pet_a.behavior.socialRisk if pet_a.behavior.socialRisk is not None else 0.25), 0.0, 1.0)
+    risk_b = _clip(float(pet_b.behavior.socialRisk if pet_b.behavior.socialRisk is not None else 0.25), 0.0, 1.0)
+    output["social_risk_mean"] = (risk_a + risk_b) / 2.0
+    output["social_risk_max"] = max(risk_a, risk_b)
+
+    age_a = _clip(float(pet_a.ageYears if pet_a.ageYears is not None else 5.0), 0.0, 25.0)
+    age_b = _clip(float(pet_b.ageYears if pet_b.ageYears is not None else 5.0), 0.0, 25.0)
+    output["age_mean_scaled"] = _clip(((age_a + age_b) / 2.0) / 15.0, 0.0, 1.5)
+    output["age_gap_scaled"] = _clip(abs(age_a - age_b) / 10.0, 0.0, 1.5)
+    coverage_a = observed_a / len(trait_names)
+    coverage_b = observed_b / len(trait_names)
+    output["coverage_mean"] = (coverage_a + coverage_b) / 2.0
+    output["coverage_min"] = min(coverage_a, coverage_b)
+
+    prior_count = max(0.0, float(request.outcomes.sampleCount))
+    output["prior_outcome_log_count"] = float(np.log1p(prior_count))
+    output["prior_mean_rating_scaled"] = _clip(
+        float(request.outcomes.meanRating if request.outcomes.meanRating is not None else 0.0),
+        0.0,
+        5.0,
+    ) / 5.0
+    output["prior_positive_rate"] = _clip(
+        float(request.outcomes.positiveRate if request.outcomes.positiveRate is not None else 0.0),
+        0.0,
+        1.0,
+    )
+    output["prior_repeat_log_count"] = float(np.log1p(max(0.0, request.outcomes.repeatMeetupCount)))
+    days = float(request.outcomes.lastOutcomeDaysAgo) if request.outcomes.lastOutcomeDaysAgo is not None else -1.0
+    output["has_prior_outcome"] = 1.0 if days >= 0 else 0.0
+    output["days_since_prior_scaled"] = _clip(max(days, 0.0), 0.0, 365.0) / 365.0
+    return output
+
+
+def _canonical_predict(model_data: Dict[str, Any], request: CompatibilityRequest) -> float:
+    row = _canonical_feature_row(request)
+    feature_names = model_data["featureNames"]
+    if set(row) != set(feature_names):
+        missing = sorted(set(feature_names) - set(row))
+        extra = sorted(set(row) - set(feature_names))
+        raise ValueError(f"serving feature contract mismatch missing={missing} extra={extra}")
+    matrix = np.asarray([[row[name] for name in feature_names]], dtype=float)
+    scaler = model_data["scaler"]
+    logistic = model_data["logistic"]
+    booster = model_data["booster"]
+    blend = float(model_data["blendWeightBooster"])
+    logistic_score = float(logistic.predict_proba(scaler.transform(matrix))[0, 1])
+    booster_score = float(booster.predict_proba(matrix)[0, 1])
+    raw = blend * booster_score + (1.0 - blend) * logistic_score
+    calibrator = model_data["calibrator"]
+    return _clip(float(calibrator.predict([raw])[0]), 0.0, 1.0)
 
 
 def _energy_bucket(value: Optional[float]) -> str:
@@ -158,11 +272,6 @@ def _temperament_bucket(behavior: BehaviorFeatures) -> str:
 
 
 def _legacy_pet(pet: CanonicalPetFeatures) -> Dict[str, Any]:
-    """Map canonical evidence into the historical checkpoint's input surface.
-
-    `size` and `weight` are neutral constants because the beta no longer requires
-    those fields. This is why the adapter remains shadow-only and low confidence.
-    """
     return {
         "breed": pet.breed or "unknown",
         "size": "medium",
@@ -175,12 +284,10 @@ def _legacy_pet(pet: CanonicalPetFeatures) -> Dict[str, Any]:
 
 
 def _legacy_predict(model_data: Dict[str, Any], pet_a: Dict[str, Any], pet_b: Dict[str, Any]) -> float:
-    """Run the repaired historical model without constructing tensors from strings."""
     model = model_data["model"]
     breed_to_idx = model_data["breed_to_idx"]
     temp_to_idx = model_data["temp_to_idx"]
     model.eval()
-
     with torch.no_grad():
         score = model.forward(
             torch.tensor([breed_to_idx.get(pet_a["breed"], 0)]),
@@ -201,20 +308,119 @@ def _legacy_predict(model_data: Dict[str, Any], pet_a: Dict[str, Any], pet_b: Di
     return float(score.item())
 
 
-def load_models() -> None:
-    MODELS.clear()
+def _load_canonical() -> None:
+    required = [
+        CANONICAL_MODEL_PATH,
+        CANONICAL_CALIBRATION_PATH,
+        CANONICAL_MANIFEST_PATH,
+        CANONICAL_FEATURE_CONTRACT_PATH,
+    ]
+    if not all(path.exists() for path in required):
+        RELEASE_STATE.update(
+            {
+                "canonicalLoaded": False,
+                "attestationVerified": False,
+                "attestationFailures": ["canonical_artifacts_missing"],
+                "releaseStatus": "shadow",
+            }
+        )
+        return
+
+    model_bundle = joblib.load(CANONICAL_MODEL_PATH)
+    calibration_bundle = joblib.load(CANONICAL_CALIBRATION_PATH)
+    manifest = load_json(CANONICAL_MANIFEST_PATH)
+    contract = load_json(CANONICAL_FEATURE_CONTRACT_PATH)
+    if not isinstance(model_bundle, dict) or not isinstance(calibration_bundle, dict):
+        raise ValueError("canonical model artifacts must contain dictionary bundles")
+    if model_bundle.get("modelVersion") != manifest.get("modelVersion"):
+        raise ValueError("canonical modelVersion does not match training manifest")
+    if model_bundle.get("featureVersion") != FEATURE_VERSION:
+        raise ValueError("canonical model featureVersion is unsupported")
+    if contract.get("orderedFeatureNames") != model_bundle.get("featureNames"):
+        raise ValueError("canonical feature contract does not match model feature order")
+    calibration_version = calibration_bundle.get("calibrationVersion")
+    if not isinstance(calibration_version, str) or not calibration_version:
+        raise ValueError("canonical calibration artifact is missing calibrationVersion")
+    if calibration_bundle.get("modelVersion") != model_bundle.get("modelVersion"):
+        raise ValueError("calibration modelVersion does not match model")
+
+    canonical = {
+        **model_bundle,
+        "calibrator": calibration_bundle["calibrator"],
+        "calibrationVersion": calibration_version,
+        "manifest": manifest,
+        "contract": contract,
+    }
+    MODELS["canonical"] = canonical
+    RELEASE_STATE.update(
+        {
+            "canonicalLoaded": True,
+            "attestationVerified": False,
+            "attestationFailures": ["promotion_receipt_missing"],
+            "releaseStatus": "shadow",
+            "attestationId": None,
+            "promotionReceiptSha256": None,
+        }
+    )
+
+    key = os.getenv("ML_PROMOTION_ATTESTATION_KEY", "")
+    if not CANONICAL_RECEIPT_PATH.exists():
+        return
+    if not key:
+        RELEASE_STATE["attestationFailures"] = ["attestation_key_missing"]
+        return
+
+    receipt = load_json(CANONICAL_RECEIPT_PATH)
+    verified, failures = verify_release_receipt(
+        receipt,
+        key=key,
+        model_path=CANONICAL_MODEL_PATH,
+        calibration_path=CANONICAL_CALIBRATION_PATH,
+        training_manifest_path=CANONICAL_MANIFEST_PATH,
+        feature_contract_path=CANONICAL_FEATURE_CONTRACT_PATH,
+    )
+    RELEASE_STATE.update(
+        {
+            "attestationVerified": verified,
+            "attestationFailures": failures,
+            "releaseStatus": "promoted" if verified else "shadow",
+            "attestationId": receipt.get("attestationId") if verified else None,
+            "promotionReceiptSha256": sha256_file(CANONICAL_RECEIPT_PATH) if verified else None,
+            "artifactHashes": receipt.get("artifacts") if verified else None,
+        }
+    )
+
+
+def _load_legacy() -> None:
     try:
         model, breed_to_idx, temp_to_idx = load_compat_model(
-            str(MODEL_PATH),
+            str(LEGACY_MODEL_PATH),
             str(BREED_ENCODING_PATH),
         )
-        MODELS["compatibility"] = {
+        MODELS["legacy"] = {
             "model": model,
             "breed_to_idx": breed_to_idx,
             "temp_to_idx": temp_to_idx,
         }
     except Exception as exc:
-        print(f"Compatibility shadow model not loaded: {exc}")
+        print(f"Compatibility legacy shadow model not loaded: {exc}")
+
+
+def load_models() -> None:
+    MODELS.clear()
+    try:
+        _load_canonical()
+    except Exception as exc:
+        RELEASE_STATE.update(
+            {
+                "canonicalLoaded": False,
+                "attestationVerified": False,
+                "attestationFailures": [f"canonical_load_failed:{type(exc).__name__}"],
+                "releaseStatus": "shadow",
+            }
+        )
+        print(f"Canonical compatibility candidate not loaded: {exc}")
+    _load_legacy()
 
 
 @app.on_event("startup")
@@ -224,15 +430,19 @@ async def startup_event() -> None:
 
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
+    canonical = MODELS.get("canonical")
     return {
         "status": "healthy",
         "serviceVersion": app.version,
         "featureVersion": FEATURE_VERSION,
-        "modelVersion": MODEL_VERSION,
-        "calibrationVersion": CALIBRATION_VERSION,
-        "compatibilityModelLoaded": "compatibility" in MODELS,
+        "activeModelVersion": canonical.get("modelVersion") if canonical else LEGACY_MODEL_VERSION,
+        "canonicalModelLoaded": "canonical" in MODELS,
+        "legacyModelLoaded": "legacy" in MODELS,
+        "releaseStatus": RELEASE_STATE.get("releaseStatus", "shadow"),
+        "attestationVerified": RELEASE_STATE.get("attestationVerified", False),
+        "attestationId": RELEASE_STATE.get("attestationId"),
+        "attestationFailures": RELEASE_STATE.get("attestationFailures", []),
         "redis": REDIS_AVAILABLE,
-        "servingMode": "shadow-only",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -240,14 +450,11 @@ async def health_check() -> Dict[str, Any]:
 @app.post("/v1/compatibility/score", response_model=CompatibilityResponse)
 async def score_compatibility(request: CompatibilityRequest) -> CompatibilityResponse:
     if request.featureVersion != FEATURE_VERSION:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported featureVersion: {request.featureVersion}",
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported featureVersion: {request.featureVersion}")
     if request.petA.species != request.petB.species:
         raise HTTPException(status_code=422, detail="Cross-species learned scoring is out of domain")
-    if "compatibility" not in MODELS:
-        raise HTTPException(status_code=503, detail="Compatibility shadow model is unavailable")
+    if "canonical" not in MODELS and "legacy" not in MODELS:
+        raise HTTPException(status_code=503, detail="Compatibility learned models are unavailable")
 
     key = _cache_key(request)
     cached = _get_cached(key)
@@ -255,42 +462,82 @@ async def score_compatibility(request: CompatibilityRequest) -> CompatibilityRes
         cached["provenance"]["generatedAt"] = datetime.now(timezone.utc).isoformat()
         return CompatibilityResponse(**cached)
 
-    try:
-        pet_a = _legacy_pet(request.petA)
-        pet_b = _legacy_pet(request.petB)
-        raw_score = _legacy_predict(MODELS["compatibility"], pet_a, pet_b)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Compatibility inference failed") from exc
-
     coverage = min(request.petA.behavior.coverage, request.petB.behavior.coverage)
     outcome_signal = request.outcomes.positiveRate
-    # Confidence is deliberately capped below the API promotion threshold. The old
-    # checkpoint has not been calibrated on the canonical post-meetup outcome task.
-    confidence = min(0.55, 0.25 + 0.25 * coverage + 0.05 * min(request.outcomes.sampleCount, 1))
+    if "canonical" in MODELS:
+        canonical = MODELS["canonical"]
+        try:
+            score = _canonical_predict(canonical, request)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Canonical compatibility inference failed") from exc
 
-    response = CompatibilityResponse(
-        compatibilityScore=max(0.0, min(1.0, raw_score)),
-        confidence=confidence,
-        source=MODEL_VERSION,
-        factors={
-            "legacyNeuralRaw": max(0.0, min(1.0, raw_score)),
-            "behaviorCoverage": coverage,
-            "outcomeSignal": outcome_signal if outcome_signal is not None else 0.5,
-        },
-        explanation=[
-            "Learned score from Woof's historical neural compatibility checkpoint.",
-            "This checkpoint is shadow-only because its original synthetic feature set predates the beta contract.",
-            "The production router continues to use the calibrated deterministic baseline until a canonical learned model earns promotion.",
-        ],
-        provenance=Provenance(
-            scorer="learned",
-            modelVersion=MODEL_VERSION,
-            featureVersion=FEATURE_VERSION,
-            calibrationVersion=CALIBRATION_VERSION,
-            generatedAt=datetime.now(timezone.utc).isoformat(),
-            fallback=False,
-        ),
-    )
+        promoted = RELEASE_STATE.get("attestationVerified") is True
+        confidence = min(0.9 if promoted else 0.72, 0.42 + 0.38 * coverage + 0.03 * min(request.outcomes.sampleCount, 3))
+        artifact_hashes = RELEASE_STATE.get("artifactHashes")
+        response = CompatibilityResponse(
+            compatibilityScore=score,
+            confidence=confidence,
+            source=str(canonical["modelVersion"]),
+            factors={
+                "canonicalCalibrated": score,
+                "behaviorCoverage": coverage,
+                "outcomeSignal": outcome_signal if outcome_signal is not None else 0.5,
+            },
+            explanation=[
+                "Score from Woof's canonical order-invariant behavior/outcome model.",
+                "The score is calibrated on held-out temporal data and remains subject to product safety filters.",
+                (
+                    "This exact artifact set has a verified signed promotion receipt."
+                    if promoted
+                    else "This candidate is shadow-only because a verified signed promotion receipt is not active."
+                ),
+            ],
+            provenance=Provenance(
+                scorer="learned",
+                modelVersion=str(canonical["modelVersion"]),
+                featureVersion=FEATURE_VERSION,
+                calibrationVersion=str(canonical["calibrationVersion"]),
+                generatedAt=datetime.now(timezone.utc).isoformat(),
+                fallback=False,
+                releaseStatus="promoted" if promoted else "shadow",
+                attestationId=RELEASE_STATE.get("attestationId"),
+                promotionReceiptSha256=RELEASE_STATE.get("promotionReceiptSha256"),
+                artifactHashes=ArtifactHashes(**artifact_hashes) if isinstance(artifact_hashes, dict) else None,
+            ),
+        )
+    else:
+        try:
+            pet_a = _legacy_pet(request.petA)
+            pet_b = _legacy_pet(request.petB)
+            raw_score = _legacy_predict(MODELS["legacy"], pet_a, pet_b)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Legacy compatibility inference failed") from exc
+        confidence = min(0.55, 0.25 + 0.25 * coverage + 0.05 * min(request.outcomes.sampleCount, 1))
+        response = CompatibilityResponse(
+            compatibilityScore=_clip(raw_score, 0.0, 1.0),
+            confidence=confidence,
+            source=LEGACY_MODEL_VERSION,
+            factors={
+                "legacyNeuralRaw": _clip(raw_score, 0.0, 1.0),
+                "behaviorCoverage": coverage,
+                "outcomeSignal": outcome_signal if outcome_signal is not None else 0.5,
+            },
+            explanation=[
+                "Learned score from Woof's historical neural compatibility checkpoint.",
+                "This checkpoint is permanently shadow-only because its original synthetic feature set predates the beta contract.",
+                "The product router continues to use the deterministic baseline unless a canonical model earns signed promotion.",
+            ],
+            provenance=Provenance(
+                scorer="learned",
+                modelVersion=LEGACY_MODEL_VERSION,
+                featureVersion=FEATURE_VERSION,
+                calibrationVersion=LEGACY_CALIBRATION_VERSION,
+                generatedAt=datetime.now(timezone.utc).isoformat(),
+                fallback=False,
+                releaseStatus="shadow",
+            ),
+        )
+
     _set_cached(key, response.model_dump())
     return response
 

@@ -13,7 +13,7 @@ for (const route of publicRoutes) {
       .analyze();
 
     const blockingViolations = results.violations.filter((violation) =>
-      ['serious', 'critical'].includes(violation.impact ?? ''),
+      ['serious', 'critical'].includes(violation.impact ?? '')
     );
 
     expect(
@@ -22,13 +22,10 @@ for (const route of publicRoutes) {
         .map(
           (violation) =>
             `${violation.id}: ${violation.help}\n${violation.nodes
-              .map(
-                (node) =>
-                  `  ${node.target.join(' ')}: ${node.failureSummary ?? ''}`,
-              )
-              .join('\n')}`,
+              .map((node) => `  ${node.target.join(' ')}: ${node.failureSummary ?? ''}`)
+              .join('\n')}`
         )
-        .join('\n\n'),
+        .join('\n\n')
     ).toEqual([]);
   });
 }
@@ -37,14 +34,10 @@ test('public beta surfaces remain keyboard navigable', async ({ page }) => {
   await page.goto('/login');
   await page.keyboard.press('Tab');
 
-  const firstFocused = await page.evaluate(
-    () => document.activeElement?.tagName,
-  );
+  const firstFocused = await page.evaluate(() => document.activeElement?.tagName);
   expect(firstFocused).not.toBe('BODY');
 
   await page.keyboard.press('Tab');
-  const secondFocused = await page.evaluate(
-    () => document.activeElement?.tagName,
-  );
+  const secondFocused = await page.evaluate(() => document.activeElement?.tagName);
   expect(secondFocused).not.toBe('BODY');
 });

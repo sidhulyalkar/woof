@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
+import { CoachingModule } from './coaching/coaching.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { validateEnvironment } from './config/env.validation';
 import { EventsModule } from './events/events.module';
@@ -60,6 +61,7 @@ import { VerificationModule } from './verification/verification.module';
     GamificationModule,
     VerificationModule,
     CoActivityModule,
+    CoachingModule,
     AnalyticsModule,
     StorageModule,
     ChatModule,
