@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule, type ThrottlerModuleOptions } from '@nestjs/throttler';
 import { ABTestModule } from './ab-testing/ab-test.module';
 import { ActivitiesModule } from './activities/activities.module';
@@ -53,6 +54,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       validate: validateEnvironment,
     }),
     ThrottlerModule.forRoot(throttlerOptions),
+    ScheduleModule.forRoot(),
     PrismaModule,
     PrivacyModule,
     TrustSafetyModule,
