@@ -279,7 +279,7 @@ export class BehaviorVisionService {
     }
 
     return entries
-      .map((entry) => {
+      .map<StoredBehaviorObservation | null>((entry) => {
         const data = this.asObject(entry.data);
         const context = data.context;
         const analysis = data.analysis;
