@@ -208,7 +208,7 @@ export default function HomePage() {
                             <h2 className="mt-1 text-lg font-bold tracking-tight">{quest.title}</h2>
                           </div>
                           <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-                            +{quest.xp} XP
+                            Base {quest.xp} XP
                           </span>
                         </div>
                         <p className="mt-2 text-sm leading-relaxed">{quest.description}</p>

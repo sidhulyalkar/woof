@@ -111,6 +111,20 @@ export class AdventureService {
     const rewardPathway: WellbeingPathway =
       safeOptOut || learnedMismatch ? 'BOND' : quest.primaryPathway;
 
+    // Memory bonuses require a real, completed private asset owned by this exact
+    // dog-owner pair. A random client-supplied asset ID never changes rewards.
+    const verifiedMemory = dto.memoryAssetId
+      ? await this.prisma.mediaAsset.findFirst({
+          where: {
+            id: dto.memoryAssetId,
+            ownerId: userId,
+            petId: dto.petId,
+            status: 'READY',
+          },
+          select: { id: true },
+        })
+      : null;
+
     const receipt = await this.careEvents.record({
       userId,
       petId: dto.petId,
@@ -127,9 +141,8 @@ export class AdventureService {
         questTitle: quest.title,
         originalPathway: quest.primaryPathway,
         personalRelevance: quest.personalRelevance,
-        newPlace: dto.newPlace ?? false,
-        memoryAdded: Boolean(dto.memoryAssetId),
-        memoryAssetId: dto.memoryAssetId ?? null,
+        memoryAdded: Boolean(verifiedMemory),
+        memoryAssetId: verifiedMemory?.id ?? null,
       },
       outcome: {
         dogExperience: dto.dogExperience,

@@ -63,6 +63,13 @@ export class CareEventsService {
     const visibility = input.visibility ?? 'PRIVATE';
 
     return this.prisma.$transaction(async (tx) => {
+      // Serialize reward issuance for one user so concurrent legitimate requests cannot
+      // race the daily/pathway caps or a shared dedupe key. The lock lives only for
+      // this transaction and does not block rewards for other users.
+      await tx.$queryRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))`
+      );
+
       const existing = await tx.$queryRaw<EventRow[]>(Prisma.sql`
         SELECT id, event_type, pathway, occurred_at, outcome
         FROM care_events
