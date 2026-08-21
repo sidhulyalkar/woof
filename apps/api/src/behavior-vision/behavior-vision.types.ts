@@ -118,6 +118,7 @@ export type BehaviorObservationContext = {
   otherDogsPresent: boolean;
   otherDogDistanceMeters?: number;
   familiarDog?: boolean;
+  audioAnalysisAllowed: boolean;
   ownerNote?: string;
 };
 
