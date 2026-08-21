@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { CareEventsService } from '../care-events/care-events.service';
 import {
   QUEST_EVENT_TYPES,
+  WELLBEING_PATHWAYS,
   type CareSummary,
   type WellbeingPathway,
 } from '../care-events/care-event.types';
@@ -31,6 +32,13 @@ type Quest = {
 
 type Candidate = Omit<Quest, 'id' | 'variant' | 'expiresAt'> & { score: number };
 
+type QuestCompletionContext = Pick<
+  Quest,
+  'id' | 'key' | 'title' | 'primaryPathway' | 'safeStopEligible' | 'personalRelevance'
+>;
+
+type SelectedQuestSnapshot = QuestCompletionContext;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const CATEGORY_PATHWAYS: Record<string, WellbeingPathway> = {
@@ -44,6 +52,8 @@ const CATEGORY_PATHWAYS: Record<string, WellbeingPathway> = {
 
 @Injectable()
 export class AdventureService {
+  private readonly logger = new Logger(AdventureService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly insights: InsightsService,
@@ -91,14 +101,24 @@ export class AdventureService {
       questId,
       interaction,
       pathway: quest.primaryPathway,
-      context: { questKey: quest.key, confidence: quest.confidence },
+      context: {
+        questKey: quest.key,
+        confidence: quest.confidence,
+        ...(interaction === 'SELECTED' ? { questSnapshot: this.questSnapshot(quest) } : {}),
+      },
     });
     return { ok: true };
   }
 
   async completeQuest(userId: string, questId: string, dto: CompleteQuestDto) {
     const dashboard = await this.getDashboard(userId, dto.petId);
-    const quest = dashboard.quests.find((candidate) => candidate.id === questId);
+    const currentQuest = dashboard.quests.find((candidate) => candidate.id === questId);
+    const selected = currentQuest
+      ? null
+      : await this.careEvents.getRecentSelectedQuestContext(userId, dto.petId, questId);
+    const quest: QuestCompletionContext | null =
+      currentQuest ?? this.questFromSnapshot(selected?.context?.questSnapshot, questId);
+
     if (!quest) throw new NotFoundException('This quest is no longer available');
 
     const safeOptOut = Boolean(dto.safeOptOut && quest.safeStopEligible);
@@ -152,7 +172,11 @@ export class AdventureService {
       },
     });
 
-    if (!receipt.duplicate) {
+    // These records are useful for analytics and continuity, but the CareEvent +
+    // RewardLedger transaction above is authoritative. A telemetry outage must never
+    // turn a successful reward into an apparent client failure. The upsert also lets
+    // a retry repair a previously failed interaction write without issuing XP twice.
+    try {
       await this.careEvents.recordQuestInteraction({
         userId,
         petId: dto.petId,
@@ -167,27 +191,42 @@ export class AdventureService {
           bondXp: receipt.bondXp,
         },
       });
+    } catch (error) {
+      this.logger.warn(
+        `Quest ${questId} reward committed but interaction telemetry failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`
+      );
     }
 
-    await this.prisma.telemetry.create({
-      data: {
-        source: 'ADVENTURE',
-        event: safeOptOut
-          ? 'QUEST_SAFE_OPT_OUT'
-          : learnedMismatch
-            ? 'QUEST_LEARNED_MISMATCH'
-            : 'QUEST_COMPLETED',
-        userId,
-        petId: dto.petId,
+    try {
+      await this.prisma.telemetry.create({
         data: {
-          questId,
-          pathway: rewardPathway,
-          bondXp: receipt.bondXp,
-          dogExperience: dto.dogExperience,
-          ownerExperience: dto.ownerExperience,
+          source: 'ADVENTURE',
+          event: safeOptOut
+            ? 'QUEST_SAFE_OPT_OUT'
+            : learnedMismatch
+              ? 'QUEST_LEARNED_MISMATCH'
+              : 'QUEST_COMPLETED',
+          userId,
+          petId: dto.petId,
+          data: {
+            questId,
+            pathway: rewardPathway,
+            bondXp: receipt.bondXp,
+            duplicate: receipt.duplicate,
+            dogExperience: dto.dogExperience,
+            ownerExperience: dto.ownerExperience,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Quest ${questId} reward committed but Adventure telemetry failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`
+      );
+    }
 
     return {
       reward: receipt,
@@ -199,6 +238,55 @@ export class AdventureService {
             ? 'That one is worth remembering.'
             : 'Nice read. Another useful piece of your shared pattern.',
     };
+  }
+
+  private questSnapshot(quest: Quest): SelectedQuestSnapshot {
+    return {
+      id: quest.id,
+      key: quest.key,
+      title: quest.title,
+      primaryPathway: quest.primaryPathway,
+      safeStopEligible: quest.safeStopEligible,
+      personalRelevance: quest.personalRelevance,
+    };
+  }
+
+  private questFromSnapshot(value: unknown, questId: string): SelectedQuestSnapshot | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+    const candidate = value as Record<string, unknown>;
+    const personalRelevance = candidate.personalRelevance;
+    if (
+      candidate.id !== questId ||
+      typeof candidate.key !== 'string' ||
+      candidate.key.length === 0 ||
+      typeof candidate.title !== 'string' ||
+      candidate.title.length === 0 ||
+      !this.isWellbeingPathway(candidate.primaryPathway) ||
+      typeof candidate.safeStopEligible !== 'boolean' ||
+      typeof personalRelevance !== 'number' ||
+      !Number.isFinite(personalRelevance) ||
+      personalRelevance < 0.9 ||
+      personalRelevance > 1.08
+    ) {
+      return null;
+    }
+
+    return {
+      id: questId,
+      key: candidate.key,
+      title: candidate.title,
+      primaryPathway: candidate.primaryPathway,
+      safeStopEligible: candidate.safeStopEligible,
+      personalRelevance,
+    };
+  }
+
+  private isWellbeingPathway(value: unknown): value is WellbeingPathway {
+    return (
+      typeof value === 'string' &&
+      WELLBEING_PATHWAYS.includes(value as (typeof WELLBEING_PATHWAYS)[number])
+    );
   }
 
   private buildQuests(
