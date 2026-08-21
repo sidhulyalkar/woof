@@ -37,7 +37,12 @@ const EMERGENCY_PATTERNS: Array<{ id: string; patterns: RegExp[] }> = [
   },
   {
     id: 'severe-bleeding',
-    patterns: [/uncontrolled bleeding/i, /won't stop bleeding/i, /severe bleeding/i, /spurting blood/i],
+    patterns: [
+      /uncontrolled bleeding/i,
+      /won't stop bleeding/i,
+      /severe bleeding/i,
+      /spurting blood/i,
+    ],
   },
   {
     id: 'toxin',
@@ -92,7 +97,7 @@ export function screenEmergencyText(text: string): DeterministicTriage {
   if (!normalized) return null;
 
   const matchedSignals = EMERGENCY_PATTERNS.filter((signal) =>
-    signal.patterns.some((pattern) => pattern.test(normalized)),
+    signal.patterns.some((pattern) => pattern.test(normalized))
   ).map((signal) => signal.id);
 
   if (matchedSignals.length === 0) return null;

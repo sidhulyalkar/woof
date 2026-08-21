@@ -9,7 +9,7 @@ describe('pet health emergency screening', () => {
 
   it('escalates possible gastric dilation warning signs', () => {
     const result = screenEmergencyText(
-      'His belly is swollen and hard and he keeps trying to vomit but nothing comes up',
+      'His belly is swollen and hard and he keeps trying to vomit but nothing comes up'
     );
     expect(result?.level).toBe('emergency_now');
     expect(result?.matchedSignals).toContain('gdv-bloat');
@@ -23,7 +23,7 @@ describe('pet health emergency screening', () => {
 
   it('does not invent an emergency from a localized mild concern', () => {
     expect(
-      screenEmergencyText('Small red patch on paw noticed this morning, otherwise acting normal'),
+      screenEmergencyText('Small red patch on paw noticed this morning, otherwise acting normal')
     ).toBeNull();
   });
 

@@ -141,7 +141,10 @@ export class HealthAiService {
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('OPENAI_API_KEY') || null;
     this.model = this.config.get<string>('OPENAI_HEALTH_MODEL') || 'gpt-5.6-luna';
-    this.timeoutMs = Math.max(3000, Math.min(30000, Number(this.config.get('OPENAI_HEALTH_TIMEOUT_MS') || 12000)));
+    this.timeoutMs = Math.max(
+      3000,
+      Math.min(30000, Number(this.config.get('OPENAI_HEALTH_TIMEOUT_MS') || 12000))
+    );
   }
 
   isConfigured() {
@@ -150,7 +153,9 @@ export class HealthAiService {
 
   async analyze(input: PetHealthModelInput): Promise<PetHealthModelResult> {
     if (!this.apiKey) {
-      throw new ServiceUnavailableException('Multimodal health screening is not configured in this environment');
+      throw new ServiceUnavailableException(
+        'Multimodal health screening is not configured in this environment'
+      );
     }
 
     const controller = new AbortController();
@@ -210,7 +215,9 @@ export class HealthAiService {
 
       if (!response.ok) {
         const body = await response.text();
-        this.logger.warn(`Health model request failed with ${response.status}: ${body.slice(0, 500)}`);
+        this.logger.warn(
+          `Health model request failed with ${response.status}: ${body.slice(0, 500)}`
+        );
         throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
       }
 
@@ -222,7 +229,9 @@ export class HealthAiService {
         .find((item) => item.type === 'output_text' && typeof item.text === 'string')?.text;
 
       if (!text) {
-        throw new ServiceUnavailableException('Health screening model returned no usable assessment');
+        throw new ServiceUnavailableException(
+          'Health screening model returned no usable assessment'
+        );
       }
 
       return this.validateResult(JSON.parse(text) as PetHealthModelResult);
@@ -231,7 +240,9 @@ export class HealthAiService {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new ServiceUnavailableException('Health screening model timed out');
       }
-      this.logger.error(`Health model analysis failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      this.logger.error(
+        `Health model analysis failed: ${error instanceof Error ? error.message : 'unknown error'}`
+      );
       throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
     } finally {
       clearTimeout(timeout);
@@ -267,13 +278,17 @@ export class HealthAiService {
       'insufficient_information',
     ]);
     if (!result || !allowed.has(result.triage) || typeof result.summary !== 'string') {
-      throw new ServiceUnavailableException('Health screening model returned an invalid assessment');
+      throw new ServiceUnavailableException(
+        'Health screening model returned an invalid assessment'
+      );
     }
 
     return {
       ...result,
       confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0)),
-      visibleFindings: Array.isArray(result.visibleFindings) ? result.visibleFindings.slice(0, 8) : [],
+      visibleFindings: Array.isArray(result.visibleFindings)
+        ? result.visibleFindings.slice(0, 8)
+        : [],
       possibleCategories: Array.isArray(result.possibleCategories)
         ? result.possibleCategories.slice(0, 6)
         : [],

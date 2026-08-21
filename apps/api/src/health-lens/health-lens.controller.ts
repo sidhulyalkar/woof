@@ -45,12 +45,12 @@ export class HealthLensController {
   @UseInterceptors(
     FileInterceptor('image', {
       limits: { fileSize: 8 * 1024 * 1024 },
-    }),
+    })
   )
   analyze(
     @Request() req: AuthenticatedRequest,
     @Body() dto: AnalyzePetHealthDto,
-    @UploadedFile() image?: Express.Multer.File,
+    @UploadedFile() image?: Express.Multer.File
   ) {
     if (image && !ALLOWED_IMAGE_TYPES.has(image.mimetype)) {
       throw new BadRequestException('Health Lens accepts JPEG, PNG, or WebP images only');
@@ -72,10 +72,7 @@ export class HealthLensController {
 
   @Delete('timeline/:entryId')
   @ApiOperation({ summary: 'Delete one derived health timeline entry' })
-  deleteTimelineEntry(
-    @Request() req: AuthenticatedRequest,
-    @Param('entryId') entryId: string,
-  ) {
+  deleteTimelineEntry(@Request() req: AuthenticatedRequest, @Param('entryId') entryId: string) {
     return this.healthLens.deleteTimelineEntry(req.user.sub, entryId);
   }
 }

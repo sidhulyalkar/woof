@@ -63,7 +63,7 @@ function createHarness() {
   };
   const service = new HealthLensService(
     prisma as unknown as PrismaService,
-    ai as unknown as HealthAiService,
+    ai as unknown as HealthAiService
   );
   return { service, prisma, ai };
 }
@@ -108,7 +108,7 @@ describe('HealthLensService safety boundary', () => {
         concern: 'A small red patch appeared on the paw this morning',
         saveToTimeline: false,
       },
-      createImage(),
+      createImage()
     );
 
     expect(result.assessment.triage).toBe('insufficient_information');
@@ -128,7 +128,7 @@ describe('HealthLensService safety boundary', () => {
         concern: 'A small red patch appeared on the paw this morning',
         saveToTimeline: true,
       },
-      image,
+      image
     );
 
     expect(result.privacy.imageStoredByWoof).toBe(false);

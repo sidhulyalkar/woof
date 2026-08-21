@@ -111,5 +111,7 @@ export const healthLensApi = {
     >,
 
   deleteTimelineEntry: async (entryId: string) =>
-    apiClient.delete(`/health-lens/timeline/${entryId}`) as unknown as Promise<{ deleted: boolean }>,
+    apiClient.delete(`/health-lens/timeline/${entryId}`) as unknown as Promise<{
+      deleted: boolean;
+    }>,
 };

@@ -22,14 +22,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export class HealthLensService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ai: HealthAiService,
+    private readonly ai: HealthAiService
   ) {}
 
-  async analyze(
-    userId: string,
-    dto: AnalyzePetHealthDto,
-    image?: Express.Multer.File,
-  ) {
+  async analyze(userId: string, dto: AnalyzePetHealthDto, image?: Express.Multer.File) {
     const pet = await this.prisma.pet.findFirst({
       where: { id: dto.petId, ownerId: userId },
       select: {
@@ -50,7 +46,8 @@ export class HealthLensService {
       : null;
 
     let result: PetHealthModelResult;
-    let provenance: 'deterministic-emergency-screen' | 'multimodal-model' | 'rules-only-unavailable';
+    let provenance:
+      'deterministic-emergency-screen' | 'multimodal-model' | 'rules-only-unavailable';
 
     if (deterministic) {
       result = {
@@ -74,7 +71,10 @@ export class HealthLensService {
           recommended: true,
           timing: 'now',
           summary: `Emergency warning signs reported for ${pet.name}: ${deterministic.matchedSignals.join(', ')}.`,
-          bring: ['medication list if available', 'relevant packaging if toxin exposure is possible'],
+          bring: [
+            'medication list if available',
+            'relevant packaging if toxin exposure is possible',
+          ],
         },
       };
       provenance = 'deterministic-emergency-screen';
@@ -125,7 +125,9 @@ export class HealthLensService {
           type: activity.type,
           startedAt: activity.startedAt.toISOString(),
         })),
-        priorHealthObservations: prior.map((entry) => this.priorSummary(entry.createdAt, entry.data)),
+        priorHealthObservations: prior.map((entry) =>
+          this.priorSummary(entry.createdAt, entry.data)
+        ),
         image: image ? { mimeType: image.mimetype, bytes: image.buffer } : undefined,
       });
       provenance = 'multimodal-model';
@@ -183,7 +185,14 @@ export class HealthLensService {
 
     const pet = await this.prisma.pet.findFirst({
       where: { id: petId, ownerId: userId },
-      select: { id: true, name: true, species: true, breed: true, birthdate: true, temperament: true },
+      select: {
+        id: true,
+        name: true,
+        species: true,
+        breed: true,
+        birthdate: true,
+        temperament: true,
+      },
     });
     if (!pet) throw new ForbiddenException('You do not have access to this pet');
 
@@ -198,7 +207,11 @@ export class HealthLensService {
         summary: emergency.summary,
         visibleFindings: [],
         possibleCategories: [],
-        photoFeedback: { usable: false, reason: 'New emergency warning signs take priority.', betterPhotoInstructions: [] },
+        photoFeedback: {
+          usable: false,
+          reason: 'New emergency warning signs take priority.',
+          betterPhotoInstructions: [],
+        },
         questions: [],
         ownerActions: [emergency.action],
         avoid: ['Do not delay veterinary care to continue the chat.'],
@@ -259,7 +272,10 @@ export class HealthLensService {
   }
 
   async timeline(userId: string, petId: string, limit = 20) {
-    const pet = await this.prisma.pet.findFirst({ where: { id: petId, ownerId: userId }, select: { id: true } });
+    const pet = await this.prisma.pet.findFirst({
+      where: { id: petId, ownerId: userId },
+      select: { id: true },
+    });
     if (!pet) throw new ForbiddenException('You do not have access to this pet');
 
     const entries = await this.prisma.telemetry.findMany({
@@ -353,11 +369,14 @@ export class HealthLensService {
         'If the change is new, worsening, painful, persistent, or concerning to you, contact your veterinarian.',
         'Record when it started and any changes in eating, drinking, breathing, energy, urination, stool, walking, or behavior.',
       ],
-      avoid: ['Do not use unverified home remedies or human medications based on an automated screening result.'],
+      avoid: [
+        'Do not use unverified home remedies or human medications based on an automated screening result.',
+      ],
       vetHandoff: {
         recommended: true,
         timing: 'routine',
-        summary: 'Automated multimodal screening was unavailable, so veterinary review is the reliable next step if the concern persists.',
+        summary:
+          'Automated multimodal screening was unavailable, so veterinary review is the reliable next step if the concern persists.',
         bring: ['timeline of changes', 'clear photos or videos if safe to capture'],
       },
     };
@@ -386,6 +405,9 @@ export class HealthLensService {
 
   private ageYears(birthdate: Date | null) {
     if (!birthdate) return null;
-    return Math.max(0, Math.round(((Date.now() - birthdate.getTime()) / (365.25 * DAY_MS)) * 10) / 10);
+    return Math.max(
+      0,
+      Math.round(((Date.now() - birthdate.getTime()) / (365.25 * DAY_MS)) * 10) / 10
+    );
   }
 }

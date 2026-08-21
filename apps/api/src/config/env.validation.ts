@@ -39,7 +39,9 @@ export function validateEnvironment(config: Record<string, unknown>) {
   if (env.NODE_ENV === 'production') {
     const knownDevelopmentSecret = /^(dev-|change-this|your-)/i;
     if (env.JWT_SECRET.length < 32 || knownDevelopmentSecret.test(env.JWT_SECRET)) {
-      throw new Error('JWT_SECRET must be a non-development secret of at least 32 characters in production');
+      throw new Error(
+        'JWT_SECRET must be a non-development secret of at least 32 characters in production'
+      );
     }
 
     if (env.VAPID_PRIVATE_KEY && knownDevelopmentSecret.test(env.VAPID_PRIVATE_KEY)) {

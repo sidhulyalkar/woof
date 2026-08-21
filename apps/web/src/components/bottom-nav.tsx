@@ -38,7 +38,10 @@ export function BottomNav() {
                   isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20'
                 )}
               >
-                <Icon className="h-6 w-6 transition-transform group-hover:scale-105" aria-hidden="true" />
+                <Icon
+                  className="h-6 w-6 transition-transform group-hover:scale-105"
+                  aria-hidden="true"
+                />
                 <span className="sr-only">{item.label}</span>
               </Link>
             );
