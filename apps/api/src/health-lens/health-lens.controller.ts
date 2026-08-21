@@ -24,6 +24,12 @@ import { HealthLensService } from './health-lens.service';
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+type AuthenticatedRequest = {
+  user: {
+    sub: string;
+  };
+};
+
 @ApiTags('health-lens')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -42,7 +48,7 @@ export class HealthLensController {
     }),
   )
   analyze(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: AnalyzePetHealthDto,
     @UploadedFile() image?: Express.Multer.File,
   ) {
@@ -54,19 +60,22 @@ export class HealthLensController {
 
   @Post('follow-up')
   @ApiOperation({ summary: 'Ask a follow-up question about a saved health assessment' })
-  followUp(@Request() req: any, @Body() dto: FollowUpHealthDto) {
+  followUp(@Request() req: AuthenticatedRequest, @Body() dto: FollowUpHealthDto) {
     return this.healthLens.followUp(req.user.sub, dto);
   }
 
   @Get('timeline')
   @ApiOperation({ summary: 'Get the derived health observation timeline for one owned pet' })
-  timeline(@Request() req: any, @Query() query: HealthTimelineQueryDto) {
+  timeline(@Request() req: AuthenticatedRequest, @Query() query: HealthTimelineQueryDto) {
     return this.healthLens.timeline(req.user.sub, query.petId, query.limit ?? 20);
   }
 
   @Delete('timeline/:entryId')
   @ApiOperation({ summary: 'Delete one derived health timeline entry' })
-  deleteTimelineEntry(@Request() req: any, @Param('entryId') entryId: string) {
+  deleteTimelineEntry(
+    @Request() req: AuthenticatedRequest,
+    @Param('entryId') entryId: string,
+  ) {
     return this.healthLens.deleteTimelineEntry(req.user.sub, entryId);
   }
 }
