@@ -1,22 +1,25 @@
 name: dogOS schema sync
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/dogos-household-core-v1
+      - agent/woof-adventure-system-v1
+    types: [opened, synchronize, reopened]
     paths:
       - .github/workflows/dogos-schema-sync.yml
+      - packages/database/prisma/migrations/20260822064500_add_dogos_household_core/migration.sql
 
 permissions:
   contents: write
 
 jobs:
   sync:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/dogos-household-core-v1
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -75,4 +78,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/database/prisma/schema.prisma .github/workflows/dogos-schema-sync.yml
           git commit -m "feat(dogos): model households and shared activity participants"
-          git push origin HEAD:agent/dogos-household-core-v1
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
