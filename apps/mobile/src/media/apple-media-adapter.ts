@@ -31,7 +31,7 @@ function safeFilename(value: string | null | undefined, mimeType: string, index:
 
 async function sizeFor(uri: string, reported: number | null | undefined) {
   if (typeof reported === 'number' && reported > 0) return reported;
-  const info = await FileSystem.getInfoAsync(uri, { size: true });
+  const info = await FileSystem.getInfoAsync(uri);
   if (!info.exists || typeof info.size !== 'number' || info.size <= 0) {
     throw new Error('Could not determine the selected media size.');
   }
