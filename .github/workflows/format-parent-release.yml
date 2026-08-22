@@ -1,0 +1,50 @@
+name: One-shot parent release formatting
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+    paths:
+      - '.github/workflows/format-parent-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format Phase 2A release surfaces
+        run: >-
+          pnpm exec prettier --write
+          packages/ui/.eslintrc.js
+          apps/web/.eslintrc.js
+          apps/api/src/auth/auth.controller.ts
+          apps/web/src/middleware.ts
+          apps/web/src/lib/security/csp.ts
+          apps/web/src/lib/security/csp.test.ts
+          apps/web/e2e/library-regression.spec.ts
+
+      - name: Commit formatting and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/format-parent-release.yml
+          git add packages/ui/.eslintrc.js apps/web/.eslintrc.js apps/api/src/auth/auth.controller.ts apps/web/src/middleware.ts apps/web/src/lib/security/csp.ts apps/web/src/lib/security/csp.test.ts apps/web/e2e/library-regression.spec.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "style: normalize parent release surfaces"
+          git push origin HEAD:agent/pet-media-library-v1
