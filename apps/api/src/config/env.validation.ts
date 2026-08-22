@@ -4,6 +4,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   API_PREFIX: z.string().default('api/v1'),
+  API_DOCS_ENABLED: z.enum(['true', 'false']).default('false'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   SHADOW_DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
