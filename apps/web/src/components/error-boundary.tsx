@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="space-y-2">
               <h1 className="text-2xl font-bold">Something went wrong</h1>
               <p className="text-muted-foreground">
-                We're sorry, but something unexpected happened. Our team has been
+                We&apos;re sorry, but something unexpected happened. Our team has been
                 notified.
               </p>
             </div>

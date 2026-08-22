@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Heart, MessageCircle, Send, Bookmark, MapPin, X } from "lucide-react"
@@ -119,9 +120,11 @@ export function FullScreenPostView({ posts, initialIndex, onClose, onLike }: Ful
         {/* Media */}
         <div className="flex-1 relative bg-black flex items-center justify-center">
           {currentPost.mediaType === "image" ? (
-            <img
+            <AppImage
               src={currentPost.mediaUrl || "/placeholder.svg"}
               alt={currentPost.caption}
+              width={1600}
+              height={1200}
               className="max-w-full max-h-full object-contain"
             />
           ) : (

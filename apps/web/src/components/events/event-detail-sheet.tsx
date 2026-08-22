@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Calendar, MapPin, Clock, Users, Share2, CheckCircle2 } from "lucide-react"
 import { format } from "date-fns"
 import type { Event } from "@/lib/types"
@@ -53,9 +54,11 @@ export function EventDetailSheet({ event, open, onOpenChange }: EventDetailSheet
             {/* Event Image */}
             {event.imageUrl && (
               <div className="relative aspect-[16/9] rounded-lg overflow-hidden -mx-6">
-                <img
+                <AppImage
                   src={event.imageUrl || "/placeholder.svg"}
                   alt={event.title}
+                  width={1200}
+                  height={675}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3">

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { isAxiosError } from "axios"
 import { ChevronLeft, PawPrint } from "lucide-react"
 import { toast } from "sonner"
 import { OwnerInfoStep, type OwnerInfoData } from "@/components/onboarding/owner-info-step"
@@ -12,6 +13,10 @@ import { Progress } from "@/components/ui/progress"
 import { authApi, petsApi, storageApi } from "@/lib/api"
 import { quizApi, type QuizAnswers } from "@/lib/api/quiz"
 import { useAuthStore } from "@/lib/stores/auth-store"
+
+type ApiErrorBody = {
+  message?: string | string[]
+}
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -96,10 +101,11 @@ export default function OnboardingPage() {
 
       toast.success("Welcome to Woof 🐾")
       router.replace("/")
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Onboarding failed", err)
+      const responseMessage = isAxiosError<ApiErrorBody>(err) ? err.response?.data?.message : undefined
       const message =
-        err?.response?.data?.message ||
+        responseMessage ||
         "We could not finish the profile. Your completed account step is preserved, so you can safely try again."
       setError(Array.isArray(message) ? message.join(" ") : message)
       toast.error(Array.isArray(message) ? message[0] : message)

@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServicesService } from './services.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
@@ -21,8 +22,6 @@ import { TrackServiceIntentDto, ServiceIntentFollowupDto } from './dto/track-ser
 @Controller('services')
 export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
-
-  // Business CRUD endpoints
 
   @Post('businesses')
   @ApiOperation({ summary: 'Create a new business listing' })
@@ -75,15 +74,16 @@ export class ServicesController {
     return this.servicesService.removeBusiness(id);
   }
 
-  // Service Intent endpoints
-
   @Post('intents')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Track user intent to use a service' })
   @ApiResponse({ status: 201, description: 'Intent tracked successfully' })
-  async trackIntent(@Request() req: any, @Body() trackServiceIntentDto: TrackServiceIntentDto) {
-    return this.servicesService.trackIntent(req.user.id, trackServiceIntentDto);
+  async trackIntent(
+    @Request() req: AuthenticatedRequest,
+    @Body() trackServiceIntentDto: TrackServiceIntentDto,
+  ) {
+    return this.servicesService.trackIntent(req.user.sub, trackServiceIntentDto);
   }
 
   @Get('intents/me')
@@ -91,8 +91,8 @@ export class ServicesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get all service intents for the current user' })
   @ApiResponse({ status: 200, description: 'List of user service intents' })
-  async getUserIntents(@Request() req: any) {
-    return this.servicesService.getUserIntents(req.user.id);
+  async getUserIntents(@Request() req: AuthenticatedRequest) {
+    return this.servicesService.getUserIntents(req.user.sub);
   }
 
   @Get('intents/followup-needed')

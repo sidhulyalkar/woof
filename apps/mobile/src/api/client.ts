@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { create, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
@@ -14,7 +14,7 @@ class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
-    this.client = axios.create({
+    this.client = create({
       baseURL: API_URL,
       timeout: 10000,
       headers: {
@@ -79,5 +79,5 @@ class ApiClient {
 }
 
 export { ACCESS_TOKEN_KEY, API_URL };
-export const apiClient = new ApiClient();
+const apiClient = new ApiClient();
 export default apiClient;

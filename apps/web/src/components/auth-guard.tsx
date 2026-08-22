@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useRef, useState } from 'react';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = ['/login', '/onboarding', '/demo'];
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
@@ -18,8 +19,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const hydrationInFlight = useRef(false);
 
   useEffect(() => {
-    const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
-
     if (isPublicRoute) {
       hydrationInFlight.current = false;
       setIsChecking(false);
@@ -32,8 +31,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const storedToken =
-      typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
 
     if (!storedToken) {
       hydrationInFlight.current = false;
@@ -63,7 +61,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         hydrationInFlight.current = false;
         setIsChecking(false);
       });
-  }, [isAuthenticated, pathname, router, setAuth, logout]);
+  }, [isAuthenticated, isPublicRoute, router, setAuth, logout]);
+
+  // Public surfaces never need token hydration. Rendering them synchronously removes
+  // an unnecessary auth-spinner flash and keeps demos/login deterministic for humans,
+  // crawlers, and browser accessibility tests.
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
 
   if (isChecking) {
     return (

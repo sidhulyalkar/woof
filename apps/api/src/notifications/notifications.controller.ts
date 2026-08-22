@@ -8,10 +8,10 @@ import {
   Param,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NotificationsService } from './notifications.service';
 import { SubscribeDto, SendPushDto } from './dto/push-subscription.dto';
-import { Request as ExpressRequest } from 'express';
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -31,11 +31,11 @@ export class NotificationsController {
 
   @Delete('unsubscribe/:endpoint')
   @ApiOperation({ summary: 'Unsubscribe from push notifications' })
-  async unsubscribe(@Param('endpoint') endpoint: string, @Request() req: ExpressRequest & { user: any }) {
-    return this.notificationsService.unsubscribePushNotification(
-      req.user.id,
-      endpoint,
-    );
+  async unsubscribe(
+    @Param('endpoint') endpoint: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.notificationsService.unsubscribePushNotification(req.user.sub, endpoint);
   }
 
   @Post('send')

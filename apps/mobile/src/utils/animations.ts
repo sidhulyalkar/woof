@@ -61,7 +61,7 @@ export const timingAnimation = (
   value: Animated.Value,
   toValue: number,
   duration: number = 300,
-  easing: ((value: number) => number) = Easing.inOut(Easing.ease)
+  easing: (value: number) => number = Easing.inOut(Easing.ease)
 ): Animated.CompositeAnimation => {
   return Animated.timing(value, {
     toValue,
@@ -181,10 +181,7 @@ export const fadeInSlide = (
   translateY: Animated.Value,
   duration: number = 300
 ): Animated.CompositeAnimation => {
-  return Animated.parallel([
-    fadeIn(opacity, duration),
-    slideIn(translateY, duration),
-  ]);
+  return Animated.parallel([fadeIn(opacity, duration), slideIn(translateY, duration)]);
 };
 
 export const fadeOutSlide = (
@@ -193,10 +190,7 @@ export const fadeOutSlide = (
   toValue: number = 50,
   duration: number = 300
 ): Animated.CompositeAnimation => {
-  return Animated.parallel([
-    fadeOut(opacity, duration),
-    slideOut(translateY, toValue, duration),
-  ]);
+  return Animated.parallel([fadeOut(opacity, duration), slideOut(translateY, toValue, duration)]);
 };
 
 export const scaleInFade = (
@@ -361,7 +355,7 @@ export const createOpacityInterpolation = (
   value: Animated.Value,
   inputRange: number[] = [0, 1],
   outputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange,
@@ -373,7 +367,7 @@ export const createScaleInterpolation = (
   value: Animated.Value,
   inputRange: number[] = [0, 1],
   outputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange,
@@ -384,7 +378,7 @@ export const createScaleInterpolation = (
 export const createRotationInterpolation = (
   value: Animated.Value,
   rotations: number = 1
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<string> => {
   return value.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', `${360 * rotations}deg`],
@@ -395,7 +389,7 @@ export const createTranslateInterpolation = (
   value: Animated.Value,
   distance: number,
   inputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange: [0, distance],
@@ -411,10 +405,7 @@ export const createAnimatedValue = (initialValue: number = 0): Animated.Value =>
   return new Animated.Value(initialValue);
 };
 
-export const createAnimatedValueXY = (
-  x: number = 0,
-  y: number = 0
-): Animated.ValueXY => {
+export const createAnimatedValueXY = (x: number = 0, y: number = 0): Animated.ValueXY => {
   return new Animated.ValueXY({ x, y });
 };
 
@@ -497,16 +488,11 @@ export const resetAnimatedValue = (value: Animated.Value, toValue: number = 0): 
   value.setValue(toValue);
 };
 
-export const resetAnimatedValues = (
-  values: Animated.Value[],
-  toValue: number = 0
-): void => {
+export const resetAnimatedValues = (values: Animated.Value[], toValue: number = 0): void => {
   values.forEach((value) => value.setValue(toValue));
 };
 
-export const stopAnimation = (
-  animation: Animated.CompositeAnimation
-): void => {
+export const stopAnimation = (animation: Animated.CompositeAnimation): void => {
   animation.stop();
 };
 

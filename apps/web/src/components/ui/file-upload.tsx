@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, useRef, ChangeEvent } from 'react';
 import { Upload, X, Image as ImageIcon, Video } from 'lucide-react';
+import { AppImage } from './app-image';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import { validateFileUpload } from '@/lib/security';
@@ -33,6 +34,18 @@ export function FileUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewUrls = useMemo(
+    () => files.map((file) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : null)),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [previewUrls]);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -101,10 +114,6 @@ export function FileUpload({
     return <ImageIcon className="h-8 w-8" />;
   };
 
-  const getPreviewUrl = (file: File): string => {
-    return URL.createObjectURL(file);
-  };
-
   return (
     <div className={cn('space-y-4', className)}>
       {/* Upload Button */}
@@ -149,10 +158,12 @@ export function FileUpload({
               key={index}
               className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
             >
-              {file.type.startsWith('image/') ? (
-                <img
-                  src={getPreviewUrl(file)}
+              {file.type.startsWith('image/') && previewUrls[index] ? (
+                <AppImage
+                  src={previewUrls[index]}
                   alt={file.name}
+                  width={600}
+                  height={600}
                   className="h-full w-full object-cover"
                 />
               ) : (

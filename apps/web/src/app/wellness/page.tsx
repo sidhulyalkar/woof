@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { Brain, Plus, Smile, Meh, Frown, Zap, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -10,8 +9,6 @@ import { BottomNav } from "@/components/bottom-nav"
 import type { MoodEntry, EnrichmentActivity, BehaviorLog } from "@/lib/types"
 
 export default function WellnessPage() {
-  const [selectedPet, setSelectedPet] = useState("p1")
-
   // Mock mood entries
   const moodEntries: MoodEntry[] = [
     {

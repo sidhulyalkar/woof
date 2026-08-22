@@ -5,6 +5,7 @@ import { X, Image as ImageIcon, MapPin, Activity, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { AppImage } from '@/components/ui/app-image';
 import { useCreatePost, useUploadImage } from '@/lib/api/hooks';
 import { useSessionStore } from '@/store/session';
 import { useUIStore } from '@/store/ui';
@@ -44,7 +45,7 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
       const results = await Promise.all(uploadPromises);
       const urls = results.map((result) => result.url);
       setImages((prev) => [...prev, ...urls]);
-    } catch (error) {
+    } catch {
       showToast({ message: 'Failed to upload images', type: 'error' });
     } finally {
       setIsUploading(false);
@@ -67,8 +68,6 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
       petId: selectedPet || undefined,
     });
   };
-
-  const selectedPetData = pets.find((pet) => pet.id === selectedPet);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -136,9 +135,11 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
             <div className="grid grid-cols-2 gap-2">
               {images.map((url, index) => (
                 <div key={index} className="relative aspect-square rounded-2xl overflow-hidden bg-muted/20">
-                  <img
+                  <AppImage
                     src={url}
                     alt={`Upload ${index + 1}`}
+                    width={800}
+                    height={800}
                     className="w-full h-full object-cover"
                   />
                   <button

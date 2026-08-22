@@ -1,17 +1,14 @@
 export class APIError extends Error {
   constructor(
     message: string,
-    public status: number,
+    public status: number
   ) {
     super(message);
     this.name = 'APIError';
   }
 }
 
-export async function apiRequest<T>(
-  endpoint: string,
-  options?: RequestInit,
-): Promise<T> {
+export async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
   try {
     const response = await fetch(`/api${endpoint}`, {
       headers: {
@@ -22,10 +19,7 @@ export async function apiRequest<T>(
     });
 
     if (!response.ok) {
-      throw new APIError(
-        `API request failed: ${response.statusText}`,
-        response.status,
-      );
+      throw new APIError(`API request failed: ${response.statusText}`, response.status);
     }
 
     return (await response.json()) as T;
@@ -52,6 +46,5 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  delete: <T>(endpoint: string) =>
-    apiRequest<T>(endpoint, { method: 'DELETE' }),
+  delete: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'DELETE' }),
 };

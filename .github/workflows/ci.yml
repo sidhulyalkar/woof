@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'agent/beta-learning-platform-v1']
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
@@ -48,11 +48,34 @@ jobs:
           apps/api/package.json
           apps/api/jest.config.js
           apps/api/test/jest-e2e.json
+          apps/api/test/auth.e2e-spec.ts
+          apps/api/src/auth/auth.controller.ts
+          apps/api/src/behavior-vision
+          apps/api/src/coaching
+          apps/api/src/compatibility/compatibility.types.ts
+          apps/api/src/ml/ml.service.ts
+          apps/api/src/ml/ml.service.spec.ts
+          apps/mobile/package.json
+          apps/mobile/eslint.config.js
+          apps/web/.eslintrc.js
           apps/web/package.json
           apps/web/vitest.config.ts
           apps/web/playwright.config.ts
+          apps/web/src/middleware.ts
+          apps/web/src/lib/security/csp.ts
+          apps/web/src/lib/security/csp.test.ts
           apps/web/src/lib/api-client.ts
+          apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/lib/api/coaching.ts
+          apps/web/src/components/bottom-nav.tsx
+          apps/web/src/app/coach/layout.tsx
+          apps/web/src/app/coach/page.tsx
+          apps/web/src/app/coach/observe/page.tsx
           apps/web/e2e
+          ml/behavior_vision/model_registry.json
+          packages/config/package.json
+          packages/config/eslint/base.js
+          packages/ui/.eslintrc.js
           packages/ui/package.json
 
       - name: Lint
@@ -61,13 +84,14 @@ jobs:
       - name: Type-check
         run: pnpm type-check
 
-      - name: Compile ML research code
+      - name: Compile ML research and serving code
         run: python -m compileall -q ml
 
       - name: Run lightweight ML policy contracts
         run: >-
           python -m unittest
           ml.evaluation.test_promotion_gate
+          ml.evaluation.test_release_attestation
           ml.simulation.test_generate_pair_scenarios
 
   test-backend:

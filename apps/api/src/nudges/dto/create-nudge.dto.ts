@@ -39,7 +39,7 @@ export class NudgeContext {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class CreateNudgeDto {

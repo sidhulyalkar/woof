@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "woof-behavior-model-registry-v1",
+  "policy": {
+    "authoritativeEmotionInference": false,
+    "automaticDogGreetingRecommendation": false,
+    "rawUserMediaTrainingDefault": false,
+    "requiresOptInForUserMediaTraining": true,
+    "productionPromotionRequiresCalibratedDogSpecificHoldout": true
+  },
+  "components": [
+    {
+      "id": "sam2-video-tracking",
+      "role": "video instance segmentation and identity-preserving tracking",
+      "status": "integration-candidate",
+      "upstream": "facebookresearch/sam2",
+      "licenseReview": "Apache-2.0 code/checkpoints reported upstream; verify exact artifacts before distribution",
+      "behaviorAuthority": false,
+      "notes": "Tracks the selected dog or dogs through video. It does not assign behavior or emotional meaning."
+    },
+    {
+      "id": "vitposepp-ap10k",
+      "role": "general quadruped pose/keypoint estimation",
+      "status": "integration-candidate",
+      "upstream": "ViTAE-Transformer/ViTPose",
+      "trainingSources": ["AP-10K", "APT-36K"],
+      "licenseReview": "required before bundling checkpoints",
+      "behaviorAuthority": false,
+      "notes": "Provides body geometry and motion features. Dog-specific calibration/fine-tuning should be evaluated separately."
+    },
+    {
+      "id": "sleap-dog-adapter",
+      "role": "few-label individual/domain pose adaptation",
+      "status": "research-candidate",
+      "upstream": "talmolab/sleap",
+      "licenseReview": "required before production packaging",
+      "behaviorAuthority": false,
+      "notes": "Useful for active-learning and owner-consented dog-specific pose refinement when generic pose models struggle with morphology or camera viewpoint."
+    },
+    {
+      "id": "animal-clip",
+      "role": "animal action video representation and recognition",
+      "status": "shadow-candidate",
+      "upstream": "PRIS-CV/Animal-CLIP",
+      "licenseReview": "MIT code reported upstream; independently review pretrained weights and source datasets",
+      "behaviorAuthority": false,
+      "notes": "Open implementation and pretrained model are available. Must be benchmarked on dog-specific, real-owner video before product use."
+    },
+    {
+      "id": "ethoclip-animalband",
+      "role": "ontology-enhanced animal behavior video-language representation",
+      "status": "watchlist",
+      "upstream": "PRIS-CV/AnimalBand",
+      "licenseReview": "required",
+      "behaviorAuthority": false,
+      "notes": "CVPR 2026 work reports AnimalBand with 74,671 videos and 160 visually observable behavior labels. Repository currently states EthoCLIP code/weights remain a TODO, so do not make this a runtime dependency yet."
+    },
+    {
+      "id": "dogfacs-ontology",
+      "role": "objective canine facial movement vocabulary",
+      "status": "ontology-only",
+      "upstream": "AnimalFACS/DogFACS",
+      "licenseReview": "manual is accessible; associated training/test videos may not be reused without written permission",
+      "behaviorAuthority": false,
+      "notes": "Use DogFACS terminology to describe facial movements, never as a direct emotion classifier and never train on restricted manual/test videos without permission."
+    },
+    {
+      "id": "woof-individual-adapter",
+      "role": "per-pet calibration, context baseline, handler-intervention response model",
+      "status": "implemented-contract",
+      "upstream": "Woof first-party",
+      "licenseReview": "first-party",
+      "behaviorAuthority": false,
+      "notes": "Owner-corrected observations and repeated paired sessions update individual baselines. Breed is not an input to the adaptation policy."
+    }
+  ]
+}

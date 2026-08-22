@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { CheckCircle2, Heart, Info, MessageCircle, ShieldCheck } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -33,9 +34,11 @@ export function MatchCard({ match }: MatchCardProps) {
     <>
       <Card className="glass overflow-hidden rounded-2xl border-border/60">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted/30">
-          <img
+          <AppImage
             src={match.pet.photoUrl || "/placeholder.svg"}
             alt={`${match.pet.name}, ${match.pet.breed || match.pet.species}`}
+            width={1200}
+            height={900}
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/80 to-transparent" aria-hidden="true" />

@@ -1,0 +1,71 @@
+name: Behavior Vision Branch CI
+
+on:
+  push:
+    branches: [agent/personalized-behavior-vision-v1]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      JWT_SECRET: ci-only-test-secret
+      NODE_ENV: test
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      ML_SERVICE_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Check Behavior Vision formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/behavior-vision
+          apps/api/src/app.module.ts
+          apps/api/src/config/env.validation.ts
+          apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/app/coach/layout.tsx
+          apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/coach/observe/history/page.tsx
+          docs/BEHAVIOR_VISION.md
+          ml/behavior_vision
+
+      - name: Run individualized behavior API tests
+        run: pnpm --filter @woof/api exec jest src/behavior-vision --runInBand
+
+      - name: Compile behavior worker
+        run: python -m compileall -q ml/behavior_vision
+
+      - name: Run lightweight behavior worker contracts
+        run: python -m unittest ml.behavior_vision.test_pipeline
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build Web
+        run: pnpm --filter @woof/web build
+
+      - name: Validate model registry JSON
+        run: python -m json.tool ml/behavior_vision/model_registry.json > /dev/null

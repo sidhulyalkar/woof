@@ -68,7 +68,7 @@ export function NotificationSettings() {
           <Alert>
             <CheckCircle2 className="h-4 w-4" />
             <AlertDescription>
-              Push notifications are enabled. You'll receive real-time alerts for meetup suggestions,
+              Push notifications are enabled. You&apos;ll receive real-time alerts for meetup suggestions,
               achievements, and events.
             </AlertDescription>
           </Alert>
@@ -112,7 +112,7 @@ export function NotificationSettings() {
                 <div className="space-y-0.5">
                   <Label className="text-sm font-normal">Event Reminders</Label>
                   <p className="text-xs text-muted-foreground">
-                    Reminders for upcoming dog events you're attending
+                    Reminders for upcoming dog events you&apos;re attending
                   </p>
                 </div>
                 <Switch defaultChecked disabled={isLoading} />

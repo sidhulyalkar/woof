@@ -3,6 +3,12 @@ import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
+function prismaErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
@@ -186,11 +192,12 @@ export class UsersService {
           },
         },
       });
-    } catch (error: any) {
-      if (error?.code === 'P2025') {
+    } catch (error: unknown) {
+      const code = prismaErrorCode(error);
+      if (code === 'P2025') {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
-      if (error?.code === 'P2002') {
+      if (code === 'P2002') {
         throw new ConflictException('This handle is already taken');
       }
       throw error;
@@ -203,11 +210,12 @@ export class UsersService {
         where: { id },
         data,
       });
-    } catch (error: any) {
-      if (error?.code === 'P2025') {
+    } catch (error: unknown) {
+      const code = prismaErrorCode(error);
+      if (code === 'P2025') {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
-      if (error?.code === 'P2002') {
+      if (code === 'P2002') {
         throw new ConflictException('A unique user field is already in use');
       }
       throw error;
@@ -217,8 +225,8 @@ export class UsersService {
   async delete(id: string) {
     try {
       return await this.prisma.user.delete({ where: { id } });
-    } catch (error: any) {
-      if (error?.code === 'P2025') {
+    } catch (error: unknown) {
+      if (prismaErrorCode(error) === 'P2025') {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
       throw error;

@@ -6,22 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
+import type { OnboardingStepProps } from '../onboarding-types';
 
-interface UserProfileStepProps {
-  data: Record<string, any>;
-  onNext: (data: Record<string, any>) => void;
-  onBack?: () => void;
-}
-
-export function UserProfileStep({ data, onNext }: UserProfileStepProps) {
+export function UserProfileStep({ data, onNext }: OnboardingStepProps) {
   const [formData, setFormData] = useState({
-    name: data.name || '',
-    bio: data.bio || '',
-    location: data.location || '',
+    name: data.name ?? '',
+    bio: data.bio ?? '',
+    location: data.location ?? '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     onNext(formData);
   };
 
@@ -30,9 +25,7 @@ export function UserProfileStep({ data, onNext }: UserProfileStepProps) {
       <Card className="p-6 space-y-6">
         <div className="space-y-2">
           <h2 className="text-2xl font-bold">Tell us about yourself</h2>
-          <p className="text-muted-foreground">
-            Help other pet owners get to know you
-          </p>
+          <p className="text-muted-foreground">Help other pet owners get to know you</p>
         </div>
 
         <div className="space-y-4">
@@ -41,9 +34,7 @@ export function UserProfileStep({ data, onNext }: UserProfileStepProps) {
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
+              onChange={(event) => setFormData({ ...formData, name: event.target.value })}
               placeholder="Your name"
               required
             />
@@ -54,9 +45,7 @@ export function UserProfileStep({ data, onNext }: UserProfileStepProps) {
             <Textarea
               id="bio"
               value={formData.bio}
-              onChange={(e) =>
-                setFormData({ ...formData, bio: e.target.value })
-              }
+              onChange={(event) => setFormData({ ...formData, bio: event.target.value })}
               placeholder="Tell us a bit about yourself..."
               rows={4}
             />
@@ -67,9 +56,7 @@ export function UserProfileStep({ data, onNext }: UserProfileStepProps) {
             <Input
               id="location"
               value={formData.location}
-              onChange={(e) =>
-                setFormData({ ...formData, location: e.target.value })
-              }
+              onChange={(event) => setFormData({ ...formData, location: event.target.value })}
               placeholder="City, State"
             />
           </div>

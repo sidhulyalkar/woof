@@ -1,58 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { usersApi } from '../api/users';
 import { gamificationApi } from '../api/gamification';
 import { petsApi } from '../api/pets';
 import { Pet, Badge } from '../types';
 
+type ProfileStats = Awaited<ReturnType<typeof gamificationApi.getMyStats>>;
+
 export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ProfileStats | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       const [statsData, petsData] = await Promise.all([
         gamificationApi.getMyStats(),
-        petsApi.getMyPets(),
+        petsApi.getPets(user?.id),
       ]);
       setStats(statsData);
-      setPets(petsData);
-    } catch (error) {
+      setPets(petsData.pets);
+    } catch {
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadProfileData();
+  }, [loadProfileData]);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: logout,
-        },
-      ]
-    );
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: logout,
+      },
+    ]);
   };
 
   if (loading) {
@@ -66,7 +55,10 @@ export default function ProfileScreen({ navigation }: any) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+        >
           <Ionicons name="settings-outline" size={24} color="#1f2937" />
         </TouchableOpacity>
       </View>
@@ -150,7 +142,10 @@ export default function ProfileScreen({ navigation }: any) {
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Leaderboard')}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Leaderboard')}
+        >
           <Ionicons name="trophy-outline" size={24} color="#6b7280" />
           <Text style={styles.menuItemText}>Leaderboard</Text>
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
@@ -172,155 +167,33 @@ export default function ProfileScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-  },
-  settingsButton: {
-    padding: 8,
-  },
-  profileSection: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#e5e7eb',
-    marginBottom: 16,
-  },
-  displayName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  handle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  bio: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  editButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  editButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statsSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-    backgroundColor: '#ffffff',
-    marginBottom: 8,
-  },
-  statCard: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  section: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    marginBottom: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-  petCard: {
-    alignItems: 'center',
-    marginRight: 16,
-    width: 80,
-  },
-  petImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e5e7eb',
-    marginBottom: 8,
-  },
-  petName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1f2937',
-    textAlign: 'center',
-  },
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  badgeItem: {
-    width: '33.33%',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  badgeIcon: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
-  badgeName: {
-    fontSize: 10,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  menuItemText: {
-    flex: 1,
-    marginLeft: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  logoutText: {
-    color: '#ef4444',
-  },
+  container: { flex: 1, backgroundColor: '#f9fafb' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', padding: 16 },
+  settingsButton: { padding: 8 },
+  profileSection: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 24 },
+  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#e5e7eb', marginBottom: 16 },
+  displayName: { fontSize: 24, fontWeight: 'bold', color: '#1f2937', marginBottom: 4 },
+  handle: { fontSize: 16, color: '#6b7280', marginBottom: 8 },
+  bio: { fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 16 },
+  editButton: { backgroundColor: '#8B5CF6', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8 },
+  editButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
+  statsSection: { flexDirection: 'row', justifyContent: 'space-around', padding: 16, backgroundColor: '#ffffff', marginBottom: 8 },
+  statCard: { alignItems: 'center' },
+  statValue: { fontSize: 24, fontWeight: 'bold', color: '#1f2937' },
+  statLabel: { fontSize: 12, color: '#6b7280', marginTop: 4 },
+  section: { backgroundColor: '#ffffff', padding: 16, marginBottom: 8 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#1f2937' },
+  seeAllText: { fontSize: 14, color: '#8B5CF6', fontWeight: '600' },
+  petCard: { alignItems: 'center', marginRight: 16, width: 80 },
+  petImage: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#e5e7eb', marginBottom: 8 },
+  petName: { fontSize: 12, fontWeight: '600', color: '#1f2937', textAlign: 'center' },
+  badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  badgeItem: { width: '33.33%', alignItems: 'center', marginBottom: 16 },
+  badgeIcon: { fontSize: 32, marginBottom: 4 },
+  badgeName: { fontSize: 10, color: '#6b7280', textAlign: 'center' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+  menuItemText: { flex: 1, marginLeft: 16, fontSize: 16, color: '#1f2937' },
+  logoutText: { color: '#ef4444' },
 });

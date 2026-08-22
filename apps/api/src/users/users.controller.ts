@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
@@ -21,7 +22,7 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({ summary: 'Update the authenticated user profile' })
   @ApiResponse({ status: 200, description: 'Profile updated' })
-  async updateMe(@Request() req: any, @Body() dto: UpdateProfileDto) {
+  async updateMe(@Request() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.sub, dto);
   }
 

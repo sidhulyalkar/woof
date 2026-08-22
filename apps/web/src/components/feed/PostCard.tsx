@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
+import { AppImage } from '@/components/ui/app-image';
 import { useLikePost, useComments, useCreateComment, useDeleteComment } from '@/lib/api/hooks';
 import { useUIStore } from '@/store/ui';
 import { formatDistanceToNow } from 'date-fns';
@@ -121,9 +122,11 @@ export function PostCard({ post }: PostCardProps) {
                 post.images!.length === 3 && index === 0 ? 'col-span-2 aspect-video' : ''
               }`}
             >
-              <img
+              <AppImage
                 src={image}
                 alt={`Post image ${index + 1}`}
+                width={1000}
+                height={1000}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
               />
               {index === 3 && post.images!.length > 4 && (

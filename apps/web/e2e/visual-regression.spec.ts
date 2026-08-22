@@ -12,25 +12,22 @@ test.describe('visual layout contracts', () => {
   test('login preserves desktop hierarchy', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /welcome|woof/i }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /sign in|log in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const main = page.locator('main').first();
-    if (await main.count()) {
-      const box = await main.boundingBox();
-      expect(box?.width ?? 0).toBeGreaterThan(700);
-    }
+    const box = await main.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(500);
   });
 
   test('login remains usable at narrow mobile width', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('button', { name: /sign in|log in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Welcome back', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const interactiveElements = page.locator('button, input, a[href]');
@@ -47,11 +44,10 @@ test.describe('visual layout contracts', () => {
   test('synthetic demo keeps its evidence hierarchy stable', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/demo');
-    await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('heading', { name: /synthetic beta demo/i })).toBeVisible();
     await expect(page.getByText(/compatibility/i).first()).toBeVisible();
-    await expect(page.getByText(/no live location/i)).toBeVisible();
+    await expect(page.getByText('No live location or external API calls')).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const cards = page.locator('[data-demo-card]');

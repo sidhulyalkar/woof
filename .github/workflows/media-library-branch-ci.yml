@@ -1,0 +1,109 @@
+name: Pet Media Library Branch CI
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-library-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      JWT_SECRET: ci-only-test-secret
+      NODE_ENV: test
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      ML_SERVICE_ENABLED: 'false'
+      MEDIA_DERIVATIVES_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply every committed migration
+        run: pnpm --filter @woof/database exec prisma migrate deploy
+
+      - name: Check media library formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/media-library
+          apps/api/src/storage/storage.service.ts
+          apps/api/src/app.module.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/.env.example
+          apps/web/src/lib/api.ts
+          apps/web/src/lib/api/media-library.ts
+          apps/web/src/lib/google-photos-oauth.ts
+          apps/web/src/components/keep-media-button.tsx
+          apps/web/src/app/library/page.tsx
+          apps/web/src/app/coach/layout.tsx
+          apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/health/page.tsx
+          apps/web/e2e/library-regression.spec.ts
+          apps/mobile/src/api/media-library.ts
+          apps/mobile/src/media/apple-media-adapter.ts
+          apps/mobile/src/screens/MediaLibraryScreen.tsx
+          apps/mobile/src/navigation/AppNavigator.tsx
+          apps/mobile/app.json
+          apps/web/.env.local.example
+          docs/PET_MEDIA_LIBRARY.md
+          .github/workflows/media-library-branch-ci.yml
+
+      - name: Run media library unit tests
+        run: pnpm --filter @woof/api exec jest src/media-library --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build Web
+        run: pnpm --filter @woof/web build
+
+      - name: Type-check native app
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Install Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run private-library accessibility and visual contracts
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/library-regression.spec.ts
+          --project=chromium

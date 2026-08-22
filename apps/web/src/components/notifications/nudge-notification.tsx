@@ -16,7 +16,11 @@ interface NudgeNotificationProps {
       reason: string;
       message?: string;
       location?: { lat: number; lng: number };
-      metadata?: Record<string, any>;
+      metadata?: {
+        distance?: number;
+        petNames?: { yours?: string; theirs?: string };
+        [key: string]: unknown;
+      };
     };
     createdAt: string;
   };
@@ -33,19 +37,19 @@ export function NudgeNotification({
 }: NudgeNotificationProps) {
   const handleAccept = async () => {
     try {
-      await apiClient.patch(`/nudges/${nudge.id}/accept`, {});
+      await apiClient.patch<void>(`/nudges/${nudge.id}/accept`, {});
       toast.success('Great! Check your messages');
       onAccept?.(nudge.id);
-    } catch (error) {
+    } catch {
       toast.error('Failed to accept');
     }
   };
 
   const handleDismiss = async () => {
     try {
-      await apiClient.patch(`/nudges/${nudge.id}/dismiss`, {});
+      await apiClient.patch<void>(`/nudges/${nudge.id}/dismiss`, {});
       onDismiss?.(nudge.id);
-    } catch (error) {
+    } catch {
       toast.error('Failed to dismiss');
     }
   };
@@ -67,20 +71,18 @@ export function NudgeNotification({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-accent/50 rounded-lg">
-        <div className="p-2 bg-primary/10 rounded-full text-primary">
-          {getIcon()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">
+      <div className="flex items-center gap-3 rounded-lg bg-accent/50 p-3">
+        <div className="rounded-full bg-primary/10 p-2 text-primary">{getIcon()}</div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">
             {nudge.payload.message || 'New suggestion'}
           </p>
         </div>
         <div className="flex gap-1">
-          <Button size="sm" variant="default" onClick={handleAccept}>
+          <Button size="sm" variant="default" onClick={() => void handleAccept()}>
             View
           </Button>
-          <Button size="sm" variant="ghost" onClick={handleDismiss}>
+          <Button size="sm" variant="ghost" onClick={() => void handleDismiss()}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -91,14 +93,14 @@ export function NudgeNotification({
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <div className="p-2 bg-primary/10 rounded-full text-primary flex-shrink-0">
+        <div className="flex-shrink-0 rounded-full bg-primary/10 p-2 text-primary">
           {getIcon()}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-start justify-between">
             <div className="flex-1">
-              <h4 className="font-medium text-sm mb-1">
+              <h4 className="mb-1 text-sm font-medium">
                 {nudge.payload.message || 'New suggestion'}
               </h4>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -112,23 +114,24 @@ export function NudgeNotification({
           </div>
 
           {nudge.payload.metadata && (
-            <div className="text-xs text-muted-foreground mb-3">
-              {nudge.payload.metadata.distance && (
+            <div className="mb-3 text-xs text-muted-foreground">
+              {nudge.payload.metadata.distance !== undefined && (
                 <p>📍 {nudge.payload.metadata.distance}m away</p>
               )}
               {nudge.payload.metadata.petNames && (
                 <p>
-                  🐕 {nudge.payload.metadata.petNames.yours} + {nudge.payload.metadata.petNames.theirs}
+                  🐕 {nudge.payload.metadata.petNames.yours} +{' '}
+                  {nudge.payload.metadata.petNames.theirs}
                 </p>
               )}
             </div>
           )}
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleAccept}>
+            <Button size="sm" onClick={() => void handleAccept()}>
               {nudge.type === 'meetup' ? "Let's go!" : 'View'}
             </Button>
-            <Button size="sm" variant="outline" onClick={handleDismiss}>
+            <Button size="sm" variant="outline" onClick={() => void handleDismiss()}>
               Dismiss
             </Button>
           </div>

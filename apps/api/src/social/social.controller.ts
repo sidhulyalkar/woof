@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateCommentDto, CreatePostDto, UpdateCommentDto, UpdatePostDto } from './dto/social.dto';
 import { SocialService } from './social.service';
@@ -14,14 +15,14 @@ export class SocialController {
   @Post('posts')
   @ApiOperation({ summary: 'Create a post as the authenticated user' })
   @ApiResponse({ status: 201, description: 'Post created successfully' })
-  async createPost(@Request() req: any, @Body() dto: CreatePostDto) {
+  async createPost(@Request() req: AuthenticatedRequest, @Body() dto: CreatePostDto) {
     return this.socialService.createPost(req.user.sub, dto);
   }
 
   @Get('posts')
   @ApiOperation({ summary: 'Get posts (paginated)' })
   async findAllPosts(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('skip') skip?: number,
     @Query('take') take?: number,
     @Query('authorUserId') authorUserId?: string,
@@ -32,14 +33,14 @@ export class SocialController {
 
   @Get('posts/:id')
   @ApiOperation({ summary: 'Get post by ID' })
-  async findOnePost(@Request() req: any, @Param('id') id: string) {
+  async findOnePost(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.socialService.findPostById(id, req.user.sub);
   }
 
   @Put('posts/:id')
   @ApiOperation({ summary: 'Update a post owned by the authenticated user' })
   async updatePost(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: UpdatePostDto,
   ) {
@@ -48,19 +49,19 @@ export class SocialController {
 
   @Delete('posts/:id')
   @ApiOperation({ summary: 'Delete a post owned by the authenticated user' })
-  async deletePost(@Request() req: any, @Param('id') id: string) {
+  async deletePost(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.socialService.deletePost(id, req.user.sub);
   }
 
   @Post('posts/:postId/likes')
   @ApiOperation({ summary: 'Like a post as the authenticated user' })
-  async createLike(@Request() req: any, @Param('postId') postId: string) {
+  async createLike(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
     return this.socialService.createLike(postId, req.user.sub);
   }
 
   @Delete('posts/:postId/likes')
   @ApiOperation({ summary: 'Remove the authenticated user’s like from a post' })
-  async deleteLike(@Request() req: any, @Param('postId') postId: string) {
+  async deleteLike(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
     return this.socialService.deleteLike(postId, req.user.sub);
   }
 
@@ -73,7 +74,7 @@ export class SocialController {
   @Post('posts/:postId/comments')
   @ApiOperation({ summary: 'Comment on a post as the authenticated user' })
   async createComment(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('postId') postId: string,
     @Body() dto: CreateCommentDto,
   ) {
@@ -89,7 +90,7 @@ export class SocialController {
   @Put('comments/:id')
   @ApiOperation({ summary: 'Update a comment owned by the authenticated user' })
   async updateComment(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: UpdateCommentDto,
   ) {
@@ -98,7 +99,7 @@ export class SocialController {
 
   @Delete('comments/:id')
   @ApiOperation({ summary: 'Delete a comment owned by the authenticated user' })
-  async deleteComment(@Request() req: any, @Param('id') id: string) {
+  async deleteComment(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.socialService.deleteComment(id, req.user.sub);
   }
 }

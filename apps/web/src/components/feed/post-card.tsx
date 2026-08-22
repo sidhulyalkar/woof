@@ -2,6 +2,7 @@
 
 import { Heart, MessageCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Button } from "@/components/ui/button"
 import type { Post } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -45,7 +46,14 @@ export function PostCard({ post, onLike, onMediaClick }: PostCardProps) {
           {post.mediaType === "video" ? (
             <video src={post.mediaUrl} className="max-h-[640px] w-full object-cover" muted playsInline preload="metadata" />
           ) : (
-            <img src={post.mediaUrl} alt="" className="max-h-[640px] w-full object-cover" loading="lazy" />
+            <AppImage
+              src={post.mediaUrl}
+              alt=""
+              width={1200}
+              height={900}
+              className="max-h-[640px] w-full object-cover"
+              loading="lazy"
+            />
           )}
         </button>
       )}

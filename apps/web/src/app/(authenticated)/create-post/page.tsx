@@ -2,10 +2,11 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Loader2, ArrowLeft, Link as LinkIcon, ImagePlus, Upload } from 'lucide-react';
+import { X, Loader2, ArrowLeft, Link as LinkIcon, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { AppImage } from '@/components/ui/app-image';
 import { useCreatePost } from '@/lib/api/hooks';
 import { useSessionStore } from '@/store/session';
 import { useUIStore } from '@/store/ui';
@@ -18,11 +19,9 @@ export default function CreatePostPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [selectedPet, setSelectedPet] = useState<string | null>(pets[0]?.id || null);
   const [showImageInput, setShowImageInput] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
 
   const createPostMutation = useCreatePost({
     onSuccess: () => {
@@ -60,7 +59,6 @@ export default function CreatePostPage() {
     validFiles.forEach(file => {
       const url = URL.createObjectURL(file);
       setImages(prev => [...prev, url]);
-      setImageFiles(prev => [...prev, file]);
     });
   };
 
@@ -78,7 +76,6 @@ export default function CreatePostPage() {
       URL.revokeObjectURL(images[index]);
     }
     setImages((prev) => prev.filter((_, i) => i !== index));
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
@@ -182,9 +179,11 @@ export default function CreatePostPage() {
                 key={index}
                 className="relative aspect-square rounded-xl overflow-hidden bg-muted/20 border border-border/10 group"
               >
-                <img
+                <AppImage
                   src={url}
                   alt={`Image ${index + 1}`}
+                  width={800}
+                  height={800}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
                     e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f5f5f5" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-family="system-ui"%3EInvalid Image%3C/text%3E%3C/svg%3E';

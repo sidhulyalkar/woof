@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { AppImage } from "@/components/ui/app-image"
 import { X, Camera, Video, RotateCw, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -25,35 +26,37 @@ export default function CameraPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    startCamera()
-    return () => {
-      stopCamera()
-    }
-  }, [facingMode])
+    let active = true
+    let mediaStream: MediaStream | null = null
 
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: mode === "video",
-      })
-      setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
+    const startCamera = async () => {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: mode === "video",
+        })
+        if (!active) {
+          mediaStream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        setStream(mediaStream)
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
+        }
+        setError(null)
+      } catch (err) {
+        if (!active) return
+        console.error("Error accessing camera:", err)
+        setError("Unable to access camera. Please check permissions.")
       }
-      setError(null)
-    } catch (err) {
-      console.error("Error accessing camera:", err)
-      setError("Unable to access camera. Please check permissions.")
     }
-  }
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
+    void startCamera()
+    return () => {
+      active = false
+      mediaStream?.getTracks().forEach((track) => track.stop())
     }
-  }
+  }, [facingMode, mode])
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return
@@ -108,12 +111,10 @@ export default function CameraPage() {
   const handleCapture = () => {
     if (mode === "photo") {
       capturePhoto()
+    } else if (isRecording) {
+      stopRecording()
     } else {
-      if (isRecording) {
-        stopRecording()
-      } else {
-        startRecording()
-      }
+      startRecording()
     }
   }
 
@@ -165,7 +166,13 @@ export default function CameraPage() {
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-black">
             {mode === "photo" ? (
-              <img src={capturedMedia || ""} alt="Captured" className="max-w-full max-h-full object-contain" />
+              <AppImage
+                src={capturedMedia || ""}
+                alt="Captured"
+                width={1600}
+                height={1200}
+                className="max-w-full max-h-full object-contain"
+              />
             ) : (
               <video src={capturedMedia || ""} controls className="max-w-full max-h-full object-contain" />
             )}

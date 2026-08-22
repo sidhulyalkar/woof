@@ -8,7 +8,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { NudgesService } from '../nudges/nudges.service';
@@ -31,7 +31,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server: Server;
 
   private logger = new Logger(ChatGateway.name);
-  private connectedUsers = new Map<string, string>(); // socketId -> userId
+  private connectedUsers = new Map<string, string>();
 
   constructor(
     private jwtService: JwtService,
@@ -41,7 +41,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      // Extract JWT from handshake
       const token = client.handshake.auth.token;
 
       if (!token) {
@@ -49,17 +48,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // Verify JWT
       const payload = await this.jwtService.verifyAsync(token);
       const userId = payload.sub;
 
       this.connectedUsers.set(client.id, userId);
       this.logger.log(`User ${userId} connected: ${client.id}`);
 
-      // Join user's personal room
       client.join(`user:${userId}`);
-
-      // Notify user is online
       this.server.emit('user:online', { userId });
     } catch (error) {
       this.logger.error(`Connection error: ${error.message}`);
@@ -72,8 +67,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (userId) {
       this.logger.log(`User ${userId} disconnected: ${client.id}`);
       this.connectedUsers.delete(client.id);
-
-      // Notify user is offline
       this.server.emit('user:offline', { userId });
     }
   }
@@ -95,7 +88,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       timestamp: new Date(),
     };
 
-    // Save message to database
     try {
       await this.prisma.message.create({
         data: {
@@ -105,16 +97,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         },
       });
 
-      // Trigger nudge check after message is saved
-      // This checks if 5+ messages have been exchanged and suggests a meetup
-      await this.nudgesService.checkChatActivityNudges(data.conversationId).catch((err) => {
+      await this.nudgesService.checkChatActivityNudges(data.conversationId, userId).catch((err) => {
         this.logger.error(`Failed to check chat nudges: ${err.message}`);
       });
     } catch (error) {
       this.logger.error(`Failed to save message: ${error.message}`);
     }
 
-    // Emit to conversation room
     this.server.to(`conversation:${data.conversationId}`).emit('message:received', message);
 
     return { success: true, message };

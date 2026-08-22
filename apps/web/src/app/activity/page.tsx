@@ -86,7 +86,7 @@ export default function ActivityPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Activity</h1>
-              <p className="text-sm text-muted-foreground">Track your pet's activities</p>
+              <p className="text-sm text-muted-foreground">Track your pet&apos;s activities</p>
             </div>
             <Button size="icon" className="shrink-0">
               <TrendingUp className="w-5 h-5" />

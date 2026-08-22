@@ -1,11 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useAuthStore } from './auth-store';
 
 describe('Auth Store', () => {
   beforeEach(() => {
-    // Clear localStorage before each test
     localStorage.clear();
-    // Reset store state
     useAuthStore.setState({
       user: null,
       token: null,
@@ -20,22 +18,15 @@ describe('Auth Store', () => {
 
   it('should initialize with unauthenticated state', () => {
     const { user, token, isAuthenticated } = useAuthStore.getState();
-
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
   });
 
   it('should set auth correctly', () => {
-    const mockUser = {
-      id: '123',
-      handle: 'testuser',
-      email: 'test@example.com',
-    };
+    const mockUser = { id: '123', handle: 'testuser', email: 'test@example.com' };
     const mockToken = 'mock-jwt-token';
-
     useAuthStore.getState().setAuth(mockUser, mockToken);
-
     const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toEqual(mockUser);
     expect(token).toBe(mockToken);
@@ -44,16 +35,10 @@ describe('Auth Store', () => {
   });
 
   it('should logout correctly', () => {
-    const mockUser = {
-      id: '123',
-      handle: 'testuser',
-      email: 'test@example.com',
-    };
+    const mockUser = { id: '123', handle: 'testuser', email: 'test@example.com' };
     const mockToken = 'mock-jwt-token';
-
     useAuthStore.getState().setAuth(mockUser, mockToken);
     useAuthStore.getState().logout();
-
     const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
@@ -62,16 +47,10 @@ describe('Auth Store', () => {
   });
 
   it('should update user correctly', () => {
-    const mockUser = {
-      id: '123',
-      handle: 'testuser',
-      email: 'test@example.com',
-    };
+    const mockUser = { id: '123', handle: 'testuser', email: 'test@example.com' };
     const mockToken = 'mock-jwt-token';
-
     useAuthStore.getState().setAuth(mockUser, mockToken);
     useAuthStore.getState().updateUser({ handle: 'newhandle' });
-
     const { user } = useAuthStore.getState();
     expect(user?.handle).toBe('newhandle');
     expect(user?.email).toBe('test@example.com');

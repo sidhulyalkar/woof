@@ -26,7 +26,7 @@ export default function EventsScreen({ navigation }: any) {
     try {
       const response = await eventsApi.getEvents(1, 20);
       setEvents(response.data);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to load events');
     } finally {
       setLoading(false);
@@ -44,7 +44,7 @@ export default function EventsScreen({ navigation }: any) {
       await eventsApi.rsvpEvent(eventId, status);
       loadEvents();
       Alert.alert('Success', `RSVP updated to ${status}`);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to RSVP');
     }
   };
@@ -141,118 +141,25 @@ export default function EventsScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  listContent: {
-    padding: 16,
-  },
-  eventCard: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  eventDate: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 8,
-    width: 60,
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eventMonth: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  eventDay: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  eventInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  eventMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  eventMetaText: {
-    marginLeft: 6,
-    fontSize: 14,
-    color: '#6b7280',
-    flex: 1,
-  },
-  eventActions: {
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  rsvpButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  rsvpButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  rsvpBadge: {
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 48,
-  },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
+  container: { flex: 1, backgroundColor: '#f9fafb' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1f2937' },
+  listContent: { padding: 16 },
+  eventCard: { flexDirection: 'row', backgroundColor: '#ffffff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  eventDate: { backgroundColor: '#8B5CF6', borderRadius: 8, width: 60, height: 60, justifyContent: 'center', alignItems: 'center' },
+  eventMonth: { color: '#ffffff', fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  eventDay: { color: '#ffffff', fontSize: 24, fontWeight: 'bold' },
+  eventInfo: { flex: 1, marginLeft: 16 },
+  eventTitle: { fontSize: 18, fontWeight: '600', color: '#1f2937', marginBottom: 8 },
+  eventMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  eventMetaText: { marginLeft: 6, fontSize: 14, color: '#6b7280', flex: 1 },
+  eventActions: { justifyContent: 'center', marginLeft: 8 },
+  rsvpButton: { backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6 },
+  rsvpButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '600' },
+  rsvpBadge: { alignItems: 'center' },
+  emptyContainer: { alignItems: 'center', padding: 48 },
+  emptyEmoji: { fontSize: 64, marginBottom: 16 },
+  emptyText: { fontSize: 18, fontWeight: '600', color: '#1f2937', marginBottom: 8 },
+  emptySubtext: { fontSize: 14, color: '#6b7280' },
 });

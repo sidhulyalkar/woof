@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -395,9 +396,9 @@ export class AnalyticsService {
     return { total, active: activeRows.length };
   }
 
-  private asRecord(value: unknown): Record<string, any> {
+  private asRecord(value: unknown): Prisma.InputJsonObject {
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, any>)
+      ? (value as Prisma.InputJsonObject)
       : {};
   }
 

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
 import {
@@ -273,10 +274,10 @@ export class MeetupProposalsService {
   private async recordTelemetry(
     userId: string,
     event: string,
-    data: Record<string, unknown>,
+    data: Prisma.InputJsonObject,
   ) {
     await this.prisma.telemetry.create({
-      data: { userId, source: 'meetup', event, data: data as any },
+      data: { userId, source: 'meetup', event, data },
     });
   }
 }

@@ -1,5 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -14,17 +14,16 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-
+    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
-      }),
+      })
     );
 
     prisma = app.get<PrismaService>(PrismaService);
-
     await app.init();
   });
 
@@ -33,7 +32,6 @@ describe('Auth (e2e)', () => {
   });
 
   beforeEach(async () => {
-    // Clean up users before each test
     await prisma.user.deleteMany();
   });
 
@@ -79,16 +77,12 @@ describe('Auth (e2e)', () => {
     });
 
     it('should fail with duplicate email', async () => {
-      // Create first user
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'duplicate@example.com',
-          handle: 'user1',
-          password: 'password123',
-        });
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+        email: 'duplicate@example.com',
+        handle: 'user1',
+        password: 'password123',
+      });
 
-      // Try to create user with same email
       return request(app.getHttpServer())
         .post('/api/v1/auth/register')
         .send({
@@ -102,14 +96,11 @@ describe('Auth (e2e)', () => {
 
   describe('/auth/login (POST)', () => {
     beforeEach(async () => {
-      // Create a user for login tests
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'login@example.com',
-          handle: 'loginuser',
-          password: 'password123',
-        });
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+        email: 'login@example.com',
+        handle: 'loginuser',
+        password: 'password123',
+      });
     });
 
     it('should login with valid credentials', () => {
@@ -152,15 +143,11 @@ describe('Auth (e2e)', () => {
     let authToken: string;
 
     beforeEach(async () => {
-      // Register and get token
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'me@example.com',
-          handle: 'meuser',
-          password: 'password123',
-        });
-
+      const response = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+        email: 'me@example.com',
+        handle: 'meuser',
+        password: 'password123',
+      });
       authToken = response.body.access_token;
     });
 
@@ -176,9 +163,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should fail without token', () => {
-      return request(app.getHttpServer())
-        .get('/api/v1/auth/me')
-        .expect(401);
+      return request(app.getHttpServer()).get('/api/v1/auth/me').expect(401);
     });
 
     it('should fail with invalid token', () => {
