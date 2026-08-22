@@ -72,15 +72,21 @@ jobs:
         run: pnpm --filter @woof/database db:migrate:deploy
 
       - name: Check Autopilot formatting
-        run: >-
-          pnpm exec prettier --check
-          apps/api/.env.example
-          apps/api/src/autopilot
-          apps/api/src/care-events/care-event.types.ts
-          apps/api/src/app.module.ts
-          apps/api/src/config/env.validation.ts
-          .github/workflows/dogos-autopilot-ci.yml
-          docs/DOGOS_AUTOPILOT.md
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/autopilot \
+            apps/api/src/care-events/care-event.types.ts \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            .github/workflows/dogos-autopilot-ci.yml \
+            docs/DOGOS_AUTOPILOT.md
+          git diff --exit-code -- \
+            apps/api/src/autopilot \
+            apps/api/src/care-events/care-event.types.ts \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            .github/workflows/dogos-autopilot-ci.yml \
+            docs/DOGOS_AUTOPILOT.md
 
       - name: Lint Autopilot release surface
         run: >-
