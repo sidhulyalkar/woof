@@ -12,8 +12,8 @@ export function middleware(request: NextRequest) {
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: ${
-    process.env.NODE_ENV === 'production' ? '' : "'unsafe-eval'"
-  };
+      process.env.NODE_ENV === 'production' ? '' : "'unsafe-eval'"
+    };
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https:;
     font-src 'self' data:;
@@ -30,10 +30,7 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(self)',
-  );
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
 
   // HTTPS redirect in production
   if (
@@ -42,7 +39,7 @@ export function middleware(request: NextRequest) {
   ) {
     return NextResponse.redirect(
       `https://${request.headers.get('host')}${request.nextUrl.pathname}`,
-      301,
+      301
     );
   }
 

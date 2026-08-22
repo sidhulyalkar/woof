@@ -11,7 +11,7 @@ const user = {
 const tinyImage =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>'
   );
 
 function corsHeaders(route: Route) {
@@ -145,8 +145,8 @@ test.describe('Private pet media library', () => {
       .analyze();
     expect(
       results.violations.filter((violation) =>
-        ['serious', 'critical'].includes(violation.impact ?? ''),
-      ),
+        ['serious', 'critical'].includes(violation.impact ?? '')
+      )
     ).toEqual([]);
 
     await page.keyboard.press('Tab');
@@ -227,7 +227,7 @@ test.describe('Private pet media library', () => {
     });
     await page.goto('/library');
     const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(page.getByTestId('media-library-grid')).toBeVisible();

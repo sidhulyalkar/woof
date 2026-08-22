@@ -9,16 +9,12 @@ describe('CSP API connect source', () => {
   });
 
   it('preserves a non-default development port in the allowed origin', () => {
-    expect(getApiConnectOrigin('http://127.0.0.1:59999/api/v1')).toBe(
-      'http://127.0.0.1:59999',
-    );
+    expect(getApiConnectOrigin('http://127.0.0.1:59999/api/v1')).toBe('http://127.0.0.1:59999');
   });
 
   it('does not broaden the policy when the configured API URL is missing or malformed', () => {
     expect(getApiConnectOrigin()).toBeNull();
     expect(getApiConnectOrigin('not a url')).toBeNull();
-    expect(buildConnectSrc('not a url')).toBe(
-      "'self' https://vitals.vercel-insights.com",
-    );
+    expect(buildConnectSrc('not a url')).toBe("'self' https://vitals.vercel-insights.com");
   });
 });
