@@ -1,0 +1,183 @@
+name: Fix PR7 mobile and browser once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/fix-pr7-mobile-and-browser-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Patch browser and mobile contracts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one replacement, found {count}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Anonymous login 401s are form errors, not expired authenticated sessions.
+          replace_once(
+              'apps/web/src/lib/api/client.ts',
+              """  error => {\n    if (error.response) {\n      // If we get a 401 Unauthorized, it means our token is invalid or expired\n      if (error.response.status === 401) {\n        console.warn('API responded with 401, logging out');\n        localStorage.removeItem('authToken');\n        // Optionally, redirect to login page\n        if (typeof window !== 'undefined') {\n          window.location.pathname = '/login';\n        }\n      }\n    }\n    return Promise.reject(error);\n  }""",
+              """  error => {\n    const requestHadAuthToken =\n      typeof window !== 'undefined' && Boolean(localStorage.getItem('authToken'));\n\n    // A 401 from an authenticated request means the saved session is stale.\n    // A 401 from /auth/login is expected form feedback and must stay on the page.\n    if (error.response?.status === 401 && requestHadAuthToken) {\n      console.warn('Authenticated API request returned 401; clearing the stale session');\n      localStorage.removeItem('authToken');\n      if (window.location.pathname !== '/login') {\n        window.location.pathname = '/login';\n      }\n    }\n    return Promise.reject(error);\n  }""",
+          )
+
+          # Selection has its own accessible control; clicking the card opens details.
+          replace_once(
+              'apps/web/e2e/library-regression.spec.ts',
+              """    await page.getByTestId('media-library-grid').locator('[data-asset-id=\"asset-1\"]').click();\n    await expect(page.getByText(/1 selected/i)).toBeVisible();""",
+              """    await page.getByRole('button', { name: /select asset-1\.jpg/i }).click();\n    await expect(page.getByText(/1 selected/i)).toBeVisible();""",
+          )
+
+          replace_once(
+              'apps/web/src/app/library/page.tsx',
+              """              <div className=\"flex flex-wrap justify-end gap-2\">\n                <Button""",
+              """              <div className=\"flex flex-wrap items-center justify-end gap-2\">\n                <span role=\"status\" aria-live=\"polite\" className=\"text-xs text-muted-foreground\">\n                  {selectedIds.length} selected\n                </span>\n                <Button""",
+          )
+
+          # Add the Expo SDK 54 modules already qualified on the downstream dogOS branch.
+          package_path = Path('apps/mobile/package.json')
+          package = json.loads(package_path.read_text())
+          dependencies = package['dependencies']
+          dependencies['expo-file-system'] = '~19.0.23'
+          dependencies['expo-sharing'] = '~14.0.8'
+          package['dependencies'] = dict(sorted(dependencies.items()))
+          package_path.write_text(json.dumps(package, indent=2) + '\n')
+
+          # The mobile client already unwraps Axios response.data. Type each result directly.
+          goals = Path('apps/mobile/src/api/goals.ts')
+          text = goals.read_text()
+          text = text.replace('metadata?: any;', 'metadata?: unknown;')
+          text = text.replace('const params: any = {};', 'const params: Record<string, string> = {};')
+          replacements = {
+              """    const response = await apiClient.get('/goals', { params });\n    return response.data;""": """    return apiClient.get<Goal[]>('/goals', { params });""",
+              """    const response = await apiClient.get(`/goals/${id}`);\n    return response.data;""": """    return apiClient.get<Goal>(`/goals/${id}`);""",
+              """    const response = await apiClient.post('/goals', data);\n    return response.data;""": """    return apiClient.post<Goal>('/goals', data);""",
+              """    const response = await apiClient.patch(`/goals/${id}`, data);\n    return response.data;""": """    return apiClient.patch<Goal>(`/goals/${id}`, data);""",
+              """    const response = await apiClient.patch(`/goals/${id}/progress`, { value });\n    return response.data;""": """    return apiClient.patch<Goal>(`/goals/${id}/progress`, { value });""",
+              """    const response = await apiClient.get('/goals/statistics');\n    return response.data;""": """    return apiClient.get<GoalStatistics>('/goals/statistics');""",
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'goals.ts expected one block: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+          goals.write_text(text)
+
+          # Feed API returns a typed envelope with `posts`.
+          replace_once(
+              'apps/mobile/src/screens/FeedScreen.tsx',
+              '      setPosts(response.data);',
+              '      setPosts(response.posts);',
+          )
+
+          # Owner-scoped list calls use the already-supported ownerId filter.
+          replace_once(
+              'apps/mobile/src/screens/PetsListScreen.tsx',
+              """      const data = await petsApi.getMyPets();\n      setPets(data);""",
+              """      const data = await petsApi.getPets();\n      setPets(data.pets);""",
+          )
+          replace_once(
+              'apps/mobile/src/screens/ProfileScreen.tsx',
+              """        petsApi.getMyPets(),\n      ]);\n      setStats(statsData);\n      setPets(petsData);""",
+              """        petsApi.getPets(user?.id),\n      ]);\n      setStats(statsData);\n      setPets(petsData.pets);""",
+          )
+
+          # There is no privacy-preserving proximity endpoint on this release line.
+          # Fail closed instead of downloading all pets and inferring locations client-side.
+          pets_path = Path('apps/mobile/src/api/pets.ts')
+          pets_text = pets_path.read_text()
+          marker = """  async getPet(id: string): Promise<Pet> {\n    return apiClient.get(`/pets/${id}`);\n  },"""
+          insertion = """  /**\n   * Nearby discovery needs a dedicated privacy-preserving proximity API.\n   * Until that contract exists, fail closed rather than approximating proximity from broad pet data.\n   */\n  async getNearbyPets(\n    _latitude: number,\n    _longitude: number,\n    _radiusMeters: number\n  ): Promise<Pet[]> {\n    return [];\n  },\n\n  async getPet(id: string): Promise<Pet> {\n    return apiClient.get(`/pets/${id}`);\n  },"""
+          if pets_text.count(marker) != 1:
+              raise SystemExit('pets.ts getPet insertion point not unique')
+          pets_path.write_text(pets_text.replace(marker, insertion, 1))
+
+          # React Native 0.81 requires the interpolation output generic.
+          animations = Path('apps/mobile/src/utils/animations.ts')
+          animation_text = animations.read_text()
+          types = [
+              ('createOpacityInterpolation', 'number'),
+              ('createScaleInterpolation', 'number'),
+              ('createRotationInterpolation', 'string'),
+              ('createTranslateInterpolation', 'number'),
+          ]
+          for function_name, output_type in types:
+              start = animation_text.index(f'export const {function_name}')
+              return_type = animation_text.index('): Animated.AnimatedInterpolation =>', start)
+              animation_text = (
+                  animation_text[:return_type]
+                  + f'): Animated.AnimatedInterpolation<{output_type}> =>'
+                  + animation_text[return_type + len('): Animated.AnimatedInterpolation =>'):]
+              )
+          animations.write_text(animation_text)
+          PY
+
+          pnpm exec prettier --write \
+            apps/web/src/lib/api/client.ts \
+            apps/web/src/app/library/page.tsx \
+            apps/web/e2e/library-regression.spec.ts \
+            apps/mobile/package.json \
+            apps/mobile/src/api/goals.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PetsListScreen.tsx \
+            apps/mobile/src/screens/ProfileScreen.tsx \
+            apps/mobile/src/utils/animations.ts
+
+      - name: Regenerate lockfile and validate mobile types
+        run: |
+          pnpm install --lockfile-only
+          pnpm install --frozen-lockfile
+          pnpm --filter @woof/mobile type-check
+
+      - name: Remove helper and commit exact paths
+        run: |
+          rm .github/workflows/fix-pr7-mobile-and-browser-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/web/src/lib/api/client.ts \
+            apps/web/src/app/library/page.tsx \
+            apps/web/e2e/library-regression.spec.ts \
+            apps/mobile/package.json \
+            apps/mobile/src/api/goals.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PetsListScreen.tsx \
+            apps/mobile/src/screens/ProfileScreen.tsx \
+            apps/mobile/src/utils/animations.ts \
+            pnpm-lock.yaml \
+            .github/workflows/fix-pr7-mobile-and-browser-once.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(release): align parent browser and mobile contracts"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
