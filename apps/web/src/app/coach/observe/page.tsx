@@ -187,7 +187,9 @@ export default function BehaviorObservePage() {
   const openCamera = async () => {
     setCaptureError(null);
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCaptureError('This browser does not expose camera capture. Upload a photo or video instead.');
+      setCaptureError(
+        'This browser does not expose camera capture. Upload a photo or video instead.'
+      );
       return;
     }
 
@@ -249,7 +251,9 @@ export default function BehaviorObservePage() {
     const stream = streamRef.current;
     if (!stream) return;
     if (typeof MediaRecorder === 'undefined') {
-      setCaptureError('Video recording is not supported in this browser. Use a photo or file upload.');
+      setCaptureError(
+        'Video recording is not supported in this browser. Use a photo or file upload.'
+      );
       return;
     }
 
@@ -321,7 +325,9 @@ export default function BehaviorObservePage() {
             </Link>
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Woof Coach</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              Woof Coach
+            </p>
             <h1 className="truncate text-lg font-bold">Observe together</h1>
           </div>
           <div className="rounded-full border border-border/60 bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
@@ -496,7 +502,12 @@ export default function BehaviorObservePage() {
 
           {!media && !cameraOpen && (
             <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" className="h-24 flex-col gap-2" onClick={openCamera}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-24 flex-col gap-2"
+                onClick={openCamera}
+              >
                 <Camera className="h-5 w-5" aria-hidden="true" />
                 Camera
               </Button>
@@ -534,7 +545,12 @@ export default function BehaviorObservePage() {
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-3 p-3">
-                <Button type="button" variant="secondary" onClick={capturePhoto} disabled={recording}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={capturePhoto}
+                  disabled={recording}
+                >
                   <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
                   Photo
                 </Button>
@@ -554,10 +570,19 @@ export default function BehaviorObservePage() {
             <div className="overflow-hidden rounded-3xl border border-border bg-card">
               <div className="relative bg-black">
                 {isVideo ? (
-                  <video src={previewUrl} controls playsInline className="max-h-80 w-full object-contain" />
+                  <video
+                    src={previewUrl}
+                    controls
+                    playsInline
+                    className="max-h-80 w-full object-contain"
+                  />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrl} alt="Behavior observation preview" className="max-h-80 w-full object-contain" />
+                  <img
+                    src={previewUrl}
+                    alt="Behavior observation preview"
+                    className="max-h-80 w-full object-contain"
+                  />
                 )}
                 <button
                   type="button"
@@ -776,18 +801,23 @@ export default function BehaviorObservePage() {
               </span>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Confidence grows from repeated observations across contexts and owner corrections. It is
-              not a personality score.
+              Confidence grows from repeated observations across contexts and owner corrections. It
+              is not a personality score.
             </p>
 
             {usefulEffects.length > 0 && (
               <div className="mt-4 space-y-2">
                 <p className="text-sm font-semibold">Handler strategies worth testing again</p>
                 {usefulEffects.map((effect) => (
-                  <div key={effect.action} className="rounded-xl border border-border/60 p-3 text-xs">
+                  <div
+                    key={effect.action}
+                    className="rounded-xl border border-border/60 p-3 text-xs"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold">{effect.action}</span>
-                      <span className="text-muted-foreground">{effect.pairedSessions} paired clips</span>
+                      <span className="text-muted-foreground">
+                        {effect.pairedSessions} paired clips
+                      </span>
                     </div>
                   </div>
                 ))}

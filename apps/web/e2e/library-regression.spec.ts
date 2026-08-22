@@ -10,7 +10,9 @@ const user = {
 
 const tinyImage =
   'data:image/svg+xml;charset=utf-8,' +
-  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>');
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>'
+  );
 
 function asset(id: string, favorite = false) {
   return {
@@ -42,11 +44,36 @@ function libraryPayload(assets: ReturnType<typeof asset>[] = []) {
     petId: 'pet-1',
     assets,
     albums: [
-      { id: 'smart:recent', name: 'Recent', description: 'Recent', icon: 'clock', kind: 'SMART', count: assets.length },
-      { id: 'smart:favorites', name: 'Favorites', description: 'Favorites', icon: 'heart', kind: 'SMART', count: assets.filter((item) => item.favorite).length },
-      { id: 'album-1', name: 'Weekend adventures', description: 'Trail days', icon: 'folder', kind: 'USER', count: assets.filter((item) => item.albumIds.includes('album-1')).length },
+      {
+        id: 'smart:recent',
+        name: 'Recent',
+        description: 'Recent',
+        icon: 'clock',
+        kind: 'SMART',
+        count: assets.length,
+      },
+      {
+        id: 'smart:favorites',
+        name: 'Favorites',
+        description: 'Favorites',
+        icon: 'heart',
+        kind: 'SMART',
+        count: assets.filter((item) => item.favorite).length,
+      },
+      {
+        id: 'album-1',
+        name: 'Weekend adventures',
+        description: 'Trail days',
+        icon: 'folder',
+        kind: 'USER',
+        count: assets.filter((item) => item.albumIds.includes('album-1')).length,
+      },
     ],
-    storage: { usedBytes: assets.length * 1024, quotaBytes: 10 * 1024 * 1024 * 1024, storageConfigured: true },
+    storage: {
+      usedBytes: assets.length * 1024,
+      quotaBytes: 10 * 1024 * 1024 * 1024,
+      storageConfigured: true,
+    },
     importCapabilities: {
       devicePicker: true,
       appleSystemPicker: true,
@@ -58,7 +85,11 @@ function libraryPayload(assets: ReturnType<typeof asset>[] = []) {
 
 async function authenticate(page: Page) {
   await page.route('**/auth/me', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(user) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(user),
+    });
   });
   await page.goto('/login');
   await page.evaluate(() => localStorage.setItem('authToken', 'browser-test-token'));
@@ -72,10 +103,16 @@ async function routeLibrary(page: Page, handler: (route: Route) => Promise<void>
 }
 
 test.describe('Private pet media library', () => {
-  test('empty library is calm, keyboard reachable, and free of serious WCAG violations', async ({ page }) => {
+  test('empty library is calm, keyboard reachable, and free of serious WCAG violations', async ({
+    page,
+  }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(libraryPayload()) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(libraryPayload()),
+      });
     });
     await page.goto('/library');
 
@@ -84,7 +121,11 @@ test.describe('Private pet media library', () => {
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
       .analyze();
-    expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+    expect(
+      results.violations.filter((violation) =>
+        ['serious', 'critical'].includes(violation.impact ?? '')
+      )
+    ).toEqual([]);
 
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY');
@@ -93,7 +134,11 @@ test.describe('Private pet media library', () => {
   test('shows an actionable failure state rather than an empty library', async ({ page }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'storage unavailable' }) });
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'storage unavailable' }),
+      });
     });
     await page.goto('/library');
     await expect(page.getByTestId('media-library-error')).toBeVisible();
@@ -103,7 +148,11 @@ test.describe('Private pet media library', () => {
   test('announces upload progress while a private direct upload is in flight', async ({ page }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(libraryPayload()) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(libraryPayload()),
+      });
     });
     await page.route('**/media-library/uploads/intents', async (route) => {
       await route.fulfill({
@@ -121,7 +170,11 @@ test.describe('Private pet media library', () => {
       await route.fulfill({ status: 200, body: '' });
     });
     await page.route('**/media-library/uploads/complete', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(asset('asset-new')) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(asset('asset-new')),
+      });
     });
 
     await page.goto('/library');
@@ -139,11 +192,17 @@ test.describe('Private pet media library', () => {
     await routeLibrary(page, async (route) => {
       const url = new URL(route.request().url());
       const filtered = url.searchParams.get('albumId') === 'album-1' ? [assets[0]] : assets;
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(libraryPayload(filtered)) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(libraryPayload(filtered)),
+      });
     });
     await page.goto('/library');
 
-    const headingBox = await page.getByRole('heading', { name: /moments that teach woof/i }).boundingBox();
+    const headingBox = await page
+      .getByRole('heading', { name: /moments that teach woof/i })
+      .boundingBox();
     const albumsBox = await page.getByTestId('media-library-albums').boundingBox();
     expect(headingBox && albumsBox && headingBox.y < albumsBox.y).toBeTruthy();
 
@@ -159,10 +218,16 @@ test.describe('Private pet media library', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(libraryPayload([asset('asset-1'), asset('asset-2')])) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(libraryPayload([asset('asset-1'), asset('asset-2')])),
+      });
     });
     await page.goto('/library');
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(page.getByTestId('media-library-grid')).toBeVisible();
   });

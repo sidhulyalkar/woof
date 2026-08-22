@@ -102,9 +102,7 @@ export class BehaviorVisionModelService {
         this.logger.warn(
           `Behavior vision service failed with ${response.status}: ${body.slice(0, 500)}`
         );
-        throw new ServiceUnavailableException(
-          'Behavior-video analysis is temporarily unavailable'
-        );
+        throw new ServiceUnavailableException('Behavior-video analysis is temporarily unavailable');
       }
 
       const payload = (await response.json()) as BehaviorVisionModelAnalysis;
@@ -157,7 +155,9 @@ export class BehaviorVisionModelService {
         value: this.clamp01(entry.value),
         confidence: this.clamp01(entry.confidence),
         basis: Array.isArray(entry.basis)
-          ? entry.basis.filter((basis) => audioAllowed || !basis.toLowerCase().includes('audio')).slice(0, 8)
+          ? entry.basis
+              .filter((basis) => audioAllowed || !basis.toLowerCase().includes('audio'))
+              .slice(0, 8)
           : [],
       }));
 

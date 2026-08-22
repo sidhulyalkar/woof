@@ -52,13 +52,7 @@ export const HANDLER_ACTIONS = [
 export type HandlerAction = (typeof HANDLER_ACTIONS)[number];
 
 export type BehaviorEvidenceSource =
-  | 'pose'
-  | 'motion'
-  | 'face'
-  | 'audio'
-  | 'interaction'
-  | 'context'
-  | 'owner';
+  'pose' | 'motion' | 'face' | 'audio' | 'interaction' | 'context' | 'owner';
 
 export type BehaviorEvidence = {
   label: string;

@@ -17,13 +17,9 @@ import {
 import { useMemo, useRef, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
-import {
-  type MediaAlbum,
-  type MediaAsset,
-  mediaLibraryApi,
-} from '@/lib/api/media-library';
+import { type MediaAlbum, type MediaAsset, mediaLibraryApi } from '@/lib/api/media-library';
 import { requestGooglePhotosToken } from '@/lib/google-photos-oauth';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { cn } from '@/lib/utils';
 
 function bytesLabel(bytes: number) {
@@ -56,7 +52,7 @@ function parsePollingSeconds(value?: string) {
 }
 
 export default function MediaLibraryPage() {
-  const user = useSessionStore((state) => state.user);
+  const user = useAuthStore((state) => state.user);
   const pets = user?.pets ?? [];
   const [petId, setPetId] = useState(pets[0]?.id ?? '');
   const [albumId, setAlbumId] = useState<string | undefined>();
@@ -77,7 +73,7 @@ export default function MediaLibraryPage() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['media-library', petId] });
   const currentCustomAlbum = libraryQuery.data?.albums.find(
-    (album) => album.id === albumId && album.kind === 'USER',
+    (album) => album.id === albumId && album.kind === 'USER'
   );
 
   const uploadMutation = useMutation({
@@ -91,7 +87,7 @@ export default function MediaLibraryPage() {
             filename: file.name,
             source: 'device-picker',
             albumIds: currentCustomAlbum ? [currentCustomAlbum.id] : [],
-          }),
+          })
         );
       }
       return uploaded;
@@ -135,7 +131,7 @@ export default function MediaLibraryPage() {
       const picker = window.open(
         session.pickerUri,
         'woof-google-photos',
-        'popup,width=560,height=760,noopener,noreferrer',
+        'popup,width=560,height=760,noopener,noreferrer'
       );
       if (!picker) throw new Error('Allow the Google Photos picker popup to continue.');
 
@@ -147,14 +143,16 @@ export default function MediaLibraryPage() {
           petId,
           accessToken,
           session.sessionId,
-          currentCustomAlbum ? [currentCustomAlbum.id] : [],
+          currentCustomAlbum ? [currentCustomAlbum.id] : []
         );
         if (result.ready) return result.imported;
       }
       throw new Error('Google Photos selection timed out. Try the import again.');
     },
     onSuccess: (assets) => {
-      setNotice(`${assets.length} Google Photos ${assets.length === 1 ? 'item' : 'items'} imported.`);
+      setNotice(
+        `${assets.length} Google Photos ${assets.length === 1 ? 'item' : 'items'} imported.`
+      );
       void refresh();
     },
   });
@@ -165,11 +163,14 @@ export default function MediaLibraryPage() {
       return mediaLibraryApi.exportGooglePhotos(petId, accessToken, selectedIds);
     },
     onSuccess: (result) =>
-      setNotice(`${result.uploaded} selected ${result.uploaded === 1 ? 'item was' : 'items were'} exported to Google Photos.`),
+      setNotice(
+        `${result.uploaded} selected ${result.uploaded === 1 ? 'item was' : 'items were'} exported to Google Photos.`
+      ),
   });
 
   const exportManifestMutation = useMutation({
-    mutationFn: () => mediaLibraryApi.exportManifest(petId, selectedIds.length ? selectedIds : undefined),
+    mutationFn: () =>
+      mediaLibraryApi.exportManifest(petId, selectedIds.length ? selectedIds : undefined),
     onSuccess: (manifest) => {
       const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -185,7 +186,10 @@ export default function MediaLibraryPage() {
   const albums = libraryQuery.data?.albums ?? [];
   const detailAsset = assets.find((asset) => asset.id === detailId) ?? null;
   const usagePercent = libraryQuery.data?.storage.quotaBytes
-    ? Math.min(100, (libraryQuery.data.storage.usedBytes / libraryQuery.data.storage.quotaBytes) * 100)
+    ? Math.min(
+        100,
+        (libraryQuery.data.storage.usedBytes / libraryQuery.data.storage.quotaBytes) * 100
+      )
     : 0;
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -263,7 +267,12 @@ export default function MediaLibraryPage() {
                 )}
                 Google Photos
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setNewAlbumOpen(true)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setNewAlbumOpen(true)}
+              >
                 <FolderPlus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Album
               </Button>
@@ -277,14 +286,20 @@ export default function MediaLibraryPage() {
                 <span>{bytesLabel(libraryQuery.data.storage.quotaBytes)} private quota</span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${usagePercent}%` }} />
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${usagePercent}%` }}
+                />
               </div>
             </div>
           )}
         </section>
 
         {notice && (
-          <div role="status" className="rounded-2xl border border-primary/15 bg-primary/[0.055] px-4 py-3 text-sm">
+          <div
+            role="status"
+            className="rounded-2xl border border-primary/15 bg-primary/[0.055] px-4 py-3 text-sm"
+          >
             {notice}
           </div>
         )}
@@ -355,7 +370,7 @@ export default function MediaLibraryPage() {
               onClick={() => setAlbumId(undefined)}
               className={cn(
                 'shrink-0 rounded-full border px-3 py-2 text-xs font-semibold',
-                !albumId ? 'border-primary bg-primary/10 text-primary' : 'border-border/70 bg-card',
+                !albumId ? 'border-primary bg-primary/10 text-primary' : 'border-border/70 bg-card'
               )}
             >
               All
@@ -369,7 +384,7 @@ export default function MediaLibraryPage() {
                   'shrink-0 rounded-full border px-3 py-2 text-xs font-semibold',
                   albumId === album.id
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border/70 bg-card text-muted-foreground',
+                    : 'border-border/70 bg-card text-muted-foreground'
                 )}
               >
                 {album.name} · {album.count}
@@ -397,7 +412,10 @@ export default function MediaLibraryPage() {
             {assets.map((asset) => {
               const selected = selectedSet.has(asset.id);
               return (
-                <article key={asset.id} className="group relative overflow-hidden rounded-2xl bg-muted">
+                <article
+                  key={asset.id}
+                  className="group relative overflow-hidden rounded-2xl bg-muted"
+                >
                   <button
                     type="button"
                     className="block aspect-square w-full overflow-hidden"
@@ -415,7 +433,11 @@ export default function MediaLibraryPage() {
                     ) : (
                       <div
                         className="h-full w-full bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.02]"
-                        style={asset.url ? { backgroundImage: `url(${JSON.stringify(asset.url).slice(1, -1)})` } : undefined}
+                        style={
+                          asset.url
+                            ? { backgroundImage: `url(${JSON.stringify(asset.url).slice(1, -1)})` }
+                            : undefined
+                        }
                       />
                     )}
                   </button>
@@ -425,21 +447,26 @@ export default function MediaLibraryPage() {
                       setSelectedIds((current) =>
                         current.includes(asset.id)
                           ? current.filter((id) => id !== asset.id)
-                          : [...current, asset.id],
+                          : [...current, asset.id]
                       )
                     }
-                    aria-label={selected ? `Deselect ${asset.filename}` : `Select ${asset.filename}`}
+                    aria-label={
+                      selected ? `Deselect ${asset.filename}` : `Select ${asset.filename}`
+                    }
                     className={cn(
                       'absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md',
                       selected
                         ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-white/30 bg-black/30 text-white',
+                        : 'border-white/30 bg-black/30 text-white'
                     )}
                   >
                     {selected ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
                   </button>
                   {asset.favorite && (
-                    <Heart className="absolute bottom-2 right-2 h-4 w-4 fill-current text-white drop-shadow" aria-hidden="true" />
+                    <Heart
+                      className="absolute bottom-2 right-2 h-4 w-4 fill-current text-white drop-shadow"
+                      aria-hidden="true"
+                    />
                   )}
                 </article>
               );
@@ -456,33 +483,57 @@ export default function MediaLibraryPage() {
                   {detailAsset.source} · {bytesLabel(detailAsset.sizeBytes)}
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setDetailId(null)} aria-label="Close details">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setDetailId(null)}
+                aria-label="Close details"
+              >
                 <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
               </Button>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               {detailAsset.tags.map((tag) => (
-                <span key={`${tag.source}-${tag.label}`} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                <span
+                  key={`${tag.source}-${tag.label}`}
+                  className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+                >
                   {tag.label}
                 </span>
               ))}
             </div>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <Button type="button" variant="outline" onClick={() => favoriteMutation.mutate(detailAsset)}>
-                <Heart className={cn('mr-2 h-4 w-4', detailAsset.favorite && 'fill-current')} aria-hidden="true" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => favoriteMutation.mutate(detailAsset)}
+              >
+                <Heart
+                  className={cn('mr-2 h-4 w-4', detailAsset.favorite && 'fill-current')}
+                  aria-hidden="true"
+                />
                 {detailAsset.favorite ? 'Favorited' : 'Favorite'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void shareOrDownload(detailAsset).catch((error) => setNotice(error instanceof Error ? error.message : 'Could not share this item.'))}
+                onClick={() =>
+                  void shareOrDownload(detailAsset).catch((error) =>
+                    setNotice(error instanceof Error ? error.message : 'Could not share this item.')
+                  )
+                }
               >
                 <Share2 className="mr-2 h-4 w-4" aria-hidden="true" />
                 Share / save
               </Button>
-              <Button type="button" variant="outline" onClick={() => deleteMutation.mutate(detailAsset.id)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => deleteMutation.mutate(detailAsset.id)}
+              >
                 <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
                 Delete
               </Button>
@@ -513,7 +564,7 @@ export default function MediaLibraryPage() {
                             'rounded-full border px-3 py-2 text-xs font-semibold',
                             inAlbum
                               ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border/70 text-muted-foreground',
+                              : 'border-border/70 text-muted-foreground'
                           )}
                         >
                           {album.name}
@@ -530,8 +581,8 @@ export default function MediaLibraryPage() {
           <p className="text-sm font-semibold">Portability first</p>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Woof uses system-selected imports rather than broad photo-library access. Originals can
-            be shared or downloaded at any time, exported back to Google Photos, or represented by
-            a portable JSON manifest with short-lived download links.
+            be shared or downloaded at any time, exported back to Google Photos, or represented by a
+            portable JSON manifest with short-lived download links.
           </p>
         </section>
       </main>

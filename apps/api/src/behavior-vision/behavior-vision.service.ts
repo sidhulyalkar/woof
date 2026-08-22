@@ -10,10 +10,7 @@ import {
   type BehaviorVisionModelAnalysis,
   type StoredBehaviorObservation,
 } from './behavior-vision.types';
-import {
-  AnalyzeBehaviorMediaDto,
-  BehaviorObservationFeedbackDto,
-} from './dto/behavior-vision.dto';
+import { AnalyzeBehaviorMediaDto, BehaviorObservationFeedbackDto } from './dto/behavior-vision.dto';
 
 const SOURCE = 'BEHAVIOR_VISION';
 const OBSERVATION_EVENT = 'BEHAVIOR_OBSERVATION';
@@ -368,7 +365,8 @@ export class BehaviorVisionService {
         {
           id: 'insufficient-evidence',
           confidence: 1,
-          statement: 'No behavior inference was produced because the specialized model is unavailable.',
+          statement:
+            'No behavior inference was produced because the specialized model is unavailable.',
           supportingEvidence: [],
           contradictoryEvidence: [],
         },

@@ -142,7 +142,9 @@ function weightedNullableMean(
   return available.reduce((sum, entry) => sum + entry.value * entry.weight, 0) / totalWeight;
 }
 
-function deriveInterventionEffects(observations: StoredBehaviorObservation[]): InterventionEffect[] {
+function deriveInterventionEffects(
+  observations: StoredBehaviorObservation[]
+): InterventionEffect[] {
   const deltas = derivePairedDeltas(observations);
   const byAction = new Map<HandlerAction, PairedDelta[]>();
   for (const delta of deltas) {
@@ -269,7 +271,9 @@ export function deriveIndividualBehaviorProfile(
   observations: StoredBehaviorObservation[]
 ): IndividualBehaviorProfile {
   const usable = observations.filter((observation) => observationWeight(observation) > 0);
-  const contextsSeen = [...new Set(usable.map((observation) => observation.context.context))].sort();
+  const contextsSeen = [
+    ...new Set(usable.map((observation) => observation.context.context)),
+  ].sort();
   const baselines = deriveBaselines(usable);
   const interventionEffects = deriveInterventionEffects(usable);
   const averageBaselineConfidence = baselines.length
