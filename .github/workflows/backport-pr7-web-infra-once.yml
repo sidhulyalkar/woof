@@ -1,0 +1,105 @@
+name: Backport PR7 web infrastructure once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/backport-pr7-web-infra-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Backport only generic green descendant infrastructure
+        run: |
+          git fetch origin agent/woof-adventure-system-v1
+          git restore --source=origin/agent/woof-adventure-system-v1 -- \
+            apps/web/next.config.ts \
+            apps/web/tailwind.config.ts \
+            apps/web/vitest.config.ts \
+            apps/web/src/store/session.ts \
+            apps/web/src/types/quiz.ts \
+            apps/web/src/lib/api/client.ts \
+            apps/web/src/lib/api/hooks.ts \
+            apps/web/src/hooks/use-push-notifications.ts \
+            apps/web/src/lib/analytics.ts \
+            apps/web/src/lib/push-notifications.ts \
+            apps/web/src/lib/types.ts
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/src/lib/api/client.ts')
+          text = path.read_text()
+          old = """  (error) => {\n    if (error.response?.status === 401) {\n      console.warn('API responded with 401, logging out');\n      if (typeof window !== 'undefined') {\n        localStorage.removeItem('authToken');\n        window.location.pathname = '/login';\n      }\n    }\n    return Promise.reject(error);\n  }"""
+          new = """  (error) => {\n    const requestHadAuthToken =\n      typeof window !== 'undefined' && Boolean(localStorage.getItem('authToken'));\n\n    if (error.response?.status === 401 && requestHadAuthToken) {\n      console.warn('Authenticated API request returned 401; clearing the stale session');\n      localStorage.removeItem('authToken');\n      if (window.location.pathname !== '/login') {\n        window.location.pathname = '/login';\n      }\n    }\n    return Promise.reject(error);\n  }"""
+          if text.count(old) != 1:
+              raise SystemExit('Expected one descendant 401 interceptor block')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          pnpm exec prettier --write \
+            apps/web/next.config.ts \
+            apps/web/tailwind.config.ts \
+            apps/web/vitest.config.ts \
+            apps/web/src/store/session.ts \
+            apps/web/src/types/quiz.ts \
+            apps/web/src/lib/api/client.ts \
+            apps/web/src/lib/api/hooks.ts \
+            apps/web/src/hooks/use-push-notifications.ts \
+            apps/web/src/lib/analytics.ts \
+            apps/web/src/lib/push-notifications.ts \
+            apps/web/src/lib/types.ts
+
+      - name: Prove backported lint surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          next.config.ts
+          tailwind.config.ts
+          vitest.config.ts
+          src/store/session.ts
+          src/types/quiz.ts
+          src/lib/api/client.ts
+          src/lib/api/hooks.ts
+          src/hooks/use-push-notifications.ts
+          src/lib/analytics.ts
+          src/lib/push-notifications.ts
+          src/lib/types.ts
+
+      - name: Commit source only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/web/next.config.ts \
+            apps/web/tailwind.config.ts \
+            apps/web/vitest.config.ts \
+            apps/web/src/store/session.ts \
+            apps/web/src/types/quiz.ts \
+            apps/web/src/lib/api/client.ts \
+            apps/web/src/lib/api/hooks.ts \
+            apps/web/src/hooks/use-push-notifications.ts \
+            apps/web/src/lib/analytics.ts \
+            apps/web/src/lib/push-notifications.ts \
+            apps/web/src/lib/types.ts
+          git commit -m "fix(web): restore typed infrastructure contracts"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
