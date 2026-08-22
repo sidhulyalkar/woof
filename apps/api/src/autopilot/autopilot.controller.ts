@@ -26,7 +26,7 @@ export class AutopilotController {
   ingestObservation(
     @Request() req: AuthenticatedRequest,
     @Param('provider') provider: string,
-    @Body() dto: IngestTrackerObservationDto,
+    @Body() dto: IngestTrackerObservationDto
   ) {
     return this.autopilot.ingestProviderObservation(req.user.sub, provider, dto);
   }
