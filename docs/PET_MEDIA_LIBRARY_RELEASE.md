@@ -6,7 +6,9 @@ This document is the merge checkpoint for the integrated pet-intelligence / Heal
 
 - Private pet media remains private by default and signed upload/download URLs are never persisted as durable asset data.
 - Browser authentication and the Media Library use the same canonical `useAuthStore`; an authenticated owner's pet list must enable the library query without a second session store.
+- Protected-browser tests seed the auth token before application code runs, so session bootstrap is deterministic rather than relying on a navigation race.
 - The web Content Security Policy derives `connect-src` from the configured API **origin**, not a pathful API base. A value such as `https://api.example.com/api/v1` must allow descendant endpoints such as `/api/v1/auth/me` without broadening the policy beyond `https://api.example.com`.
+- Library loading, error, empty, uploading, albums, and populated-grid states expose stable browser contracts and an API/storage failure must render an actionable retry state rather than masquerading as an empty library.
 - Media upload tests inspect Prisma arguments structurally so legitimate `bigint` byte counts remain supported while signed URLs and public visibility remain absent.
 - Behavior Vision fails closed and its personal-profile tests must parse and execute before release.
 - Health Lens emergency behavior remains outside game/reward mechanics.
@@ -22,6 +24,8 @@ Fresh parent qualification exposed and fixed several defects that historical chi
 3. `POST /auth/login` documented HTTP 200 but relied on Nest's default POST status 201. The controller now explicitly returns `HttpStatus.OK`, and backend e2e qualification passes that contract.
 4. Cross-origin Playwright API mocks did not model CORS preflight behavior. The focused Library harness now handles OPTIONS and returns explicit CORS headers rather than using longer timeouts or weaker selectors.
 5. The CSP used the full pathful `NEXT_PUBLIC_API_URL` as a `connect-src` source. Browser traces proved that `/auth/me` was blocked by CSP before reaching the mock/API. CSP generation now reduces the configured API URL to `URL.origin`, with a Vitest regression contract for pathful, portful, missing, and malformed inputs.
+6. The Library regression suite expected explicit UI-state contracts that the page did not expose, and the page had no dedicated query-error branch. The Library now distinguishes loading, error, empty, uploading, albums, and populated-grid states, provides a bounded automatic retry plus a user-visible `Try again` action, and preserves per-asset selectors for deterministic interaction tests.
+7. The browser auth helper previously wrote `localStorage` only after first visiting `/login`, creating a race where `AuthGuard` could remain in `Checking your Woof session`. Tests now install the auth token with `addInitScript` before protected navigation so the first application frame sees the intended authenticated state.
 
 ## Required evidence
 
