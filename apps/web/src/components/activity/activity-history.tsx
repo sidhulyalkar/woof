@@ -4,24 +4,28 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Clock, Users, ChevronRight } from "lucide-react"
 import { format, formatDistanceToNow } from "date-fns"
-import type { Activity } from "@/lib/types"
+import type { Activity, ActivityType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface ActivityHistoryProps {
   activities: Activity[]
 }
 
-const activityTypeLabels = {
+const activityTypeLabels: Record<ActivityType, string> = {
   walk: "Walk",
+  play: "Play",
   playdate: "Playdate",
   training: "Training",
+  vet: "Vet visit",
   other: "Other",
 }
 
-const activityTypeColors = {
+const activityTypeColors: Record<ActivityType, string> = {
   walk: "bg-primary/10 text-primary border-primary/20",
+  play: "bg-secondary/10 text-secondary border-secondary/20",
   playdate: "bg-secondary/10 text-secondary border-secondary/20",
   training: "bg-accent/10 text-accent border-accent/20",
+  vet: "bg-muted text-muted-foreground border-border",
   other: "bg-muted text-muted-foreground border-border",
 }
 
