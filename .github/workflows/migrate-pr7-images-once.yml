@@ -1,0 +1,159 @@
+name: Migrate PR7 raw images once
+
+on:
+  push:
+    branches:
+      - agent/pet-media-library-v1
+    paths:
+      - '.github/workflows/migrate-pr7-images-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Replace raw image elements with AppImage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          image_paths = [
+              'apps/web/src/app/(authenticated)/create-post/page.tsx',
+              'apps/web/src/app/(authenticated)/posts/[id]/page.tsx',
+              'apps/web/src/app/camera/page.tsx',
+              'apps/web/src/app/highlights/page.tsx',
+              'apps/web/src/components/discover/discover-map-view.tsx',
+              'apps/web/src/components/discover/match-card.tsx',
+              'apps/web/src/components/discover/match-detail-sheet.tsx',
+              'apps/web/src/components/events/event-card.tsx',
+              'apps/web/src/components/events/event-detail-sheet.tsx',
+              'apps/web/src/components/feed/CreatePostModal.tsx',
+              'apps/web/src/components/feed/PostCard.tsx',
+              'apps/web/src/components/feed/full-screen-post-view.tsx',
+              'apps/web/src/components/feed/post-card.tsx',
+              'apps/web/src/components/ui/file-upload.tsx',
+          ]
+
+          for path_str in image_paths:
+              path = Path(path_str)
+              text = path.read_text()
+              if '<img' not in text:
+                  raise SystemExit(f'{path_str}: expected raw image element')
+              if "@/components/ui/app-image" not in text:
+                  import_line = "import { AppImage } from '@/components/ui/app-image';\n"
+                  marker = "'use client';\n\n"
+                  if marker in text:
+                      text = text.replace(marker, marker + import_line, 1)
+                  else:
+                      text = import_line + text
+              text = text.replace('<img', '<AppImage')
+              path.write_text(text)
+
+          # Clear dead state/imports already reported in image-bearing live routes.
+          create_post = Path('apps/web/src/app/(authenticated)/create-post/page.tsx')
+          text = create_post.read_text()
+          text = text.replace('Link as LinkIcon, ImagePlus, Upload', 'Link as LinkIcon, Upload')
+          text = text.replace('  const [imageFiles, setImageFiles] = useState<File[]>([]);', '  const [, setImageFiles] = useState<File[]>([]);')
+          text = text.replace('  const [isUploading, setIsUploading] = useState(false);\n', '')
+          create_post.write_text(text)
+
+          highlights = Path('apps/web/src/app/highlights/page.tsx')
+          text = highlights.read_text()
+          text = text.replace('  const videoRef = useRef<HTMLVideoElement>(null);\n', '')
+          text = text.replace("import { useRef, useState } from 'react';", "import { useState } from 'react';")
+          highlights.write_text(text)
+
+          modal = Path('apps/web/src/components/feed/CreatePostModal.tsx')
+          text = modal.read_text()
+          text = text.replace('  const selectedPetData = pets.find((pet) => pet.id === selectedPet);\n', '')
+          modal.write_text(text)
+
+          fallback = Path('apps/web/src/components/figma/ImageWithFallback.tsx')
+          fallback.write_text("""import { useState } from 'react';
+import { AppImage, type AppImageProps } from '@/components/ui/app-image';
+
+const ERROR_IMG_SRC =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODgiIGhlaWdodD0iODgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZyIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBvcGFjaXR5PSIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIzLjciPjxyZWN0IHg9IjE2IiB5PSIxNiIgd2lkdGg9IjU2IiBoZWlnaHQ9IjU2IiByeD0iNiIvPjxwYXRoIGQ9Im0xNiA1OCAxNi0xOCAzMiAzMiIvPjxjaXJjbGUgY3g9IjUzIiBjeT0iMzUiIHI9IjciLz48L3N2Zz4KCg==';
+
+export function ImageWithFallback(props: AppImageProps) {
+  const [didError, setDidError] = useState(false);
+  const { src, alt, style, className, ...rest } = props;
+
+  if (didError) {
+    return (
+      <div className={`inline-block bg-gray-100 text-center align-middle ${className ?? ''}`} style={style}>
+        <div className="flex h-full w-full items-center justify-center">
+          <AppImage {...rest} src={ERROR_IMG_SRC} alt="Error loading image" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AppImage
+      {...rest}
+      src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      onError={() => setDidError(true)}
+    />
+  );
+}
+""")
+          PY
+
+          pnpm exec prettier --write \
+            apps/web/src/components/ui/app-image.tsx \
+            'apps/web/src/app/(authenticated)/create-post/page.tsx' \
+            'apps/web/src/app/(authenticated)/posts/[id]/page.tsx' \
+            apps/web/src/app/camera/page.tsx \
+            apps/web/src/app/highlights/page.tsx \
+            apps/web/src/components/discover/discover-map-view.tsx \
+            apps/web/src/components/discover/match-card.tsx \
+            apps/web/src/components/discover/match-detail-sheet.tsx \
+            apps/web/src/components/events/event-card.tsx \
+            apps/web/src/components/events/event-detail-sheet.tsx \
+            apps/web/src/components/feed/CreatePostModal.tsx \
+            apps/web/src/components/feed/PostCard.tsx \
+            apps/web/src/components/feed/full-screen-post-view.tsx \
+            apps/web/src/components/feed/post-card.tsx \
+            apps/web/src/components/figma/ImageWithFallback.tsx \
+            apps/web/src/components/ui/file-upload.tsx
+
+      - name: Prove raw-image warnings are gone and web tests hold
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @woof/web exec eslint src --format json --output-file /tmp/web-eslint.json
+          set -e
+          IMAGE_COUNT=$(node -e "const f=require('/tmp/web-eslint.json'); console.log(f.reduce((n,x)=>n+x.messages.filter(m=>m.ruleId==='@next/next/no-img-element').length,0))")
+          echo "remaining raw-image findings: $IMAGE_COUNT"
+          test "$IMAGE_COUNT" -eq 0
+          pnpm --filter @woof/web test
+
+      - name: Commit product changes only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src
+          git commit -m "fix(web): migrate legacy media rendering to AppImage"
+          git push origin HEAD:agent/pet-media-library-v1
