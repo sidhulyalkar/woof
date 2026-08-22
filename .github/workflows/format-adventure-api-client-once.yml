@@ -1,0 +1,36 @@
+name: Format Adventure API Client Once
+
+on:
+  push:
+    branches: [agent/woof-adventure-system-v1]
+    paths:
+      - '.github/workflows/format-adventure-api-client-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/woof-adventure-system-v1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --write apps/web/src/lib/api/client.ts
+      - run: pnpm exec prettier --check apps/web/src/lib/api/client.ts
+      - name: Commit formatted file and remove one-run workflow
+        run: |
+          rm .github/workflows/format-adventure-api-client-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/lib/api/client.ts .github/workflows/format-adventure-api-client-once.yml
+          git commit -m "Format Adventure API client with pinned Prettier"
+          git push origin HEAD:agent/woof-adventure-system-v1
