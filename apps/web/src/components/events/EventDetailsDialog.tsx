@@ -35,82 +35,98 @@ type EventFeedbackResponse = {
   totalFeedback: number;
 };
 
+type FeedbackSubmission = {
+  vibeScore: number;
+  petDensity: number;
+  venueQuality: number;
+  tags: string[];
+};
+
 interface EventDetailsDialogProps {
   event: LegacyEventDetails;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }
 
-export function EventDetailsDialog({ event, open, onOpenChange }: EventDetailsDialogProps) {
+export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogProps) {
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [vibeScore, setVibeScore] = useState([5]);
+  const [petDensity, setPetDensity] = useState([5]);
+  const [venueQuality, setVenueQuality] = useState([5]);
+  const [feedbackTags, setFeedbackTags] = useState<string[]>([]);
   const queryClient = useQueryClient();
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [feedback, setFeedback] = useState({
-    vibeScore: 3,
-    petDensity: 3,
-    venueQuality: 3,
-    notes: '',
-  });
 
-  const { data: feedbackData } = useQuery<EventFeedbackResponse>({
+  const isPast = new Date(event.startTime) < new Date();
+
+  const { data: feedback } = useQuery<EventFeedbackResponse>({
     queryKey: ['event-feedback', event.id],
     queryFn: () => apiClient.get<EventFeedbackResponse>(`/events/${event.id}/feedback`),
-    enabled: open,
+    enabled: isPast,
   });
 
-  const rsvpMutation = useMutation({
-    mutationFn: (status: 'going' | 'maybe' | 'not_going') =>
-      apiClient.post(`/events/${event.id}/rsvp`, { status }),
+  const submitFeedbackMutation = useMutation<void, Error, FeedbackSubmission>({
+    mutationFn: (data) => apiClient.post<void>(`/events/${event.id}/feedback`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('RSVP updated!');
-    },
-    onError: () => toast.error('Failed to update RSVP'),
-  });
-
-  const checkInMutation = useMutation({
-    mutationFn: () => apiClient.post(`/events/${event.id}/checkin`),
-    onSuccess: () => {
-      toast.success('Checked in! Enjoy the event 🎉');
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-    },
-    onError: () => toast.error('Failed to check in'),
-  });
-
-  const feedbackMutation = useMutation({
-    mutationFn: () =>
-      apiClient.post<void>(`/events/${event.id}/feedback`, {
-        vibeScore: feedback.vibeScore,
-        petDensity: feedback.petDensity,
-        venueQuality: feedback.venueQuality,
-        notes: feedback.notes || undefined,
-      }),
-    onSuccess: () => {
-      toast.success('Thanks for the feedback!');
-      setShowFeedback(false);
       queryClient.invalidateQueries({ queryKey: ['event-feedback', event.id] });
+      toast.success('Feedback submitted! Thanks for helping improve future events.');
+      setShowFeedbackForm(false);
     },
-    onError: () => toast.error('Failed to submit feedback'),
+    onError: (error) => {
+      toast.error(error.message || 'Failed to submit feedback');
+    },
   });
+
+  const handleSubmitFeedback = () => {
+    submitFeedbackMutation.mutate({
+      vibeScore: vibeScore[0],
+      petDensity: petDensity[0],
+      venueQuality: venueQuality[0],
+      tags: feedbackTags,
+    });
+  };
+
+  const toggleTag = (tag: string) => {
+    setFeedbackTags((previous) =>
+      previous.includes(tag) ? previous.filter((item) => item !== tag) : [...previous, tag]
+    );
+  };
+
+  const suggestedTags = [
+    'Well organized',
+    'Great location',
+    'Friendly crowd',
+    'Good turnout',
+    'Would attend again',
+    'Too crowded',
+    'Hard to find',
+  ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <Badge className="mb-2" variant="secondary">
-                {event.type}
-              </Badge>
-              <DialogTitle className="text-2xl">{event.title}</DialogTitle>
-            </div>
-          </div>
+          <DialogTitle>{event.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <p className="text-muted-foreground">{event.description}</p>
+          <div>
+            <Badge variant="secondary" className="mb-3">
+              {event.type}
+            </Badge>
+            <p className="mb-4 text-muted-foreground">{event.description}</p>
 
-          <div className="rounded-lg bg-muted/50 p-4">
-            <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {new Date(event.startTime).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span>
@@ -168,123 +184,131 @@ export function EventDetailsDialog({ event, open, onOpenChange }: EventDetailsDi
             </div>
           )}
 
-          {feedbackData && feedbackData.totalFeedback > 0 && (
-            <div className="rounded-lg border p-4">
-              <h4 className="mb-3 font-semibold">Community feedback</h4>
-              <div className="grid grid-cols-3 gap-4 text-center text-sm">
+          {isPast && (
+            <div className="border-t pt-6">
+              {!showFeedbackForm ? (
                 <div>
-                  <div className="font-semibold">{feedbackData.averages.vibeScore.toFixed(1)}</div>
-                  <div className="text-muted-foreground">Vibe</div>
+                  <h4 className="mb-3 text-sm font-semibold">Event Feedback</h4>
+                  {feedback && feedback.feedback.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4 rounded-lg bg-muted/50 p-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent">
+                            {feedback.averages.vibeScore.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Vibe</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent">
+                            {feedback.averages.petDensity.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Pet Density</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent">
+                            {feedback.averages.venueQuality.toFixed(1)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Venue</div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {feedback.totalFeedback}{' '}
+                        {feedback.totalFeedback === 1 ? 'person' : 'people'} rated this event
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mb-4 text-sm text-muted-foreground">No feedback yet</p>
+                  )}
+                  <Button onClick={() => setShowFeedbackForm(true)} className="mt-4 gap-2">
+                    <Star className="h-4 w-4" />
+                    Leave Feedback
+                  </Button>
                 </div>
-                <div>
-                  <div className="font-semibold">{feedbackData.averages.petDensity.toFixed(1)}</div>
-                  <div className="text-muted-foreground">Pet density</div>
-                </div>
-                <div>
-                  <div className="font-semibold">
-                    {feedbackData.averages.venueQuality.toFixed(1)}
+              ) : (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="mb-4 text-sm font-semibold">Rate this event</h4>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="mb-2 flex justify-between">
+                          <label className="text-sm">Vibe Score</label>
+                          <span className="text-sm font-semibold">{vibeScore[0]}/5</span>
+                        </div>
+                        <Slider
+                          value={vibeScore}
+                          onValueChange={setVibeScore}
+                          min={1}
+                          max={5}
+                          step={1}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-2 flex justify-between">
+                          <label className="text-sm">Pet Density</label>
+                          <span className="text-sm font-semibold">{petDensity[0]}/5</span>
+                        </div>
+                        <Slider
+                          value={petDensity}
+                          onValueChange={setPetDensity}
+                          min={1}
+                          max={5}
+                          step={1}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-2 flex justify-between">
+                          <label className="text-sm">Venue Quality</label>
+                          <span className="text-sm font-semibold">{venueQuality[0]}/5</span>
+                        </div>
+                        <Slider
+                          value={venueQuality}
+                          onValueChange={setVenueQuality}
+                          min={1}
+                          max={5}
+                          step={1}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-muted-foreground">Venue</div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              variant="outline"
-              onClick={() => rsvpMutation.mutate('maybe')}
-              disabled={rsvpMutation.isPending}
-            >
-              Maybe
-            </Button>
-            <Button
-              onClick={() => rsvpMutation.mutate('going')}
-              disabled={rsvpMutation.isPending}
-            >
-              Going
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => rsvpMutation.mutate('not_going')}
-              disabled={rsvpMutation.isPending}
-            >
-              Can&apos;t go
-            </Button>
-          </div>
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Quick tags (optional)</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedTags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant={feedbackTags.includes(tag) ? 'default' : 'outline'}
+                          className="cursor-pointer"
+                          onClick={() => toggleTag(tag)}
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
 
-          <Button
-            className="w-full"
-            variant="secondary"
-            onClick={() => checkInMutation.mutate()}
-            disabled={checkInMutation.isPending}
-          >
-            Check in
-          </Button>
-
-          {!showFeedback ? (
-            <Button variant="ghost" className="w-full" onClick={() => setShowFeedback(true)}>
-              Share event feedback
-            </Button>
-          ) : (
-            <div className="space-y-5 rounded-lg border p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Vibe</span>
-                  <span>{feedback.vibeScore}/5</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFeedbackForm(false)}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitFeedback}
+                      disabled={submitFeedbackMutation.isPending}
+                      className="flex-1 gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      Submit
+                    </Button>
+                  </div>
                 </div>
-                <Slider
-                  value={[feedback.vibeScore]}
-                  min={1}
-                  max={5}
-                  step={1}
-                  onValueChange={([vibeScore]) => setFeedback((value) => ({ ...value, vibeScore }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Pet density</span>
-                  <span>{feedback.petDensity}/5</span>
-                </div>
-                <Slider
-                  value={[feedback.petDensity]}
-                  min={1}
-                  max={5}
-                  step={1}
-                  onValueChange={([petDensity]) => setFeedback((value) => ({ ...value, petDensity }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Venue quality</span>
-                  <span>{feedback.venueQuality}/5</span>
-                </div>
-                <Slider
-                  value={[feedback.venueQuality]}
-                  min={1}
-                  max={5}
-                  step={1}
-                  onValueChange={([venueQuality]) =>
-                    setFeedback((value) => ({ ...value, venueQuality }))
-                  }
-                />
-              </div>
-              <textarea
-                className="min-h-24 w-full rounded-md border bg-background p-3 text-sm"
-                value={feedback.notes}
-                onChange={(event) =>
-                  setFeedback((value) => ({ ...value, notes: event.target.value }))
-                }
-                placeholder="Anything useful for future attendees?"
-              />
-              <Button
-                className="w-full"
-                onClick={() => feedbackMutation.mutate()}
-                disabled={feedbackMutation.isPending}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Submit feedback
-              </Button>
+              )}
             </div>
           )}
         </div>
