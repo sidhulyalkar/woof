@@ -1,5 +1,51 @@
-import apiClient from './client';
 import { Activity, CreateActivityDto, PaginatedResponse } from '../types';
+import type { CreateActivityRequest, UpdateActivityRequest } from '../types/activity';
+import apiClient from './client';
+
+type MobileActivityWrite = CreateActivityRequest | CreateActivityDto;
+
+function isLegacyActivityWrite(data: MobileActivityWrite): data is CreateActivityDto {
+  return 'startTime' in data || 'duration' in data || 'title' in data;
+}
+
+/**
+ * Keep the currently shipped mobile form contract working while all new dogOS
+ * surfaces move to the canonical server contract. This translation happens on
+ * the client boundary so the API can stay strict (`forbidNonWhitelisted`) and
+ * old apps do not need a synchronized release.
+ */
+export function normalizeActivityWrite(data: MobileActivityWrite): CreateActivityRequest {
+  if (!isLegacyActivityWrite(data)) return data;
+
+  const startedAt = data.startTime;
+  const endedAt =
+    data.endTime ??
+    (data.duration > 0
+      ? new Date(new Date(startedAt).getTime() + data.duration * 60_000).toISOString()
+      : undefined);
+
+  const location = data.location
+    ? {
+        latitude: data.location.latitude,
+        longitude: data.location.longitude,
+        ...(data.location.address ? { address: data.location.address } : {}),
+      }
+    : undefined;
+
+  return {
+    petId: data.petId,
+    type: data.type,
+    startedAt,
+    endedAt,
+    ...(location ? { route: { start: location } } : {}),
+    humanMetrics: {
+      durationMinutes: data.duration,
+      ...(data.distance !== undefined ? { distanceMeters: data.distance } : {}),
+      ...(data.title ? { legacyTitle: data.title } : {}),
+      ...(data.description ? { legacyDescription: data.description } : {}),
+    },
+  };
+}
 
 export const activitiesApi = {
   async getActivities(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Activity>> {
@@ -10,12 +56,18 @@ export const activitiesApi = {
     return apiClient.get(`/activities/${id}`);
   },
 
-  async createActivity(data: CreateActivityDto): Promise<Activity> {
-    return apiClient.post('/activities', data);
+  async createActivity(data: MobileActivityWrite): Promise<Activity> {
+    return apiClient.post('/activities', normalizeActivityWrite(data));
   },
 
-  async updateActivity(id: string, data: Partial<CreateActivityDto>): Promise<Activity> {
-    return apiClient.patch(`/activities/${id}`, data);
+  async updateActivity(
+    id: string,
+    data: UpdateActivityRequest | Partial<CreateActivityDto>,
+  ): Promise<Activity> {
+    const payload = isLegacyActivityWrite(data as MobileActivityWrite)
+      ? normalizeActivityWrite(data as CreateActivityDto)
+      : data;
+    return apiClient.put(`/activities/${id}`, payload);
   },
 
   async deleteActivity(id: string): Promise<void> {
@@ -24,7 +76,7 @@ export const activitiesApi = {
 
   async getMyActivities(petId?: string): Promise<Activity[]> {
     const params = petId ? { petId } : {};
-    return apiClient.get('/activities/my-activities', { params });
+    return apiClient.get('/activities', { params });
   },
 
   async uploadActivityPhotos(activityId: string, photoUris: string[]): Promise<{ urls: string[] }> {
