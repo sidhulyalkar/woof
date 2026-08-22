@@ -1,5 +1,5 @@
-import apiClient from './client';
 import { CreatePetDto, Pet } from '../types';
+import apiClient from './client';
 
 interface PetEnvelope {
   pets: Pet[];
@@ -13,6 +13,20 @@ export const petsApi = {
     return apiClient.get('/pets', {
       params: ownerId ? { ownerId } : undefined,
     });
+  },
+
+  /** Use the authenticated server-side owner boundary instead of listing every pet. */
+  async getMyPets(): Promise<Pet[]> {
+    const response = await apiClient.get<PetEnvelope>('/pets/me');
+    return response.pets;
+  },
+
+  /**
+   * Nearby-pet discovery needs a dedicated privacy-preserving proximity API.
+   * Fail closed instead of approximating it by downloading all pet/owner records.
+   */
+  async getNearbyPets(_latitude: number, _longitude: number, _radiusMeters: number): Promise<Pet[]> {
+    return [];
   },
 
   async getPet(id: string): Promise<Pet> {
