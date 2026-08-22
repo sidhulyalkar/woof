@@ -6,6 +6,8 @@ export interface Owner {
   bio?: string
   avatarUrl?: string
   isVerified?: boolean
+  age?: number
+  location?: string | { lat: number; lng: number; address?: string }
 }
 
 export interface Pet {
@@ -15,6 +17,7 @@ export interface Pet {
   species: string
   breed?: string
   age?: number
+  size?: string
   temperament: string[]
   photoUrl?: string
 }
@@ -28,6 +31,7 @@ export interface CompatibilityScore {
     temperament?: number
     age?: number
     breed?: number
+    schedule?: number
   }
   explanation: string[]
 }
@@ -39,6 +43,8 @@ export interface Match {
   compatibility: CompatibilityScore
   status?: "PROPOSED" | "CONFIRMED" | "AVOID"
   matchedAt?: string
+  reasons?: string[]
+  commonInterests?: string[]
 }
 
 export interface Message {
@@ -73,14 +79,19 @@ export interface Event {
   imageUrl?: string
 }
 
+export type ActivityType = "walk" | "play" | "playdate" | "training" | "vet" | "other"
+
 export interface Activity {
   id: string
   petId: string
-  type: "walk" | "play" | "training" | "vet"
+  type: ActivityType
   startTime: string
   endTime: string
+  duration: number
   distance?: number
+  route?: Array<{ lat: number; lng: number }>
   location?: { lat: number; lng: number }
+  participants?: string[]
   notes?: string
 }
 
@@ -226,6 +237,11 @@ export interface Highlight {
   expiresAt: string
 }
 
+export type MapMarkerData =
+  | { kind: "pet"; name: string; breed?: string; age?: number }
+  | { kind: "event"; title: string; datetime?: string; attendees?: number }
+  | { kind: "service"; name: string; rating?: number; category?: string }
+
 export interface MapMarker {
   id: string
   type: "pet" | "event" | "service"
@@ -234,7 +250,7 @@ export interface MapMarker {
   title: string
   subtitle?: string
   avatarUrl?: string
-  data: unknown
+  data: MapMarkerData
 }
 
 export interface Service {
@@ -254,4 +270,20 @@ export interface Service {
   phone?: string
   imageUrl?: string
   description?: string
+}
+
+export interface ServiceProvider {
+  id: string
+  userId: string
+  name: string
+  avatarUrl?: string
+  serviceType: "dog-walking" | "pet-sitting" | "training" | "grooming"
+  bio?: string
+  rating: number
+  reviewCount: number
+  priceRange: string
+  location: { lat: number; lng: number; address: string }
+  distance: number
+  availability: string[]
+  verified: boolean
 }
