@@ -42,11 +42,23 @@ A curation envelope contains only:
 
 - source type: Activity, CareEvent, or Media
 - source ID
-- state: SAVED or HIDDEN
+- internal state: SAVED or HIDDEN
 - optional owner note
 - curation update timestamp
 
 It does **not** copy source title, timestamps, metrics, route data, health context, media metadata, or other source truth.
+
+### Reversible v1 controls
+
+The v1 public API and product surface expose only:
+
+- **Save** a moment
+- **Note** or edit the note on a saved moment
+- **Unsave** by clearing its curation envelope
+
+`HIDDEN` remains an internal/read-compatible state only. Story v1 does not expose a Hide action and does not allow a new HIDDEN envelope through the public curation API. Hidden-item management is deferred until the product has an explicit recovery surface where a user can reliably review and restore hidden moments.
+
+Keeping HIDDEN readable preserves a migration-free path for future recovery tooling without creating a one-way control today.
 
 Curation writes:
 
@@ -106,13 +118,19 @@ The first-memory milestone uses the earliest real READY media timestamp, preferr
 
 Story may mark deterministic moments such as a favorite media item, hike, meetup, new-place context, or safe opt-out as `Worth remembering?`.
 
-This is a suggestion only. The owner decides whether to save, annotate, hide, or leave the moment alone.
+This is a suggestion only. The owner decides whether to save, annotate, unsave, or leave the moment alone.
 
 Future AI-assisted memory suggestions must follow the same rule:
 
 - AI may propose
 - the owner curates
 - AI cannot publish, rewrite source facts, or convert a suggestion into a persistent life claim without confirmation
+
+## Mobile scope
+
+Phase B does not introduce a separate mobile Story presentation. There is therefore no mobile Hide affordance to remove in this release. The mobile application remains covered by the inherited dogOS Foundation and root strict lint/type qualification, including `expo lint --max-warnings=0`.
+
+A future mobile Story surface must expose the same reversible Save / Note / Unsave contract unless hidden-item recovery ships first.
 
 ## Feature flag and rollback
 
@@ -131,6 +149,7 @@ The dedicated Story CI lane must prove:
 - zero-warning API and web lint
 - API/web type-check
 - Story service contracts
+- public curation validation rejects HIDE until a recovery surface exists
 - web API contracts and full web tests
 - API + web production builds
 - Story code does not create/update/delete/upsert canonical Activity, CareEvent, or MediaAsset rows
