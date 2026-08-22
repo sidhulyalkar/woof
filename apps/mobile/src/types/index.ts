@@ -36,8 +36,8 @@ export interface Activity {
   type: 'walk' | 'run' | 'play' | 'training' | 'other';
   title: string;
   description?: string;
-  duration: number; // minutes
-  distance?: number; // meters
+  duration: number;
+  distance?: number;
   calories?: number;
   startTime: string;
   endTime?: string;
@@ -224,19 +224,18 @@ export interface CoActivity {
   id: string;
   activityId: string;
   activity?: Activity;
-  participants: Array<{
+  participants: {
     userId: string;
     user?: User;
     petId?: string;
     pet?: Pet;
-  }>;
+  }[];
   status: 'active' | 'completed';
   startTime: string;
   endTime?: string;
   createdAt: string;
 }
 
-// API Response types
 export interface ApiResponse<T> {
   data: T;
   message?: string;
@@ -250,7 +249,6 @@ export interface PaginatedResponse<T> {
   hasMore: boolean;
 }
 
-// Form types
 export interface CreatePetDto {
   name: string;
   species: 'dog' | 'cat' | 'other';

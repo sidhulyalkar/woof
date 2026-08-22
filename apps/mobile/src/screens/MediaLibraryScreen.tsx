@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +25,19 @@ export default function MediaLibraryScreen() {
 
   const selectedPet = useMemo(() => pets.find((pet) => pet.id === petId), [petId, pets]);
 
+  const refresh = useCallback(async () => {
+    if (!petId) {
+      setAssets([]);
+      return;
+    }
+    try {
+      const result = await nativeMediaLibraryApi.library(petId);
+      setAssets(result.assets);
+    } catch {
+      setAssets([]);
+    }
+  }, [petId]);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -40,18 +53,8 @@ export default function MediaLibraryScreen() {
   }, []);
 
   useEffect(() => {
-    if (!petId) return;
     void refresh();
-  }, [petId]);
-
-  async function refresh() {
-    try {
-      const result = await nativeMediaLibraryApi.library(petId);
-      setAssets(result.assets);
-    } catch {
-      setAssets([]);
-    }
-  }
+  }, [refresh]);
 
   async function importFromApplePhotos() {
     if (!petId || working) return;

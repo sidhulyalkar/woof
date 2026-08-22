@@ -9,7 +9,7 @@
  * - Completion celebrations
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,10 @@ import {
   StyleSheet,
   RefreshControl,
   Alert,
-  Animated,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import goalsApi, { Goal, GoalType, GoalPeriod, GoalStatistics } from '../api/goals';
+import goalsApi, { Goal, GoalStatus, GoalStatistics } from '../api/goals';
 
 const { width } = Dimensions.get('window');
 
@@ -33,11 +32,16 @@ const GoalsScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'completed'>('active');
 
-  // Load goals and statistics
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
+      const goalStatus =
+        selectedFilter === 'all'
+          ? undefined
+          : selectedFilter === 'active'
+            ? GoalStatus.ACTIVE
+            : GoalStatus.COMPLETED;
       const [goalsData, statsData] = await Promise.all([
-        goalsApi.getGoals(undefined, selectedFilter === 'all' ? undefined : selectedFilter.toUpperCase() as any),
+        goalsApi.getGoals(undefined, goalStatus),
         goalsApi.getStatistics(),
       ]);
       setGoals(goalsData);
@@ -49,15 +53,15 @@ const GoalsScreen = ({ navigation }: any) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [selectedFilter]);
 
   useEffect(() => {
-    loadData();
-  }, [selectedFilter]);
+    void loadData();
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    void loadData();
   };
 
   const handleCreateGoal = () => {
@@ -66,14 +70,6 @@ const GoalsScreen = ({ navigation }: any) => {
 
   const handleGoalPress = (goal: Goal) => {
     navigation.navigate('GoalDetails', { goalId: goal.id });
-  };
-
-  const getProgressColor = (progress: number): string => {
-    if (progress >= 100) return '#10b981'; // Green
-    if (progress >= 75) return '#3b82f6'; // Blue
-    if (progress >= 50) return '#f59e0b'; // Orange
-    if (progress >= 25) return '#ef4444'; // Red
-    return '#6b7280'; // Gray
   };
 
   const renderStatCard = (icon: string, label: string, value: string | number, color: string) => (
@@ -100,7 +96,6 @@ const GoalsScreen = ({ navigation }: any) => {
         onPress={() => handleGoalPress(goal)}
         activeOpacity={0.7}
       >
-        {/* Header */}
         <View style={styles.goalHeader}>
           <View style={styles.goalTitleRow}>
             <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
@@ -114,7 +109,6 @@ const GoalsScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          {/* Streak Badge */}
           {goal.streakCount > 0 && (
             <View style={styles.streakBadge}>
               <Ionicons name="flame" size={16} color="#f59e0b" />
@@ -123,7 +117,6 @@ const GoalsScreen = ({ navigation }: any) => {
           )}
         </View>
 
-        {/* Progress */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={styles.progressText}>
@@ -134,7 +127,6 @@ const GoalsScreen = ({ navigation }: any) => {
             </Text>
           </View>
 
-          {/* Progress Bar */}
           <View style={styles.progressBarContainer}>
             <View
               style={[
@@ -148,7 +140,6 @@ const GoalsScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        {/* Footer */}
         <View style={styles.goalFooter}>
           <View style={styles.footerItem}>
             <Ionicons name="calendar-outline" size={14} color="#6b7280" />
@@ -184,7 +175,6 @@ const GoalsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Goals</Text>
         <TouchableOpacity onPress={handleCreateGoal} style={styles.addButton}>
@@ -197,7 +187,6 @@ const GoalsScreen = ({ navigation }: any) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Statistics Cards */}
         {statistics && (
           <View style={styles.statsContainer}>
             {renderStatCard('trophy', 'Active', statistics.activeGoals, '#8b5cf6')}
@@ -207,7 +196,6 @@ const GoalsScreen = ({ navigation }: any) => {
           </View>
         )}
 
-        {/* Filter Tabs */}
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[styles.filterTab, selectedFilter === 'active' && styles.filterTabActive]}
@@ -235,7 +223,6 @@ const GoalsScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
 
-        {/* Goals List */}
         <View style={styles.goalsContainer}>
           {goals.length === 0 ? (
             <View style={styles.emptyState}>

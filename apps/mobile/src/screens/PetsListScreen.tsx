@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -23,11 +23,7 @@ export default function PetsListScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadPets();
-  }, []);
-
-  const loadPets = async () => {
+  const loadPets = useCallback(async () => {
     try {
       if (!user?.id) {
         setPets([]);
@@ -35,17 +31,21 @@ export default function PetsListScreen({ navigation }: Props) {
       }
       const data = await petsApi.getPets(user.id);
       setPets(data.pets);
-    } catch (error: any) {
+    } catch {
       Alert.alert('Error', 'Failed to load pets');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadPets();
+  }, [loadPets]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadPets();
+    void loadPets();
   };
 
   const renderPet = ({ item }: { item: Pet }) => (
@@ -109,116 +109,24 @@ export default function PetsListScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  addButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  addButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  listContent: {
-    padding: 16,
-  },
-  petCard: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  petImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#e5e7eb',
-  },
-  petInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  petBreed: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  petAge: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  chevron: {
-    fontSize: 24,
-    color: '#d1d5db',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  emptyButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  emptyButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+  container: { flex: 1, backgroundColor: '#f9fafb' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1f2937' },
+  addButton: { backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  addButtonText: { color: '#ffffff', fontWeight: '600', fontSize: 14 },
+  listContent: { padding: 16 },
+  petCard: { flexDirection: 'row', backgroundColor: '#ffffff', borderRadius: 12, padding: 16, marginBottom: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  petImage: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e5e7eb' },
+  petInfo: { flex: 1, marginLeft: 16 },
+  petName: { fontSize: 18, fontWeight: '600', color: '#1f2937', marginBottom: 4 },
+  petBreed: { fontSize: 14, color: '#6b7280', marginBottom: 2 },
+  petAge: { fontSize: 12, color: '#9ca3af' },
+  chevron: { fontSize: 24, color: '#d1d5db' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  emptyEmoji: { fontSize: 64, marginBottom: 16 },
+  emptyText: { fontSize: 20, fontWeight: '600', color: '#1f2937', marginBottom: 8 },
+  emptySubtext: { fontSize: 14, color: '#6b7280', marginBottom: 24, textAlign: 'center' },
+  emptyButton: { backgroundColor: '#8B5CF6', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 },
+  emptyButtonText: { color: '#ffffff', fontWeight: '600', fontSize: 16 },
 });

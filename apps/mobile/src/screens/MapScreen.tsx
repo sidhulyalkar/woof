@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -11,11 +11,18 @@ export default function MapScreen({ navigation }: any) {
   const [nearbyPets, setNearbyPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    requestLocationPermission();
+  const loadNearbyPets = useCallback(async (latitude: number, longitude: number) => {
+    try {
+      const pets = await petsApi.getNearbyPets(latitude, longitude, 5000);
+      setNearbyPets(pets);
+    } catch {
+      Alert.alert('Error', 'Failed to load nearby pets');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const requestLocationPermission = async () => {
+  const requestLocationPermission = useCallback(async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -26,27 +33,20 @@ export default function MapScreen({ navigation }: any) {
 
       const currentLocation = await Location.getCurrentPositionAsync({});
       setLocation(currentLocation);
-      loadNearbyPets(currentLocation.coords.latitude, currentLocation.coords.longitude);
-    } catch (error) {
+      await loadNearbyPets(currentLocation.coords.latitude, currentLocation.coords.longitude);
+    } catch {
       Alert.alert('Error', 'Failed to get location');
       setLoading(false);
     }
-  };
+  }, [loadNearbyPets]);
 
-  const loadNearbyPets = async (latitude: number, longitude: number) => {
-    try {
-      const pets = await petsApi.getNearbyPets(latitude, longitude, 5000);
-      setNearbyPets(pets);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load nearby pets');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    void requestLocationPermission();
+  }, [requestLocationPermission]);
 
   const handleRefresh = () => {
     if (location) {
-      loadNearbyPets(location.coords.latitude, location.coords.longitude);
+      void loadNearbyPets(location.coords.latitude, location.coords.longitude);
     }
   };
 
@@ -97,79 +97,20 @@ export default function MapScreen({ navigation }: any) {
       </View>
 
       <View style={styles.statsCard}>
-        <Text style={styles.statsText}>
-          {nearbyPets.length} pets within 5km
-        </Text>
+        <Text style={styles.statsText}>{nearbyPets.length} pets within 5km</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  map: {
-    flex: 1,
-  },
-  header: {
-    position: 'absolute',
-    top: 60,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  statsCard: {
-    position: 'absolute',
-    bottom: 32,
-    left: 16,
-    right: 16,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  statsText: {
-    fontSize: 16,
-    color: '#1f2937',
-    fontWeight: '600',
-  },
-  marker: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#ffffff',
-  },
-  markerEmoji: {
-    fontSize: 20,
-  },
+  container: { flex: 1 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  map: { flex: 1 },
+  header: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1f2937' },
+  statsCard: { position: 'absolute', bottom: 32, left: 16, right: 16, backgroundColor: '#ffffff', borderRadius: 12, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 },
+  statsText: { fontSize: 16, color: '#1f2937', fontWeight: '600' },
+  marker: { backgroundColor: '#8B5CF6', borderRadius: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#ffffff' },
+  markerEmoji: { fontSize: 20 },
 });
