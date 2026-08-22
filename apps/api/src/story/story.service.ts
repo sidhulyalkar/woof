@@ -169,7 +169,10 @@ export class StoryService {
         petPairs.set(participant.petId, participant.pet.name);
       }
       const duration = activity.endedAt
-        ? Math.max(0, Math.round((activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000))
+        ? Math.max(
+            0,
+            Math.round((activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000)
+          )
         : null;
       const label = humanize(activity.type);
       return this.decorateMoment(
@@ -348,24 +351,35 @@ export class StoryService {
   private async getLifeStats(userId: string, petId?: string) {
     const activityWhere = this.activityWhere(userId, petId, null);
     const mediaWhere = this.mediaWhere(userId, petId, null);
-    const [activityCount, activities, memoryCount] = await Promise.all([
-      this.prisma.activity.count({ where: activityWhere }),
-      this.prisma.activity.findMany({
-        where: activityWhere,
-        take: STORY_STATS_ACTIVITY_SCAN,
-        orderBy: { startedAt: 'asc' },
-        select: {
-          id: true,
-          startedAt: true,
-          endedAt: true,
-          route: true,
-          humanMetrics: true,
-          petMetrics: true,
-          jointMetrics: true,
-        },
-      }),
-      this.prisma.mediaAsset.count({ where: mediaWhere }),
-    ]);
+    const [activityCount, activities, memoryCount, earliestCaptured, earliestCreated] =
+      await Promise.all([
+        this.prisma.activity.count({ where: activityWhere }),
+        this.prisma.activity.findMany({
+          where: activityWhere,
+          take: STORY_STATS_ACTIVITY_SCAN,
+          orderBy: { startedAt: 'asc' },
+          select: {
+            id: true,
+            startedAt: true,
+            endedAt: true,
+            route: true,
+            humanMetrics: true,
+            petMetrics: true,
+            jointMetrics: true,
+          },
+        }),
+        this.prisma.mediaAsset.count({ where: mediaWhere }),
+        this.prisma.mediaAsset.findFirst({
+          where: { ...mediaWhere, capturedAt: { not: null } },
+          orderBy: { capturedAt: 'asc' },
+          select: { capturedAt: true, createdAt: true },
+        }),
+        this.prisma.mediaAsset.findFirst({
+          where: mediaWhere,
+          orderBy: { createdAt: 'asc' },
+          select: { capturedAt: true, createdAt: true },
+        }),
+      ]);
 
     let activeMinutes = 0;
     let distanceMeters = 0;
@@ -382,6 +396,14 @@ export class StoryService {
       if (place) namedPlaces.add(place.toLowerCase());
     }
 
+    const firstMemoryCandidates = [
+      earliestCaptured?.capturedAt ?? null,
+      earliestCreated ? (earliestCreated.capturedAt ?? earliestCreated.createdAt) : null,
+    ].filter((value): value is Date => value instanceof Date);
+    const firstMemoryAt = firstMemoryCandidates.length
+      ? new Date(Math.min(...firstMemoryCandidates.map((value) => value.getTime())))
+      : null;
+
     const stats: StoryLifeStats = {
       activities: activityCount,
       activeMinutes: Math.round(activeMinutes),
@@ -391,12 +413,12 @@ export class StoryService {
       coverage: activityCount > STORY_STATS_ACTIVITY_SCAN ? 'BOUNDED' : 'COMPLETE',
     };
 
-    return { stats, milestones: this.milestones(activities, memoryCount) };
+    return { stats, milestones: this.milestones(activities, firstMemoryAt) };
   }
 
   private milestones(
     activities: Array<{ startedAt: Date; endedAt: Date | null }>,
-    memoryCount: number
+    firstMemoryAt: Date | null
   ): StoryMilestone[] {
     const milestones: StoryMilestone[] = [];
     const first = activities[0];
@@ -442,12 +464,12 @@ export class StoryService {
       }
     }
 
-    if (memoryCount >= 1) {
+    if (firstMemoryAt) {
       milestones.push({
         id: 'first-memory',
         title: 'First kept memory',
-        description: 'At least one private media memory now lives in the library.',
-        achievedAt: first?.startedAt.toISOString() ?? new Date(0).toISOString(),
+        description: 'The first private photo or video kept in the Media Library.',
+        achievedAt: firstMemoryAt.toISOString(),
       });
     }
 
