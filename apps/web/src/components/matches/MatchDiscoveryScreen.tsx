@@ -1,38 +1,14 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Avatar } from '@/components/ui/avatar';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { Heart, X, Star, MapPin, Clock, Sparkles } from 'lucide-react';
 import { useGetMatches, useRecordInteraction } from '@/lib/api/hooks';
 import { toast } from 'sonner';
-
-interface Match {
-  id: string;
-  user: {
-    id: string;
-    handle: string;
-    avatarUrl?: string;
-    bio?: string;
-  };
-  pet: {
-    id: string;
-    name: string;
-    breed: string;
-    age: number;
-    avatarUrl?: string;
-  };
-  compatibilityScore: number;
-  explainability: {
-    topReasons: string[];
-    proximityKm?: number;
-    mutualInterests?: string[];
-  };
-  distance?: number;
-  lastActive?: string;
-}
 
 export function MatchDiscoveryScreen() {
   const { data: matches, isLoading, refetch } = useGetMatches();
@@ -59,10 +35,10 @@ export function MatchDiscoveryScreen() {
 
       setTimeout(() => {
         setSwipeDirection(null);
-        setCurrentIndex((prev) => prev + 1);
+        setCurrentIndex((previous) => previous + 1);
 
         if (matches && currentIndex >= matches.length - 2) {
-          refetch();
+          void refetch();
         }
       }, 300);
     } catch (error) {
@@ -90,12 +66,12 @@ export function MatchDiscoveryScreen() {
           <Sparkles className="w-16 h-16 mx-auto mb-4 text-accent" />
           <h3 className="text-xl font-bold mb-2">No more matches right now</h3>
           <p className="text-muted-foreground mb-4">
-            Check back soon! We're finding more paw-fect matches for you.
+            Check back soon! We&apos;re finding more paw-fect matches for you.
           </p>
           <Button
             onClick={() => {
               setCurrentIndex(0);
-              refetch();
+              void refetch();
             }}
           >
             Refresh Matches
@@ -135,10 +111,12 @@ export function MatchDiscoveryScreen() {
           <Card className="overflow-hidden shadow-2xl">
             <div className="relative h-96 bg-gradient-to-br from-accent/20 to-primary/20">
               {match.pet.avatarUrl ? (
-                <img
+                <Image
                   src={match.pet.avatarUrl}
                   alt={match.pet.name}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-8xl">🐕</div>
@@ -173,7 +151,7 @@ export function MatchDiscoveryScreen() {
                 <div className="flex items-center gap-2 mt-2">
                   <Avatar className="w-8 h-8">
                     {match.user.avatarUrl ? (
-                      <img src={match.user.avatarUrl} alt={match.user.handle} />
+                      <AvatarImage src={match.user.avatarUrl} alt={match.user.handle} />
                     ) : (
                       <div className="bg-accent text-white flex items-center justify-center text-sm">
                         {match.user.handle[0].toUpperCase()}
@@ -196,16 +174,16 @@ export function MatchDiscoveryScreen() {
               <div>
                 <p className="text-sm font-semibold mb-2 flex items-center gap-1">
                   <Sparkles className="w-4 h-4 text-accent" />
-                  Why you'll get along
+                  Why you&apos;ll get along
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {match.explainability.topReasons.map((reason, idx) => (
-                    <Badge key={idx} variant="outline" className="text-sm">
+                  {match.explainability.topReasons.map((reason, index) => (
+                    <Badge key={index} variant="outline" className="text-sm">
                       {reason}
                     </Badge>
                   ))}
-                  {match.explainability.mutualInterests?.map((interest, idx) => (
-                    <Badge key={`interest-${idx}`} variant="secondary" className="text-sm">
+                  {match.explainability.mutualInterests?.map((interest, index) => (
+                    <Badge key={`interest-${index}`} variant="secondary" className="text-sm">
                       {interest}
                     </Badge>
                   ))}
