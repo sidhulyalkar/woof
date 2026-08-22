@@ -7,7 +7,6 @@ import {
   Camera,
   Check,
   Clock3,
-  EyeOff,
   Footprints,
   Image as ImageIcon,
   Loader2,
@@ -168,7 +167,9 @@ export default function JourneyPage() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="eyebrow">Life stats</p>
-                  <h2 className="mt-1 text-xl font-bold tracking-tight">Built from recorded life</h2>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight">
+                    Built from recorded life
+                  </h2>
                 </div>
                 {dashboard.stats.coverage === 'BOUNDED' && (
                   <span className="rounded-full border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -199,7 +200,10 @@ export default function JourneyPage() {
                 <h2 className="mt-1 text-xl font-bold tracking-tight">Quiet landmarks</h2>
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
                   {dashboard.milestones.map((milestone) => (
-                    <article key={milestone.id} className="surface-soft min-w-[210px] rounded-2xl p-4">
+                    <article
+                      key={milestone.id}
+                      className="surface-soft min-w-[210px] rounded-2xl p-4"
+                    >
                       <Star className="h-5 w-5 text-primary" aria-hidden="true" />
                       <h3 className="mt-3 font-semibold">{milestone.title}</h3>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -262,7 +266,8 @@ export default function JourneyPage() {
                             </div>
                             <h3 className="mt-2 font-semibold">{moment.title}</h3>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {moment.petNames.join(' + ') || 'Household'} · {formatDate(moment.occurredAt)}
+                              {moment.petNames.join(' + ') || 'Household'} ·{' '}
+                              {formatDate(moment.occurredAt)}
                             </p>
                             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                               {moment.summary}
@@ -346,21 +351,6 @@ export default function JourneyPage() {
                                   </Button>
                                 </>
                               )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={curate.isPending}
-                                onClick={() =>
-                                  curate.mutate({
-                                    sourceType: moment.sourceType,
-                                    sourceId: moment.sourceId,
-                                    action: 'HIDE',
-                                  })
-                                }
-                              >
-                                <EyeOff className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                                Hide from Story
-                              </Button>
                               {moment.sourceType === 'MEDIA' && (
                                 <Button size="sm" variant="ghost" asChild>
                                   <Link href="/library">Open memory</Link>
@@ -397,9 +387,9 @@ export default function JourneyPage() {
                 <div>
                   <p className="font-semibold">Your sources stay themselves</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Saving or hiding a Story moment changes only your Story curation. It does not
-                    edit or delete the Activity, CareEvent, tracker observation, or Media Library
-                    asset underneath it. Raw tracker GPS is not part of this Story surface.
+                    Saving, annotating, or unsaving a Story moment changes only your Story curation.
+                    It does not edit or delete the Activity, CareEvent, tracker observation, or Media
+                    Library asset underneath it. Raw tracker GPS is not part of this Story surface.
                   </p>
                 </div>
               </div>
