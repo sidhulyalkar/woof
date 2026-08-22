@@ -3,12 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-
-interface OnboardingStepProps {
-  data: Record<string, any>;
-  onNext: (data: Record<string, any>) => void;
-  onBack?: () => void;
-}
+import type { OnboardingStepProps } from '../onboarding-types';
 
 export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
   const [notifications, setNotifications] = useState(data.allowNotifications === true);
@@ -61,11 +56,12 @@ export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
 
       <div className="flex gap-3">
         {onBack && (
-          <Button variant="outline" onClick={onBack}>
+          <Button type="button" variant="outline" onClick={onBack}>
             Back
           </Button>
         )}
         <Button
+          type="button"
           className="flex-1"
           onClick={() => onNext({ allowNotifications: notifications, allowLocation: location })}
         >
