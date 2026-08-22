@@ -97,7 +97,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         },
       });
 
-      await this.nudgesService.checkChatActivityNudges(data.conversationId).catch((err) => {
+      await this.nudgesService.checkChatActivityNudges(data.conversationId, userId).catch((err) => {
         this.logger.error(`Failed to check chat nudges: ${err.message}`);
       });
     } catch (error) {
