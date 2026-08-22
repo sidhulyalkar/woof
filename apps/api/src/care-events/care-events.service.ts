@@ -71,11 +71,15 @@ export class CareEventsService {
 
     const receipt = await this.prisma.$transaction(async (tx) => {
       // Serialize reward issuance for one user so concurrent legitimate requests cannot
-      // race daily/pathway caps or a shared dedupe key. The lock lives only for this
-      // transaction and does not block rewards for other users.
-      await tx.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))`
-      );
+      // race daily/pathway caps or a shared dedupe key. pg_advisory_xact_lock returns
+      // PostgreSQL's `void` pseudo-type, which Prisma cannot deserialize directly, so
+      // materialize the lock call and expose only a supported integer scalar.
+      await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
+        WITH lock_row AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(hashtextextended(${input.userId}, 0))
+        )
+        SELECT 1::int AS acquired FROM lock_row
+      `);
 
       const existing = await tx.$queryRaw<EventRow[]>(Prisma.sql`
         SELECT id, event_type, pathway, occurred_at, outcome
