@@ -1,69 +1,98 @@
 import { apiClient } from './api/client';
-import { useAuthStore } from './stores/auth-store';
-import type { Match } from './types';
+import { useAuthStore, type AuthPet, type AuthUser } from './stores/auth-store';
+import type { Event, Match, ServiceProvider } from './types';
 
-// Authentication API calls
+type AuthResponse = {
+  access_token: string;
+  user: AuthUser;
+};
+
+type StorageObject = {
+  key: string;
+  url: string;
+  bucket: string;
+};
+
+export type Nudge = {
+  id: string;
+  type: 'meetup' | 'service' | 'event' | 'achievement';
+  payload: {
+    targetUserId?: string;
+    reason: 'proximity' | 'chat_activity' | 'mutual_availability' | 'goal_achievement';
+    message?: string;
+    location?: { lat: number; lng: number };
+    metadata?: Record<string, unknown>;
+  };
+  createdAt: string;
+  dismissed: boolean;
+};
+
 export const authApi = {
-  /** Register a new user */
   register: async (data: { handle: string; email: string; password: string; bio?: string }) => {
-    const response = await apiClient.post('/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/auth/register', data);
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);
     }
     return response;
   },
 
-  /** Log in with email & password */
   login: async (data: { email: string; password: string }) => {
-    const response = await apiClient.post('/auth/login', data);
+    const response = await apiClient.post<AuthResponse>('/auth/login', data);
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);
     }
     return response;
   },
 
-  /** Log out current user */
   logout: () => {
     useAuthStore.getState().logout();
   },
 
-  /** Fetch current user profile (requires Authorization header) */
-  me: () => apiClient.get('/auth/me'),
+  me: () => apiClient.get<AuthUser>('/auth/me'),
 };
 
 export const userApi = {
-  getUser: (userId: string) => apiClient.get(`/users/${userId}`),
+  getUser: (userId: string) => apiClient.get<AuthUser>(`/users/${userId}`),
 };
 
 export const petsApi = {
-  getPets: () => apiClient.get('/pets'),
-  createPet: (data: { name: string; species: string; [key: string]: any }) =>
-    apiClient.post('/pets', data),
-  getPet: (petId: string) => apiClient.get(`/pets/${petId}`),
+  getPets: () => apiClient.get<AuthPet[]>('/pets'),
+  createPet: (data: { name: string; species: string; [key: string]: unknown }) =>
+    apiClient.post<AuthPet>('/pets', data),
+  getPet: (petId: string) => apiClient.get<AuthPet>(`/pets/${petId}`),
 };
 
 export const activitiesApi = {
-  getActivities: () => apiClient.get('/activities'),
-  logActivity: (data: { petId: string; type: string; distance?: number; duration: number; calories?: number }) =>
-    apiClient.post('/activities', data),
+  getActivities: () => apiClient.get<unknown[]>('/activities'),
+  logActivity: (data: {
+    petId: string;
+    type: string;
+    distance?: number;
+    duration: number;
+    calories?: number;
+  }) => apiClient.post<unknown>('/activities', data),
 };
 
 export const socialApi = {
-  getFeed: () => apiClient.get('/social/posts'),
+  getFeed: () => apiClient.get<unknown[]>('/social/posts'),
   createPost: (data: { text: string; mediaUrls?: string[]; petId?: string }) =>
-    apiClient.post('/social/posts', data),
-  likePost: (postId: string) => apiClient.post(`/social/posts/${postId}/likes`, {}),
+    apiClient.post<unknown>('/social/posts', data),
+  likePost: (postId: string) => apiClient.post<void>(`/social/posts/${postId}/likes`, {}),
   addComment: (postId: string, commentText: string) =>
-    apiClient.post(`/social/posts/${postId}/comments`, { text: commentText }),
-  getComments: (postId: string) => apiClient.get(`/social/posts/${postId}/comments`),
+    apiClient.post<unknown>(`/social/posts/${postId}/comments`, { text: commentText }),
+  getComments: (postId: string) => apiClient.get<unknown[]>(`/social/posts/${postId}/comments`),
 };
 
 export const meetupsApi = {
-  getMeetups: () => apiClient.get('/meetups'),
-  createMeetup: (data: { title: string; datetime: string; location: string; description?: string }) =>
-    apiClient.post('/meetups', data),
+  getMeetups: () => apiClient.get<unknown[]>('/meetups'),
+  createMeetup: (data: {
+    title: string;
+    datetime: string;
+    location: string;
+    description?: string;
+  }) => apiClient.post<unknown>('/meetups', data),
   rsvp: (meetupId: string, response: 'yes' | 'no' | 'maybe') =>
-    apiClient.post(`/meetups/${meetupId}/rsvp`, { response }),
+    apiClient.post<unknown>(`/meetups/${meetupId}/rsvp`, { response }),
 };
 
 type RawCompatibilityRecommendation = {
@@ -158,112 +187,110 @@ const normalizeRecommendation = (recommendation: RawCompatibilityRecommendation)
 };
 
 export const compatibilityApi = {
-  /**
-   * Normalize the API envelope into the single Match contract used by discovery.
-   * This keeps presentation components independent from transport details.
-   */
   getRecommendations: async (petId: string): Promise<Match[]> => {
-    const response = (await apiClient.get(
-      `/compatibility/recommendations/${petId}`,
-    )) as unknown as RawRecommendationsResponse | RawCompatibilityRecommendation[];
+    const response = await apiClient.get<
+      RawRecommendationsResponse | RawCompatibilityRecommendation[]
+    >(`/compatibility/recommendations/${petId}`);
 
-    const recommendations = Array.isArray(response)
-      ? response
-      : response?.recommendations ?? [];
-
+    const recommendations = Array.isArray(response) ? response : (response.recommendations ?? []);
     return recommendations.map(normalizeRecommendation);
   },
 
   calculateCompatibility: (petAId: string, petBId: string) =>
-    apiClient.post('/compatibility/calculate', { petAId, petBId }),
+    apiClient.post<unknown>('/compatibility/calculate', { petAId, petBId }),
 };
 
 export const eventsApi = {
-  getEvents: () => apiClient.get('/events'),
-  getEvent: (eventId: string) => apiClient.get(`/events/${eventId}`),
-  createEvent: (data: any) => apiClient.post('/events', data),
-  updateEvent: (eventId: string, data: any) => apiClient.patch(`/events/${eventId}`, data),
-  deleteEvent: (eventId: string) => apiClient.delete(`/events/${eventId}`),
-  checkIn: (eventId: string) => apiClient.post(`/events/${eventId}/check-in`, {}),
+  getEvents: () => apiClient.get<Event[]>('/events'),
+  getEvent: (eventId: string) => apiClient.get<Event>(`/events/${eventId}`),
+  createEvent: (data: Partial<Event>) => apiClient.post<Event>('/events', data),
+  updateEvent: (eventId: string, data: Partial<Event>) =>
+    apiClient.patch<Event>(`/events/${eventId}`, data),
+  deleteEvent: (eventId: string) => apiClient.delete<void>(`/events/${eventId}`),
+  checkIn: (eventId: string) => apiClient.post<unknown>(`/events/${eventId}/check-in`, {}),
 };
 
 export const gamificationApi = {
-  getProfile: (userId: string) => apiClient.get(`/gamification/profile/${userId}`),
-  getLeaderboard: () => apiClient.get('/gamification/leaderboard'),
+  getProfile: (userId: string) => apiClient.get<unknown>(`/gamification/profile/${userId}`),
+  getLeaderboard: () => apiClient.get<unknown[]>('/gamification/leaderboard'),
   awardPoints: (data: { userId: string; points: number; reason: string }) =>
-    apiClient.post('/gamification/points', data),
+    apiClient.post<unknown>('/gamification/points', data),
 };
 
 export const servicesApi = {
-  getServices: (params?: any) => apiClient.get('/services', { params }),
-  getService: (serviceId: string) => apiClient.get(`/services/${serviceId}`),
+  getServices: (params?: Record<string, unknown>) =>
+    apiClient.get<ServiceProvider[]>('/services', { params }),
+  getService: (serviceId: string) => apiClient.get<ServiceProvider>(`/services/${serviceId}`),
   trackIntent: (data: { serviceId: string; type: string }) =>
-    apiClient.post('/services/intent', data),
+    apiClient.post<void>('/services/intent', data),
 };
 
 export const verificationApi = {
-  submitVerification: (data: any) => apiClient.post('/verification/submit', data),
-  getStatus: () => apiClient.get('/verification/status'),
+  submitVerification: (data: Record<string, unknown>) =>
+    apiClient.post<unknown>('/verification/submit', data),
+  getStatus: () => apiClient.get<unknown>('/verification/status'),
 };
 
 export const storageApi = {
-  uploadFile: async (file: File, folder?: string): Promise<{ key: string; url: string; bucket: string }> => {
+  uploadFile: async (file: File, folder?: string): Promise<StorageObject> => {
     const formData = new FormData();
     formData.append('file', file);
     if (folder) formData.append('folder', folder);
-
-    const response = await apiClient.post('/storage/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    return apiClient.post<StorageObject>('/storage/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response;
   },
 
-  uploadFiles: async (files: File[], folder?: string): Promise<Array<{ key: string; url: string; bucket: string }>> => {
+  uploadFiles: async (files: File[], folder?: string): Promise<StorageObject[]> => {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     if (folder) formData.append('folder', folder);
-
-    const response = await apiClient.post('/storage/upload-multiple', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    return apiClient.post<StorageObject[]>('/storage/upload-multiple', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response;
   },
 
-  deleteFile: (key: string) => apiClient.delete(`/storage/${key}`),
+  deleteFile: (key: string) => apiClient.delete<void>(`/storage/${key}`),
 };
 
 export const nudgesApi = {
-  getNudges: () => apiClient.get('/nudges'),
-  acceptNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/accept`, {}),
-  dismissNudge: (nudgeId: string) => apiClient.patch(`/nudges/${nudgeId}/dismiss`, {}),
+  getNudges: () => apiClient.get<Nudge[]>('/nudges'),
+  acceptNudge: (nudgeId: string) => apiClient.patch<void>(`/nudges/${nudgeId}/accept`, {}),
+  dismissNudge: (nudgeId: string) => apiClient.patch<void>(`/nudges/${nudgeId}/dismiss`, {}),
   checkChatActivity: (conversationId: string) =>
-    apiClient.post(`/nudges/check/chat/${conversationId}`, {}),
+    apiClient.post<unknown>(`/nudges/check/chat/${conversationId}`, {}),
 };
 
 export const notificationsApi = {
-  subscribe: (subscription: any) => apiClient.post('/notifications/subscribe', { subscription }),
-  unsubscribe: () => apiClient.post('/notifications/unsubscribe', {}),
-  sendPush: (data: { userId: string; title: string; body: string; url?: string; data?: any }) =>
-    apiClient.post('/notifications/send', data),
+  subscribe: (subscription: PushSubscriptionJSON) =>
+    apiClient.post<void>('/notifications/subscribe', { subscription }),
+  unsubscribe: () => apiClient.post<void>('/notifications/unsubscribe', {}),
+  sendPush: (data: {
+    userId: string;
+    title: string;
+    body: string;
+    url?: string;
+    data?: Record<string, unknown>;
+  }) => apiClient.post<void>('/notifications/send', data),
 };
 
 export const analyticsApi = {
-  trackEvent: (data: { userId?: string; source: string; event: string; metadata?: any }) =>
-    apiClient.post('/analytics/telemetry', data),
+  trackEvent: (data: {
+    userId?: string;
+    source: string;
+    event: string;
+    metadata?: Record<string, unknown>;
+  }) => apiClient.post<void>('/analytics/telemetry', data),
   getNorthStar: (timeframe?: '7d' | '30d' | '90d') =>
-    apiClient.get('/analytics/north-star', { params: { timeframe } }),
+    apiClient.get<unknown>('/analytics/north-star', { params: { timeframe } }),
   getDetails: (timeframe?: '7d' | '30d' | '90d') =>
-    apiClient.get('/analytics/details', { params: { timeframe } }),
+    apiClient.get<unknown>('/analytics/details', { params: { timeframe } }),
   getEventCounts: (timeframe?: '7d' | '30d' | '90d') =>
-    apiClient.get('/analytics/events', { params: { timeframe } }),
+    apiClient.get<unknown>('/analytics/events', { params: { timeframe } }),
   getActiveUsers: (timeframe?: '7d' | '30d' | '90d') =>
-    apiClient.get('/analytics/users/active', { params: { timeframe } }),
+    apiClient.get<unknown>('/analytics/users/active', { params: { timeframe } }),
   getScreenViews: (timeframe?: '7d' | '30d' | '90d') =>
-    apiClient.get('/analytics/screens', { params: { timeframe } }),
+    apiClient.get<unknown>('/analytics/screens', { params: { timeframe } }),
   getUserActivity: (userId: string, limit?: number) =>
-    apiClient.get(`/analytics/users/${userId}/activity`, { params: { limit } }),
+    apiClient.get<unknown>(`/analytics/users/${userId}/activity`, { params: { limit } }),
 };
