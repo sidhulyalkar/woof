@@ -167,8 +167,7 @@ export class StoryService {
     );
     const mediaAssets = [...mediaById.values()]
       .sort(
-        (a, b) =>
-          (b.capturedAt ?? b.createdAt).getTime() - (a.capturedAt ?? a.createdAt).getTime()
+        (a, b) => (b.capturedAt ?? b.createdAt).getTime() - (a.capturedAt ?? a.createdAt).getTime()
       )
       .slice(0, STORY_SCAN_PER_SOURCE);
 
