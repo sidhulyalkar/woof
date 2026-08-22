@@ -127,7 +127,7 @@ describe('CareEventsService integration', () => {
     expect(ledgerRows[0]?.xp).toBe(issuedXp);
   });
 
-  it('does not let a future occurrence timestamp bypass the trusted issuance-day cap', async () => {
+  it('does not let a future occurrence timestamp bypass caps or skew recent summaries', async () => {
     const { userId, petId } = await fixture('future-time');
 
     for (let index = 0; index < 12; index += 1) {
@@ -150,6 +150,7 @@ describe('CareEventsService integration', () => {
     `);
     expect(before[0]?.xp).toBe(60);
 
+    const beforeAttemptMs = Date.now();
     const futureReceipt = await service.record({
       userId,
       petId,
@@ -163,6 +164,22 @@ describe('CareEventsService integration', () => {
     });
 
     expect(futureReceipt.bondXp).toBe(0);
+
+    const futureEventRows = await prisma.$queryRaw<Array<{ occurred_at: Date }>>(Prisma.sql`
+      SELECT occurred_at
+      FROM care_events
+      WHERE id = ${futureReceipt.careEventId}
+      LIMIT 1
+    `);
+    const storedOccurrenceMs = futureEventRows[0]?.occurred_at.getTime();
+    expect(storedOccurrenceMs).toBeDefined();
+    expect(storedOccurrenceMs).toBeGreaterThanOrEqual(beforeAttemptMs - 1000);
+    expect(storedOccurrenceMs).toBeLessThanOrEqual(Date.now() + 1000);
+
+    const summary = await service.getSummary(userId, petId);
+    const moveSummary = summary.pathways.find((pathway) => pathway.pathway === 'MOVE');
+    expect(moveSummary?.lastEventAt).not.toBeNull();
+    expect(new Date(moveSummary!.lastEventAt!).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
   });
 
   it('does not let a zero-XP safety event decay the next legitimate reward', async () => {
