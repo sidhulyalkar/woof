@@ -6,11 +6,7 @@ export type AutopilotProviderCapability = {
   accepts: Array<'DAILY_ACTIVITY' | 'DEVICE_STATUS'>;
 };
 
-export type CareReminderKind =
-  | 'VET_APPOINTMENT'
-  | 'MEDICATION'
-  | 'GROOMING'
-  | 'GENERAL_CARE';
+export type CareReminderKind = 'VET_APPOINTMENT' | 'MEDICATION' | 'GROOMING' | 'GENERAL_CARE';
 
 export type CareReminder = {
   id: string;
