@@ -16,15 +16,37 @@ on:
       - 'apps/api/src/behavior-vision/behavior-vision.service.ts'
       - 'apps/api/src/chat/chat.gateway.ts'
       - 'apps/api/src/goals/goals.controller.ts'
+      - 'apps/api/src/media-library/media-library.service.spec.ts'
+      - 'apps/api/src/app.controller.ts'
+      - 'apps/api/src/app.service.ts'
+      - 'apps/api/src/app.service.spec.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/main.ts'
       - 'apps/web/.eslintrc.js'
       - 'apps/web/next.config.ts'
+      - 'apps/web/tailwind.config.ts'
+      - 'apps/web/vitest.config.ts'
       - 'apps/web/src/app/**'
+      - 'apps/web/src/components/activity/activity-history.tsx'
       - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/components/events/EventDetailsDialog.tsx'
+      - 'apps/web/src/components/matches/MatchDiscoveryScreen.tsx'
+      - 'apps/web/src/components/onboarding/**'
+      - 'apps/web/src/components/quiz/**'
+      - 'apps/web/src/data/quizQuestions.ts'
+      - 'apps/web/src/hooks/use-push-notifications.ts'
+      - 'apps/web/src/lib/api.ts'
       - 'apps/web/src/lib/api/**'
+      - 'apps/web/src/lib/analytics.ts'
+      - 'apps/web/src/lib/push-notifications.ts'
+      - 'apps/web/src/lib/types.ts'
       - 'apps/web/src/store/session.ts'
+      - 'apps/web/src/types/quiz.ts'
       - 'packages/database/prisma/schema.prisma'
       - 'packages/database/prisma/migrations/**'
       - '.github/workflows/adventure-system-ci.yml'
+      - 'DEPLOYMENT_GUIDE.md'
+      - 'docs/ADVENTURE_QUALIFICATION.md'
 
 permissions:
   contents: read
@@ -113,6 +135,8 @@ jobs:
           pnpm exec prettier --check
           apps/web/.eslintrc.js
           apps/web/next.config.ts
+          apps/web/tailwind.config.ts
+          apps/web/vitest.config.ts
           apps/api/src/adventure
           apps/api/src/care-events
           apps/api/src/auth/authenticated-request.ts
@@ -124,17 +148,33 @@ jobs:
           apps/api/src/gamification/gamification.controller.ts
           apps/api/src/behavior-vision/behavior-profile.spec.ts
           apps/api/src/goals/goals.controller.ts
+          apps/api/src/media-library/media-library.service.spec.ts
+          apps/api/src/app.controller.ts
+          apps/api/src/app.service.ts
+          apps/api/src/app.service.spec.ts
           apps/api/src/app.module.ts
+          apps/api/src/main.ts
           apps/web/src/app/page.tsx
           apps/web/src/app/compass
           apps/web/src/app/health/page.tsx
           apps/web/src/app/journey
+          apps/web/src/app/notifications/page.tsx
           apps/web/src/app/pack
+          apps/web/src/components/activity/activity-history.tsx
           apps/web/src/components/bottom-nav.tsx
-          apps/web/src/lib/api/client.ts
-          apps/web/src/lib/api/adventure.ts
-          apps/web/src/lib/api/pack.ts
+          apps/web/src/components/events/EventDetailsDialog.tsx
+          apps/web/src/components/matches/MatchDiscoveryScreen.tsx
+          apps/web/src/components/onboarding
+          apps/web/src/components/quiz
+          apps/web/src/data/quizQuestions.ts
+          apps/web/src/hooks/use-push-notifications.ts
+          apps/web/src/lib/api.ts
+          apps/web/src/lib/api
+          apps/web/src/lib/analytics.ts
+          apps/web/src/lib/push-notifications.ts
+          apps/web/src/lib/types.ts
           apps/web/src/store/session.ts
+          apps/web/src/types/quiz.ts
 
       - name: Lint Adventure API changes
         run: >-
@@ -152,28 +192,49 @@ jobs:
           src/behavior-vision/behavior-vision.service.ts
           src/chat/chat.gateway.ts
           src/goals/goals.controller.ts
+          src/media-library/media-library.service.spec.ts
+          src/app.controller.ts
+          src/app.service.ts
+          src/app.service.spec.ts
           src/app.module.ts
+          src/main.ts
 
       - name: Lint Adventure web changes
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           next.config.ts
+          tailwind.config.ts
+          vitest.config.ts
           src/app/page.tsx
           src/app/compass/page.tsx
           src/app/health/page.tsx
           src/app/journey/page.tsx
+          src/app/notifications/page.tsx
           src/app/pack/page.tsx
+          src/components/activity/activity-history.tsx
           src/components/bottom-nav.tsx
-          src/lib/api/client.ts
-          src/lib/api/adventure.ts
-          src/lib/api/pack.ts
+          src/components/events/EventDetailsDialog.tsx
+          src/components/matches/MatchDiscoveryScreen.tsx
+          'src/components/onboarding/**/*.tsx'
+          'src/components/quiz/**/*.tsx'
+          src/data/quizQuestions.ts
+          src/hooks/use-push-notifications.ts
+          src/lib/api.ts
+          'src/lib/api/**/*.ts'
+          src/lib/analytics.ts
+          src/lib/push-notifications.ts
+          src/lib/types.ts
           src/store/session.ts
+          src/types/quiz.ts
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
 
       - name: Type-check web app
         run: pnpm --filter @woof/web type-check
+
+      - name: Run Adventure web contract tests
+        run: pnpm --filter @woof/web test
 
       - name: Run reward policy contract tests
         run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
