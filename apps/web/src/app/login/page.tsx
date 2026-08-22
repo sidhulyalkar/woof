@@ -1,5 +1,6 @@
 'use client';
 
+import { isAxiosError } from 'axios';
 import { CheckCircle2, Loader2, PawPrint, ShieldCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,9 +32,12 @@ export default function LoginPage() {
     try {
       await authApi.login({ email, password });
       router.replace('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login failed', err);
-      setError(err?.response?.data?.message || 'Invalid email or password.');
+      const serverMessage = isAxiosError<{ message?: string }>(err)
+        ? err.response?.data?.message
+        : undefined;
+      setError(serverMessage ?? 'Invalid email or password.');
     } finally {
       setIsLoading(false);
     }
