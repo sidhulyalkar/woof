@@ -221,10 +221,16 @@ export class AutopilotService {
       },
     });
 
-    let signal: { id: string; payload: AutopilotSignalPayload } | null = null;
-    if (!receipt.duplicate) {
-      signal = await this.maybeCreateSignal(userId, dto.petId, receipt.careEventId, observation);
-    }
+    // Signal derivation is deliberately replay-safe. If the immutable CareEvent
+    // was committed but the request died before signal persistence, a provider
+    // retry repairs the missing signal. Existing signals are returned rather
+    // than duplicated, including signals the user has already acknowledged.
+    const signal = await this.maybeCreateSignal(
+      userId,
+      dto.petId,
+      receipt.careEventId,
+      observation,
+    );
 
     return {
       careEventId: receipt.careEventId,
@@ -393,14 +399,41 @@ export class AutopilotService {
   }
 
   private async createSignal(userId: string, payload: AutopilotSignalPayload) {
-    const notification = await this.prisma.notification.create({
-      data: {
-        userId,
-        type: 'AUTOPILOT_SIGNAL',
-        payload: inputJson(payload),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const lockKey = `dogos-autopilot-signal:${payload.sourceCareEventId}`;
+      await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
+        WITH lock_row AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))
+        )
+        SELECT 1::int AS acquired FROM lock_row
+      `);
+
+      const existing = await tx.notification.findFirst({
+        where: {
+          userId,
+          type: 'AUTOPILOT_SIGNAL',
+          payload: {
+            path: ['sourceCareEventId'],
+            equals: payload.sourceCareEventId,
+          },
+        },
+      });
+      if (existing) {
+        return {
+          id: existing.id,
+          payload: readSignalPayload(existing.payload) ?? payload,
+        };
+      }
+
+      const notification = await tx.notification.create({
+        data: {
+          userId,
+          type: 'AUTOPILOT_SIGNAL',
+          payload: inputJson(payload),
+        },
+      });
+      return { id: notification.id, payload };
     });
-    return { id: notification.id, payload };
   }
 
   private async claimDueReminder(row: NotificationRow, now: Date) {
