@@ -55,6 +55,8 @@ jobs:
           apps/api/src/compatibility/compatibility.types.ts
           apps/api/src/ml/ml.service.ts
           apps/api/src/ml/ml.service.spec.ts
+          apps/mobile/package.json
+          apps/mobile/eslint.config.js
           apps/web/.eslintrc.js
           apps/web/package.json
           apps/web/vitest.config.ts
@@ -71,6 +73,8 @@ jobs:
           apps/web/src/app/coach/observe/page.tsx
           apps/web/e2e
           ml/behavior_vision/model_registry.json
+          packages/config/package.json
+          packages/config/eslint/base.js
           packages/ui/.eslintrc.js
           packages/ui/package.json
 
