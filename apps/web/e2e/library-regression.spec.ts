@@ -11,8 +11,36 @@ const user = {
 const tinyImage =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#ece8f8"/><circle cx="200" cy="190" r="80" fill="#8b5cf6" opacity=".22"/></svg>',
   );
+
+function corsHeaders(route: Route) {
+  const requestHeaders = route.request().headers();
+  return {
+    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'access-control-allow-headers':
+      requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
+    vary: 'Origin',
+  };
+}
+
+async function fulfillPreflight(route: Route) {
+  if (route.request().method() !== 'OPTIONS') return false;
+  await route.fulfill({ status: 204, headers: corsHeaders(route), body: '' });
+  return true;
+}
+
+async function fulfillJson(route: Route, body: unknown, status = 200) {
+  await route.fulfill({
+    status,
+    headers: {
+      ...corsHeaders(route),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 function asset(id: string, favorite = false) {
   return {
@@ -85,11 +113,8 @@ function libraryPayload(assets: ReturnType<typeof asset>[] = []) {
 
 async function authenticate(page: Page) {
   await page.route('**/auth/me', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(user),
-    });
+    if (await fulfillPreflight(route)) return;
+    await fulfillJson(route, user);
   });
   await page.goto('/login');
   await page.evaluate(() => localStorage.setItem('authToken', 'browser-test-token'));
@@ -97,6 +122,7 @@ async function authenticate(page: Page) {
 
 async function routeLibrary(page: Page, handler: (route: Route) => Promise<void>) {
   await page.route('**/media-library**', async (route) => {
+    if (await fulfillPreflight(route)) return;
     if (route.request().method() === 'GET') return handler(route);
     return route.fallback();
   });
@@ -108,11 +134,7 @@ test.describe('Private pet media library', () => {
   }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(libraryPayload()),
-      });
+      await fulfillJson(route, libraryPayload());
     });
     await page.goto('/library');
 
@@ -123,8 +145,8 @@ test.describe('Private pet media library', () => {
       .analyze();
     expect(
       results.violations.filter((violation) =>
-        ['serious', 'critical'].includes(violation.impact ?? '')
-      )
+        ['serious', 'critical'].includes(violation.impact ?? ''),
+      ),
     ).toEqual([]);
 
     await page.keyboard.press('Tab');
@@ -134,11 +156,7 @@ test.describe('Private pet media library', () => {
   test('shows an actionable failure state rather than an empty library', async ({ page }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: JSON.stringify({ message: 'storage unavailable' }),
-      });
+      await fulfillJson(route, { message: 'storage unavailable' }, 503);
     });
     await page.goto('/library');
     await expect(page.getByTestId('media-library-error')).toBeVisible();
@@ -148,33 +166,24 @@ test.describe('Private pet media library', () => {
   test('announces upload progress while a private direct upload is in flight', async ({ page }) => {
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(libraryPayload()),
-      });
+      await fulfillJson(route, libraryPayload());
     });
     await page.route('**/media-library/uploads/intents', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          assetId: 'asset-new',
-          uploadUrl: 'https://upload.woof.test/private',
-          requiredHeaders: { 'Content-Type': 'image/jpeg' },
-        }),
+      if (await fulfillPreflight(route)) return;
+      await fulfillJson(route, {
+        assetId: 'asset-new',
+        uploadUrl: 'https://upload.woof.test/private',
+        requiredHeaders: { 'Content-Type': 'image/jpeg' },
       });
     });
     await page.route('https://upload.woof.test/private', async (route) => {
+      if (await fulfillPreflight(route)) return;
       await new Promise((resolve) => setTimeout(resolve, 1200));
-      await route.fulfill({ status: 200, body: '' });
+      await route.fulfill({ status: 200, headers: corsHeaders(route), body: '' });
     });
     await page.route('**/media-library/uploads/complete', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(asset('asset-new')),
-      });
+      if (await fulfillPreflight(route)) return;
+      await fulfillJson(route, asset('asset-new'));
     });
 
     await page.goto('/library');
@@ -192,11 +201,7 @@ test.describe('Private pet media library', () => {
     await routeLibrary(page, async (route) => {
       const url = new URL(route.request().url());
       const filtered = url.searchParams.get('albumId') === 'album-1' ? [assets[0]] : assets;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(libraryPayload(filtered)),
-      });
+      await fulfillJson(route, libraryPayload(filtered));
     });
     await page.goto('/library');
 
@@ -218,15 +223,11 @@ test.describe('Private pet media library', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await authenticate(page);
     await routeLibrary(page, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(libraryPayload([asset('asset-1'), asset('asset-2')])),
-      });
+      await fulfillJson(route, libraryPayload([asset('asset-1'), asset('asset-2')]));
     });
     await page.goto('/library');
     const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(page.getByTestId('media-library-grid')).toBeVisible();
