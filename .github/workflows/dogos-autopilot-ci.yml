@@ -1,0 +1,113 @@
+name: dogOS Autopilot CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/autopilot/**'
+      - 'apps/api/src/care-events/care-event.types.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/.env.example'
+      - '.github/workflows/dogos-autopilot-ci.yml'
+      - 'docs/DOGOS_AUTOPILOT.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-autopilot-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Autopilot observation + reminder qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-autopilot-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      ENABLE_DOGOS_AUTOPILOT: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply inherited migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Autopilot formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/.env.example
+          apps/api/src/autopilot
+          apps/api/src/care-events/care-event.types.ts
+          apps/api/src/app.module.ts
+          apps/api/src/config/env.validation.ts
+          .github/workflows/dogos-autopilot-ci.yml
+          docs/DOGOS_AUTOPILOT.md
+
+      - name: Lint Autopilot release surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/autopilot/**/*.ts'
+          src/care-events/care-event.types.ts
+          src/app.module.ts
+          src/config/env.validation.ts
+
+      - name: Reject direct canonical pet mutations from Autopilot
+        run: |
+          if grep -REn '\.(pet)\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b' apps/api/src/autopilot; then
+            echo 'Autopilot providers/signals must never mutate canonical Pet records directly.'
+            exit 1
+          fi
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run provider privacy contracts
+        run: pnpm --filter @woof/api exec jest src/autopilot/provider-adapters.spec.ts --runInBand
+
+      - name: Run Autopilot service contracts
+        run: pnpm --filter @woof/api exec jest src/autopilot/autopilot.service.spec.ts --runInBand
+
+      - name: Run Adventure reward policy contracts
+        run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
