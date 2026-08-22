@@ -77,6 +77,31 @@ export interface LeaderboardEntry {
   score: number;
 }
 
+export interface SuggestedMatch {
+  id: string;
+  user: {
+    id: string;
+    handle: string;
+    avatarUrl?: string;
+    bio?: string;
+  };
+  pet: {
+    id: string;
+    name: string;
+    breed: string;
+    age: number;
+    avatarUrl?: string;
+  };
+  compatibilityScore: number;
+  explainability: {
+    topReasons: string[];
+    proximityKm?: number;
+    mutualInterests?: string[];
+  };
+  distance?: number;
+  lastActive?: string;
+}
+
 export const queryKeys = {
   feed: ['feed'] as const,
   activities: ['activities'] as const,
@@ -440,10 +465,10 @@ export function useSubmitQuiz(options?: UseMutationOptions<any, Error, any>) {
   });
 }
 
-export function useGetMatches(options?: ManagedQueryOptions<any[]>) {
-  return useQuery<any[]>({
+export function useGetMatches(options?: ManagedQueryOptions<SuggestedMatch[]>) {
+  return useQuery<SuggestedMatch[]>({
     queryKey: ['matches'],
-    queryFn: () => apiClient.get<any[]>('/matches/suggested'),
+    queryFn: () => apiClient.get<SuggestedMatch[]>('/matches/suggested'),
     ...options,
   });
 }
