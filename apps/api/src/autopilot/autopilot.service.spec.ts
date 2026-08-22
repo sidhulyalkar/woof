@@ -10,6 +10,14 @@ const petId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 function createHarness() {
   const txNotification = {
     findFirst: jest.fn(),
+    create: jest.fn().mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: 'signal-new',
+        ...data,
+        readAt: null,
+        createdAt: new Date(),
+      }),
+    ),
     update: jest.fn(),
   };
   const tx = {
@@ -20,7 +28,12 @@ function createHarness() {
     pet: { findFirst: jest.fn().mockResolvedValue({ id: petId }) },
     notification: {
       create: jest.fn().mockImplementation(({ data }) =>
-        Promise.resolve({ id: `notification-${Math.random()}`, ...data, readAt: null, createdAt: new Date() }),
+        Promise.resolve({
+          id: `notification-${Math.random()}`,
+          ...data,
+          readAt: null,
+          createdAt: new Date(),
+        }),
       ),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn(),
@@ -96,8 +109,8 @@ describe('AutopilotService', () => {
     );
   });
 
-  it('does not create a second signal when a provider event is replayed', async () => {
-    const { service, careEvents, prisma } = createHarness();
+  it('repairs a missing signal when a provider replay finds the CareEvent already committed', async () => {
+    const { service, careEvents, tx, txNotification } = createHarness();
     careEvents.record.mockResolvedValue({
       careEventId: 'care-event-existing',
       ledgerId: 'ledger-existing',
@@ -107,6 +120,7 @@ describe('AutopilotService', () => {
       explanation: 'duplicate',
       duplicate: true,
     });
+    txNotification.findFirst.mockResolvedValue(null);
 
     const result = await service.ingestProviderObservation(userId, 'tractive', {
       petId,
@@ -117,12 +131,72 @@ describe('AutopilotService', () => {
     });
 
     expect(result.duplicate).toBe(true);
-    expect(result.signal).toBeNull();
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(result.signal).toEqual(
+      expect.objectContaining({
+        id: 'signal-new',
+        payload: expect.objectContaining({
+          sourceCareEventId: 'care-event-existing',
+          signalType: 'TRACKER_BATTERY_LOW',
+        }),
+      }),
+    );
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(txNotification.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns an existing replay signal without duplicating it, even after acknowledgement', async () => {
+    const { service, careEvents, txNotification } = createHarness();
+    careEvents.record.mockResolvedValue({
+      careEventId: 'care-event-existing',
+      ledgerId: 'ledger-existing',
+      bondXp: 0,
+      pathway: 'CARE',
+      policyVersion: 'bond-xp-v1',
+      explanation: 'duplicate',
+      duplicate: true,
+    });
+    txNotification.findFirst.mockResolvedValue({
+      id: 'signal-existing',
+      userId,
+      type: 'AUTOPILOT_SIGNAL',
+      readAt: new Date('2026-08-22T09:00:00.000Z'),
+      createdAt: new Date('2026-08-22T08:00:01.000Z'),
+      payload: {
+        schemaVersion: 'dogos-autopilot-signal-v1',
+        petId,
+        sourceCareEventId: 'care-event-existing',
+        signalType: 'TRACKER_BATTERY_LOW',
+        level: 'INFO',
+        title: 'Tracker battery is running low',
+        body: 'Already acknowledged.',
+        observedAt: '2026-08-22T08:00:00.000Z',
+        evidence: { batteryPercent: 9, provider: 'TRACTIVE' },
+        nonDiagnostic: true,
+      },
+    });
+
+    const result = await service.ingestProviderObservation(userId, 'tractive', {
+      petId,
+      externalEventId: 'same-event',
+      kind: 'DEVICE_STATUS',
+      observedAt: '2026-08-22T08:00:00.000Z',
+      payload: { batteryPercent: 9 },
+    });
+
+    expect(result.signal).toEqual(
+      expect.objectContaining({
+        id: 'signal-existing',
+        payload: expect.objectContaining({
+          sourceCareEventId: 'care-event-existing',
+          signalType: 'TRACKER_BATTERY_LOW',
+        }),
+      }),
+    );
+    expect(txNotification.create).not.toHaveBeenCalled();
   });
 
   it('requires a meaningful baseline before producing a lower-activity check-in', async () => {
-    const { service, prisma } = createHarness();
+    const { service, prisma, txNotification } = createHarness();
     prisma.$queryRaw.mockResolvedValue([
       { activity_minutes: 80 },
       { activity_minutes: 75 },
@@ -140,7 +214,7 @@ describe('AutopilotService', () => {
     });
 
     expect(result.signal).toBeNull();
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(txNotification.create).not.toHaveBeenCalled();
   });
 
   it('creates a non-diagnostic check-in only for a large drop against six or more prior summaries', async () => {
