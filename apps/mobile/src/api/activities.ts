@@ -4,6 +4,13 @@ import apiClient from './client';
 
 type MobileActivityWrite = CreateActivityRequest | CreateActivityDto;
 
+type ActivityListResponse = {
+  activities: Activity[];
+  total: number;
+  skip: number;
+  take: number;
+};
+
 function isLegacyActivityWrite(data: MobileActivityWrite): data is CreateActivityDto {
   return 'startTime' in data || 'duration' in data || 'title' in data;
 }
@@ -49,7 +56,20 @@ export function normalizeActivityWrite(data: MobileActivityWrite): CreateActivit
 
 export const activitiesApi = {
   async getActivities(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Activity>> {
-    return apiClient.get('/activities', { params: { page, limit } });
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.max(1, limit);
+    const skip = (safePage - 1) * safeLimit;
+    const response = await apiClient.get<ActivityListResponse>('/activities', {
+      params: { skip, take: safeLimit },
+    });
+
+    return {
+      data: response.activities,
+      total: response.total,
+      page: safePage,
+      limit: response.take,
+      hasMore: response.skip + response.activities.length < response.total,
+    };
   },
 
   async getActivityById(id: string): Promise<Activity> {
@@ -75,8 +95,10 @@ export const activitiesApi = {
   },
 
   async getMyActivities(petId?: string): Promise<Activity[]> {
-    const params = petId ? { petId } : {};
-    return apiClient.get('/activities', { params });
+    const response = await apiClient.get<ActivityListResponse>('/activities', {
+      params: { ...(petId ? { petId } : {}), skip: 0, take: 100 },
+    });
+    return response.activities;
   },
 
   async uploadActivityPhotos(activityId: string, photoUris: string[]): Promise<{ urls: string[] }> {
