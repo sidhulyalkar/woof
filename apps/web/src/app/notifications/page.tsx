@@ -4,37 +4,36 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MapPin, MessageCircle, Trophy, X } from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
-import { useAuthStore } from '@/lib/stores/auth-store';
+import { Bell, MapPin, Trophy, X } from 'lucide-react';
+import { nudgesApi, type Nudge } from '@/lib/api';
 import { toast } from 'sonner';
 
-interface Nudge {
-  id: string;
-  type: 'meetup' | 'service' | 'event' | 'achievement';
-  payload: {
-    targetUserId?: string;
-    reason: 'proximity' | 'chat_activity' | 'mutual_availability' | 'goal_achievement';
-    message?: string;
-    location?: { lat: number; lng: number };
-    metadata?: Record<string, any>;
-  };
-  createdAt: string;
-  dismissed: boolean;
+function readMetadataNumber(metadata: Record<string, unknown>, key: string): number | undefined {
+  const value = metadata[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function readPetNames(
+  metadata: Record<string, unknown>,
+): { yours: string; theirs: string } | undefined {
+  const value = metadata.petNames;
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.yours !== 'string' || typeof candidate.theirs !== 'string') return undefined;
+  return { yours: candidate.yours, theirs: candidate.theirs };
 }
 
 export default function NotificationsPage() {
   const [nudges, setNudges] = useState<Nudge[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuthStore();
 
   useEffect(() => {
-    fetchNudges();
+    void fetchNudges();
   }, []);
 
   const fetchNudges = async () => {
     try {
-      const response = await apiClient.get('/nudges');
+      const response = await nudgesApi.getNudges();
       setNudges(response);
     } catch (error) {
       console.error('Failed to fetch nudges:', error);
@@ -46,32 +45,29 @@ export default function NotificationsPage() {
 
   const handleAcceptNudge = async (nudgeId: string) => {
     try {
-      await apiClient.patch(`/nudges/${nudgeId}/accept`, {});
-      setNudges(nudges.filter((n) => n.id !== nudgeId));
+      await nudgesApi.acceptNudge(nudgeId);
+      setNudges((current) => current.filter((nudge) => nudge.id !== nudgeId));
       toast.success('Great! Check your chat for next steps');
-      // TODO: Navigate to relevant screen based on nudge type
     } catch (error) {
+      console.error('Failed to accept nudge:', error);
       toast.error('Failed to accept notification');
     }
   };
 
   const handleDismissNudge = async (nudgeId: string) => {
     try {
-      await apiClient.patch(`/nudges/${nudgeId}/dismiss`, {});
-      setNudges(nudges.filter((n) => n.id !== nudgeId));
+      await nudgesApi.dismissNudge(nudgeId);
+      setNudges((current) => current.filter((nudge) => nudge.id !== nudgeId));
     } catch (error) {
+      console.error('Failed to dismiss nudge:', error);
       toast.error('Failed to dismiss notification');
     }
   };
 
-  const getNudgeIcon = (type: string) => {
+  const getNudgeIcon = (type: Nudge['type']) => {
     switch (type) {
       case 'meetup':
         return <MapPin className="h-5 w-5" />;
-      case 'service':
-        return <Bell className="h-5 w-5" />;
-      case 'event':
-        return <Bell className="h-5 w-5" />;
       case 'achievement':
         return <Trophy className="h-5 w-5" />;
       default:
@@ -79,7 +75,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const getNudgeColor = (reason: string) => {
+  const getNudgeColor = (reason: Nudge['payload']['reason']) => {
     switch (reason) {
       case 'proximity':
         return 'bg-blue-500/10 text-blue-500';
@@ -98,8 +94,8 @@ export default function NotificationsPage() {
         <div className="animate-pulse space-y-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="p-6">
-              <div className="h-4 bg-muted rounded w-3/4 mb-4" />
-              <div className="h-3 bg-muted rounded w-1/2" />
+              <div className="mb-4 h-4 w-3/4 rounded bg-muted" />
+              <div className="h-3 w-1/2 rounded bg-muted" />
             </Card>
           ))}
         </div>
@@ -108,96 +104,88 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-3xl">
+    <div className="container mx-auto max-w-3xl p-4">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Notifications</h1>
-        <p className="text-muted-foreground">
-          Stay updated with personalized suggestions and alerts
-        </p>
+        <h1 className="mb-2 text-3xl font-bold">Notifications</h1>
+        <p className="text-muted-foreground">Stay updated with personalized suggestions and alerts</p>
       </div>
 
       {nudges.length === 0 ? (
         <Card className="p-12 text-center">
-          <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-medium mb-2">No new notifications</h3>
+          <Bell className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+          <h3 className="mb-2 text-lg font-medium">No new notifications</h3>
           <p className="text-muted-foreground">
-            We'll let you know when there are opportunities for meetups or achievements!
+            We&apos;ll let you know when there are opportunities for meetups or achievements.
           </p>
         </Card>
       ) : (
         <div className="space-y-4">
-          {nudges.map((nudge) => (
-            <Card key={nudge.id} className="p-6">
-              <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-full ${getNudgeColor(nudge.payload.reason)}`}>
-                  {getNudgeIcon(nudge.type)}
-                </div>
+          {nudges.map((nudge) => {
+            const metadata = nudge.payload.metadata;
+            const distance = metadata ? readMetadataNumber(metadata, 'distance') : undefined;
+            const messageCount = metadata ? readMetadataNumber(metadata, 'messageCount') : undefined;
+            const petNames = metadata ? readPetNames(metadata) : undefined;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4 mb-2">
-                    <div>
-                      <h3 className="font-medium mb-1">
-                        {nudge.payload.message || 'New suggestion'}
-                      </h3>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Badge variant="outline" className="text-xs">
-                          {nudge.payload.reason.replace('_', ' ')}
-                        </Badge>
-                        <span>·</span>
-                        <span>{new Date(nudge.createdAt).toLocaleDateString()}</span>
+            return (
+              <Card key={nudge.id} className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className={`rounded-full p-3 ${getNudgeColor(nudge.payload.reason)}`}>
+                    {getNudgeIcon(nudge.type)}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="mb-1 font-medium">{nudge.payload.message || 'New suggestion'}</h3>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Badge variant="outline" className="text-xs">
+                            {nudge.payload.reason.replace('_', ' ')}
+                          </Badge>
+                          <span>·</span>
+                          <span>{new Date(nudge.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void handleDismissNudge(nudge.id)}
+                        className="flex-shrink-0"
+                        aria-label="Dismiss notification"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDismissNudge(nudge.id)}
-                      className="flex-shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
+                    {(distance !== undefined || petNames || messageCount !== undefined) && (
+                      <div className="mb-4 text-sm text-muted-foreground">
+                        {distance !== undefined && <p>Distance: {distance}m away</p>}
+                        {petNames && (
+                          <p>
+                            {petNames.yours} could meet {petNames.theirs}!
+                          </p>
+                        )}
+                        {messageCount !== undefined && <p>{messageCount} messages exchanged</p>}
+                      </div>
+                    )}
 
-                  {nudge.payload.metadata && (
-                    <div className="text-sm text-muted-foreground mb-4">
-                      {nudge.payload.metadata.distance && (
-                        <p>
-                          Distance: {nudge.payload.metadata.distance}m away
-                        </p>
-                      )}
-                      {nudge.payload.metadata.petNames && (
-                        <p>
-                          {nudge.payload.metadata.petNames.yours} could meet{' '}
-                          {nudge.payload.metadata.petNames.theirs}!
-                        </p>
-                      )}
-                      {nudge.payload.metadata.messageCount && (
-                        <p>
-                          {nudge.payload.metadata.messageCount} messages exchanged
-                        </p>
-                      )}
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => void handleAcceptNudge(nudge.id)}>
+                        {nudge.type === 'meetup' ? "Let's meet!" : 'View'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleDismissNudge(nudge.id)}
+                      >
+                        Not now
+                      </Button>
                     </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleAcceptNudge(nudge.id)}
-                    >
-                      {nudge.type === 'meetup' ? "Let's meet!" : 'View'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDismissNudge(nudge.id)}
-                    >
-                      Not now
-                    </Button>
                   </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
