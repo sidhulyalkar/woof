@@ -1,13 +1,40 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
+import { Request, Response } from 'express';
+
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'x-api-key',
+  'x-auth-token',
+]);
+
+type RequestWithOptionalUser = Request & {
+  user?: {
+    sub?: string;
+    id?: string;
+  };
+};
+
+export function redactRequestHeaders(headers: Request['headers']) {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !SENSITIVE_HEADERS.has(name.toLowerCase())),
+  );
+}
+
+function normalizeHttpMessage(response: string | object) {
+  if (typeof response === 'string') return response;
+  if ('message' in response) return response.message;
+  return 'Request failed';
+}
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -16,52 +43,42 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithOptionalUser>();
 
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
+    const exceptionResponse =
+      exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+    const message = normalizeHttpMessage(exceptionResponse);
+    const safePath = request.path || request.url.split('?')[0];
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
-
-    // Log the error
     this.logger.error(
-      `${request.method} ${request.url}`,
+      `${request.method} ${safePath}`,
       exception instanceof Error ? exception.stack : exception,
     );
 
-    // Send to Sentry in production
     if (process.env.NODE_ENV === 'production') {
+      const userId = request.user?.sub ?? request.user?.id;
       Sentry.captureException(exception, {
         contexts: {
           http: {
             method: request.method,
-            url: request.url,
-            headers: request.headers,
+            url: safePath,
+            headers: redactRequestHeaders(request.headers),
           },
         },
-        user: request['user']
-          ? {
-              id: (request['user'] as any).id,
-              email: (request['user'] as any).email,
-            }
-          : undefined,
+        user: userId ? { id: userId } : undefined,
       });
     }
 
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
-      message: typeof message === 'string' ? message : (message as any).message,
-      error:
-        exception instanceof HttpException
-          ? exception.name
-          : 'InternalServerError',
+      path: safePath,
+      message,
+      error: exception instanceof HttpException ? exception.name : 'InternalServerError',
     });
   }
 }
