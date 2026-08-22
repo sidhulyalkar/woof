@@ -20,11 +20,8 @@ export class StoryController {
   }
 
   @Put('curation')
-  @ApiOperation({ summary: 'Save, hide, annotate, or clear one Story source reference' })
-  updateCuration(
-    @Request() req: AuthenticatedRequest,
-    @Body() dto: UpdateStoryCurationDto
-  ) {
+  @ApiOperation({ summary: 'Save, annotate, or clear one Story source reference' })
+  updateCuration(@Request() req: AuthenticatedRequest, @Body() dto: UpdateStoryCurationDto) {
     return this.story.updateCuration(req.user.sub, dto);
   }
 }
