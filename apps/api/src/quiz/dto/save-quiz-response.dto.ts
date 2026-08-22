@@ -13,12 +13,13 @@ export class SaveQuizResponseDto {
   petId?: string;
 
   @ApiProperty({
-    description: 'Question IDs mapped to a single answer or an array of selected answers.',
+    description:
+      'Question IDs mapped to a single answer, numeric scale answer, or an array of selections.',
     example: {
-      activity_level: 'High - Very active lifestyle',
+      activity_level: 4,
       schedule: ['Weekday mornings', 'Weekends'],
     },
   })
   @IsObject()
-  responses!: Record<string, string | string[]>;
+  responses!: Record<string, string | string[] | number>;
 }
