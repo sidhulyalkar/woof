@@ -107,14 +107,10 @@ jobs:
           apps/api/src/pets/pets.module.ts
           apps/api/src/pets/pets.service.ts
           apps/api/src/app.module.ts
-          apps/mobile/package.json
           apps/mobile/src/api/activities.ts
-          apps/mobile/src/api/goals.ts
-          apps/mobile/src/api/pets.ts
-          apps/mobile/src/api/social.ts
           apps/mobile/src/types/activity.ts
-          apps/mobile/src/utils/animations.ts
           .github/workflows/dogos-foundation-ci.yml
+          docs/DOGOS_ARCHITECTURE.md
 
       - name: Lint dogOS API surface
         run: >-
@@ -125,6 +121,9 @@ jobs:
           src/pets/pets.module.ts
           src/pets/pets.service.ts
           src/app.module.ts
+
+      - name: Lint mobile client
+        run: pnpm --filter @woof/mobile lint
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
