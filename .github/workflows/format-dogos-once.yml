@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   format:
+    # Same-repository draft PR only. This workflow deletes itself after formatting.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
