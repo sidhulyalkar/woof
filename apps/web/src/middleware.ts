@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { buildConnectSrc } from '@/lib/security/csp';
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -16,7 +17,7 @@ export function middleware(request: NextRequest) {
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https:;
     font-src 'self' data:;
-    connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || ''} https://vitals.vercel-insights.com;
+    connect-src ${buildConnectSrc(process.env.NEXT_PUBLIC_API_URL)};
     frame-ancestors 'none';
     base-uri 'self';
     form-action 'self';
