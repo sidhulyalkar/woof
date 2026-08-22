@@ -11,7 +11,7 @@ CREATE TABLE "households" (
   "name" TEXT NOT NULL DEFAULT 'My household',
   "timezone" TEXT,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "households_pkey" PRIMARY KEY ("id")
 );
 
