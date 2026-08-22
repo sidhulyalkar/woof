@@ -69,6 +69,7 @@ export default function MediaLibraryPage() {
     queryKey: ['media-library', petId, albumId],
     queryFn: () => mediaLibraryApi.library(petId, { albumId, limit: 80 }),
     enabled: Boolean(petId),
+    retry: 1,
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['media-library', petId] });
@@ -304,6 +305,17 @@ export default function MediaLibraryPage() {
           </div>
         )}
 
+        {uploadMutation.isPending && (
+          <div
+            data-testid="media-library-uploading"
+            role="status"
+            className="flex items-center rounded-2xl border border-primary/15 bg-primary/[0.055] px-4 py-3 text-sm"
+          >
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            <span>Saving your moment privately…</span>
+          </div>
+        )}
+
         {newAlbumOpen && (
           <section className="rounded-3xl border border-border/70 bg-card p-5">
             <h2 className="font-semibold">New album</h2>
@@ -338,7 +350,7 @@ export default function MediaLibraryPage() {
           </section>
         )}
 
-        <section>
+        <section data-testid="media-library-albums">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="font-semibold">Albums</h2>
             {selectedIds.length > 0 && (
@@ -398,8 +410,29 @@ export default function MediaLibraryPage() {
             <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             <span className="ml-2 text-sm">Opening the private library…</span>
           </div>
+        ) : libraryQuery.isError ? (
+          <section
+            data-testid="media-library-error"
+            className="rounded-3xl border border-destructive/25 bg-destructive/[0.045] p-6"
+          >
+            <h2 className="font-semibold">Private library unavailable</h2>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+              Woof could not open this private library right now. Your media has not been changed.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={() => void libraryQuery.refetch()}
+            >
+              Try again
+            </Button>
+          </section>
         ) : assets.length === 0 ? (
-          <section className="rounded-3xl border border-dashed border-border p-10 text-center">
+          <section
+            data-testid="media-library-empty"
+            className="rounded-3xl border border-dashed border-border p-10 text-center"
+          >
             <Images className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <h2 className="mt-3 font-semibold">No moments here yet</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
@@ -408,12 +441,16 @@ export default function MediaLibraryPage() {
             </p>
           </section>
         ) : (
-          <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <section
+            data-testid="media-library-grid"
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4"
+          >
             {assets.map((asset) => {
               const selected = selectedSet.has(asset.id);
               return (
                 <article
                   key={asset.id}
+                  data-asset-id={asset.id}
                   className="group relative overflow-hidden rounded-2xl bg-muted"
                 >
                   <button

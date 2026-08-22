@@ -116,8 +116,9 @@ async function authenticate(page: Page) {
     if (await fulfillPreflight(route)) return;
     await fulfillJson(route, user);
   });
-  await page.goto('/login');
-  await page.evaluate(() => localStorage.setItem('authToken', 'browser-test-token'));
+  await page.addInitScript(() => {
+    window.localStorage.setItem('authToken', 'browser-test-token');
+  });
 }
 
 async function routeLibrary(page: Page, handler: (route: Route) => Promise<void>) {
