@@ -1,0 +1,91 @@
+name: Prune PR7 dead web prototypes once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prune-pr7-dead-web-prototypes-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @woof/database db:generate
+
+      - name: Remove verified unreachable prototype graph
+        run: |
+          rm \
+            apps/web/src/components/PetPathApp.tsx \
+            apps/web/src/components/BetaApp.tsx \
+            apps/web/src/components/ActivityScreen.tsx \
+            apps/web/src/components/LeaderboardScreen.tsx \
+            apps/web/src/components/MessagesScreen.tsx \
+            apps/web/src/components/ErrorBoundary.tsx \
+            apps/web/src/components/auth/LoginScreen.tsx \
+            apps/web/src/components/analytics/AnalyticsDashboard.tsx \
+            apps/web/src/components/analytics/MLAnalyticsDashboard.tsx \
+            apps/web/src/components/services/ServicesHubScreen.tsx \
+            apps/web/src/components/verification/VerificationScreen.tsx \
+            apps/web/src/components/chat/EnhancedChatScreen.tsx \
+            apps/web/src/components/meetups/MeetupProposalScreen.tsx \
+            apps/web/src/components/events/EventsScreen.tsx \
+            apps/web/src/components/events/CreateEventDialog.tsx \
+            apps/web/src/components/events/EventDetailsDialog.tsx \
+            apps/web/src/components/matches/MatchDiscoveryScreen.tsx
+
+      - name: Prove static debt strictly decreases
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @woof/web exec eslint src --format json --output-file /tmp/web-eslint.json
+          pnpm --filter @woof/web type-check > /tmp/web-tsc.txt 2>&1
+          set -e
+          LINT_COUNT=$(node -e "const f=require('/tmp/web-eslint.json'); console.log(f.reduce((n,x)=>n+x.messages.filter(m=>m.severity>0).length,0))")
+          TSC_COUNT=$(grep -c 'error TS' /tmp/web-tsc.txt || true)
+          echo "post-prune lint diagnostics: $LINT_COUNT (baseline 157)"
+          echo "post-prune TypeScript errors: $TSC_COUNT (baseline 98)"
+          test "$LINT_COUNT" -lt 157
+          test "$TSC_COUNT" -lt 98
+
+      - name: Commit exact deletions only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u -- \
+            apps/web/src/components/PetPathApp.tsx \
+            apps/web/src/components/BetaApp.tsx \
+            apps/web/src/components/ActivityScreen.tsx \
+            apps/web/src/components/LeaderboardScreen.tsx \
+            apps/web/src/components/MessagesScreen.tsx \
+            apps/web/src/components/ErrorBoundary.tsx \
+            apps/web/src/components/auth/LoginScreen.tsx \
+            apps/web/src/components/analytics/AnalyticsDashboard.tsx \
+            apps/web/src/components/analytics/MLAnalyticsDashboard.tsx \
+            apps/web/src/components/services/ServicesHubScreen.tsx \
+            apps/web/src/components/verification/VerificationScreen.tsx \
+            apps/web/src/components/chat/EnhancedChatScreen.tsx \
+            apps/web/src/components/meetups/MeetupProposalScreen.tsx \
+            apps/web/src/components/events/EventsScreen.tsx \
+            apps/web/src/components/events/CreateEventDialog.tsx \
+            apps/web/src/components/events/EventDetailsDialog.tsx \
+            apps/web/src/components/matches/MatchDiscoveryScreen.tsx
+          git commit -m "refactor(web): remove unreachable prototype screens"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
