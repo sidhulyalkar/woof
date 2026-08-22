@@ -42,7 +42,6 @@ export class HouseholdsService {
                 pet: {
                   select: {
                     id: true,
-                    ownerId: true,
                     name: true,
                     species: true,
                     breed: true,
@@ -65,15 +64,24 @@ export class HouseholdsService {
     }));
   }
 
-  async ensurePersonalHousehold(userId: string) {
-    const existing = await this.prisma.householdMember.findFirst({
-      where: { userId, status: 'ACTIVE' },
-      select: { householdId: true },
-      orderBy: { joinedAt: 'asc' },
-    });
-    if (existing) return existing.householdId;
-
+  async ensurePersonalHousehold(userId: string): Promise<string> {
+    // A dogOS account always owns one deterministic personal household. Do not
+    // use the user's first active membership here: once household invitations
+    // exist, that could attach a newly created pet to somebody else's household.
     const householdId = this.deterministicUuid(`dogos-household:${userId}`);
+    const existing = await this.prisma.householdMember.findUnique({
+      where: {
+        householdId_userId: {
+          householdId,
+          userId,
+        },
+      },
+      select: { status: true, role: true },
+    });
+
+    if (existing?.status === 'ACTIVE' && existing.role === 'OWNER') {
+      return householdId;
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.household.upsert({
@@ -248,7 +256,7 @@ export class HouseholdsService {
     userId: string,
     petIds: string[],
     requestedHouseholdId?: string
-  ) {
+  ): Promise<string> {
     const uniquePetIds = [...new Set(petIds)];
 
     const memberships = await this.prisma.householdMember.findMany({
