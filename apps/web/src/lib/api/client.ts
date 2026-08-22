@@ -54,7 +54,10 @@ axiosClient.interceptors.response.use(
   }
 );
 
-export const apiClient = axiosClient as UnwrappedAxiosInstance;
+// Axios' runtime interceptor intentionally changes the resolved value from
+// AxiosResponse<T> to T. Cast through unknown so TypeScript treats this as an
+// explicit transport-boundary adaptation rather than accidental structural overlap.
+export const apiClient = axiosClient as unknown as UnwrappedAxiosInstance;
 
 apiClient.upload = <T = unknown>(
   url: string,
