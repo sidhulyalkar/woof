@@ -65,7 +65,15 @@ export class CareEventsService {
   async record(input: CareEventInput): Promise<RewardReceipt> {
     if (input.petId) await this.assertOwnedPet(input.userId, input.petId);
 
-    const occurredAt = input.occurredAt ?? new Date();
+    const now = new Date();
+    const requestedOccurrenceMs = input.occurredAt?.getTime();
+    const occurrenceTimestampNormalized =
+      input.occurredAt !== undefined &&
+      (!Number.isFinite(requestedOccurrenceMs) || (requestedOccurrenceMs ?? 0) > now.getTime());
+    // Offline/historical events retain their original chronology, but an upstream
+    // device clock can never place a trusted CareEvent in the future. That prevents
+    // future timestamps from inflating Compass/Rhythm recency or ordering.
+    const occurredAt = occurrenceTimestampNormalized ? now : (input.occurredAt ?? now);
     const evidenceConfidence = Math.max(0, Math.min(1, input.evidenceConfidence ?? 0.65));
     const visibility = input.visibility ?? 'PRIVATE';
 
@@ -197,6 +205,7 @@ export class CareEventsService {
         bondXp: receipt.bondXp,
         duplicate: receipt.duplicate,
         policyVersion: receipt.policyVersion,
+        occurrenceTimestampNormalized,
       })
     );
 
