@@ -1,7 +1,14 @@
 import { apiClient } from './client';
 
 export type WellbeingPathway =
-  'MOVE' | 'EXPLORE' | 'ENRICH' | 'LEARN' | 'CONNECT' | 'CARE' | 'RECOVER' | 'BOND';
+  | 'MOVE'
+  | 'EXPLORE'
+  | 'ENRICH'
+  | 'LEARN'
+  | 'CONNECT'
+  | 'CARE'
+  | 'RECOVER'
+  | 'BOND';
 
 export type AdventureQuest = {
   id: string;
@@ -74,24 +81,17 @@ export type QuestCompletion = {
 };
 
 export const adventureApi = {
-  getMine: async (petId?: string) =>
+  getMine: (petId?: string) =>
     apiClient.get<AdventureDashboard>('/adventure/me', {
       params: petId ? { petId } : undefined,
-    }) as unknown as Promise<AdventureDashboard>,
+    }),
 
-  selectQuest: async (questId: string, petId: string) =>
-    apiClient.post(`/adventure/quests/${questId}/select`, { petId }) as unknown as Promise<{
-      ok: boolean;
-    }>,
+  selectQuest: (questId: string, petId: string) =>
+    apiClient.post<{ ok: boolean }>(`/adventure/quests/${questId}/select`, { petId }),
 
-  dismissQuest: async (questId: string, petId: string) =>
-    apiClient.post(`/adventure/quests/${questId}/dismiss`, { petId }) as unknown as Promise<{
-      ok: boolean;
-    }>,
+  dismissQuest: (questId: string, petId: string) =>
+    apiClient.post<{ ok: boolean }>(`/adventure/quests/${questId}/dismiss`, { petId }),
 
-  completeQuest: async (questId: string, input: CompleteQuestInput) =>
-    apiClient.post(
-      `/adventure/quests/${questId}/complete`,
-      input
-    ) as unknown as Promise<QuestCompletion>,
+  completeQuest: (questId: string, input: CompleteQuestInput) =>
+    apiClient.post<QuestCompletion>(`/adventure/quests/${questId}/complete`, input),
 };
