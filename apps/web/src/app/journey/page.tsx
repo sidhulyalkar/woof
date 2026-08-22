@@ -10,7 +10,7 @@ import {
   Footprints,
   Image as ImageIcon,
   Loader2,
-  Map,
+  Map as MapIcon,
   MapPin,
   PawPrint,
   RotateCcw,
@@ -103,7 +103,7 @@ export default function JourneyPage() {
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/88 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
           <span className="brand-mark flex h-9 w-9 items-center justify-center rounded-xl">
-            <Map className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
+            <MapIcon className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
           </span>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -185,7 +185,7 @@ export default function JourneyPage() {
                   label="Hours"
                 />
                 <Stat
-                  icon={Map}
+                  icon={MapIcon}
                   value={(dashboard.stats.distanceMeters / 1000).toFixed(1)}
                   label="Kilometers"
                 />
