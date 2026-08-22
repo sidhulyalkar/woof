@@ -25,6 +25,12 @@ type NotificationRow = {
   createdAt: Date;
 };
 
+type PersistedTrackerEvent = {
+  eventType: string;
+  occurredAt: Date;
+  context: Prisma.JsonValue;
+};
+
 function jsonObject(value: Prisma.JsonValue): Prisma.JsonObject | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value as Prisma.JsonObject;
@@ -220,6 +226,7 @@ export class AutopilotService {
       safetyEligible: false,
       context: {
         provider: observation.provider,
+        externalEventId: observation.externalEventId,
         observationKind: observation.kind,
         privacyClass: 'SUMMARY_ONLY',
         nonDiagnostic: true,
@@ -227,22 +234,28 @@ export class AutopilotService {
       },
     });
 
-    // Signal derivation is deliberately replay-safe. If the immutable CareEvent
-    // was committed but the request died before signal persistence, a provider
-    // retry repairs the missing signal. Existing signals are returned rather
-    // than duplicated, including signals the user has already acknowledged.
+    // Always derive from the immutable persisted CareEvent, never from a retry's
+    // payload. This makes lost-response repair safe even if a provider retries an
+    // external event ID with changed metrics or timestamps. It also inherits the
+    // CareEvent layer's future-timestamp normalization.
+    const canonicalObservation = await this.loadPersistedObservation(
+      userId,
+      dto.petId,
+      receipt.careEventId,
+      observation.externalEventId
+    );
     const signal = await this.maybeCreateSignal(
       userId,
       dto.petId,
       receipt.careEventId,
-      observation
+      canonicalObservation
     );
 
     return {
       careEventId: receipt.careEventId,
       duplicate: receipt.duplicate,
       bondXp: receipt.bondXp,
-      observation,
+      observation: canonicalObservation,
       signal,
     };
   }
@@ -332,6 +345,50 @@ export class AutopilotService {
     }
 
     return { attempted, delivered };
+  }
+
+  private async loadPersistedObservation(
+    userId: string,
+    petId: string,
+    careEventId: string,
+    fallbackExternalEventId: string
+  ): Promise<NormalizedTrackerObservation> {
+    const event = (await this.prisma.careEvent.findFirst({
+      where: { id: careEventId, userId, petId },
+      select: { eventType: true, occurredAt: true, context: true },
+    })) as PersistedTrackerEvent | null;
+    if (!event) throw new NotFoundException('Tracker observation not found');
+
+    const context = jsonObject(event.context);
+    const provider = readString(context?.provider);
+    const kind = readString(context?.observationKind);
+    const externalEventId = readString(context?.externalEventId) ?? fallbackExternalEventId;
+    if (
+      (provider !== 'FI' && provider !== 'TRACTIVE') ||
+      (kind !== 'DAILY_ACTIVITY' && kind !== 'DEVICE_STATUS') ||
+      (kind === 'DAILY_ACTIVITY' && event.eventType !== 'TRACKER_DAILY_ACTIVITY') ||
+      (kind === 'DEVICE_STATUS' && event.eventType !== 'TRACKER_DEVICE_STATUS')
+    ) {
+      throw new NotFoundException('Tracker observation not found');
+    }
+
+    const state = readString(context?.deviceState);
+    const deviceState =
+      state === 'ONLINE' || state === 'OFFLINE' || state === 'UNKNOWN' ? state : undefined;
+
+    return {
+      provider,
+      externalEventId,
+      kind,
+      observedAt: event.occurredAt,
+      metrics: {
+        activityMinutes: readNumber(context?.activityMinutes),
+        distanceMeters: readNumber(context?.distanceMeters),
+        steps: readNumber(context?.steps),
+        batteryPercent: readNumber(context?.batteryPercent),
+        deviceState,
+      },
+    };
   }
 
   private async maybeCreateSignal(
