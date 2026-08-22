@@ -25,7 +25,11 @@ export const petsApi = {
    * Nearby-pet discovery needs a dedicated privacy-preserving proximity API.
    * Fail closed instead of approximating it by downloading all pet/owner records.
    */
-  async getNearbyPets(_latitude: number, _longitude: number, _radiusMeters: number): Promise<Pet[]> {
+  async getNearbyPets(
+    _latitude: number,
+    _longitude: number,
+    _radiusMeters: number
+  ): Promise<Pet[]> {
     return [];
   },
 

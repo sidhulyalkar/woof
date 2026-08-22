@@ -34,7 +34,7 @@ export const socialApi = {
     data: Partial<CreatePostDto> & {
       mediaUrls?: string[];
       visibility?: 'PUBLIC' | 'FRIENDS_ONLY' | 'PRIVATE';
-    },
+    }
   ): Promise<Post> {
     return apiClient.put(`/social/posts/${id}`, data);
   },

@@ -61,7 +61,7 @@ export const timingAnimation = (
   value: Animated.Value,
   toValue: number,
   duration: number = 300,
-  easing: ((value: number) => number) = Easing.inOut(Easing.ease)
+  easing: (value: number) => number = Easing.inOut(Easing.ease)
 ): Animated.CompositeAnimation => {
   return Animated.timing(value, {
     toValue,
@@ -181,10 +181,7 @@ export const fadeInSlide = (
   translateY: Animated.Value,
   duration: number = 300
 ): Animated.CompositeAnimation => {
-  return Animated.parallel([
-    fadeIn(opacity, duration),
-    slideIn(translateY, duration),
-  ]);
+  return Animated.parallel([fadeIn(opacity, duration), slideIn(translateY, duration)]);
 };
 
 export const fadeOutSlide = (
@@ -193,10 +190,7 @@ export const fadeOutSlide = (
   toValue: number = 50,
   duration: number = 300
 ): Animated.CompositeAnimation => {
-  return Animated.parallel([
-    fadeOut(opacity, duration),
-    slideOut(translateY, toValue, duration),
-  ]);
+  return Animated.parallel([fadeOut(opacity, duration), slideOut(translateY, toValue, duration)]);
 };
 
 export const scaleInFade = (
@@ -411,10 +405,7 @@ export const createAnimatedValue = (initialValue: number = 0): Animated.Value =>
   return new Animated.Value(initialValue);
 };
 
-export const createAnimatedValueXY = (
-  x: number = 0,
-  y: number = 0
-): Animated.ValueXY => {
+export const createAnimatedValueXY = (x: number = 0, y: number = 0): Animated.ValueXY => {
   return new Animated.ValueXY({ x, y });
 };
 
@@ -479,16 +470,11 @@ export const resetAnimatedValue = (value: Animated.Value, toValue: number = 0): 
   value.setValue(toValue);
 };
 
-export const resetAnimatedValues = (
-  values: Animated.Value[],
-  toValue: number = 0
-): void => {
+export const resetAnimatedValues = (values: Animated.Value[], toValue: number = 0): void => {
   values.forEach((value) => value.setValue(toValue));
 };
 
-export const stopAnimation = (
-  animation: Animated.CompositeAnimation
-): void => {
+export const stopAnimation = (animation: Animated.CompositeAnimation): void => {
   animation.stop();
 };
 
