@@ -3,13 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-
-interface OnboardingStepProps {
-  data: Record<string, any>;
-  onNext: (data: Record<string, any>) => void;
-  onBack?: () => void;
-}
+import type { OnboardingStepProps } from '../onboarding-types';
 
 const options = [
   { id: 'explore', label: 'Explore new places' },
@@ -19,10 +13,7 @@ const options = [
 ];
 
 export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
-  const initial = Array.isArray(data.activityPreferences)
-    ? data.activityPreferences.filter((value): value is string => typeof value === 'string')
-    : [];
-  const [selected, setSelected] = useState<string[]>(initial);
+  const [selected, setSelected] = useState<string[]>(data.activityPreferences ?? []);
 
   const toggle = (id: string) => {
     setSelected((current) =>
@@ -40,9 +31,7 @@ export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
       </div>
 
       <fieldset className="space-y-3">
-        <Label asChild>
-          <legend>Activity preferences</legend>
-        </Label>
+        <legend className="text-sm font-medium leading-none">Activity preferences</legend>
         {options.map((option) => {
           const checked = selected.includes(option.id);
           return (
@@ -64,11 +53,15 @@ export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
 
       <div className="flex gap-3">
         {onBack && (
-          <Button variant="outline" onClick={onBack}>
+          <Button type="button" variant="outline" onClick={onBack}>
             Back
           </Button>
         )}
-        <Button className="flex-1" onClick={() => onNext({ activityPreferences: selected })}>
+        <Button
+          type="button"
+          className="flex-1"
+          onClick={() => onNext({ activityPreferences: selected })}
+        >
           Continue
         </Button>
       </div>
