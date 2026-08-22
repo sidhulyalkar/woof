@@ -12,6 +12,7 @@ on:
       - 'apps/web/src/app/autopilot/**'
       - 'apps/web/src/components/bottom-nav.tsx'
       - 'apps/web/src/lib/api/autopilot.ts'
+      - 'apps/web/src/lib/api/autopilot.spec.ts'
       - 'apps/web/src/lib/api/households.ts'
       - '.github/workflows/dogos-autopilot-ci.yml'
       - 'docs/DOGOS_AUTOPILOT.md'
@@ -86,6 +87,7 @@ jobs:
             apps/web/src/app/autopilot \
             apps/web/src/components/bottom-nav.tsx \
             apps/web/src/lib/api/autopilot.ts \
+            apps/web/src/lib/api/autopilot.spec.ts \
             apps/web/src/lib/api/households.ts \
             .github/workflows/dogos-autopilot-ci.yml \
             docs/DOGOS_AUTOPILOT.md
@@ -97,6 +99,7 @@ jobs:
             apps/web/src/app/autopilot \
             apps/web/src/components/bottom-nav.tsx \
             apps/web/src/lib/api/autopilot.ts \
+            apps/web/src/lib/api/autopilot.spec.ts \
             apps/web/src/lib/api/households.ts \
             .github/workflows/dogos-autopilot-ci.yml \
             docs/DOGOS_AUTOPILOT.md
@@ -115,6 +118,7 @@ jobs:
           src/app/autopilot/page.tsx
           src/components/bottom-nav.tsx
           src/lib/api/autopilot.ts
+          src/lib/api/autopilot.spec.ts
           src/lib/api/households.ts
 
       - name: Reject direct canonical pet mutations from Autopilot
