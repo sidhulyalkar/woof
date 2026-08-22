@@ -6,14 +6,44 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
 import { MapPin, Clock, Users, Star, Send } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { toast } from 'sonner';
 
+type LegacyEventDetails = {
+  id: string;
+  title: string;
+  type: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  locationName: string;
+  maxAttendees?: number;
+  rsvps: Array<{ status: string }>;
+  organizer: { handle: string; avatarUrl?: string | null };
+  tags?: string[];
+};
+
+type EventFeedbackResponse = {
+  feedback: unknown[];
+  averages: {
+    vibeScore: number;
+    petDensity: number;
+    venueQuality: number;
+  };
+  totalFeedback: number;
+};
+
+type FeedbackSubmission = {
+  vibeScore: number;
+  petDensity: number;
+  venueQuality: number;
+  tags: string[];
+};
+
 interface EventDetailsDialogProps {
-  event: any;
+  event: LegacyEventDetails;
   open: boolean;
   onClose: () => void;
 }
@@ -28,20 +58,20 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
 
   const isPast = new Date(event.startTime) < new Date();
 
-  const { data: feedback } = useQuery({
+  const { data: feedback } = useQuery<EventFeedbackResponse>({
     queryKey: ['event-feedback', event.id],
-    queryFn: () => apiClient.get(`/events/${event.id}/feedback`),
+    queryFn: () => apiClient.get<EventFeedbackResponse>(`/events/${event.id}/feedback`),
     enabled: isPast,
   });
 
-  const submitFeedbackMutation = useMutation({
-    mutationFn: (data: any) => apiClient.post(`/events/${event.id}/feedback`, data),
+  const submitFeedbackMutation = useMutation<void, Error, FeedbackSubmission>({
+    mutationFn: (data) => apiClient.post<void>(`/events/${event.id}/feedback`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['event-feedback', event.id] });
       toast.success('Feedback submitted! Thanks for helping improve future events.');
       setShowFeedbackForm(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast.error(error.message || 'Failed to submit feedback');
     },
   });
@@ -56,8 +86,8 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
   };
 
   const toggleTag = (tag: string) => {
-    setFeedbackTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    setFeedbackTags((previous) =>
+      previous.includes(tag) ? previous.filter((item) => item !== tag) : [...previous, tag],
     );
   };
 
@@ -72,21 +102,22 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
   ];
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{event.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Event Details */}
           <div>
-            <Badge variant="secondary" className="mb-3">{event.type}</Badge>
-            <p className="text-muted-foreground mb-4">{event.description}</p>
+            <Badge variant="secondary" className="mb-3">
+              {event.type}
+            </Badge>
+            <p className="mb-4 text-muted-foreground">{event.description}</p>
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-muted-foreground" />
+                <Clock className="h-4 w-4 text-muted-foreground" />
                 <span>
                   {new Date(event.startTime).toLocaleDateString('en-US', {
                     weekday: 'long',
@@ -97,7 +128,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-muted-foreground" />
+                <Clock className="h-4 w-4 text-muted-foreground" />
                 <span>
                   {new Date(event.startTime).toLocaleTimeString('en-US', {
                     hour: 'numeric',
@@ -111,28 +142,27 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
+                <MapPin className="h-4 w-4 text-muted-foreground" />
                 <span>{event.locationName}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-muted-foreground" />
+                <Users className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {event.rsvps.filter((r: any) => r.status === 'going').length} going
+                  {event.rsvps.filter((rsvp) => rsvp.status === 'going').length} going
                   {event.maxAttendees && ` / ${event.maxAttendees} max`}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Organizer */}
           <div>
-            <h4 className="text-sm font-semibold mb-2">Organized by</h4>
+            <h4 className="mb-2 text-sm font-semibold">Organized by</h4>
             <div className="flex items-center gap-2">
-              <Avatar className="w-8 h-8">
+              <Avatar className="h-8 w-8">
                 {event.organizer.avatarUrl ? (
                   <img src={event.organizer.avatarUrl} alt={event.organizer.handle} />
                 ) : (
-                  <div className="bg-accent text-white flex items-center justify-center text-sm">
+                  <div className="flex items-center justify-center bg-accent text-sm text-white">
                     {event.organizer.handle[0].toUpperCase()}
                   </div>
                 )}
@@ -141,27 +171,27 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
             </div>
           </div>
 
-          {/* Tags */}
           {event.tags && event.tags.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold mb-2">Tags</h4>
+              <h4 className="mb-2 text-sm font-semibold">Tags</h4>
               <div className="flex flex-wrap gap-2">
-                {event.tags.map((tag: string, idx: number) => (
-                  <Badge key={idx} variant="outline">{tag}</Badge>
+                {event.tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {tag}
+                  </Badge>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Past Event: Feedback */}
           {isPast && (
             <div className="border-t pt-6">
               {!showFeedbackForm ? (
                 <div>
-                  <h4 className="text-sm font-semibold mb-3">Event Feedback</h4>
+                  <h4 className="mb-3 text-sm font-semibold">Event Feedback</h4>
                   {feedback && feedback.feedback.length > 0 ? (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
+                      <div className="grid grid-cols-3 gap-4 rounded-lg bg-muted/50 p-4">
                         <div className="text-center">
                           <div className="text-2xl font-bold text-accent">
                             {feedback.averages.vibeScore.toFixed(1)}
@@ -182,53 +212,42 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {feedback.totalFeedback} {feedback.totalFeedback === 1 ? 'person' : 'people'} rated this event
+                        {feedback.totalFeedback}{' '}
+                        {feedback.totalFeedback === 1 ? 'person' : 'people'} rated this event
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground mb-4">No feedback yet</p>
+                    <p className="mb-4 text-sm text-muted-foreground">No feedback yet</p>
                   )}
                   <Button onClick={() => setShowFeedbackForm(true)} className="mt-4 gap-2">
-                    <Star className="w-4 h-4" />
+                    <Star className="h-4 w-4" />
                     Leave Feedback
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-6">
                   <div>
-                    <h4 className="text-sm font-semibold mb-4">Rate this event</h4>
+                    <h4 className="mb-4 text-sm font-semibold">Rate this event</h4>
 
                     <div className="space-y-4">
                       <div>
-                        <div className="flex justify-between mb-2">
+                        <div className="mb-2 flex justify-between">
                           <label className="text-sm">Vibe Score</label>
                           <span className="text-sm font-semibold">{vibeScore[0]}/5</span>
                         </div>
-                        <Slider
-                          value={vibeScore}
-                          onValueChange={setVibeScore}
-                          min={1}
-                          max={5}
-                          step={1}
-                        />
+                        <Slider value={vibeScore} onValueChange={setVibeScore} min={1} max={5} step={1} />
                       </div>
 
                       <div>
-                        <div className="flex justify-between mb-2">
+                        <div className="mb-2 flex justify-between">
                           <label className="text-sm">Pet Density</label>
                           <span className="text-sm font-semibold">{petDensity[0]}/5</span>
                         </div>
-                        <Slider
-                          value={petDensity}
-                          onValueChange={setPetDensity}
-                          min={1}
-                          max={5}
-                          step={1}
-                        />
+                        <Slider value={petDensity} onValueChange={setPetDensity} min={1} max={5} step={1} />
                       </div>
 
                       <div>
-                        <div className="flex justify-between mb-2">
+                        <div className="mb-2 flex justify-between">
                           <label className="text-sm">Venue Quality</label>
                           <span className="text-sm font-semibold">{venueQuality[0]}/5</span>
                         </div>
@@ -244,9 +263,9 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-semibold mb-2">Quick tags (optional)</h4>
+                    <h4 className="mb-2 text-sm font-semibold">Quick tags (optional)</h4>
                     <div className="flex flex-wrap gap-2">
-                      {suggestedTags.map(tag => (
+                      {suggestedTags.map((tag) => (
                         <Badge
                           key={tag}
                           variant={feedbackTags.includes(tag) ? 'default' : 'outline'}
@@ -272,7 +291,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                       disabled={submitFeedbackMutation.isPending}
                       className="flex-1 gap-2"
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="h-4 w-4" />
                       Submit
                     </Button>
                   </div>
