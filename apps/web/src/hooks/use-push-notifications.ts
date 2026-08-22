@@ -1,31 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { notificationsApi } from '@/lib/api';
 import { toast } from 'sonner';
+import { notificationsApi } from '@/lib/api';
 
-const VAPID_PUBLIC_KEY =
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-  'BLhIwnkmfI6BbgwwJp_08yLyUANn0Ja6C_MWJ1c5jyCefZ_8m4wxbXBgxhF1esCkc-3cCVuyZwyAZ7v5ccSVAWw';
-
-interface PushSubscription {
-  endpoint: string;
-  expirationTime?: number | null;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-}
-
-interface UsePushNotificationsReturn {
-  isSupported: boolean;
-  isSubscribed: boolean;
-  isLoading: boolean;
-  permission: NotificationPermission;
-  subscribe: () => Promise<void>;
-  unsubscribe: () => Promise<void>;
-  requestPermission: () => Promise<NotificationPermission>;
-}
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 
 function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -40,63 +19,44 @@ function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   return output.buffer;
 }
 
-export function usePushNotifications(): UsePushNotificationsReturn {
+export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const checkSubscription = useCallback(async () => {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
-      return !!subscription;
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-      return false;
+  useEffect(() => {
+    const supported =
+      typeof window !== 'undefined' &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      'Notification' in window;
+
+    setIsSupported(supported);
+    if (supported) {
+      setPermission(Notification.permission);
+
+      void navigator.serviceWorker.ready.then(async (registration) => {
+        const subscription = await registration.pushManager.getSubscription();
+        setIsSubscribed(Boolean(subscription));
+      });
     }
   }, []);
 
-  useEffect(() => {
-    const checkSupport = async () => {
-      const supported =
-        'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-
-      setIsSupported(supported);
-
-      if (supported) {
-        setPermission(Notification.permission);
-        await checkSubscription();
-      }
-
-      setIsLoading(false);
-    };
-
-    void checkSupport();
-  }, [checkSubscription]);
-
-  const requestPermission = useCallback(async (): Promise<NotificationPermission> => {
+  const requestPermission = useCallback(async () => {
     if (!isSupported) {
-      toast.error('Push notifications are not supported in this browser');
-      return 'denied';
+      toast.error('Push notifications are not supported');
+      return 'denied' as NotificationPermission;
     }
 
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
-
-      if (result === 'granted') {
-        toast.success('Notification permission granted!');
-      } else if (result === 'denied') {
-        toast.error('Notification permission denied');
-      }
-
       return result;
     } catch (error) {
-      console.error('Error requesting permission:', error);
+      console.error('Error requesting notification permission:', error);
       toast.error('Failed to request notification permission');
-      return 'denied';
+      return 'denied' as NotificationPermission;
     }
   }, [isSupported]);
 
@@ -114,6 +74,11 @@ export function usePushNotifications(): UsePushNotificationsReturn {
         if (result !== 'granted') return;
       }
 
+      if (!VAPID_PUBLIC_KEY) {
+        toast.error('Push notifications are not configured');
+        return;
+      }
+
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -124,10 +89,11 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       setIsSubscribed(true);
       toast.success('Push notifications enabled!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error subscribing to push notifications:', error);
+      const message = error instanceof Error ? error.message : '';
 
-      if (error?.message?.includes('Registration failed')) {
+      if (message.includes('Registration failed')) {
         toast.error('Service worker registration failed. Please refresh the page.');
       } else {
         toast.error('Failed to enable push notifications');
@@ -149,9 +115,10 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       if (subscription) {
         await subscription.unsubscribe();
         await notificationsApi.unsubscribe();
-        setIsSubscribed(false);
-        toast.success('Push notifications disabled');
       }
+
+      setIsSubscribed(false);
+      toast.success('Push notifications disabled');
     } catch (error) {
       console.error('Error unsubscribing from push notifications:', error);
       toast.error('Failed to disable push notifications');
@@ -162,11 +129,11 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
   return {
     isSupported,
+    permission,
     isSubscribed,
     isLoading,
-    permission,
+    requestPermission,
     subscribe,
     unsubscribe,
-    requestPermission,
   };
 }
