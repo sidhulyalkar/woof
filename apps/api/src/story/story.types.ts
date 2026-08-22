@@ -45,4 +45,5 @@ export type StoryLifeStats = {
   distanceMeters: number;
   memories: number;
   namedPlaces: number;
+  coverage: 'COMPLETE' | 'BOUNDED';
 };
