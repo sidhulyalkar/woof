@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
+import { AppImage } from '@/components/ui/app-image';
 import {
   type BehaviorContext,
   type BehaviorVisionResult,
@@ -74,7 +75,7 @@ function makeSessionKey() {
 
 export default function BehaviorObservePage() {
   const user = useSessionStore((state) => state.user);
-  const pets = user?.pets ?? [];
+  const pets = useMemo(() => user?.pets ?? [], [user?.pets]);
   const [petId, setPetId] = useState(pets[0]?.id ?? '');
   const [context, setContext] = useState<BehaviorContext>('street');
   const [otherDogsPresent, setOtherDogsPresent] = useState(true);
@@ -577,10 +578,11 @@ export default function BehaviorObservePage() {
                     className="max-h-80 w-full object-contain"
                   />
                 ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <AppImage
                     src={previewUrl}
                     alt="Behavior observation preview"
+                    width={1280}
+                    height={960}
                     className="max-h-80 w-full object-contain"
                   />
                 )}

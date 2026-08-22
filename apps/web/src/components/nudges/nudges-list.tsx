@@ -5,10 +5,28 @@ import { NudgeCard } from './nudge-card';
 import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 
+interface NudgePayload {
+  targetUserId: string;
+  targetUserHandle?: string;
+  targetUserAvatar?: string;
+  reason: string;
+  message: string;
+  eventId?: string;
+  metadata?: {
+    distance?: number;
+    venueType?: string;
+    messageCount?: number;
+    petNames?: {
+      yours?: string;
+      theirs?: string;
+    };
+  };
+}
+
 interface Nudge {
   id: string;
   type: string;
-  payload: any;
+  payload: NudgePayload;
   sentAt: string;
 }
 
@@ -19,25 +37,25 @@ export function NudgesList() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchNudges();
+    const fetchNudges = async () => {
+      try {
+        const response = await fetch('/api/nudges', {
+          credentials: 'include',
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch nudges');
+
+        const data = (await response.json()) as Nudge[];
+        setNudges(data);
+      } catch (error) {
+        console.error('Error fetching nudges:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchNudges();
   }, []);
-
-  const fetchNudges = async () => {
-    try {
-      const response = await fetch('/api/nudges', {
-        credentials: 'include',
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch nudges');
-
-      const data = await response.json();
-      setNudges(data);
-    } catch (error) {
-      console.error('Error fetching nudges:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleAccept = async (nudgeId: string) => {
     try {
@@ -48,7 +66,7 @@ export function NudgesList() {
 
       if (!response.ok) throw new Error('Failed to accept nudge');
 
-      const nudge = await response.json();
+      const nudge = (await response.json()) as Nudge;
 
       // Remove from list
       setNudges((prev) => prev.filter((n) => n.id !== nudgeId));
@@ -63,7 +81,7 @@ export function NudgesList() {
       if (nudge.type === 'meetup') {
         // Redirect to meetup proposal screen with pre-filled data
         router.push(`/meetup/propose?userId=${nudge.payload.targetUserId}`);
-      } else if (nudge.type === 'event') {
+      } else if (nudge.type === 'event' && nudge.payload.eventId) {
         router.push(`/events/${nudge.payload.eventId}`);
       }
     } catch (error) {
@@ -116,7 +134,7 @@ export function NudgesList() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">No active suggestions right now.</p>
         <p className="text-sm text-muted-foreground mt-2">
-          We'll notify you when there are nearby pets or chat opportunities!
+          We&apos;ll notify you when there are nearby pets or chat opportunities!
         </p>
       </div>
     );

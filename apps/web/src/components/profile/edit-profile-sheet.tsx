@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
+import { isAxiosError } from "axios"
 import { Camera, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -15,6 +16,10 @@ import { storageApi } from "@/lib/api"
 import { profileApi } from "@/lib/api/profile"
 import type { AuthUser } from "@/lib/stores/auth-store"
 import { useAuthStore } from "@/lib/stores/auth-store"
+
+type ApiErrorBody = {
+  message?: string | string[]
+}
 
 interface EditProfileSheetProps {
   open: boolean
@@ -73,8 +78,9 @@ export function EditProfileSheet({ open, onOpenChange, user, onSaved }: EditProf
       onSaved?.(updated)
       toast.success("Profile updated")
       onOpenChange(false)
-    } catch (error: any) {
-      const message = error?.response?.data?.message || "Profile could not be updated."
+    } catch (error: unknown) {
+      const responseMessage = isAxiosError<ApiErrorBody>(error) ? error.response?.data?.message : undefined
+      const message = responseMessage || "Profile could not be updated."
       toast.error(Array.isArray(message) ? message[0] : message)
     } finally {
       setIsSaving(false)

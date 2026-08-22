@@ -11,7 +11,7 @@ interface HighlightsRingProps {
   hasUnviewed?: boolean
 }
 
-export function HighlightsRing({ userId, userName, userAvatar, petAvatar, hasUnviewed = false }: HighlightsRingProps) {
+export function HighlightsRing({ userName, userAvatar, petAvatar, hasUnviewed = false }: HighlightsRingProps) {
   return (
     <Link href="/highlights" className="flex flex-col items-center gap-1">
       <div

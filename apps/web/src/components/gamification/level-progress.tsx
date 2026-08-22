@@ -11,7 +11,6 @@ interface LevelProgressProps {
 
 export function LevelProgress({ level, points, className }: LevelProgressProps) {
   const pointsForCurrentLevel = (level - 1) * 1000
-  const pointsForNextLevel = level * 1000
   const progressInLevel = points - pointsForCurrentLevel
   const progressPercentage = (progressInLevel / 1000) * 100
 

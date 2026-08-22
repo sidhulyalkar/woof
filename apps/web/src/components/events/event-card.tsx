@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Calendar, MapPin, Clock, Users } from "lucide-react"
 import { format } from "date-fns"
 import type { Event } from "@/lib/types"
@@ -38,7 +39,13 @@ export function EventCard({ event, onViewDetails }: EventCardProps) {
       {/* Event Image */}
       {event.imageUrl && (
         <div className="relative aspect-[16/9] overflow-hidden">
-          <img src={event.imageUrl || "/placeholder.svg"} alt={event.title} className="w-full h-full object-cover" />
+          <AppImage
+            src={event.imageUrl || "/placeholder.svg"}
+            alt={event.title}
+            width={1200}
+            height={675}
+            className="w-full h-full object-cover"
+          />
           <div className="absolute top-3 left-3">
             <Badge className={cn("border", categoryColors[event.category])}>{categoryLabels[event.category]}</Badge>
           </div>

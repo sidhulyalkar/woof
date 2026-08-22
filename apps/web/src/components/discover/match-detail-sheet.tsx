@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Calendar, Dna, Heart, PawPrint, ShieldCheck, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -32,9 +33,11 @@ export function MatchDetailSheet({ match, open, onOpenChange }: MatchDetailSheet
 
         <div className="mx-auto max-w-xl space-y-6 py-6">
           <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted/30">
-            <img
+            <AppImage
               src={match.pet.photoUrl || "/placeholder.svg"}
               alt={`${match.pet.name}, ${match.pet.breed || match.pet.species}`}
+              width={1200}
+              height={900}
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/85 to-transparent" aria-hidden="true" />

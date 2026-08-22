@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { AppImage } from "@/components/ui/app-image"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import {
   MapPin,
@@ -289,9 +290,11 @@ export function DiscoverMapView() {
               <div className="mt-6 space-y-4">
                 {/* Image */}
                 <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                  <img
+                  <AppImage
                     src={selectedService.imageUrl || "/placeholder.svg"}
                     alt={selectedService.name}
+                    width={1200}
+                    height={675}
                     className="w-full h-full object-cover"
                   />
                 </div>

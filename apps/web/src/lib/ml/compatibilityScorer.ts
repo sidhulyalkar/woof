@@ -4,7 +4,6 @@
  */
 
 import { QuizSession, CompatibilityScore, MLFeatureVector } from '@/types/quiz';
-import { QUIZ_QUESTIONS } from '@/data/quizQuestions';
 
 /**
  * Convert quiz responses to ML feature vector

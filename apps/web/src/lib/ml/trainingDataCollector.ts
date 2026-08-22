@@ -4,7 +4,7 @@
  */
 
 import { MLTrainingDataPoint, prepareTrainingDataPoint } from './compatibilityScorer';
-import { MLFeatureVector, MLTrainingData } from '@/types/quiz';
+import { MLFeatureVector } from '@/types/quiz';
 
 /**
  * Training Data Collector

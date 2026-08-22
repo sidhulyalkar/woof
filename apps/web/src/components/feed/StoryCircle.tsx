@@ -12,9 +12,7 @@ interface StoryCircleProps {
   onClick?: () => void;
 }
 
-export function StoryCircle({ id, username, avatar, hasStory = false, isOwn = false, onClick }: StoryCircleProps) {
-  const userId = id || username; // Use id if available, fallback to username
-
+export function StoryCircle({ username, avatar, hasStory = false, isOwn = false, onClick }: StoryCircleProps) {
   return (
     <button
       onClick={onClick}
