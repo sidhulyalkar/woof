@@ -36,7 +36,7 @@ export function BottomNav() {
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'group -mt-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border brand-mark text-primary-foreground transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5',
-                  isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20',
+                  isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20'
                 )}
               >
                 <Icon
@@ -55,13 +55,13 @@ export function BottomNav() {
               aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <span
                 className={cn(
                   'absolute top-1.5 h-1 w-1 rounded-full bg-primary transition-opacity',
-                  isActive ? 'opacity-100' : 'opacity-0',
+                  isActive ? 'opacity-100' : 'opacity-0'
                 )}
                 aria-hidden="true"
               />
