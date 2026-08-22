@@ -29,9 +29,11 @@ export type AnalyticsEvent =
   | 'NOTIFICATION_ENABLED'
   | 'NOTIFICATION_DISABLED';
 
+type AnalyticsMetadata = Record<string, unknown>;
+
 interface TrackEventOptions {
   userId?: string;
-  metadata?: Record<string, any>;
+  metadata?: AnalyticsMetadata;
   source?: 'WEB' | 'IOS' | 'ANDROID';
 }
 
@@ -52,8 +54,8 @@ export async function trackEvent(
   }
 }
 
-export function trackScreenView(screenName: string, metadata?: Record<string, any>): void {
-  trackEvent('SCREEN_VIEW', {
+export function trackScreenView(screenName: string, metadata?: AnalyticsMetadata): void {
+  void trackEvent('SCREEN_VIEW', {
     metadata: {
       screen: screenName,
       ...metadata,
@@ -62,7 +64,7 @@ export function trackScreenView(screenName: string, metadata?: Record<string, an
 }
 
 export function trackAppOpen(): void {
-  trackEvent('APP_OPEN', {
+  void trackEvent('APP_OPEN', {
     metadata: {
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent,
@@ -74,17 +76,17 @@ export function trackAppOpen(): void {
   });
 }
 
-export function trackUserAction(event: AnalyticsEvent, metadata?: Record<string, any>): void {
+export function trackUserAction(event: AnalyticsEvent, metadata?: AnalyticsMetadata): void {
   const userId = localStorage.getItem('userId') || undefined;
 
-  trackEvent(event, {
+  void trackEvent(event, {
     userId,
     metadata,
   });
 }
 
 export async function trackBatch(
-  events: Array<{ event: AnalyticsEvent; metadata?: Record<string, any> }>
+  events: Array<{ event: AnalyticsEvent; metadata?: AnalyticsMetadata }>
 ): Promise<void> {
   try {
     await Promise.all(events.map((entry) => trackEvent(entry.event, { metadata: entry.metadata })));
@@ -127,7 +129,7 @@ export function usePageTracking() {
 }
 
 export function trackPerformance(metricName: string, value: number): void {
-  trackEvent('SCREEN_VIEW', {
+  void trackEvent('SCREEN_VIEW', {
     metadata: {
       metric: metricName,
       value,
@@ -136,8 +138,8 @@ export function trackPerformance(metricName: string, value: number): void {
   });
 }
 
-export function trackError(error: Error, context?: Record<string, any>): void {
-  trackEvent('APP_CLOSE', {
+export function trackError(error: Error, context?: AnalyticsMetadata): void {
+  void trackEvent('APP_CLOSE', {
     metadata: {
       error: {
         message: error.message,
