@@ -140,7 +140,7 @@ export class AutopilotService {
     private readonly prisma: PrismaService,
     private readonly careEvents: CareEventsService,
     private readonly households: HouseholdsService,
-    private readonly notifications: NotificationsService,
+    private readonly notifications: NotificationsService
   ) {}
 
   async getDashboard(userId: string) {
@@ -163,12 +163,18 @@ export class AutopilotService {
     const signals = rows
       .filter((row) => row.type === 'AUTOPILOT_SIGNAL')
       .map((row) => ({ id: row.id, ...readSignalPayload(row.payload) }))
-      .filter((row): row is { id: string } & AutopilotSignalPayload => row.schemaVersion !== undefined);
+      .filter(
+        (row): row is { id: string } & AutopilotSignalPayload => row.schemaVersion !== undefined
+      );
 
     return {
       providers: [
         { provider: 'FI', status: 'STUB_READY', accepts: ['DAILY_ACTIVITY', 'DEVICE_STATUS'] },
-        { provider: 'TRACTIVE', status: 'STUB_READY', accepts: ['DAILY_ACTIVITY', 'DEVICE_STATUS'] },
+        {
+          provider: 'TRACTIVE',
+          status: 'STUB_READY',
+          accepts: ['DAILY_ACTIVITY', 'DEVICE_STATUS'],
+        },
       ],
       reminders,
       signals,
@@ -184,7 +190,7 @@ export class AutopilotService {
   async ingestProviderObservation(
     userId: string,
     provider: string,
-    dto: IngestTrackerObservationDto,
+    dto: IngestTrackerObservationDto
   ) {
     // Provider connections belong to the pet owner in Phase A. Shared-household
     // scheduling is allowed, but an invited member cannot impersonate a tracker owner.
@@ -229,7 +235,7 @@ export class AutopilotService {
       userId,
       dto.petId,
       receipt.careEventId,
-      observation,
+      observation
     );
 
     return {
@@ -332,7 +338,7 @@ export class AutopilotService {
     userId: string,
     petId: string,
     careEventId: string,
-    observation: NormalizedTrackerObservation,
+    observation: NormalizedTrackerObservation
   ) {
     if (observation.kind === 'DEVICE_STATUS') {
       const battery = observation.metrics.batteryPercent;
@@ -471,7 +477,11 @@ export class AutopilotService {
     });
   }
 
-  private async completeReminderDelivery(id: string, payload: CareReminderPayload, deliveredAt: Date) {
+  private async completeReminderDelivery(
+    id: string,
+    payload: CareReminderPayload,
+    deliveredAt: Date
+  ) {
     if (payload.repeatEveryDays) {
       const stepMs = payload.repeatEveryDays * 24 * 60 * 60 * 1000;
       let nextDueAt = new Date(payload.dueAt).getTime() + stepMs;
@@ -516,8 +526,6 @@ export class AutopilotService {
   private median(values: number[]) {
     const sorted = [...values].sort((a, b) => a - b);
     const middle = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0
-      ? (sorted[middle - 1] + sorted[middle]) / 2
-      : sorted[middle];
+    return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
   }
 }
