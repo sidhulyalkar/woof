@@ -107,7 +107,6 @@ jobs:
           apps/api/src/app.module.ts
           apps/mobile/src/api/activities.ts
           apps/mobile/src/types/activity.ts
-          packages/database/prisma/schema.prisma
           .github/workflows/dogos-foundation-ci.yml
 
       - name: Lint dogOS API surface
