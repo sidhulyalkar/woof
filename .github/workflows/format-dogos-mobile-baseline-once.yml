@@ -1,0 +1,55 @@
+name: Format dogOS mobile baseline once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/format-dogos-mobile-baseline-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format exact files
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/pets/pets.controller.ts
+          apps/mobile/src/api/pets.ts
+          apps/mobile/src/api/social.ts
+          apps/mobile/src/utils/animations.ts
+
+      - name: Remove helper and commit exact paths
+        run: |
+          rm .github/workflows/format-dogos-mobile-baseline-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/pets/pets.controller.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/api/social.ts \
+            apps/mobile/src/utils/animations.ts \
+            .github/workflows/format-dogos-mobile-baseline-once.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(dogos): format mobile baseline fixes"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
