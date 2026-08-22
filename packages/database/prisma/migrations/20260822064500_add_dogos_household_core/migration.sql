@@ -1,9 +1,13 @@
 -- dogOS household + multi-pet activity foundation
 -- Additive-only migration. Existing owner/pet/activity columns are retained for
 -- rolling compatibility while dogOS moves to household-scoped participation.
+--
+-- Prisma String @default(uuid()) is stored as TEXT in this schema unless the
+-- field is explicitly annotated @db.Uuid. Keep all dogOS identifiers and
+-- foreign keys aligned with the existing users/pets/activities TEXT ids.
 
 CREATE TABLE "households" (
-  "id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
   "name" TEXT NOT NULL DEFAULT 'My household',
   "timezone" TEXT,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,9 +16,9 @@ CREATE TABLE "households" (
 );
 
 CREATE TABLE "household_members" (
-  "id" UUID NOT NULL,
-  "household_id" UUID NOT NULL,
-  "user_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "household_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
   "role" TEXT NOT NULL DEFAULT 'MEMBER',
   "status" TEXT NOT NULL DEFAULT 'ACTIVE',
   "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -22,29 +26,29 @@ CREATE TABLE "household_members" (
 );
 
 CREATE TABLE "household_pets" (
-  "id" UUID NOT NULL,
-  "household_id" UUID NOT NULL,
-  "pet_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "household_id" TEXT NOT NULL,
+  "pet_id" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'ACTIVE',
   "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "household_pets_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "activities" ADD COLUMN "household_id" UUID;
+ALTER TABLE "activities" ADD COLUMN "household_id" TEXT;
 
 CREATE TABLE "activity_human_participants" (
-  "id" UUID NOT NULL,
-  "activity_id" UUID NOT NULL,
-  "user_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "activity_id" TEXT NOT NULL,
+  "user_id" TEXT NOT NULL,
   "role" TEXT NOT NULL DEFAULT 'PARTICIPANT',
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "activity_human_participants_pkey" PRIMARY KEY ("id")
 );
 
 CREATE TABLE "activity_pet_participants" (
-  "id" UUID NOT NULL,
-  "activity_id" UUID NOT NULL,
-  "pet_id" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "activity_id" TEXT NOT NULL,
+  "pet_id" TEXT NOT NULL,
   "metrics" JSONB,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "activity_pet_participants_pkey" PRIMARY KEY ("id")
@@ -105,11 +109,11 @@ ALTER TABLE "activity_pet_participants"
   ADD CONSTRAINT "activity_pet_participants_pet_id_fkey"
   FOREIGN KEY ("pet_id") REFERENCES "pets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Every existing account receives one deterministic personal household. UUIDs are
--- derived from the user id so this backfill is reproducible and idempotent within
--- the migration history without requiring a database UUID extension.
+-- Every existing account receives one deterministic personal household.
+-- Cast the MD5 through uuid only to produce the same hyphenated UUID-shaped text
+-- emitted by HouseholdsService.deterministicUuid; the stored database type is TEXT.
 INSERT INTO "households" ("id", "name", "created_at", "updated_at")
-SELECT md5('dogos-household:' || u."id"::text)::uuid,
+SELECT md5('dogos-household:' || u."id")::uuid::text,
        'My household',
        CURRENT_TIMESTAMP,
        CURRENT_TIMESTAMP
@@ -117,8 +121,8 @@ FROM "users" u
 ON CONFLICT ("id") DO NOTHING;
 
 INSERT INTO "household_members" ("id", "household_id", "user_id", "role", "status", "joined_at")
-SELECT md5('dogos-household-member:' || u."id"::text)::uuid,
-       md5('dogos-household:' || u."id"::text)::uuid,
+SELECT md5('dogos-household-member:' || u."id")::uuid::text,
+       md5('dogos-household:' || u."id")::uuid::text,
        u."id",
        'OWNER',
        'ACTIVE',
@@ -127,8 +131,8 @@ FROM "users" u
 ON CONFLICT ("household_id", "user_id") DO NOTHING;
 
 INSERT INTO "household_pets" ("id", "household_id", "pet_id", "status", "joined_at")
-SELECT md5('dogos-household-pet:' || p."id"::text)::uuid,
-       md5('dogos-household:' || p."owner_id"::text)::uuid,
+SELECT md5('dogos-household-pet:' || p."id")::uuid::text,
+       md5('dogos-household:' || p."owner_id")::uuid::text,
        p."id",
        'ACTIVE',
        CURRENT_TIMESTAMP
@@ -136,11 +140,11 @@ FROM "pets" p
 ON CONFLICT ("household_id", "pet_id") DO NOTHING;
 
 UPDATE "activities" a
-SET "household_id" = md5('dogos-household:' || a."user_id"::text)::uuid
+SET "household_id" = md5('dogos-household:' || a."user_id")::uuid::text
 WHERE a."household_id" IS NULL;
 
 INSERT INTO "activity_human_participants" ("id", "activity_id", "user_id", "role", "created_at")
-SELECT md5('dogos-activity-human:' || a."id"::text || ':' || a."user_id"::text)::uuid,
+SELECT md5('dogos-activity-human:' || a."id" || ':' || a."user_id")::uuid::text,
        a."id",
        a."user_id",
        'RECORDER',
@@ -149,7 +153,7 @@ FROM "activities" a
 ON CONFLICT ("activity_id", "user_id") DO NOTHING;
 
 INSERT INTO "activity_pet_participants" ("id", "activity_id", "pet_id", "metrics", "created_at")
-SELECT md5('dogos-activity-pet:' || a."id"::text || ':' || a."pet_id"::text)::uuid,
+SELECT md5('dogos-activity-pet:' || a."id" || ':' || a."pet_id")::uuid::text,
        a."id",
        a."pet_id",
        a."pet_metrics",
