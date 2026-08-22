@@ -142,8 +142,8 @@ jobs:
       - name: Type-check web app
         run: pnpm --filter @woof/web type-check
 
-      - name: Run Our Story service contracts
-        run: pnpm --filter @woof/api exec jest src/story/story.service.spec.ts --runInBand
+      - name: Run Our Story contracts
+        run: pnpm --filter @woof/api exec jest src/story --runInBand
 
       - name: Run Autopilot replay regression
         run: pnpm --filter @woof/api exec jest src/autopilot/autopilot.service.spec.ts --runInBand
