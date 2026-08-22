@@ -5,13 +5,55 @@ import {
   type UseMutationOptions,
   type UseQueryOptions,
 } from '@tanstack/react-query';
-import { apiClient } from './client';
+import type { MLFeatureVector, QuizSession } from '@/types/quiz';
 import { useSessionStore } from '@/store/session';
+import { apiClient } from './client';
 
 type ManagedQueryOptions<T> = Omit<
   UseQueryOptions<T, Error, T, readonly unknown[]>,
   'queryKey' | 'queryFn'
 >;
+
+type ExtensibleRecord = Record<string, unknown>;
+
+type BackendIdentity = {
+  id?: string;
+  handle?: string;
+  avatarUrl?: string | null;
+};
+
+type BackendPost = {
+  id: string;
+  authorUserId: string;
+  petId?: string | null;
+  activityId?: string | null;
+  text?: string | null;
+  mediaUrls?: string[] | null;
+  createdAt: string;
+  _count?: {
+    likes?: number;
+    comments?: number;
+  };
+  author?: BackendIdentity | null;
+  pet?: {
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+  } | null;
+};
+
+type BackendPostList = BackendPost[] | { posts?: BackendPost[] };
+
+type BackendComment = {
+  id: string;
+  postId: string;
+  authorUserId?: string;
+  userId?: string;
+  text: string;
+  createdAt: string;
+  author?: BackendIdentity | null;
+  user?: BackendIdentity | null;
+};
 
 export interface Post {
   id: string;
@@ -66,6 +108,15 @@ export interface Activity {
   createdAt: string;
 }
 
+type ActivityListResponse =
+  | Activity[]
+  | {
+      activities: Activity[];
+      total?: number;
+      skip?: number;
+      take?: number;
+    };
+
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
@@ -102,6 +153,47 @@ export interface SuggestedMatch {
   lastActive?: string;
 }
 
+export interface UserProfile extends ExtensibleRecord {
+  id: string;
+  handle: string;
+  email?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface PetProfile extends ExtensibleRecord {
+  id: string;
+  name: string;
+  species: string;
+  breed?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface Friend extends ExtensibleRecord {
+  id: string;
+  handle?: string;
+  avatarUrl?: string | null;
+}
+
+export interface ConversationSummary extends ExtensibleRecord {
+  id: string;
+}
+
+export interface ConversationMessage extends ExtensibleRecord {
+  id: string;
+  content?: string;
+}
+
+export interface ConversationDetail extends ExtensibleRecord {
+  id: string;
+  messages?: ConversationMessage[];
+}
+
+type SubmitQuizInput = {
+  session: QuizSession;
+  featureVector: MLFeatureVector;
+};
+
 export const queryKeys = {
   feed: ['feed'] as const,
   activities: ['activities'] as const,
@@ -113,27 +205,50 @@ export const queryKeys = {
   conversation: (conversationId: string) => ['conversation', conversationId] as const,
 };
 
-function transformBackendPost(backendPost: any): Post {
+function transformBackendPost(backendPost: BackendPost): Post {
   return {
     id: backendPost.id,
     userId: backendPost.authorUserId,
-    petId: backendPost.petId,
-    activityId: backendPost.activityId,
-    content: backendPost.text || '',
-    images: backendPost.mediaUrls || [],
-    likes: backendPost._count?.likes || 0,
-    comments: backendPost._count?.comments || 0,
+    petId: backendPost.petId ?? undefined,
+    activityId: backendPost.activityId ?? undefined,
+    content: backendPost.text ?? '',
+    images: backendPost.mediaUrls ?? [],
+    likes: backendPost._count?.likes ?? 0,
+    comments: backendPost._count?.comments ?? 0,
     createdAt: backendPost.createdAt,
     user: {
-      id: backendPost.author?.id || backendPost.authorUserId,
-      username: backendPost.author?.handle || 'Unknown',
-      avatar: backendPost.author?.avatarUrl,
+      id: backendPost.author?.id ?? backendPost.authorUserId,
+      username: backendPost.author?.handle ?? 'Unknown',
+      avatar: backendPost.author?.avatarUrl ?? undefined,
     },
     pet: backendPost.pet
       ? {
           id: backendPost.pet.id,
           name: backendPost.pet.name,
-          avatar: backendPost.pet.avatarUrl,
+          avatar: backendPost.pet.avatarUrl ?? undefined,
+        }
+      : undefined,
+  };
+}
+
+function transformBackendComment(comment: BackendComment): Comment {
+  const author = comment.author ?? comment.user;
+  const authorUserId = comment.authorUserId ?? comment.userId ?? author?.id;
+  if (!authorUserId) {
+    throw new Error('Comment response is missing its authenticated author identity');
+  }
+
+  return {
+    id: comment.id,
+    postId: comment.postId,
+    authorUserId,
+    text: comment.text,
+    createdAt: comment.createdAt,
+    author: author
+      ? {
+          id: author.id ?? authorUserId,
+          handle: author.handle ?? 'Unknown',
+          avatarUrl: author.avatarUrl ?? undefined,
         }
       : undefined,
   };
@@ -143,8 +258,8 @@ export function useFeed(options?: ManagedQueryOptions<Post[]>) {
   return useQuery<Post[]>({
     queryKey: queryKeys.feed,
     queryFn: async () => {
-      const response = await apiClient.get<any>('/social/posts?skip=0&take=20');
-      const posts = Array.isArray(response) ? response : response.posts || [];
+      const response = await apiClient.get<BackendPostList>('/social/posts?skip=0&take=20');
+      const posts = Array.isArray(response) ? response : response.posts ?? [];
       return posts.map(transformBackendPost);
     },
     ...options,
@@ -155,7 +270,7 @@ export function usePost(postId: string, options?: ManagedQueryOptions<Post>) {
   return useQuery<Post>({
     queryKey: ['post', postId],
     queryFn: async () => {
-      const response = await apiClient.get<any>(`/social/posts/${postId}`);
+      const response = await apiClient.get<BackendPost>(`/social/posts/${postId}`);
       return transformBackendPost(response);
     },
     ...options,
@@ -167,19 +282,14 @@ export function useCreatePost(options?: UseMutationOptions<Post, Error, Partial<
 
   return useMutation<Post, Error, Partial<Post>>({
     mutationFn: async (data) => {
-      const userId = useSessionStore.getState().user?.id;
-      if (!userId) throw new Error('User not authenticated');
-
-      const payload: Record<string, unknown> = {
-        text: data.content || '',
-        mediaUrls: data.images || [],
-        author: { connect: { id: userId } },
+      const payload = {
+        text: data.content ?? '',
+        mediaUrls: data.images ?? [],
+        petId: data.petId,
+        activityId: data.activityId,
       };
 
-      if (data.petId) payload.pet = { connect: { id: data.petId } };
-      if (data.activityId) payload.activityId = data.activityId;
-
-      const result = await apiClient.post<any>('/social/posts', payload);
+      const result = await apiClient.post<BackendPost>('/social/posts', payload);
       return transformBackendPost(result);
     },
     onSuccess: () => {
@@ -193,11 +303,7 @@ export function useLikePost(options?: UseMutationOptions<void, Error, string>) {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
-    mutationFn: (postId) => {
-      const userId = useSessionStore.getState().user?.id;
-      if (!userId) throw new Error('User not authenticated');
-      return apiClient.post<void>(`/social/posts/${postId}/likes`, { userId });
-    },
+    mutationFn: (postId) => apiClient.post<void>(`/social/posts/${postId}/likes`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.feed });
     },
@@ -222,21 +328,8 @@ export function useComments(postId: string, options?: ManagedQueryOptions<Commen
   return useQuery<Comment[]>({
     queryKey: ['comments', postId],
     queryFn: async () => {
-      const response = await apiClient.get<any[]>(`/social/posts/${postId}/comments`);
-      return response.map((comment) => ({
-        id: comment.id,
-        postId: comment.postId,
-        authorUserId: comment.authorUserId,
-        text: comment.text,
-        createdAt: comment.createdAt,
-        author: comment.author
-          ? {
-              id: comment.author.id,
-              handle: comment.author.handle,
-              avatarUrl: comment.author.avatarUrl,
-            }
-          : undefined,
-      }));
+      const response = await apiClient.get<BackendComment[]>(`/social/posts/${postId}/comments`);
+      return response.map(transformBackendComment);
     },
     ...options,
   });
@@ -249,28 +342,10 @@ export function useCreateComment(
 
   return useMutation<Comment, Error, { postId: string; text: string }>({
     mutationFn: async ({ postId, text }) => {
-      const userId = useSessionStore.getState().user?.id;
-      if (!userId) throw new Error('User not authenticated');
-
-      const response = await apiClient.post<any>(`/social/posts/${postId}/comments`, {
+      const response = await apiClient.post<BackendComment>(`/social/posts/${postId}/comments`, {
         text,
-        user: { connect: { id: userId } },
       });
-
-      return {
-        id: response.id,
-        postId: response.postId,
-        authorUserId: response.userId,
-        text: response.text,
-        createdAt: response.createdAt,
-        author: response.user
-          ? {
-              id: response.user.id,
-              handle: response.user.handle,
-              avatarUrl: response.user.avatarUrl,
-            }
-          : undefined,
-      };
+      return transformBackendComment(response);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['comments', variables.postId] });
@@ -298,7 +373,10 @@ export function useDeleteComment(
 export function useActivities(options?: ManagedQueryOptions<Activity[]>) {
   return useQuery<Activity[]>({
     queryKey: queryKeys.activities,
-    queryFn: () => apiClient.get<Activity[]>('/activities'),
+    queryFn: async () => {
+      const response = await apiClient.get<ActivityListResponse>('/activities');
+      return Array.isArray(response) ? response : response.activities;
+    },
     ...options,
   });
 }
@@ -342,35 +420,29 @@ export function useLeaderboard(
   });
 }
 
-export function useUserProfile(userId: string, options?: ManagedQueryOptions<any>) {
-  return useQuery<any>({
+export function useUserProfile(userId: string, options?: ManagedQueryOptions<UserProfile>) {
+  return useQuery<UserProfile>({
     queryKey: queryKeys.userProfile(userId),
-    queryFn: () => apiClient.get<any>(`/users/${userId}`),
+    queryFn: () => apiClient.get<UserProfile>(`/users/${userId}`),
     ...options,
   });
 }
 
-export function usePetProfile(petId: string, options?: ManagedQueryOptions<any>) {
-  return useQuery<any>({
+export function usePetProfile(petId: string, options?: ManagedQueryOptions<PetProfile>) {
+  return useQuery<PetProfile>({
     queryKey: queryKeys.petProfile(petId),
-    queryFn: () => apiClient.get<any>(`/pets/${petId}`),
+    queryFn: () => apiClient.get<PetProfile>(`/pets/${petId}`),
     ...options,
   });
 }
 
-export function useCreatePet(options?: UseMutationOptions<any, Error, Record<string, unknown>>) {
+export function useCreatePet(
+  options?: UseMutationOptions<PetProfile, Error, Record<string, unknown>>
+) {
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, Record<string, unknown>>({
-    mutationFn: async (data) => {
-      const userId = useSessionStore.getState().user?.id;
-      if (!userId) throw new Error('User not authenticated');
-
-      return apiClient.post<any>('/pets', {
-        ...data,
-        owner: { connect: { id: userId } },
-      });
-    },
+  return useMutation<PetProfile, Error, Record<string, unknown>>({
+    mutationFn: (data) => apiClient.post<PetProfile>('/pets', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends });
       void useSessionStore.getState().refreshSession();
@@ -379,10 +451,10 @@ export function useCreatePet(options?: UseMutationOptions<any, Error, Record<str
   });
 }
 
-export function useFriends(options?: ManagedQueryOptions<any[]>) {
-  return useQuery<any[]>({
+export function useFriends(options?: ManagedQueryOptions<Friend[]>) {
+  return useQuery<Friend[]>({
     queryKey: queryKeys.friends,
-    queryFn: () => apiClient.get<any[]>('/friends'),
+    queryFn: () => apiClient.get<Friend[]>('/friends'),
     ...options,
   });
 }
@@ -399,31 +471,40 @@ export function useAddFriend(options?: UseMutationOptions<void, Error, string>) 
   });
 }
 
-export function useConversations(options?: ManagedQueryOptions<any[]>) {
-  return useQuery<any[]>({
+export function useConversations(options?: ManagedQueryOptions<ConversationSummary[]>) {
+  return useQuery<ConversationSummary[]>({
     queryKey: queryKeys.messages,
-    queryFn: () => apiClient.get<any[]>('/messages/conversations'),
+    queryFn: () => apiClient.get<ConversationSummary[]>('/messages/conversations'),
     ...options,
   });
 }
 
-export function useConversation(conversationId: string, options?: ManagedQueryOptions<any>) {
-  return useQuery<any>({
+export function useConversation(
+  conversationId: string,
+  options?: ManagedQueryOptions<ConversationDetail>
+) {
+  return useQuery<ConversationDetail>({
     queryKey: queryKeys.conversation(conversationId),
-    queryFn: () => apiClient.get<any>(`/messages/conversations/${conversationId}`),
-    enabled: !!conversationId,
+    queryFn: () => apiClient.get<ConversationDetail>(`/messages/conversations/${conversationId}`),
+    enabled: Boolean(conversationId),
     ...options,
   });
 }
 
 export function useSendMessage(
-  options?: UseMutationOptions<any, Error, { conversationId: string; content: string }>
+  options?: UseMutationOptions<
+    ConversationMessage,
+    Error,
+    { conversationId: string; content: string }
+  >
 ) {
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, { conversationId: string; content: string }>({
+  return useMutation<ConversationMessage, Error, { conversationId: string; content: string }>({
     mutationFn: ({ conversationId, content }) =>
-      apiClient.post<any>(`/messages/conversations/${conversationId}/messages`, { content }),
+      apiClient.post<ConversationMessage>(`/messages/conversations/${conversationId}/messages`, {
+        content,
+      }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conversation(variables.conversationId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.messages });
@@ -443,22 +524,24 @@ export function useUploadImage(options?: UseMutationOptions<{ url: string }, Err
   });
 }
 
-export function useSubmitQuiz(options?: UseMutationOptions<any, Error, any>) {
+export function useSubmitQuiz(
+  options?: UseMutationOptions<ExtensibleRecord, Error, SubmitQuizInput>
+) {
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, any>({
-    mutationFn: async (quizSession) => {
+  return useMutation<ExtensibleRecord, Error, SubmitQuizInput>({
+    mutationFn: async (quizSubmission) => {
       const userId = useSessionStore.getState().user?.id;
       if (!userId) throw new Error('User not authenticated');
 
-      return apiClient.post<any>('/quiz/submit', {
-        ...quizSession,
+      return apiClient.post<ExtensibleRecord>('/quiz/submit', {
+        ...quizSubmission,
         userId,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.userProfile(useSessionStore.getState().user?.id || ''),
+        queryKey: queryKeys.userProfile(useSessionStore.getState().user?.id ?? ''),
       });
     },
     ...options,
@@ -475,13 +558,17 @@ export function useGetMatches(options?: ManagedQueryOptions<SuggestedMatch[]>) {
 
 export function useRecordInteraction(
   options?: UseMutationOptions<
-    any,
+    ExtensibleRecord,
     Error,
     { targetUserId: string; action: 'like' | 'skip' | 'super_like' }
   >
 ) {
-  return useMutation<any, Error, { targetUserId: string; action: 'like' | 'skip' | 'super_like' }>({
-    mutationFn: (data) => apiClient.post<any>('/matches/interact', data),
+  return useMutation<
+    ExtensibleRecord,
+    Error,
+    { targetUserId: string; action: 'like' | 'skip' | 'super_like' }
+  >({
+    mutationFn: (data) => apiClient.post<ExtensibleRecord>('/matches/interact', data),
     ...options,
   });
 }
