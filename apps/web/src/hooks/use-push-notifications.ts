@@ -27,17 +27,17 @@ interface UsePushNotificationsReturn {
   requestPermission: () => Promise<NotificationPermission>
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/")
-
   const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
+  const output = new Uint8Array(rawData.length)
 
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
+  for (let index = 0; index < rawData.length; index += 1) {
+    output[index] = rawData.charCodeAt(index)
   }
-  return outputArray
+
+  return output.buffer
 }
 
 export function usePushNotifications(): UsePushNotificationsReturn {
@@ -46,7 +46,18 @@ export function usePushNotifications(): UsePushNotificationsReturn {
   const [isLoading, setIsLoading] = useState(true)
   const [permission, setPermission] = useState<NotificationPermission>("default")
 
-  // Check if push notifications are supported
+  const checkSubscription = useCallback(async () => {
+    try {
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.getSubscription()
+      setIsSubscribed(!!subscription)
+      return !!subscription
+    } catch (error) {
+      console.error("Error checking subscription:", error)
+      return false
+    }
+  }, [])
+
   useEffect(() => {
     const checkSupport = async () => {
       const supported =
@@ -64,23 +75,9 @@ export function usePushNotifications(): UsePushNotificationsReturn {
       setIsLoading(false)
     }
 
-    checkSupport()
-  }, [])
+    void checkSupport()
+  }, [checkSubscription])
 
-  // Check current subscription status
-  const checkSubscription = useCallback(async () => {
-    try {
-      const registration = await navigator.serviceWorker.ready
-      const subscription = await registration.pushManager.getSubscription()
-      setIsSubscribed(!!subscription)
-      return !!subscription
-    } catch (error) {
-      console.error("Error checking subscription:", error)
-      return false
-    }
-  }, [])
-
-  // Request notification permission
   const requestPermission = useCallback(async (): Promise<NotificationPermission> => {
     if (!isSupported) {
       toast.error("Push notifications are not supported in this browser")
@@ -105,7 +102,6 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     }
   }, [isSupported])
 
-  // Subscribe to push notifications
   const subscribe = useCallback(async () => {
     if (!isSupported) {
       toast.error("Push notifications are not supported")
@@ -115,28 +111,18 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     try {
       setIsLoading(true)
 
-      // Request permission if not granted
       if (permission !== "granted") {
         const result = await requestPermission()
-        if (result !== "granted") {
-          setIsLoading(false)
-          return
-        }
+        if (result !== "granted") return
       }
 
-      // Get service worker registration
       const registration = await navigator.serviceWorker.ready
-
-      // Subscribe to push manager
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToArrayBuffer(VAPID_PUBLIC_KEY),
       })
 
-      // Send subscription to backend
-      const subscriptionJson = subscription.toJSON() as PushSubscription
-
-      await notificationsApi.subscribe(subscriptionJson)
+      await notificationsApi.subscribe(subscription.toJSON() as PushSubscription)
 
       setIsSubscribed(true)
       toast.success("Push notifications enabled!")
@@ -153,11 +139,8 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     }
   }, [isSupported, permission, requestPermission])
 
-  // Unsubscribe from push notifications
   const unsubscribe = useCallback(async () => {
-    if (!isSupported) {
-      return
-    }
+    if (!isSupported) return
 
     try {
       setIsLoading(true)
@@ -167,10 +150,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
       if (subscription) {
         await subscription.unsubscribe()
-
-        // Notify backend
         await notificationsApi.unsubscribe()
-
         setIsSubscribed(false)
         toast.success("Push notifications disabled")
       }
