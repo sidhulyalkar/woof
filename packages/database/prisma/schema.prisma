@@ -50,11 +50,11 @@ model User {
   featureVector             MLFeatureVector?
   conversationParticipants  ConversationParticipant[]
   messages                  Message[]
-  verifications             Verification[]            @relation("UserVerifications")
-  hostedEvents              CommunityEvent[]          @relation("EventHost")
-  eventRsvps                EventRSVP[]               @relation("EventRSVPs")
-  eventFeedbacks            EventFeedback[]           @relation("EventFeedbacks")
-  locationPings             LocationPing[]            @relation("UserLocationPings")
+  verifications             Verification[]             @relation("UserVerifications")
+  hostedEvents              CommunityEvent[]           @relation("EventHost")
+  eventRsvps                EventRSVP[]                @relation("EventRSVPs")
+  eventFeedbacks            EventFeedback[]            @relation("EventFeedbacks")
+  locationPings             LocationPing[]             @relation("UserLocationPings")
   mediaAssets               MediaAsset[]
   mediaAlbums               MediaAlbum[]
   mediaExternalReferences   MediaExternalReference[]
@@ -80,23 +80,23 @@ model Pet {
   createdAt    DateTime                    @default(now()) @map("created_at")
   updatedAt    DateTime                    @updatedAt @map("updated_at")
 
-  owner                  User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  devices                Device[]
-  activities             Activity[]
-  householdMemberships   HouseholdPet[]
-  activityParticipations ActivityPetParticipant[]
-  posts                  Post[]
-  mutualGoals            MutualGoal[]
-  meetupInvites          MeetupInvite[]
-  edgesA                 PetEdge[]                @relation("PetA")
-  edgesB                 PetEdge[]                @relation("PetB")
-  verifications          Verification[]           @relation("PetVerifications")
-  mediaAssets            MediaAsset[]
-  mediaAlbums            MediaAlbum[]
+  owner                   User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  devices                 Device[]
+  activities              Activity[]
+  householdMemberships    HouseholdPet[]
+  activityParticipations  ActivityPetParticipant[]
+  posts                   Post[]
+  mutualGoals             MutualGoal[]
+  meetupInvites           MeetupInvite[]
+  edgesA                  PetEdge[]                @relation("PetA")
+  edgesB                  PetEdge[]                @relation("PetB")
+  verifications           Verification[]           @relation("PetVerifications")
+  mediaAssets             MediaAsset[]
+  mediaAlbums             MediaAlbum[]
   mediaExternalReferences MediaExternalReference[]
-  careEvents             CareEvent[]
-  rewardLedgerEntries    RewardLedger[]
-  questInteractions      QuestInteraction[]
+  careEvents              CareEvent[]
+  rewardLedgerEntries     RewardLedger[]
+  questInteractions       QuestInteraction[]
 
   @@index([ownerId])
   @@map("pets")
@@ -798,8 +798,8 @@ model Gamification {
   streakStart  DateTime? @map("streak_start")
   totalMeetups Int       @default(0) @map("total_meetups")
   totalEvents  Int       @default(0) @map("total_events")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@index([points])
   @@index([level])
