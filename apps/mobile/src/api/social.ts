@@ -1,16 +1,24 @@
-import apiClient from './client';
 import { Comment, CreatePostDto, Post } from '../types';
+import apiClient from './client';
 
-interface PostEnvelope {
+interface RawPostEnvelope {
   posts: Post[];
   total: number;
   skip: number;
   take: number;
 }
 
+interface PostEnvelope extends RawPostEnvelope {
+  /** Legacy mobile alias retained while FeedScreen migrates to `posts`. */
+  data: Post[];
+}
+
 export const socialApi = {
   async getFeed(skip = 0, take = 20): Promise<PostEnvelope> {
-    return apiClient.get('/social/posts', { params: { skip, take } });
+    const response = await apiClient.get<RawPostEnvelope>('/social/posts', {
+      params: { skip, take },
+    });
+    return { ...response, data: response.posts };
   },
 
   async getPost(id: string): Promise<Post> {
@@ -23,7 +31,10 @@ export const socialApi = {
 
   async updatePost(
     id: string,
-    data: Partial<CreatePostDto> & { mediaUrls?: string[]; visibility?: 'PUBLIC' | 'FRIENDS_ONLY' | 'PRIVATE' },
+    data: Partial<CreatePostDto> & {
+      mediaUrls?: string[];
+      visibility?: 'PUBLIC' | 'FRIENDS_ONLY' | 'PRIVATE';
+    },
   ): Promise<Post> {
     return apiClient.put(`/social/posts/${id}`, data);
   },
