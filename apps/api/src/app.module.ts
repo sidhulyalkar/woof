@@ -9,6 +9,7 @@ import { AdventureModule } from './adventure/adventure.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AutopilotModule } from './autopilot/autopilot.module';
 import { AuthModule } from './auth/auth.module';
 import { BehaviorVisionModule } from './behavior-vision/behavior-vision.module';
 import { ChatModule } from './chat/chat.module';
@@ -66,6 +67,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     HouseholdsModule,
     ActivitiesModule,
     AdventureModule,
+    AutopilotModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,

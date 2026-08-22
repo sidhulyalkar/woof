@@ -18,6 +18,7 @@ const envSchema = z.object({
   S3_PUBLIC_URL: z.string().optional(),
   AWS_REGION: z.string().optional(),
   ENABLE_ADVENTURE_SYSTEM: z.enum(['true', 'false']).optional(),
+  ENABLE_DOGOS_AUTOPILOT: z.enum(['true', 'false']).optional(),
   MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce
     .number()
     .int()
