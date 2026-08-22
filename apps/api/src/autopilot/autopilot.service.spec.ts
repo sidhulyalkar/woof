@@ -8,6 +8,17 @@ const userId = '11111111-1111-4111-8111-111111111111';
 const petId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function createHarness() {
+  const careEvents = {
+    record: jest.fn().mockResolvedValue({
+      careEventId: 'care-event-1',
+      ledgerId: 'ledger-1',
+      bondXp: 0,
+      pathway: 'MOVE',
+      policyVersion: 'bond-xp-v1',
+      explanation: 'not eligible',
+      duplicate: false,
+    }),
+  };
   const txNotification = {
     findFirst: jest.fn(),
     create: jest.fn().mockImplementation(({ data }) =>
@@ -26,6 +37,22 @@ function createHarness() {
   };
   const prisma = {
     pet: { findFirst: jest.fn().mockResolvedValue({ id: petId }) },
+    careEvent: {
+      findFirst: jest.fn().mockImplementation(() => {
+        const input = careEvents.record.mock.calls.at(-1)?.[0] as
+          | {
+              eventType?: string;
+              occurredAt?: Date;
+              context?: Record<string, unknown>;
+            }
+          | undefined;
+        return Promise.resolve({
+          eventType: input?.eventType ?? 'TRACKER_DAILY_ACTIVITY',
+          occurredAt: input?.occurredAt ?? new Date('2026-08-22T08:00:00.000Z'),
+          context: input?.context ?? {},
+        });
+      }),
+    },
     notification: {
       create: jest.fn().mockImplementation(({ data }) =>
         Promise.resolve({
@@ -44,17 +71,6 @@ function createHarness() {
     $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) =>
       callback(tx)
     ),
-  };
-  const careEvents = {
-    record: jest.fn().mockResolvedValue({
-      careEventId: 'care-event-1',
-      ledgerId: 'ledger-1',
-      bondXp: 0,
-      pathway: 'MOVE',
-      policyVersion: 'bond-xp-v1',
-      explanation: 'not eligible',
-      duplicate: false,
-    }),
   };
   const households = {
     assertPetAccessible: jest.fn().mockResolvedValue({ id: petId }),
@@ -103,16 +119,19 @@ describe('AutopilotService', () => {
         safetyEligible: false,
         dedupeKey: `autopilot:fi:${petId}:fi-day-1`,
         context: expect.objectContaining({
+          provider: 'FI',
+          externalEventId: 'fi-day-1',
           privacyClass: 'SUMMARY_ONLY',
           nonDiagnostic: true,
           activityMinutes: 74,
         }),
       })
     );
+    expect(result.observation.metrics.activityMinutes).toBe(74);
   });
 
-  it('repairs a missing signal when a provider replay finds the CareEvent already committed', async () => {
-    const { service, careEvents, tx, txNotification } = createHarness();
+  it('repairs a missing signal from the persisted CareEvent rather than altered replay metrics', async () => {
+    const { service, careEvents, prisma, tx, txNotification } = createHarness();
     careEvents.record.mockResolvedValue({
       careEventId: 'care-event-existing',
       ledgerId: 'ledger-existing',
@@ -122,23 +141,38 @@ describe('AutopilotService', () => {
       explanation: 'duplicate',
       duplicate: true,
     });
+    prisma.careEvent.findFirst.mockResolvedValue({
+      eventType: 'TRACKER_DEVICE_STATUS',
+      occurredAt: new Date('2026-08-22T08:00:00.000Z'),
+      context: {
+        provider: 'TRACTIVE',
+        externalEventId: 'same-event',
+        observationKind: 'DEVICE_STATUS',
+        batteryPercent: 9,
+        deviceState: 'ONLINE',
+      },
+    });
     txNotification.findFirst.mockResolvedValue(null);
 
     const result = await service.ingestProviderObservation(userId, 'tractive', {
       petId,
       externalEventId: 'same-event',
       kind: 'DEVICE_STATUS',
-      observedAt: '2026-08-22T08:00:00.000Z',
-      payload: { batteryPercent: 9 },
+      observedAt: '2026-08-22T12:00:00.000Z',
+      payload: { batteryPercent: 80 },
     });
 
     expect(result.duplicate).toBe(true);
+    expect(result.observation.metrics.batteryPercent).toBe(9);
+    expect(result.observation.observedAt.toISOString()).toBe('2026-08-22T08:00:00.000Z');
     expect(result.signal).toEqual(
       expect.objectContaining({
         id: 'signal-new',
         payload: expect.objectContaining({
           sourceCareEventId: 'care-event-existing',
           signalType: 'TRACKER_BATTERY_LOW',
+          observedAt: '2026-08-22T08:00:00.000Z',
+          evidence: { batteryPercent: 9, provider: 'TRACTIVE' },
         }),
       })
     );
@@ -147,7 +181,7 @@ describe('AutopilotService', () => {
   });
 
   it('returns an existing replay signal without duplicating it, even after acknowledgement', async () => {
-    const { service, careEvents, txNotification } = createHarness();
+    const { service, careEvents, prisma, txNotification } = createHarness();
     careEvents.record.mockResolvedValue({
       careEventId: 'care-event-existing',
       ledgerId: 'ledger-existing',
@@ -156,6 +190,16 @@ describe('AutopilotService', () => {
       policyVersion: 'bond-xp-v1',
       explanation: 'duplicate',
       duplicate: true,
+    });
+    prisma.careEvent.findFirst.mockResolvedValue({
+      eventType: 'TRACKER_DEVICE_STATUS',
+      occurredAt: new Date('2026-08-22T08:00:00.000Z'),
+      context: {
+        provider: 'TRACTIVE',
+        externalEventId: 'same-event',
+        observationKind: 'DEVICE_STATUS',
+        batteryPercent: 9,
+      },
     });
     txNotification.findFirst.mockResolvedValue({
       id: 'signal-existing',
