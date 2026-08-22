@@ -1,15 +1,29 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
+import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePetDto, UpdatePetDto } from './dto/create-pet.dto';
 
 @Injectable()
 export class PetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly households: HouseholdsService
+  ) {}
 
   async create(ownerId: string, data: CreatePetDto) {
+    const householdId = await this.households.ensurePersonalHousehold(ownerId);
+
     return this.prisma.pet.create({
-      data: this.toCreateInput(ownerId, data),
+      data: {
+        ...this.toCreateInput(ownerId, data),
+        householdMemberships: {
+          create: {
+            householdId,
+            status: 'ACTIVE',
+          },
+        },
+      },
       include: {
         owner: {
           select: {
@@ -18,6 +32,10 @@ export class PetsService {
             avatarUrl: true,
             isVerified: true,
           },
+        },
+        householdMemberships: {
+          where: { status: 'ACTIVE' },
+          select: { householdId: true },
         },
       },
     });
