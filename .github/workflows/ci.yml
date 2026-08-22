@@ -66,6 +66,7 @@ jobs:
           apps/web/src/app/coach/observe/page.tsx
           apps/web/e2e
           ml/behavior_vision/model_registry.json
+          packages/ui/.eslintrc.js
           packages/ui/package.json
 
       - name: Lint
