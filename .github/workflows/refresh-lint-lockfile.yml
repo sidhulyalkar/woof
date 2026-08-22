@@ -1,0 +1,43 @@
+name: One-shot lint lockfile refresh
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+    paths:
+      - '.github/workflows/refresh-lint-lockfile.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Refresh lockfile from committed manifests
+        run: pnpm install --lockfile-only
+
+      - name: Verify frozen installation resolves
+        run: pnpm install --frozen-lockfile
+
+      - name: Commit lockfile and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/refresh-lint-lockfile.yml
+          git add pnpm-lock.yaml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: refresh lint dependency lockfile"
+          git push origin HEAD:agent/pet-media-library-v1
