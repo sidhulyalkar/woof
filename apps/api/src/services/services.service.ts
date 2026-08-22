@@ -19,7 +19,7 @@ export class ServicesService {
         lng: dto.lng ?? 0,
         phone: dto.phone,
         website: dto.website,
-        hours: dto.hours || {},
+        hours: (dto.hours ?? {}) as Prisma.InputJsonValue,
         photos: dto.photos || [],
         amenities: dto.services || [],
       },
@@ -61,7 +61,18 @@ export class ServicesService {
     return this.prisma.business.update({
       where: { id },
       data: {
-        ...dto,
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.address !== undefined ? { address: dto.address } : {}),
+        ...(dto.lat !== undefined ? { lat: dto.lat } : {}),
+        ...(dto.lng !== undefined ? { lng: dto.lng } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+        ...(dto.website !== undefined ? { website: dto.website } : {}),
+        ...(dto.hours !== undefined
+          ? { hours: dto.hours as Prisma.InputJsonValue }
+          : {}),
+        ...(dto.photos !== undefined ? { photos: dto.photos } : {}),
+        ...(dto.services !== undefined ? { amenities: dto.services } : {}),
       },
     });
   }
