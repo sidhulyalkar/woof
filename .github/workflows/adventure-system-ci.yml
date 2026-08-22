@@ -19,6 +19,7 @@ on:
       - 'apps/api/src/behavior-vision/behavior-vision.service.ts'
       - 'apps/api/src/chat/chat.gateway.ts'
       - 'apps/api/src/goals/goals.controller.ts'
+      - 'apps/api/src/quiz/dto/save-quiz-response.dto.ts'
       - 'apps/api/src/media-library/media-library.service.spec.ts'
       - 'apps/api/src/app.controller.ts'
       - 'apps/api/src/app.service.ts'
@@ -155,6 +156,7 @@ jobs:
           apps/api/src/gamification/gamification.controller.ts
           apps/api/src/behavior-vision/behavior-profile.spec.ts
           apps/api/src/goals/goals.controller.ts
+          apps/api/src/quiz/dto/save-quiz-response.dto.ts
           apps/api/src/media-library/media-library.service.spec.ts
           apps/api/src/app.controller.ts
           apps/api/src/app.service.ts
@@ -201,6 +203,7 @@ jobs:
           src/behavior-vision/behavior-vision.service.ts
           src/chat/chat.gateway.ts
           src/goals/goals.controller.ts
+          src/quiz/dto/save-quiz-response.dto.ts
           src/media-library/media-library.service.spec.ts
           src/app.controller.ts
           src/app.service.ts
