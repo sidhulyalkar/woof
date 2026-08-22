@@ -361,7 +361,7 @@ export const createOpacityInterpolation = (
   value: Animated.Value,
   inputRange: number[] = [0, 1],
   outputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange,
@@ -373,7 +373,7 @@ export const createScaleInterpolation = (
   value: Animated.Value,
   inputRange: number[] = [0, 1],
   outputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange,
@@ -384,7 +384,7 @@ export const createScaleInterpolation = (
 export const createRotationInterpolation = (
   value: Animated.Value,
   rotations: number = 1
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<string> => {
   return value.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', `${360 * rotations}deg`],
@@ -395,7 +395,7 @@ export const createTranslateInterpolation = (
   value: Animated.Value,
   distance: number,
   inputRange: number[] = [0, 1]
-): Animated.AnimatedInterpolation => {
+): Animated.AnimatedInterpolation<number> => {
   return value.interpolate({
     inputRange,
     outputRange: [0, distance],
@@ -423,29 +423,18 @@ export const createAnimatedValueXY = (
 // ========================================
 
 export const easingPresets = {
-  // Standard easings
   linear: Easing.linear,
   ease: Easing.ease,
-
-  // Quadratic
   easeIn: Easing.in(Easing.quad),
   easeOut: Easing.out(Easing.quad),
   easeInOut: Easing.inOut(Easing.quad),
-
-  // Cubic
   cubicIn: Easing.in(Easing.cubic),
   cubicOut: Easing.out(Easing.cubic),
   cubicInOut: Easing.inOut(Easing.cubic),
-
-  // Elastic
   elasticIn: Easing.in(Easing.elastic(1)),
   elasticOut: Easing.out(Easing.elastic(1)),
-
-  // Back
   backIn: Easing.in(Easing.back(1.5)),
   backOut: Easing.out(Easing.back(1.5)),
-
-  // Bezier (iOS-like)
   iosCurve: Easing.bezier(0.25, 0.1, 0.25, 1),
   materialCurve: Easing.bezier(0.4, 0.0, 0.2, 1),
 };
@@ -455,25 +444,18 @@ export const easingPresets = {
 // ========================================
 
 export const animationConfigs = {
-  // Quick micro-interactions
   quickPress: {
     duration: 100,
     easing: easingPresets.easeOut,
   },
-
-  // Standard UI transitions
   standard: {
     duration: 300,
     easing: easingPresets.iosCurve,
   },
-
-  // Smooth page transitions
   pageTransition: {
     duration: 400,
     easing: easingPresets.materialCurve,
   },
-
-  // Spring configs
   springGentle: {
     friction: 10,
     tension: 50,
