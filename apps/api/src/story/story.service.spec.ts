@@ -157,7 +157,9 @@ describe('StoryService', () => {
     const result = await service.getStory(userId, {});
 
     expect(result.moments).toHaveLength(1);
-    expect(result.moments[0]).toEqual(expect.objectContaining({ sourceType: 'ACTIVITY', sourceId: activityId }));
+    expect(result.moments[0]).toEqual(
+      expect.objectContaining({ sourceType: 'ACTIVITY', sourceId: activityId })
+    );
   });
 
   it('retains a wearable daily summary only as explicitly non-diagnostic context', async () => {
@@ -269,9 +271,9 @@ describe('StoryService', () => {
     });
     expect(saved.state).toBe('SAVED');
 
-    tx.$queryRaw.mockResolvedValueOnce([{ acquired: 1 }]).mockResolvedValueOnce([
-      { id: 'curation-1', payload: {} },
-    ]);
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ acquired: 1 }])
+      .mockResolvedValueOnce([{ id: 'curation-1', payload: {} }]);
     const cleared = await service.updateCuration(userId, {
       sourceType: 'ACTIVITY',
       sourceId: activityId,
