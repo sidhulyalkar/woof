@@ -138,7 +138,7 @@ export class CoActivityService {
     }
 
     const matches = [];
-    for (const [otherUserId, otherUserLocations] of locationsByUser.entries()) {
+    for (const [, otherUserLocations] of locationsByUser.entries()) {
       const overlaps = this.findOverlapWindows(userLocations, otherUserLocations);
       if (overlaps.length === 0) continue;
       matches.push({
@@ -189,7 +189,6 @@ export class CoActivityService {
         if (distance > this.PROXIMITY_THRESHOLD_M) continue;
 
         const midpointTime = Math.round((loc1.timestamp.getTime() + loc2.timestamp.getTime()) / 2);
-        // Collapse dense GPS samples into one privacy-preserving encounter window.
         if (midpointTime - lastRecordedAt < this.TIME_WINDOW_MINUTES * 60 * 1000) continue;
         overlaps.push({ timestamp: new Date(midpointTime) });
         lastRecordedAt = midpointTime;

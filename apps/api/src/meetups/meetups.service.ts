@@ -1,14 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@woof/database';
 
 @Injectable()
 export class MeetupsService {
   constructor(private prisma: PrismaService) {}
-
-  // ============================================
-  // MEETUPS
-  // ============================================
 
   async create(data: Prisma.MeetupCreateInput) {
     return this.prisma.meetup.create({
@@ -144,10 +140,6 @@ export class MeetupsService {
       throw error;
     }
   }
-
-  // ============================================
-  // MEETUP INVITES
-  // ============================================
 
   async createInvite(data: Prisma.MeetupInviteCreateInput) {
     return this.prisma.meetupInvite.create({

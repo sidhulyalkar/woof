@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GamificationService } from '../gamification/gamification.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { CreateRSVPDto, UpdateRSVPDto, EventFeedbackDto } from './dto/rsvp-event.dto';
+import { CreateRSVPDto, EventFeedbackDto } from './dto/rsvp-event.dto';
 
 @Injectable()
 export class EventsService {
@@ -12,9 +12,6 @@ export class EventsService {
     private gamificationService: GamificationService,
   ) {}
 
-  /**
-   * Create a new community event
-   */
   async create(hostUserId: string, dto: CreateEventDto) {
     return this.prisma.communityEvent.create({
       data: {
@@ -23,7 +20,7 @@ export class EventsService {
         description: dto.description,
         venueType: dto.type || 'park',
         startTime: new Date(dto.startTime),
-        endTime: dto.endTime ? new Date(dto.endTime) : new Date(new Date(dto.startTime).getTime() + 2 * 60 * 60 * 1000), // Default: 2 hours after start
+        endTime: dto.endTime ? new Date(dto.endTime) : new Date(new Date(dto.startTime).getTime() + 2 * 60 * 60 * 1000),
         venueName: dto.locationName,
         address: dto.locationName,
         lat: dto.lat,
@@ -33,9 +30,6 @@ export class EventsService {
     });
   }
 
-  /**
-   * Get all events with optional filters
-   */
   async findAll(type?: string, upcoming?: boolean) {
     const where: any = {};
 
@@ -69,9 +63,6 @@ export class EventsService {
     });
   }
 
-  /**
-   * Get a specific event
-   */
   async findOne(id: string) {
     const event = await this.prisma.communityEvent.findUnique({
       where: { id },
@@ -104,13 +95,9 @@ export class EventsService {
     return event;
   }
 
-  /**
-   * Update an event
-   */
   async update(id: string, userId: string, dto: UpdateEventDto) {
     const event = await this.findOne(id);
 
-    // Only organizer can update
     if (event.hostUserId !== userId) {
       throw new BadRequestException('Only the organizer can update this event');
     }
@@ -125,13 +112,9 @@ export class EventsService {
     });
   }
 
-  /**
-   * Delete an event
-   */
   async remove(id: string, userId: string) {
     const event = await this.findOne(id);
 
-    // Only organizer can delete
     if (event.hostUserId !== userId) {
       throw new BadRequestException('Only the organizer can delete this event');
     }
@@ -141,13 +124,9 @@ export class EventsService {
     });
   }
 
-  /**
-   * Create or update RSVP
-   */
   async rsvp(eventId: string, userId: string, dto: CreateRSVPDto) {
     const event = await this.findOne(eventId);
 
-    // Check if max attendees reached
     if (event.capacity && dto.status === 'going') {
       const goingCount = event.rsvps.filter((r: any) => r.status === 'going').length;
       if (goingCount >= event.capacity) {
@@ -155,7 +134,6 @@ export class EventsService {
       }
     }
 
-    // Check if RSVP already exists
     const existingRSVP = await this.prisma.eventRSVP.findUnique({
       where: {
         eventId_userId: {
@@ -166,7 +144,6 @@ export class EventsService {
     });
 
     if (existingRSVP) {
-      // Update existing RSVP
       return this.prisma.eventRSVP.update({
         where: {
           eventId_userId: {
@@ -180,7 +157,6 @@ export class EventsService {
       });
     }
 
-    // Create new RSVP
     return this.prisma.eventRSVP.create({
       data: {
         eventId,
@@ -190,9 +166,6 @@ export class EventsService {
     });
   }
 
-  /**
-   * Get user's RSVPs
-   */
   async getUserRSVPs(userId: string) {
     return this.prisma.eventRSVP.findMany({
       where: { userId },
@@ -217,11 +190,7 @@ export class EventsService {
     });
   }
 
-  /**
-   * Check in to an event (awards points)
-   */
   async checkIn(eventId: string, userId: string) {
-    // Check if user RSVP'd to the event
     const rsvp = await this.prisma.eventRSVP.findUnique({
       where: {
         eventId_userId: {
@@ -239,7 +208,6 @@ export class EventsService {
       throw new BadRequestException('You have already checked in to this event');
     }
 
-    // Update RSVP to mark as checked in
     const updatedRSVP = await this.prisma.eventRSVP.update({
       where: {
         eventId_userId: {
@@ -252,7 +220,6 @@ export class EventsService {
       },
     });
 
-    // Award points for attending event
     await this.gamificationService.awardPoints({
       userId,
       points: 5,
@@ -267,11 +234,7 @@ export class EventsService {
     };
   }
 
-  /**
-   * Submit event feedback (awards points)
-   */
   async submitFeedback(eventId: string, userId: string, dto: EventFeedbackDto) {
-    // Check if user RSVP'd to the event
     const rsvp = await this.prisma.eventRSVP.findUnique({
       where: {
         eventId_userId: {
@@ -285,7 +248,6 @@ export class EventsService {
       throw new BadRequestException('You must RSVP to this event to leave feedback');
     }
 
-    // Check if feedback already exists
     const existingFeedback = await this.prisma.eventFeedback.findUnique({
       where: {
         eventId_userId: {
@@ -299,7 +261,6 @@ export class EventsService {
     let isNewFeedback = false;
 
     if (existingFeedback) {
-      // Update existing feedback
       feedback = await this.prisma.eventFeedback.update({
         where: {
           eventId_userId: {
@@ -318,7 +279,6 @@ export class EventsService {
         },
       });
     } else {
-      // Create new feedback
       feedback = await this.prisma.eventFeedback.create({
         data: {
           eventId,
@@ -335,7 +295,6 @@ export class EventsService {
       isNewFeedback = true;
     }
 
-    // Award points for submitting feedback (only for new feedback)
     if (isNewFeedback) {
       await this.gamificationService.awardPoints({
         userId,
@@ -354,9 +313,6 @@ export class EventsService {
     };
   }
 
-  /**
-   * Get event feedback
-   */
   async getEventFeedback(eventId: string) {
     const feedback = await this.prisma.eventFeedback.findMany({
       where: { eventId },
@@ -371,7 +327,6 @@ export class EventsService {
       },
     });
 
-    // Calculate averages
     const avgVibeScore =
       feedback.reduce((sum: number, f: any) => sum + f.vibeScore, 0) / feedback.length || 0;
 

@@ -10,7 +10,6 @@ export class GoalsService {
   async create(userId: string, createGoalDto: CreateGoalDto) {
     const { petId, ...goalData } = createGoalDto;
 
-    // Verify pet belongs to user
     const pet = await this.prisma.pet.findUnique({
       where: { id: petId },
     });
@@ -102,8 +101,7 @@ export class GoalsService {
   }
 
   async update(userId: string, id: string, updateGoalDto: UpdateGoalDto) {
-    // Verify goal belongs to user
-    const goal = await this.findOne(userId, id);
+    await this.findOne(userId, id);
 
     return this.prisma.mutualGoal.update({
       where: { id },
@@ -121,7 +119,6 @@ export class GoalsService {
   }
 
   async remove(userId: string, id: string) {
-    // Verify goal belongs to user
     await this.findOne(userId, id);
 
     await this.prisma.mutualGoal.delete({
@@ -131,9 +128,6 @@ export class GoalsService {
     return { message: 'Goal deleted successfully' };
   }
 
-  /**
-   * Update goal progress based on activities
-   */
   async updateProgress(userId: string, goalId: string, value: number) {
     const goal = await this.findOne(userId, goalId);
 
@@ -141,7 +135,6 @@ export class GoalsService {
     const progress = Math.min((currentValue / goal.targetNumber) * 100, 100);
     const status = progress >= 100 ? GoalStatus.COMPLETED : goal.status;
 
-    // Update streak if daily goal and not already completed today
     const today = new Date().toISOString().split('T')[0];
     const completedDays = (goal.completedDays as string[]) || [];
     const updatedCompletedDays = completedDays.includes(today)
@@ -177,9 +170,6 @@ export class GoalsService {
     });
   }
 
-  /**
-   * Get goal statistics for a user
-   */
   async getStatistics(userId: string) {
     const goals = await this.prisma.mutualGoal.findMany({
       where: { userId },

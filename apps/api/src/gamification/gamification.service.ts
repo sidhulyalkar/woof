@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AwardPointsDto } from './dto/award-points.dto';
 import { AwardBadgeDto, BadgeType } from './dto/award-badge.dto';
@@ -8,11 +8,7 @@ import { UpdateStreakDto } from './dto/update-streak.dto';
 export class GamificationService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Award points to a user and create a transaction record
-   */
   async awardPoints(dto: AwardPointsDto) {
-    // Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: dto.userId },
     });
@@ -21,7 +17,6 @@ export class GamificationService {
       throw new NotFoundException(`User ${dto.userId} not found`);
     }
 
-    // Create point transaction
     const transaction = await this.prisma.pointTransaction.create({
       data: {
         userId: dto.userId,
@@ -31,7 +26,6 @@ export class GamificationService {
       },
     });
 
-    // Update user's total points
     await this.prisma.user.update({
       where: { id: dto.userId },
       data: {
@@ -44,9 +38,6 @@ export class GamificationService {
     return transaction;
   }
 
-  /**
-   * Get all point transactions for a user
-   */
   async getPointTransactions(userId: string) {
     return this.prisma.pointTransaction.findMany({
       where: { userId },
@@ -54,9 +45,6 @@ export class GamificationService {
     });
   }
 
-  /**
-   * Get user's total points
-   */
   async getUserPoints(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -70,11 +58,7 @@ export class GamificationService {
     return { totalPoints: user.totalPoints || 0 };
   }
 
-  /**
-   * Award a badge to a user (idempotent - won't duplicate)
-   */
   async awardBadge(dto: AwardBadgeDto) {
-    // Check if user already has this badge
     const existingBadge = await this.prisma.badgeAward.findUnique({
       where: {
         userId_badgeType: {
@@ -85,10 +69,9 @@ export class GamificationService {
     });
 
     if (existingBadge) {
-      return existingBadge; // Idempotent - don't award duplicate badges
+      return existingBadge;
     }
 
-    // Award the badge
     return this.prisma.badgeAward.create({
       data: {
         userId: dto.userId,
@@ -97,9 +80,6 @@ export class GamificationService {
     });
   }
 
-  /**
-   * Get all badges for a user
-   */
   async getUserBadges(userId: string) {
     return this.prisma.badgeAward.findMany({
       where: { userId },
@@ -107,21 +87,16 @@ export class GamificationService {
     });
   }
 
-  /**
-   * Update user's activity streak
-   */
   async updateStreak(dto: UpdateStreakDto) {
     const activityDate = new Date(dto.activityDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Get or create streak record
     let streak = await this.prisma.weeklyStreak.findUnique({
       where: { userId: dto.userId },
     });
 
     if (!streak) {
-      // First activity - create new streak
       streak = await this.prisma.weeklyStreak.create({
         data: {
           userId: dto.userId,
@@ -137,18 +112,15 @@ export class GamificationService {
 
     const daysDiff = Math.floor((today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Same day - no update needed
     if (daysDiff === 0) {
       return streak;
     }
 
-    // Within 7 days - increment week if crossed into new week
     if (daysDiff <= 7) {
       const lastWeekStart = this.getWeekStart(lastActivity);
       const currentWeekStart = this.getWeekStart(activityDate);
 
       if (currentWeekStart > lastWeekStart) {
-        // Moved to next week
         streak = await this.prisma.weeklyStreak.update({
           where: { userId: dto.userId },
           data: {
@@ -157,7 +129,6 @@ export class GamificationService {
           },
         });
 
-        // Award streak master badge if 4+ weeks
         if (streak.currentWeek >= 4) {
           await this.awardBadge({
             userId: dto.userId,
@@ -165,14 +136,12 @@ export class GamificationService {
           });
         }
       } else {
-        // Same week - just update last activity
         streak = await this.prisma.weeklyStreak.update({
           where: { userId: dto.userId },
           data: { lastActivityAt: activityDate },
         });
       }
     } else {
-      // More than 7 days - streak broken, reset to week 1
       streak = await this.prisma.weeklyStreak.update({
         where: { userId: dto.userId },
         data: {
@@ -185,9 +154,6 @@ export class GamificationService {
     return streak;
   }
 
-  /**
-   * Get user's current streak
-   */
   async getUserStreak(userId: string) {
     let streak = await this.prisma.weeklyStreak.findUnique({
       where: { userId },
@@ -197,13 +163,11 @@ export class GamificationService {
       return { currentWeek: 0, lastActivityAt: null };
     }
 
-    // Check if streak is still valid (last activity within 7 days)
     const lastActivity = new Date(streak.lastActivityAt);
     const today = new Date();
     const daysDiff = Math.floor((today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysDiff > 7) {
-      // Streak expired - reset it
       streak = await this.prisma.weeklyStreak.update({
         where: { userId },
         data: { currentWeek: 0 },
@@ -213,9 +177,6 @@ export class GamificationService {
     return streak;
   }
 
-  /**
-   * Get leaderboard (top users by points)
-   */
   async getLeaderboard(limit: number = 20) {
     const users = await this.prisma.user.findMany({
       orderBy: { totalPoints: 'desc' },
@@ -234,13 +195,10 @@ export class GamificationService {
     }));
   }
 
-  /**
-   * Helper: Get the start of the week (Monday) for a given date
-   */
   private getWeekStart(date: Date): Date {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when Sunday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
   }
 }

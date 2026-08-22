@@ -1,9 +1,18 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import type { User } from '@woof/database';
 import { compare, hash } from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+
+type SafeUser = Omit<User, 'passwordHash'>;
+
+function withoutPassword(user: User): SafeUser {
+  const { passwordHash, ...safeUser } = user;
+  void passwordHash;
+  return safeUser;
+}
 
 @Injectable()
 export class AuthService {
@@ -12,7 +21,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(email: string, password: string): Promise<SafeUser> {
     const user = await this.usersService.findByEmail(email);
 
     if (!user || !user.passwordHash) {
@@ -25,8 +34,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const { passwordHash, ...result } = user;
-    return result;
+    return withoutPassword(user);
   }
 
   async login(loginDto: LoginDto) {
@@ -57,7 +65,7 @@ export class AuthService {
       authProvider: 'EMAIL',
     });
 
-    const { passwordHash, ...userWithoutPassword } = user;
+    const userWithoutPassword = withoutPassword(user);
     const payload = { sub: user.id, email: user.email, handle: user.handle };
 
     return {

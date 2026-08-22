@@ -12,7 +12,7 @@ export interface ABTestConfig {
   experimentName: string;
   variants: Array<{
     name: ModelVariant;
-    traffic: number; // 0-100
+    traffic: number;
     enabled: boolean;
   }>;
   startDate: Date;
@@ -28,21 +28,16 @@ export interface ABTestEvent {
   confidence?: number;
   userSatisfaction?: number;
   actualOutcome?: boolean;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 @Injectable()
 export class ABTestService {
   private readonly logger = new Logger(ABTestService.name);
-
-  // Active experiments
   private experiments: Map<string, ABTestConfig> = new Map();
-
-  // Event storage (in production: use analytics DB)
   private events: ABTestEvent[] = [];
 
   constructor() {
-    // Initialize default experiment: GAT vs Hybrid
     this.registerExperiment({
       experimentName: 'gat_vs_hybrid',
       variants: [
@@ -55,12 +50,8 @@ export class ABTestService {
     this.logger.log('A/B Testing Service initialized');
   }
 
-  /**
-   * Register a new A/B test experiment
-   */
   registerExperiment(config: ABTestConfig): void {
-    // Validate traffic percentages sum to 100
-    const totalTraffic = config.variants.reduce((sum, v) => sum + v.traffic, 0);
+    const totalTraffic = config.variants.reduce((sum, variant) => sum + variant.traffic, 0);
     if (Math.abs(totalTraffic - 100) > 0.01) {
       throw new Error(`Traffic percentages must sum to 100, got ${totalTraffic}`);
     }
@@ -69,9 +60,6 @@ export class ABTestService {
     this.logger.log(`Registered experiment: ${config.experimentName}`);
   }
 
-  /**
-   * Assign user to a variant using consistent hashing
-   */
   assignVariant(userId: string, experimentName: string = 'gat_vs_hybrid'): ModelVariant {
     const experiment = this.experiments.get(experimentName);
 
@@ -80,18 +68,15 @@ export class ABTestService {
       return ModelVariant.GAT_ONLY;
     }
 
-    // Check if experiment is active
     const now = new Date();
     if (experiment.endDate && now > experiment.endDate) {
       this.logger.warn(`Experiment ${experimentName} has ended`);
       return ModelVariant.GAT_ONLY;
     }
 
-    // Consistent hashing: same user always gets same variant
     const hash = this.hashUserId(userId, experimentName);
-    const bucket = hash % 100; // 0-99
+    const bucket = hash % 100;
 
-    // Assign based on traffic allocation
     let cumulativeTraffic = 0;
     for (const variant of experiment.variants) {
       if (!variant.enabled) continue;
@@ -102,32 +87,22 @@ export class ABTestService {
       }
     }
 
-    // Fallback
     return experiment.variants[0].name;
   }
 
-  /**
-   * Log an A/B test event
-   */
   logEvent(event: ABTestEvent): void {
     this.events.push({
       ...event,
       timestamp: new Date(),
     });
-
-    // In production: send to analytics database
-    // this.analyticsService.logEvent(event);
   }
 
-  /**
-   * Log a prediction event
-   */
   logPrediction(
     userId: string,
     variant: ModelVariant,
     prediction: number,
     confidence?: number,
-    metadata?: any,
+    metadata?: Record<string, unknown>,
   ): void {
     this.logEvent({
       userId,
@@ -140,18 +115,14 @@ export class ABTestService {
     });
   }
 
-  /**
-   * Log user satisfaction (after they interact with the match)
-   */
   logOutcome(
     userId: string,
     variant: ModelVariant,
-    satisfaction: number, // 1-5 scale
+    satisfaction: number,
     actualMatch: boolean,
   ): void {
-    // Find the most recent prediction for this user
     const recentEvent = this.events
-      .filter(e => e.userId === userId && e.variant === variant)
+      .filter((event) => event.userId === userId && event.variant === variant)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
 
     if (recentEvent) {
@@ -160,9 +131,6 @@ export class ABTestService {
     }
   }
 
-  /**
-   * Get experiment results
-   */
   getExperimentResults(experimentName: string = 'gat_vs_hybrid'): {
     variant: ModelVariant;
     totalPredictions: number;
@@ -172,7 +140,7 @@ export class ABTestService {
     successRate: number;
   }[] {
     const experimentEvents = this.events.filter(
-      e => e.experimentName === experimentName
+      (event) => event.experimentName === experimentName,
     );
 
     const variantGroups = new Map<ModelVariant, ABTestEvent[]>();
@@ -187,30 +155,38 @@ export class ABTestService {
     const results = [];
 
     for (const [variant, events] of variantGroups) {
-      const eventsWithSatisfaction = events.filter(e => e.userSatisfaction !== undefined);
-      const eventsWithOutcome = events.filter(e => e.actualOutcome !== undefined);
+      const eventsWithSatisfaction = events.filter(
+        (event) => event.userSatisfaction !== undefined,
+      );
+      const eventsWithOutcome = events.filter((event) => event.actualOutcome !== undefined);
 
       results.push({
         variant,
         totalPredictions: events.length,
-        avgPrediction: events.reduce((sum, e) => sum + e.prediction, 0) / events.length,
-        avgConfidence: events.filter(e => e.confidence !== undefined)
-          .reduce((sum, e) => sum + e.confidence!, 0) / events.length || 0,
-        avgSatisfaction: eventsWithSatisfaction.length > 0
-          ? eventsWithSatisfaction.reduce((sum, e) => sum + e.userSatisfaction!, 0) / eventsWithSatisfaction.length
-          : 0,
-        successRate: eventsWithOutcome.length > 0
-          ? eventsWithOutcome.filter(e => e.actualOutcome).length / eventsWithOutcome.length
-          : 0,
+        avgPrediction:
+          events.reduce((sum, event) => sum + event.prediction, 0) / events.length,
+        avgConfidence:
+          events
+            .filter((event) => event.confidence !== undefined)
+            .reduce((sum, event) => sum + event.confidence!, 0) / events.length || 0,
+        avgSatisfaction:
+          eventsWithSatisfaction.length > 0
+            ? eventsWithSatisfaction.reduce(
+                (sum, event) => sum + event.userSatisfaction!,
+                0,
+              ) / eventsWithSatisfaction.length
+            : 0,
+        successRate:
+          eventsWithOutcome.length > 0
+            ? eventsWithOutcome.filter((event) => event.actualOutcome).length /
+              eventsWithOutcome.length
+            : 0,
       });
     }
 
     return results;
   }
 
-  /**
-   * Perform statistical significance test (chi-square)
-   */
   getStatisticalSignificance(experimentName: string = 'gat_vs_hybrid'): {
     pValue: number;
     isSignificant: boolean;
@@ -222,21 +198,16 @@ export class ABTestService {
       return { pValue: 1.0, isSignificant: false, winner: null };
     }
 
-    // Simple comparison: use success rate
     const [variant1, variant2] = results;
-
-    // Find winner
-    const winner = variant1.successRate > variant2.successRate
-      ? variant1.variant
-      : variant2.variant;
-
-    // Simplified significance test (in production: use proper chi-square)
+    const winner =
+      variant1.successRate > variant2.successRate ? variant1.variant : variant2.variant;
     const diff = Math.abs(variant1.successRate - variant2.successRate);
-    const minSampleSize = Math.min(variant1.totalPredictions, variant2.totalPredictions);
-
-    // Rule of thumb: significant if difference > 5% and sample size > 100
+    const minSampleSize = Math.min(
+      variant1.totalPredictions,
+      variant2.totalPredictions,
+    );
     const isSignificant = diff > 0.05 && minSampleSize > 100;
-    const pValue = isSignificant ? 0.01 : 0.5; // Simplified
+    const pValue = isSignificant ? 0.01 : 0.5;
 
     return {
       pValue,
@@ -245,9 +216,6 @@ export class ABTestService {
     };
   }
 
-  /**
-   * Generate experiment report
-   */
   generateReport(experimentName: string = 'gat_vs_hybrid'): string {
     const results = this.getExperimentResults(experimentName);
     const significance = this.getStatisticalSignificance(experimentName);
@@ -279,31 +247,21 @@ export class ABTestService {
     return report;
   }
 
-  /**
-   * Hash user ID consistently
-   */
   private hashUserId(userId: string, experimentName: string): number {
     const hash = createHash('md5')
       .update(`${userId}:${experimentName}`)
       .digest('hex');
 
-    // Convert first 8 hex chars to number
     return parseInt(hash.substring(0, 8), 16);
   }
 
-  /**
-   * Get all active experiments
-   */
   getActiveExperiments(): string[] {
     const now = new Date();
     return Array.from(this.experiments.entries())
-      .filter(([_, config]) => !config.endDate || now <= config.endDate)
-      .map(([name, _]) => name);
+      .filter(([, config]) => !config.endDate || now <= config.endDate)
+      .map(([name]) => name);
   }
 
-  /**
-   * End an experiment
-   */
   endExperiment(experimentName: string): void {
     const experiment = this.experiments.get(experimentName);
     if (experiment) {
