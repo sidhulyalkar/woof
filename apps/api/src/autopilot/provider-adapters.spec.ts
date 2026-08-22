@@ -52,7 +52,7 @@ describe('Autopilot provider adapters', () => {
           activityMinutes: 42,
           vendor: { latest: { coordinates: [-122.1, 37.4] } },
         },
-      }),
+      })
     ).toThrow(BadRequestException);
   });
 
@@ -64,7 +64,7 @@ describe('Autopilot provider adapters', () => {
         kind: 'DEVICE_STATUS',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { batteryPercent: 40 },
-      }),
+      })
     ).toThrow(BadRequestException);
   });
 
@@ -76,7 +76,7 @@ describe('Autopilot provider adapters', () => {
         kind: 'DEVICE_STATUS',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { batteryPercent: 140 },
-      }),
+      })
     ).toThrow(BadRequestException);
   });
 });
