@@ -47,7 +47,7 @@ export interface Goal {
   streakCount: number;
   bestStreak: number;
   completedDays: string[];
-  metadata?: any;
+  metadata?: unknown;
   createdAt: string;
   updatedAt: string;
   pet?: {
@@ -67,7 +67,7 @@ export interface CreateGoalRequest {
   endDate: string;
   reminderTime?: string;
   isRecurring?: boolean;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface UpdateGoalRequest {
@@ -75,7 +75,7 @@ export interface UpdateGoalRequest {
   targetUnit?: string;
   status?: GoalStatus;
   reminderTime?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface GoalStatistics {
@@ -89,68 +89,44 @@ export interface GoalStatistics {
 }
 
 const goalsApi = {
-  /**
-   * Get all goals for the current user
-   */
+  /** Get all goals for the current user. */
   async getGoals(petId?: string, status?: GoalStatus): Promise<Goal[]> {
-    const params: any = {};
+    const params: Record<string, string> = {};
     if (petId) params.petId = petId;
     if (status) params.status = status;
-
-    const response = await apiClient.get('/goals', { params });
-    return response.data;
+    return apiClient.get<Goal[]>('/goals', { params });
   },
 
-  /**
-   * Get a single goal by ID
-   */
+  /** Get a single goal by ID. */
   async getGoal(id: string): Promise<Goal> {
-    const response = await apiClient.get(`/goals/${id}`);
-    return response.data;
+    return apiClient.get<Goal>(`/goals/${id}`);
   },
 
-  /**
-   * Create a new goal
-   */
+  /** Create a new goal. */
   async createGoal(data: CreateGoalRequest): Promise<Goal> {
-    const response = await apiClient.post('/goals', data);
-    return response.data;
+    return apiClient.post<Goal>('/goals', data);
   },
 
-  /**
-   * Update a goal
-   */
+  /** Update a goal. */
   async updateGoal(id: string, data: UpdateGoalRequest): Promise<Goal> {
-    const response = await apiClient.patch(`/goals/${id}`, data);
-    return response.data;
+    return apiClient.patch<Goal>(`/goals/${id}`, data);
   },
 
-  /**
-   * Update goal progress
-   */
+  /** Update goal progress. */
   async updateProgress(id: string, value: number): Promise<Goal> {
-    const response = await apiClient.patch(`/goals/${id}/progress`, { value });
-    return response.data;
+    return apiClient.patch<Goal>(`/goals/${id}/progress`, { value });
   },
 
-  /**
-   * Delete a goal
-   */
+  /** Delete a goal. */
   async deleteGoal(id: string): Promise<void> {
-    await apiClient.delete(`/goals/${id}`);
+    await apiClient.delete<void>(`/goals/${id}`);
   },
 
-  /**
-   * Get goal statistics for the current user
-   */
+  /** Get goal statistics for the current user. */
   async getStatistics(): Promise<GoalStatistics> {
-    const response = await apiClient.get('/goals/statistics');
-    return response.data;
+    return apiClient.get<GoalStatistics>('/goals/statistics');
   },
 
-  /**
-   * Helper: Calculate days remaining
-   */
   getDaysRemaining(goal: Goal): number {
     const now = new Date();
     const end = new Date(goal.endDate);
@@ -158,17 +134,11 @@ const goalsApi = {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   },
 
-  /**
-   * Helper: Check if goal is completed today
-   */
   isCompletedToday(goal: Goal): boolean {
     const today = new Date().toISOString().split('T')[0];
     return goal.completedDays.includes(today);
   },
 
-  /**
-   * Helper: Get goal icon name
-   */
   getGoalIcon(goalType: GoalType): string {
     const icons: Record<GoalType, string> = {
       [GoalType.DISTANCE]: 'walk',
@@ -181,9 +151,6 @@ const goalsApi = {
     return icons[goalType] || 'flag';
   },
 
-  /**
-   * Helper: Get goal color
-   */
   getGoalColor(goalType: GoalType): string {
     const colors: Record<GoalType, string> = {
       [GoalType.DISTANCE]: '#10b981',
