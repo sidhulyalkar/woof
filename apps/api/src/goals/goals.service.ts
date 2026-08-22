@@ -30,7 +30,7 @@ export class GoalsService {
         endDate: new Date(goalData.endDate),
         reminderTime: goalData.reminderTime,
         isRecurring: goalData.isRecurring || false,
-        metadata: goalData.metadata || {},
+        metadata: (goalData.metadata ?? {}) as Prisma.InputJsonValue,
         currentValue: 0,
         progress: 0,
         status: 'ACTIVE',
@@ -102,10 +102,16 @@ export class GoalsService {
 
   async update(userId: string, id: string, updateGoalDto: UpdateGoalDto) {
     await this.findOne(userId, id);
+    const { metadata, ...goalData } = updateGoalDto;
 
     return this.prisma.mutualGoal.update({
       where: { id },
-      data: updateGoalDto,
+      data: {
+        ...goalData,
+        ...(metadata !== undefined
+          ? { metadata: metadata as Prisma.InputJsonValue }
+          : {}),
+      },
       include: {
         pet: {
           select: {
