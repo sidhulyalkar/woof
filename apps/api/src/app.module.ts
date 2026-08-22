@@ -20,6 +20,7 @@ import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { GoalsModule } from './goals/goals.module';
 import { HealthLensModule } from './health-lens/health-lens.module';
+import { HouseholdsModule } from './households/households.module';
 import { InsightsModule } from './insights/insights.module';
 import { MediaLibraryModule } from './media-library/media-library.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
@@ -62,6 +63,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     AuthModule,
     UsersModule,
     PetsModule,
+    HouseholdsModule,
     ActivitiesModule,
     AdventureModule,
     SocialModule,
