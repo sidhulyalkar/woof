@@ -49,14 +49,19 @@ jobs:
           apps/api/jest.config.js
           apps/api/test/jest-e2e.json
           apps/api/test/auth.e2e-spec.ts
+          apps/api/src/auth/auth.controller.ts
           apps/api/src/behavior-vision
           apps/api/src/coaching
           apps/api/src/compatibility/compatibility.types.ts
           apps/api/src/ml/ml.service.ts
           apps/api/src/ml/ml.service.spec.ts
+          apps/web/.eslintrc.js
           apps/web/package.json
           apps/web/vitest.config.ts
           apps/web/playwright.config.ts
+          apps/web/src/middleware.ts
+          apps/web/src/lib/security/csp.ts
+          apps/web/src/lib/security/csp.test.ts
           apps/web/src/lib/api-client.ts
           apps/web/src/lib/api/behavior-vision.ts
           apps/web/src/lib/api/coaching.ts
