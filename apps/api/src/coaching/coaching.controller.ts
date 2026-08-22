@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
@@ -12,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CareEventsService } from '../care-events/care-events.service';
 import { CoachingService } from './coaching.service';
 import {
   CreateTrainingPlanDto,
@@ -24,7 +26,12 @@ import {
 @UseGuards(JwtAuthGuard)
 @Controller('coaching')
 export class CoachingController {
-  constructor(private readonly coachingService: CoachingService) {}
+  private readonly logger = new Logger(CoachingController.name);
+
+  constructor(
+    private readonly coachingService: CoachingService,
+    private readonly careEvents: CareEventsService
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'Get the current reward-based coaching plan and practice context' })
@@ -50,11 +57,51 @@ export class CoachingController {
 
   @Post('plans/:planId/sessions')
   @ApiOperation({ summary: 'Record an observable practice session and adapt the next difficulty' })
-  recordSession(
+  async recordSession(
     @Request() req: AuthenticatedRequest,
     @Param('planId') planId: string,
     @Body() dto: RecordTrainingSessionDto
   ) {
-    return this.coachingService.recordSession(req.user.sub, planId, dto);
+    const result = await this.coachingService.recordSession(req.user.sub, planId, dto);
+    const petId = result.plan?.petId;
+
+    if (petId) {
+      const concernSignals = dto.stressSignals ?? [];
+      const listenedAndStopped = Boolean(dto.stoppedEarly && concernSignals.length > 0);
+
+      try {
+        await this.careEvents.record({
+          userId: req.user.sub,
+          petId,
+          eventType: listenedAndStopped ? 'SAFE_OPT_OUT' : 'TRAINING_SESSION',
+          pathway: listenedAndStopped ? 'BOND' : 'LEARN',
+          source: 'WOOF_COACH',
+          evidenceType: 'COACH',
+          evidenceConfidence: 0.86,
+          dedupeKey: `coach:${result.activityId}`,
+          safetyEligible: listenedAndStopped || concernSignals.length === 0,
+          context: {
+            planId,
+            activityId: result.activityId,
+            attempts: dto.attempts,
+            successes: dto.successes,
+            durationSeconds: dto.durationSeconds,
+          },
+          outcome: {
+            stressSignals: concernSignals,
+            stoppedEarly: dto.stoppedEarly ?? false,
+            safeOptOut: listenedAndStopped,
+          },
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Coach session ${result.activityId} was saved, but Adventure reward emission failed: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`
+        );
+      }
+    }
+
+    return result;
   }
 }

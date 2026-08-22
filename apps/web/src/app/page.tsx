@@ -2,424 +2,463 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
   Brain,
-  CalendarHeart,
-  Compass,
+  Check,
   Footprints,
+  Heart,
   HeartHandshake,
   Loader2,
   MoonStar,
   PawPrint,
+  ShieldCheck,
   Sparkles,
-  Target,
+  TreePine,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
-import { FullScreenPostView } from '@/components/feed/full-screen-post-view';
-import { PostCard } from '@/components/feed/post-card';
-import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { Button } from '@/components/ui/button';
-import {
-  type InsightRecommendation,
-  insightsApi,
-} from '@/lib/api/insights';
-import { webSocialApi } from '@/lib/api/social';
+import { Progress } from '@/components/ui/progress';
+import { adventureApi, type AdventureQuest, type WellbeingPathway } from '@/lib/api/adventure';
 
-const fallbackActions = [
-  {
-    href: '/discover',
-    label: 'Find a match',
-    description: 'Compatibility-first discovery',
-    icon: Compass,
-  },
-  {
-    href: '/events',
-    label: 'Plan a meetup',
-    description: 'Choose a comfortable shared setting',
-    icon: CalendarHeart,
-  },
-  {
-    href: '/activity',
-    label: 'Log activity',
-    description: 'Teach Woof about your shared routine',
-    icon: Footprints,
-  },
-  {
-    href: '/profile',
-    label: 'Update preferences',
-    description: 'Tell Woof what you are noticing',
-    icon: Brain,
-  },
+const pathwayIcons: Record<WellbeingPathway, typeof PawPrint> = {
+  MOVE: Footprints,
+  EXPLORE: TreePine,
+  ENRICH: Sparkles,
+  LEARN: Brain,
+  CONNECT: HeartHandshake,
+  CARE: ShieldCheck,
+  RECOVER: MoonStar,
+  BOND: Heart,
+};
+
+const dogChoices = [
+  { value: 'loved_it' as const, emoji: '😄', label: 'Loved it' },
+  { value: 'comfortable' as const, emoji: '😌', label: 'Comfortable' },
+  { value: 'not_their_thing' as const, emoji: '😕', label: 'Not their thing' },
 ];
 
-const recommendationIcons = {
-  activity: Footprints,
-  enrichment: Sparkles,
-  social: HeartHandshake,
-  recovery: MoonStar,
-  reflection: Brain,
-  goal: Target,
-} satisfies Record<InsightRecommendation['category'], typeof Footprints>;
+const ownerChoices = [
+  { value: 'great' as const, emoji: '✨', label: 'Great' },
+  { value: 'fine' as const, emoji: '🙂', label: 'Fine' },
+  { value: 'a_lot_today' as const, emoji: '😮‍💨', label: 'A lot today' },
+];
 
 export default function HomePage() {
   const queryClient = useQueryClient();
-  const [fullScreenIndex, setFullScreenIndex] = useState<number | null>(null);
+  const router = useRouter();
+  const [closingQuest, setClosingQuest] = useState<AdventureQuest | null>(null);
+  const [startingQuestId, setStartingQuestId] = useState<string | null>(null);
+  const [dogExperience, setDogExperience] = useState<
+    'loved_it' | 'comfortable' | 'not_their_thing' | null
+  >(null);
+  const [safeOptOut, setSafeOptOut] = useState(false);
+  const [completionMessage, setCompletionMessage] = useState<string | null>(null);
 
-  const {
-    data: insights,
-    isLoading: insightsLoading,
-    error: insightsError,
-  } = useQuery({
-    queryKey: ['insights', 'me'],
-    queryFn: () => insightsApi.getMine(),
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['adventure', 'me'],
+    queryFn: () => adventureApi.getMine(),
     retry: false,
   });
 
-  const {
-    data: posts = [],
-    isLoading: feedLoading,
-    error: feedError,
-  } = useQuery({
-    queryKey: ['feed'],
-    queryFn: webSocialApi.getFeed,
-  });
-
-  const likeMutation = useMutation({
-    mutationFn: ({ postId, isLiked }: { postId: string; isLiked: boolean }) =>
-      isLiked ? webSocialApi.unlikePost(postId) : webSocialApi.likePost(postId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
+  const completeMutation = useMutation({
+    mutationFn: ({
+      quest,
+      ownerExperience,
+    }: {
+      quest: AdventureQuest;
+      ownerExperience: 'great' | 'fine' | 'a_lot_today';
+    }) => {
+      if (!data || !dogExperience) throw new Error('Outcome is incomplete');
+      return adventureApi.completeQuest(quest.id, {
+        petId: data.pet.id,
+        dogExperience,
+        ownerExperience,
+        safeOptOut,
+      });
+    },
+    onSuccess: async (result) => {
+      const rewardCopy = result.reward.duplicate
+        ? 'Already saved. No extra Bond XP was issued.'
+        : result.reward.bondXp > 0
+          ? `+${result.reward.bondXp} Bond XP`
+          : '';
+      setCompletionMessage(`${result.message} ${rewardCopy}`.trim());
+      await queryClient.invalidateQueries({ queryKey: ['adventure', 'me'] });
     },
   });
 
-  const handleLike = (postId: string) => {
-    const post = posts.find((candidate) => candidate.id === postId);
-    if (!post) return;
-    likeMutation.mutate({ postId, isLiked: post.isLiked });
+  const startQuest = async (quest: AdventureQuest) => {
+    if (!data || startingQuestId) return;
+
+    setStartingQuestId(quest.id);
+    try {
+      await adventureApi.selectQuest(quest.id, data.pet.id);
+    } finally {
+      // Selection persistence improves continuity, but a transient analytics/network
+      // failure must never trap the user on Today instead of letting them do the activity.
+      setStartingQuestId(null);
+      router.push(quest.href);
+    }
   };
 
-  const handleRecommendationAccepted = (recommendation: InsightRecommendation) => {
-    if (!insights) return;
-    void insightsApi.feedback(insights.pet.id, recommendation, 'accepted');
+  const closeOutcome = () => {
+    setClosingQuest(null);
+    setDogExperience(null);
+    setSafeOptOut(false);
+    setCompletionMessage(null);
+    completeMutation.reset();
+  };
+
+  const openCompletion = (quest: AdventureQuest, optOut = false) => {
+    setClosingQuest(quest);
+    setCompletionMessage(null);
+    setSafeOptOut(optOut);
+    setDogExperience(optOut ? 'not_their_thing' : null);
   };
 
   return (
     <div className="min-h-screen pb-24">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/88 backdrop-blur-2xl">
         <div className="mx-auto flex h-16 max-w-xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex min-h-0 min-w-0 items-center gap-3"
-            aria-label="Woof home"
-          >
+          <Link href="/" className="flex items-center gap-3" aria-label="Woof Today">
             <span className="brand-mark flex h-9 w-9 items-center justify-center rounded-xl">
-              <PawPrint
-                className="h-5 w-5 text-primary-foreground"
-                aria-hidden="true"
-              />
+              <PawPrint className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
             </span>
             <span>
               <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Learn together
+                Dog + human
               </span>
-              <span className="block text-lg font-bold tracking-tight">Woof</span>
+              <span className="block text-lg font-bold tracking-tight">Woof Adventure</span>
             </span>
           </Link>
-
-          <Button variant="ghost" size="icon" asChild className="relative rounded-xl">
-            <Link href="/notifications" aria-label="Open notifications">
-              <Bell className="h-5 w-5" aria-hidden="true" />
-            </Link>
-          </Button>
+          {data && (
+            <div className="rounded-2xl border border-border/60 bg-card/70 px-3 py-1.5 text-right">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Bond XP
+              </p>
+              <p className="text-base font-bold text-primary">{data.bondXp}</p>
+            </div>
+          )}
         </div>
       </header>
 
-      <main id="main-content" className="mx-auto max-w-xl px-4 pb-6 pt-5">
-        <section aria-labelledby="today-heading" className="animate-in">
-          <div className="rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.09] via-card/80 to-secondary/[0.07] p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="eyebrow">Today&apos;s learning loop</p>
-                <h1
-                  id="today-heading"
-                  className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl"
-                >
-                  {insights
-                    ? `What might help ${insights.pet.name} today?`
-                    : 'What does your pet need today?'}
-                </h1>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                  Woof combines the routines you record, the preferences you share, and
-                  outcomes from real experiences to suggest useful next steps without
-                  pretending certainty.
-                </p>
-              </div>
-              {insights && (
-                <div className="shrink-0 rounded-2xl border border-border/60 bg-background/60 px-3 py-2 text-right">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Context confidence
-                  </p>
-                  <p className="mt-0.5 text-lg font-bold text-primary">
-                    {Math.round(insights.algorithm.confidence * 100)}%
-                  </p>
-                </div>
-              )}
+      <main id="main-content" className="mx-auto max-w-xl px-4 pb-8 pt-5">
+        {isLoading ? (
+          <div className="flex min-h-[60vh] items-center justify-center" role="status">
+            <div className="text-center">
+              <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" aria-hidden="true" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Building today&apos;s quest deck…
+              </p>
             </div>
           </div>
+        ) : error || !data ? (
+          <section className="surface-soft rounded-3xl p-6 text-center">
+            <PawPrint className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
+            <h1 className="mt-3 text-xl font-bold">Adventure mode is unavailable</h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Adventure may be paused or temporarily unavailable. Your existing Coach, Health,
+              Library, and social tools are still available.
+            </p>
+            <Button
+              className="mt-5"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['adventure'] })}
+            >
+              Try again
+            </Button>
+          </section>
+        ) : (
+          <>
+            <section className="rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.11] via-card/90 to-secondary/[0.08] p-5 shadow-sm">
+              <p className="eyebrow">Today&apos;s party quest</p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight">
+                {data.pet.name} has {data.quests.length} adventures available.
+              </h1>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+                Woof recommends. You choose. Rest, changing your mind, or listening when your dog
+                says “not today” can all be the right play.
+              </p>
 
-          <div className="mt-4">
-            {insightsLoading ? (
-              <div
-                className="surface-soft flex min-h-40 items-center justify-center rounded-2xl"
-                role="status"
-              >
-                <div className="text-center">
-                  <Loader2
-                    className="mx-auto h-6 w-6 animate-spin text-primary"
-                    aria-hidden="true"
+              <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border/60 bg-background/55 p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Heart className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold">{data.rhythm.label}</p>
+                    <span className="text-xs font-semibold text-primary">
+                      {data.rhythm.activeWeeks}/{data.rhythm.windowWeeks} weeks
+                    </span>
+                  </div>
+                  <Progress
+                    className="mt-2 h-1.5"
+                    value={(data.rhythm.activeWeeks / data.rhythm.windowWeeks) * 100}
                   />
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Reading the recent routine…
-                  </p>
                 </div>
               </div>
-            ) : insights && insights.recommendations.length > 0 ? (
-              <div className="space-y-3">
-                {insights.recommendations.slice(0, 3).map((recommendation, index) => {
-                  const Icon = recommendationIcons[recommendation.category];
-                  return (
-                    <Link
-                      key={recommendation.id}
-                      href={recommendation.href}
-                      onClick={() => handleRecommendationAccepted(recommendation)}
-                      className="group surface-soft flex gap-4 rounded-2xl p-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.045]"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            </section>
+
+            <section className="mt-5 space-y-3" aria-label="Today's quests">
+              {data.quests.map((quest, index) => {
+                const Icon = pathwayIcons[quest.primaryPathway];
+                return (
+                  <article
+                    key={quest.id}
+                    className={`surface-soft rounded-3xl p-5 ${index === 0 ? 'border-primary/30 bg-primary/[0.035]' : ''}`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                              {index === 0 ? 'Best next step' : recommendation.category}
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                              {index === 0
+                                ? 'Best quest'
+                                : quest.variant === 'wildcard'
+                                  ? 'Wildcard'
+                                  : 'Alternative'}{' '}
+                              · {quest.primaryPathway.toLowerCase()}
                             </p>
-                            <h2 className="mt-1 font-semibold tracking-tight">
-                              {recommendation.title}
-                            </h2>
+                            <h2 className="mt-1 text-lg font-bold tracking-tight">{quest.title}</h2>
                           </div>
-                          <span className="shrink-0 text-xs font-semibold text-primary">
-                            {Math.round(recommendation.confidence * 100)}% context
+                          <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                            Base {quest.xp} XP
                           </span>
                         </div>
-                        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                          {recommendation.reason}
+                        <p className="mt-2 text-sm leading-relaxed">{quest.description}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                          {quest.why}
                         </p>
-                        <span className="mt-3 inline-flex text-sm font-semibold text-primary group-hover:text-primary/80">
-                          {recommendation.actionLabel} →
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {fallbackActions.map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <Link
-                      key={action.href}
-                      href={action.href}
-                      className="group surface-soft flex min-h-[122px] flex-col justify-between rounded-2xl p-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.045]"
-                    >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:-translate-y-0.5">
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <span className="mt-5">
-                        <span className="block text-sm font-semibold">{action.label}</span>
-                        <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                          {action.description}
-                        </span>
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
-          {insights && (
-            <div className="mt-6">
-              <div className="mb-3 flex items-end justify-between gap-4">
+                        <div className="mt-4 flex flex-wrap gap-1.5">
+                          {quest.pathways.map((pathway) => (
+                            <span
+                              key={pathway}
+                              className="rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                            >
+                              {pathway}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            disabled={startingQuestId !== null}
+                            onClick={() => void startQuest(quest)}
+                          >
+                            {startingQuestId === quest.id && (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                            )}
+                            {quest.actionLabel}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-transparent"
+                            onClick={() => openCompletion(quest)}
+                          >
+                            <Check className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                            Close the loop
+                          </Button>
+                          {quest.safeStopEligible && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openCompletion(quest, true)}
+                            >
+                              I listened and stopped
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+
+            <section className="mt-7">
+              <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="eyebrow">What Woof is learning</p>
+                  <p className="eyebrow">Pawprint Compass</p>
                   <h2 className="mt-1 text-xl font-bold tracking-tight">
-                    Your relationship, in signals
+                    Recent opportunities, not a score
                   </h2>
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  Not a medical or bond score
-                </span>
+                <Link href="/compass" className="text-sm font-semibold text-primary">
+                  Full compass →
+                </Link>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {insights.relationshipSignals.map((signal) => (
-                  <div key={signal.key} className="surface-soft rounded-2xl p-4">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold">{signal.label}</p>
-                      <span className="text-sm font-bold text-primary">{signal.value}</span>
-                    </div>
-                    <div
-                      className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
-                      aria-hidden="true"
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${signal.value}%` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      {signal.explanation}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {insights.learningSummary.length > 0 && (
-                <div className="mt-3 rounded-2xl border border-secondary/20 bg-secondary/[0.05] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary-foreground">
-                    Recent observations
-                  </p>
-                  <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-muted-foreground">
-                    {insights.learningSummary.map((observation) => (
-                      <li key={observation} className="flex gap-2">
-                        <span className="text-primary" aria-hidden="true">
-                          •
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {data.compass.slice(0, 4).map((item) => {
+                  const Icon = pathwayIcons[item.pathway];
+                  return (
+                    <div key={item.pathway} className="surface-soft rounded-2xl p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 text-sm font-semibold">
+                          <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                          {item.label}
                         </span>
-                        <span>{observation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+                        <span className="text-xs font-bold text-primary">{item.recentDays}d</span>
+                      </div>
+                      <Progress className="mt-3 h-1.5" value={item.coverage} />
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {item.xp} pathway XP · 28-day window
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
-          {insightsError && !insights && (
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Personalized guidance is unavailable right now, so Woof is showing the
-              core actions instead. Your feed and account still work normally.
+            {data.learningSummary.length > 0 && (
+              <section className="mt-6 rounded-3xl border border-secondary/20 bg-secondary/[0.05] p-5">
+                <p className="eyebrow">What Woof is learning</p>
+                <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
+                  {data.learningSummary.slice(0, 3).map((line) => (
+                    <li key={line} className="flex gap-2">
+                      <Sparkles
+                        className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                        aria-hidden="true"
+                      />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
+              {data.disclaimer}
             </p>
-          )}
-        </section>
+          </>
+        )}
+      </main>
 
-        <section aria-labelledby="feed-heading" className="mt-8">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="eyebrow">Community, not the finish line</p>
-              <h2 id="feed-heading" className="mt-1 text-xl font-bold tracking-tight">
-                Learn from your pack
-              </h2>
-            </div>
-            <Link
-              href="/discover"
-              className="flex min-h-0 min-w-0 items-center gap-1 text-sm font-semibold text-primary hover:text-primary/80"
-            >
-              Discover
-              <span aria-hidden="true">→</span>
-            </Link>
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/55">
-            {feedLoading ? (
-              <div
-                className="flex min-h-52 flex-col items-center justify-center gap-3 px-5 py-12"
-                role="status"
+      {closingQuest && data && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 p-3 backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Quest outcome"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="eyebrow">Five-second learning loop</p>
+                <h2 className="mt-1 text-xl font-bold">{closingQuest.title}</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeOutcome}
+                aria-label="Close outcome flow"
               >
-                <Loader2
-                  className="h-7 w-7 animate-spin text-primary"
-                  aria-hidden="true"
-                />
-                <p className="text-sm text-muted-foreground">
-                  Gathering the latest from your pack…
-                </p>
-              </div>
-            ) : feedError ? (
-              <div className="flex min-h-52 flex-col items-center justify-center px-6 py-12 text-center">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-                  <PawPrint className="h-5 w-5" aria-hidden="true" />
+                <X className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </div>
+
+            {completionMessage ? (
+              <div className="mt-5 rounded-2xl bg-primary/10 p-5 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                  <PawPrint className="h-6 w-6" aria-hidden="true" />
                 </div>
-                <h3 className="font-semibold">The feed could not load</h3>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                  Your relationship-learning tools still work. Try the community feed
-                  again when the connection settles.
+                <p className="mt-3 font-semibold leading-relaxed">{completionMessage}</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  The result now informs future quest ranking for this dog-owner pair.
                 </p>
-                <Button
-                  variant="outline"
-                  className="mt-5 bg-transparent"
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['feed'] })}
-                >
-                  Try again
-                </Button>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="flex min-h-56 flex-col items-center justify-center px-6 py-12 text-center">
-                <div className="brand-mark mb-4 flex h-12 w-12 items-center justify-center rounded-2xl">
-                  <PawPrint
-                    className="h-6 w-6 text-primary-foreground"
-                    aria-hidden="true"
-                  />
-                </div>
-                <h3 className="text-base font-semibold">Your pack is quiet for now</h3>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                  Share a meaningful walk, play session, lesson, or park moment when
-                  there is something worth remembering.
-                </p>
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button asChild>
-                    <Link href="/discover">Find matches</Link>
-                  </Button>
+                <div className="mt-4 flex justify-center gap-2">
+                  <Button onClick={closeOutcome}>Done</Button>
                   <Button variant="outline" asChild className="bg-transparent">
-                    <Link href="/camera">Create a post</Link>
+                    <Link href="/library">Add a memory</Link>
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
-                {posts.map((post, index) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onLike={handleLike}
-                    onMediaClick={
-                      post.mediaUrl ? () => setFullScreenIndex(index) : undefined
-                    }
-                  />
-                ))}
-              </div>
+              <>
+                {safeOptOut ? (
+                  <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/[0.05] p-4">
+                    <p className="font-semibold text-primary">You listened.</p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      Woof will treat giving space or ending the interaction as successful dog
+                      literacy.
+                    </p>
+                  </div>
+                ) : !dogExperience ? (
+                  <div className="mt-5">
+                    <p className="text-sm font-semibold">How was it for {data.pet.name}?</p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {dogChoices.map((choice) => (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          onClick={() => setDogExperience(choice.value)}
+                          className="rounded-2xl border border-border bg-background/55 p-3 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.05]"
+                        >
+                          <span className="block text-2xl" aria-hidden="true">
+                            {choice.emoji}
+                          </span>
+                          <span className="mt-1 block text-xs font-semibold">{choice.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {(dogExperience || safeOptOut) && (
+                  <div className="mt-5">
+                    <p className="text-sm font-semibold">How was it for you?</p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {ownerChoices.map((choice) => (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          disabled={completeMutation.isPending}
+                          onClick={() =>
+                            completeMutation.mutate({
+                              quest: closingQuest,
+                              ownerExperience: choice.value,
+                            })
+                          }
+                          className="rounded-2xl border border-border bg-background/55 p-3 text-center transition-colors hover:border-primary/40 hover:bg-primary/[0.05] disabled:opacity-50"
+                        >
+                          <span className="block text-2xl" aria-hidden="true">
+                            {choice.emoji}
+                          </span>
+                          <span className="mt-1 block text-xs font-semibold">{choice.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {completeMutation.isPending && (
+                  <div
+                    className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+                    role="status"
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Learning from the outcome…
+                  </div>
+                )}
+                {completeMutation.isError && (
+                  <p className="mt-4 text-center text-sm text-destructive">
+                    That outcome could not be saved. Nothing was lost from your existing history.
+                  </p>
+                )}
+              </>
             )}
           </div>
-        </section>
-      </main>
-
-      {fullScreenIndex !== null && (
-        <FullScreenPostView
-          posts={posts.filter((post) => Boolean(post.mediaUrl))}
-          initialIndex={Math.max(
-            0,
-            posts
-              .slice(0, fullScreenIndex)
-              .filter((post) => Boolean(post.mediaUrl)).length,
-          )}
-          onClose={() => setFullScreenIndex(null)}
-          onLike={handleLike}
-        />
+        </div>
       )}
 
       <BottomNav />
-      <PWAInstallPrompt />
     </div>
   );
 }

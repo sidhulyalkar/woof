@@ -4,6 +4,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   API_PREFIX: z.string().default('api/v1'),
+  API_DOCS_ENABLED: z.enum(['true', 'false']).default('false'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   SHADOW_DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
@@ -16,6 +17,7 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PUBLIC_URL: z.string().optional(),
   AWS_REGION: z.string().optional(),
+  ENABLE_ADVENTURE_SYSTEM: z.enum(['true', 'false']).optional(),
   MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -64,7 +66,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
     const knownDevelopmentSecret = /^(dev-|change-this|your-)/i;
     if (env.JWT_SECRET.length < 32 || knownDevelopmentSecret.test(env.JWT_SECRET)) {
       throw new Error(
-        'JWT_SECRET must be a non-development secret of at least 32 characters in production',
+        'JWT_SECRET must be a non-development secret of at least 32 characters in production'
       );
     }
 
@@ -74,7 +76,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
     if (env.BEHAVIOR_VISION_SERVICE_URL && !env.BEHAVIOR_VISION_SERVICE_TOKEN) {
       throw new Error(
-        'BEHAVIOR_VISION_SERVICE_TOKEN is required when the behavior vision service is enabled in production',
+        'BEHAVIOR_VISION_SERVICE_TOKEN is required when the behavior vision service is enabled in production'
       );
     }
 
@@ -88,7 +90,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
       !(env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY && env.S3_BUCKET)
     ) {
       throw new Error(
-        'Private object storage must be configured when MEDIA_DERIVATIVES_ENABLED=true',
+        'Private object storage must be configured when MEDIA_DERIVATIVES_ENABLED=true'
       );
     }
   }
