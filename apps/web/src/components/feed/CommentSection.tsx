@@ -28,7 +28,6 @@ interface CommentSectionProps {
 }
 
 export function CommentSection({
-  postId,
   comments,
   isLoading,
   onAddComment,

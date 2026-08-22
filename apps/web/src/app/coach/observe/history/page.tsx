@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Camera, Film, Loader2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
 import { behaviorVisionApi } from '@/lib/api/behavior-vision';
@@ -11,7 +11,7 @@ import { useSessionStore } from '@/store/session';
 
 export default function BehaviorHistoryPage() {
   const user = useSessionStore((state) => state.user);
-  const pets = user?.pets ?? [];
+  const pets = useMemo(() => user?.pets ?? [], [user?.pets]);
   const [petId, setPetId] = useState(pets[0]?.id ?? '');
   const queryClient = useQueryClient();
 

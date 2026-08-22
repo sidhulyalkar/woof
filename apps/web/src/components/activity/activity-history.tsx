@@ -33,7 +33,7 @@ export function ActivityHistory({ activities }: ActivityHistoryProps) {
           <MapPin className="w-8 h-8 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-semibold mb-2">No activities yet</h3>
-        <p className="text-sm text-muted-foreground">Start tracking your pet's activities!</p>
+        <p className="text-sm text-muted-foreground">Start tracking your pet&apos;s activities!</p>
       </div>
     )
   }

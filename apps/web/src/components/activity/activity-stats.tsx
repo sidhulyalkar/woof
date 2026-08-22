@@ -138,7 +138,7 @@ export function ActivityStats({ totalDistance, totalDuration, totalWalks }: Acti
           <Card className="glass p-4">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
-              <h3 className="font-semibold">This Week's Activity</h3>
+              <h3 className="font-semibold">This Week&apos;s Activity</h3>
             </div>
             <ChartContainer
               config={{

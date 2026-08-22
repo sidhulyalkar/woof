@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, X, Loader2 } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
+import { AppImage } from '@/components/ui/app-image';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { useUIStore } from '@/store/ui';
@@ -52,7 +53,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
       await createCommentMutation.mutateAsync({ postId: params.id, text: comment.trim() });
       setComment('');
       showToast({ message: 'Comment posted!', type: 'success' });
-    } catch (error) {
+    } catch {
       showToast({ message: 'Failed to post comment', type: 'error' });
     }
   };
@@ -117,9 +118,11 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
       {/* Image Container */}
       <div className="relative w-full h-screen flex items-center justify-center bg-black">
         {post.images && post.images.length > 0 && (
-          <img
+          <AppImage
             src={post.images[0]}
             alt="Post"
+            width={1600}
+            height={1200}
             className="max-h-full max-w-full object-contain"
           />
         )}

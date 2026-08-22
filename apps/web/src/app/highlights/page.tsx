@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { X, Volume2, VolumeX, MoreVertical, Heart, MessageCircle, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AppImage } from "@/components/ui/app-image"
 import { Progress } from "@/components/ui/progress"
 import type { Highlight } from "@/lib/types"
 
@@ -11,7 +12,6 @@ export default function HighlightsPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [progress, setProgress] = useState(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
 
   // Mock highlights data
   const highlights: Highlight[] = [
@@ -146,9 +146,11 @@ export default function HighlightsPage() {
 
         {/* Video placeholder */}
         <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/20">
-          <img
+          <AppImage
             src={currentHighlight.thumbnail || "/placeholder.svg"}
             alt={currentHighlight.caption || "Highlight"}
+            width={1200}
+            height={1600}
             className="h-full w-full object-cover"
           />
         </div>

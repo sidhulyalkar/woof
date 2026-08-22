@@ -45,8 +45,9 @@ export default function MapPage() {
     },
   ]
 
-  const filteredMarkers =
-    filter === "all" ? markers : markers.filter((m) => m.type === (filter.replace("s", "") as any))
+  const markerType: MapMarker["type"] | null =
+    filter === "pets" ? "pet" : filter === "events" ? "event" : filter === "services" ? "service" : null
+  const filteredMarkers = markerType ? markers.filter((marker) => marker.type === markerType) : markers
 
   const getMarkerIcon = (type: MapMarker["type"]) => {
     switch (type) {

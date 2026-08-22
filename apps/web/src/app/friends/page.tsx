@@ -182,7 +182,7 @@ export default function FriendsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold">{request.fromUserName}</p>
                     <p className="text-sm text-muted-foreground">with {request.fromPetName}</p>
-                    {request.message && <p className="mt-2 text-sm text-muted-foreground">"{request.message}"</p>}
+                    {request.message && <p className="mt-2 text-sm text-muted-foreground">&ldquo;{request.message}&rdquo;</p>}
                   </div>
                 </div>
 
