@@ -262,7 +262,7 @@ export class StoryService {
       .filter((moment) => moment.curation.state !== 'HIDDEN')
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
     const moments = combined.slice(0, limit);
-    const nextBefore = combined.length > limit ? moments.at(-1)?.occurredAt ?? null : null;
+    const nextBefore = combined.length > limit ? (moments.at(-1)?.occurredAt ?? null) : null;
 
     return {
       moments,
@@ -273,7 +273,7 @@ export class StoryService {
         'Source records stay authoritative; Story stores only presentation and curation state.',
         'Private care context stays private unless its source explicitly permits household visibility.',
         'Wearable summaries are context, never diagnoses or Bond XP.',
-        'Suggestions are optional. Saving, hiding, and notes remain user-controlled.',
+        'Suggestions are optional. Saving, notes, and unsaving remain user-controlled.',
       ],
     };
   }
@@ -309,7 +309,7 @@ export class StoryService {
         schemaVersion: 'dogos-story-curation-v1',
         sourceType: dto.sourceType,
         sourceId: dto.sourceId,
-        state: dto.action === 'SAVE' ? 'SAVED' : 'HIDDEN',
+        state: 'SAVED',
         ...(dto.note?.trim() ? { note: dto.note.trim() } : {}),
         updatedAt: new Date().toISOString(),
       };
@@ -452,7 +452,10 @@ export class StoryService {
           (activity.endedAt.getTime() - activity.startedAt.getTime()) / 60000
         );
       }
-      while (hourIndex < hourThresholds.length && runningMinutes >= hourThresholds[hourIndex] * 60) {
+      while (
+        hourIndex < hourThresholds.length &&
+        runningMinutes >= hourThresholds[hourIndex] * 60
+      ) {
         const hours = hourThresholds[hourIndex];
         milestones.push({
           id: `${hours}-hours`,
@@ -504,7 +507,9 @@ export class StoryService {
       readString(object.placeId) ?? readString(object.placeName) ?? readString(object.venueName);
     if (direct) return direct;
     const start = jsonObject(object.start);
-    return readString(start?.placeId) ?? readString(start?.name) ?? readString(start?.address) ?? null;
+    return (
+      readString(start?.placeId) ?? readString(start?.name) ?? readString(start?.address) ?? null
+    );
   }
 
   private async accessiblePetIds(userId: string) {
@@ -563,10 +568,7 @@ export class StoryService {
       ...(petId ? { petId } : {}),
       ...(before
         ? {
-            OR: [
-              { capturedAt: { lt: before } },
-              { capturedAt: null, createdAt: { lt: before } },
-            ],
+            OR: [{ capturedAt: { lt: before } }, { capturedAt: null, createdAt: { lt: before } }],
           }
         : {}),
     } satisfies Prisma.MediaAssetWhereInput;
