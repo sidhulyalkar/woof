@@ -1,9 +1,13 @@
 import path from 'path';
-import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [react()],
+  // Vitest only needs JSX transformation here. Avoid loading @vitejs/plugin-react,
+  // whose transitive Vite major currently differs from Vitest's Vite version.
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
   test: {
     environment: 'jsdom',
     globals: true,

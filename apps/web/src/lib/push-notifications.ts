@@ -9,20 +9,10 @@ interface PushSubscriptionResponse {
   error?: string;
 }
 
-/**
- * Check if push notifications are supported
- */
 export function isPushSupported(): boolean {
-  return (
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  );
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
-/**
- * Request notification permission from user
- */
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   if (!('Notification' in window)) {
     return 'denied';
@@ -31,36 +21,28 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return await Notification.requestPermission();
 }
 
-/**
- * Subscribe to push notifications
- */
 export async function subscribeToPushNotifications(): Promise<PushSubscriptionResponse> {
   if (!isPushSupported()) {
     return {
       success: false,
-      error: 'Push notifications not supported in this browser'
+      error: 'Push notifications not supported in this browser',
     };
   }
 
   try {
-    // Request permission first
     const permission = await requestNotificationPermission();
 
     if (permission !== 'granted') {
       return {
         success: false,
-        error: 'Notification permission denied'
+        error: 'Notification permission denied',
       };
     }
 
-    // Get service worker registration
     const registration = await navigator.serviceWorker.ready;
-
-    // Check if already subscribed
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
-      // Subscribe to push
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
       if (!vapidPublicKey) {
@@ -69,18 +51,17 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionRe
 
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        applicationServerKey: urlBase64ToArrayBuffer(vapidPublicKey),
       });
     }
 
-    // Send subscription to backend
     const response = await fetch('/api/notifications/subscribe', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify(subscription)
+      body: JSON.stringify(subscription),
     });
 
     if (!response.ok) {
@@ -89,20 +70,17 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionRe
 
     return {
       success: true,
-      subscription
+      subscription,
     };
   } catch (error) {
     console.error('Failed to subscribe to push notifications:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
 
-/**
- * Unsubscribe from push notifications
- */
 export async function unsubscribeFromPushNotifications(): Promise<boolean> {
   if (!isPushSupported()) {
     return false;
@@ -113,17 +91,15 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      // Unsubscribe from push
       await subscription.unsubscribe();
 
-      // Notify backend
       await fetch('/api/notifications/unsubscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ endpoint: subscription.endpoint })
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
       });
 
       return true;
@@ -136,9 +112,6 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
   }
 }
 
-/**
- * Check if user is currently subscribed to push
- */
 export async function isPushSubscribed(): Promise<boolean> {
   if (!isPushSupported()) {
     return false;
@@ -154,21 +127,15 @@ export async function isPushSubscribed(): Promise<boolean> {
   }
 }
 
-/**
- * Convert VAPID key from base64 to Uint8Array
- */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/');
-
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
   const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
+  const output = new Uint8Array(rawData.length);
 
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
+  for (let index = 0; index < rawData.length; index += 1) {
+    output[index] = rawData.charCodeAt(index);
   }
 
-  return outputArray;
+  return output.buffer;
 }
