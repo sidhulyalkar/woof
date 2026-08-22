@@ -9,25 +9,17 @@ type UnwrappedAxiosInstance = Omit<
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
   head<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
   options<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
-  post<T = unknown, D = unknown>(
-    url: string,
-    data?: D,
-    config?: AxiosRequestConfig<D>,
-  ): Promise<T>;
-  put<T = unknown, D = unknown>(
-    url: string,
-    data?: D,
-    config?: AxiosRequestConfig<D>,
-  ): Promise<T>;
+  post<T = unknown, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<T>;
+  put<T = unknown, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<T>;
   patch<T = unknown, D = unknown>(
     url: string,
     data?: D,
-    config?: AxiosRequestConfig<D>,
+    config?: AxiosRequestConfig<D>
   ): Promise<T>;
   upload<T = unknown>(
     url: string,
     data: FormData,
-    config?: AxiosRequestConfig<FormData>,
+    config?: AxiosRequestConfig<FormData>
   ): Promise<T>;
 };
 
@@ -41,8 +33,7 @@ const axiosClient = axios.create({
 });
 
 axiosClient.interceptors.request.use((config) => {
-  const token =
-    typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -60,7 +51,7 @@ axiosClient.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  },
+  }
 );
 
 export const apiClient = axiosClient as UnwrappedAxiosInstance;
@@ -68,7 +59,7 @@ export const apiClient = axiosClient as UnwrappedAxiosInstance;
 apiClient.upload = <T = unknown>(
   url: string,
   data: FormData,
-  config?: AxiosRequestConfig<FormData>,
+  config?: AxiosRequestConfig<FormData>
 ) =>
   apiClient.post<T, FormData>(url, data, {
     ...config,
