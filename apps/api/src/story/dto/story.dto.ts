@@ -1,4 +1,14 @@
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { STORY_SOURCE_TYPES } from '../story.types';
 
 export class StoryQueryDto {
@@ -24,8 +34,8 @@ export class UpdateStoryCurationDto {
   @IsUUID()
   sourceId!: string;
 
-  @IsIn(['SAVE', 'HIDE', 'CLEAR'])
-  action!: 'SAVE' | 'HIDE' | 'CLEAR';
+  @IsIn(['SAVE', 'CLEAR'])
+  action!: 'SAVE' | 'CLEAR';
 
   @IsOptional()
   @IsString()
