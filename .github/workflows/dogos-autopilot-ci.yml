@@ -9,6 +9,10 @@ on:
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/config/env.validation.ts'
       - 'apps/api/.env.example'
+      - 'apps/web/src/app/autopilot/**'
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/lib/api/autopilot.ts'
+      - 'apps/web/src/lib/api/households.ts'
       - '.github/workflows/dogos-autopilot-ci.yml'
       - 'docs/DOGOS_AUTOPILOT.md'
 
@@ -22,6 +26,7 @@ concurrency:
 env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
 
 jobs:
   qualify:
@@ -78,6 +83,10 @@ jobs:
             apps/api/src/care-events/care-event.types.ts \
             apps/api/src/app.module.ts \
             apps/api/src/config/env.validation.ts \
+            apps/web/src/app/autopilot \
+            apps/web/src/components/bottom-nav.tsx \
+            apps/web/src/lib/api/autopilot.ts \
+            apps/web/src/lib/api/households.ts \
             .github/workflows/dogos-autopilot-ci.yml \
             docs/DOGOS_AUTOPILOT.md
           git diff --exit-code -- \
@@ -85,16 +94,28 @@ jobs:
             apps/api/src/care-events/care-event.types.ts \
             apps/api/src/app.module.ts \
             apps/api/src/config/env.validation.ts \
+            apps/web/src/app/autopilot \
+            apps/web/src/components/bottom-nav.tsx \
+            apps/web/src/lib/api/autopilot.ts \
+            apps/web/src/lib/api/households.ts \
             .github/workflows/dogos-autopilot-ci.yml \
             docs/DOGOS_AUTOPILOT.md
 
-      - name: Lint Autopilot release surface
+      - name: Lint Autopilot API surface
         run: >-
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           'src/autopilot/**/*.ts'
           src/care-events/care-event.types.ts
           src/app.module.ts
           src/config/env.validation.ts
+
+      - name: Lint Autopilot web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/autopilot/page.tsx
+          src/components/bottom-nav.tsx
+          src/lib/api/autopilot.ts
+          src/lib/api/households.ts
 
       - name: Reject direct canonical pet mutations from Autopilot
         run: |
@@ -106,6 +127,9 @@ jobs:
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
 
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
       - name: Run provider privacy contracts
         run: pnpm --filter @woof/api exec jest src/autopilot/provider-adapters.spec.ts --runInBand
 
@@ -115,5 +139,13 @@ jobs:
       - name: Run Adventure reward policy contracts
         run: pnpm --filter @woof/api exec jest src/care-events/reward-policy.spec.ts --runInBand
 
+      - name: Run web contracts
+        run: pnpm --filter @woof/web test
+
       - name: Build API
         run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
