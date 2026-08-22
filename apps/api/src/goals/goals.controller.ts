@@ -11,7 +11,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import type { AuthenticatedRequest } from '../auth/types/authenticated-request';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { GoalsService } from './goals.service';
 import { CreateGoalDto, UpdateGoalDto } from './dto';
 
