@@ -259,7 +259,7 @@ export function useFeed(options?: ManagedQueryOptions<Post[]>) {
     queryKey: queryKeys.feed,
     queryFn: async () => {
       const response = await apiClient.get<BackendPostList>('/social/posts?skip=0&take=20');
-      const posts = Array.isArray(response) ? response : response.posts ?? [];
+      const posts = Array.isArray(response) ? response : (response.posts ?? []);
       return posts.map(transformBackendPost);
     },
     ...options,
