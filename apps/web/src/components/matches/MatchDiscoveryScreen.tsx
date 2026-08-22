@@ -57,12 +57,10 @@ export function MatchDiscoveryScreen() {
         toast.success(`You liked ${currentMatch.pet.name}!`);
       }
 
-      // Move to next match after animation
       setTimeout(() => {
         setSwipeDirection(null);
         setCurrentIndex(prev => prev + 1);
 
-        // Refetch when running low on matches
         if (matches && currentIndex >= matches.length - 2) {
           refetch();
         }
@@ -85,7 +83,7 @@ export function MatchDiscoveryScreen() {
     );
   }
 
-  if (!matches || matches.length === 0 || currentIndex >= matches.length) {
+  if (!matches || matches.length === 0 || !currentMatch) {
     return (
       <div className="h-full flex items-center justify-center p-4">
         <Card className="p-8 text-center max-w-md">
@@ -106,7 +104,6 @@ export function MatchDiscoveryScreen() {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background to-muted/20">
-      {/* Header */}
       <div className="p-4 border-b border-border/20">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div>
@@ -120,7 +117,6 @@ export function MatchDiscoveryScreen() {
         </div>
       </div>
 
-      {/* Match Card */}
       <div className="flex-1 flex items-center justify-center p-4">
         <div
           className={`w-full max-w-2xl transition-all duration-300 ${
@@ -132,7 +128,6 @@ export function MatchDiscoveryScreen() {
           }`}
         >
           <Card className="overflow-hidden shadow-2xl">
-            {/* Pet Image */}
             <div className="relative h-96 bg-gradient-to-br from-accent/20 to-primary/20">
               {match.pet.avatarUrl ? (
                 <img
@@ -146,7 +141,6 @@ export function MatchDiscoveryScreen() {
                 </div>
               )}
 
-              {/* Compatibility Score Badge */}
               <div className="absolute top-4 right-4">
                 <Badge className="bg-white/90 text-accent border-2 border-accent text-lg px-4 py-2">
                   <Heart className="w-5 h-5 mr-1 fill-current" />
@@ -154,7 +148,6 @@ export function MatchDiscoveryScreen() {
                 </Badge>
               </div>
 
-              {/* Distance Badge */}
               {match.distance && (
                 <div className="absolute top-4 left-4">
                   <Badge variant="secondary" className="bg-white/90 text-sm">
@@ -165,9 +158,7 @@ export function MatchDiscoveryScreen() {
               )}
             </div>
 
-            {/* Pet Info */}
             <div className="p-6 space-y-4">
-              {/* Name & Basic Info */}
               <div>
                 <h2 className="text-3xl font-bold">{match.pet.name}, {match.pet.age}</h2>
                 <p className="text-lg text-muted-foreground">{match.pet.breed}</p>
@@ -194,7 +185,6 @@ export function MatchDiscoveryScreen() {
                 </div>
               </div>
 
-              {/* Explainability Chips */}
               <div>
                 <p className="text-sm font-semibold mb-2 flex items-center gap-1">
                   <Sparkles className="w-4 h-4 text-accent" />
@@ -214,7 +204,6 @@ export function MatchDiscoveryScreen() {
                 </div>
               </div>
 
-              {/* Bio */}
               {match.user.bio && (
                 <div>
                   <p className="text-sm text-muted-foreground">{match.user.bio}</p>
@@ -225,7 +214,6 @@ export function MatchDiscoveryScreen() {
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="p-6 border-t border-border/20">
         <div className="flex items-center justify-center gap-4 max-w-md mx-auto">
           <Button
