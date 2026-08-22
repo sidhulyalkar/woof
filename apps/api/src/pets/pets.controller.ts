@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreatePetDto, UpdatePetDto } from './dto/create-pet.dto';
 import { PetsService } from './pets.service';
@@ -26,7 +27,7 @@ export class PetsController {
   @ApiOperation({ summary: 'Create a pet owned by the authenticated user' })
   @ApiResponse({ status: 201, description: 'Pet created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
-  async create(@Request() req: any, @Body() createPetDto: CreatePetDto) {
+  async create(@Request() req: AuthenticatedRequest, @Body() createPetDto: CreatePetDto) {
     return this.petsService.create(req.user.sub, createPetDto);
   }
 
@@ -54,7 +55,7 @@ export class PetsController {
   @ApiResponse({ status: 200, description: 'Pet updated successfully' })
   @ApiResponse({ status: 404, description: 'Pet not found' })
   async update(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() updatePetDto: UpdatePetDto,
   ) {
@@ -65,7 +66,7 @@ export class PetsController {
   @ApiOperation({ summary: 'Delete a pet owned by the authenticated user' })
   @ApiResponse({ status: 200, description: 'Pet deleted successfully' })
   @ApiResponse({ status: 404, description: 'Pet not found' })
-  async delete(@Request() req: any, @Param('id') id: string) {
+  async delete(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.petsService.deleteOwned(id, req.user.sub);
   }
 }

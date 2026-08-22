@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
 
@@ -24,34 +25,28 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get outcome-focused beta metrics' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   getNorthStarMetrics(@Query('timeframe') timeframe?: string) {
-    return this.analyticsService.getNorthStarMetrics(
-      this.getTimeframeMinutes(timeframe || '30d'),
-    );
+    return this.analyticsService.getNorthStarMetrics(this.getTimeframeMinutes(timeframe || '30d'));
   }
 
   @Get('details')
   @ApiOperation({ summary: 'Get relationship funnel and compatibility calibration details' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   getDetailedMetrics(@Query('timeframe') timeframe?: string) {
-    return this.analyticsService.getDetailedMetrics(
-      this.getTimeframeMinutes(timeframe || '30d'),
-    );
+    return this.analyticsService.getDetailedMetrics(this.getTimeframeMinutes(timeframe || '30d'));
   }
 
   @Get('compatibility-calibration')
   @ApiOperation({ summary: 'Get compatibility fallback and future-outcome calibration dashboard data' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   getCompatibilityCalibration(@Query('timeframe') timeframe?: string) {
-    const since = new Date(
-      Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000,
-    );
+    const since = new Date(Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000);
     return this.analyticsService.getCompatibilityCalibration(since);
   }
 
   @Post('telemetry')
   @ApiOperation({ summary: 'Record actor-bound product telemetry' })
   recordTelemetry(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() data: { source: string; event: string; metadata?: unknown },
   ) {
     return this.analyticsService.recordTelemetry({
@@ -66,9 +61,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get product event counts' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   getEventCounts(@Query('timeframe') timeframe?: string) {
-    const since = new Date(
-      Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000,
-    );
+    const since = new Date(Date.now() - this.getTimeframeMinutes(timeframe || '30d') * 60 * 1000);
     return this.analyticsService.getEventCounts(since);
   }
 
@@ -76,9 +69,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get active user count' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   async getActiveUsers(@Query('timeframe') timeframe?: string) {
-    const since = new Date(
-      Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000,
-    );
+    const since = new Date(Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000);
     return { activeUsers: await this.analyticsService.getActiveUsersCount(since) };
   }
 
@@ -86,16 +77,14 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get screen view analytics' })
   @ApiQuery({ name: 'timeframe', required: false, enum: ['7d', '30d', '90d'] })
   getScreenViews(@Query('timeframe') timeframe?: string) {
-    const since = new Date(
-      Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000,
-    );
+    const since = new Date(Date.now() - this.getTimeframeMinutes(timeframe || '7d') * 60 * 1000);
     return this.analyticsService.getScreenViews(since);
   }
 
   @Get('users/:userId/activity')
   @ApiOperation({ summary: 'Get the signed-in user telemetry timeline' })
   getUserActivity(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('userId') userId: string,
     @Query('limit') limit?: number,
   ) {

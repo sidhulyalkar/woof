@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -27,8 +28,8 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Create a new community event' })
   @ApiResponse({ status: 201, description: 'Event created successfully' })
-  async create(@Request() req: any, @Body() createEventDto: CreateEventDto) {
-    return this.eventsService.create(req.user.id, createEventDto);
+  async create(@Request() req: AuthenticatedRequest, @Body() createEventDto: CreateEventDto) {
+    return this.eventsService.create(req.user.sub, createEventDto);
   }
 
   @Get()
@@ -57,10 +58,10 @@ export class EventsController {
   @ApiResponse({ status: 400, description: 'Not authorized or event not found' })
   async update(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() updateEventDto: UpdateEventDto,
   ) {
-    return this.eventsService.update(id, req.user.id, updateEventDto);
+    return this.eventsService.update(id, req.user.sub, updateEventDto);
   }
 
   @Delete(':id')
@@ -69,8 +70,8 @@ export class EventsController {
   @ApiOperation({ summary: 'Delete an event (organizer only)' })
   @ApiResponse({ status: 200, description: 'Event deleted successfully' })
   @ApiResponse({ status: 400, description: 'Not authorized or event not found' })
-  async remove(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.remove(id, req.user.id);
+  async remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.eventsService.remove(id, req.user.sub);
   }
 
   @Post(':id/rsvp')
@@ -79,8 +80,12 @@ export class EventsController {
   @ApiOperation({ summary: 'RSVP to an event' })
   @ApiResponse({ status: 201, description: 'RSVP created/updated successfully' })
   @ApiResponse({ status: 400, description: 'Event full or other error' })
-  async rsvp(@Param('id') id: string, @Request() req: any, @Body() createRSVPDto: CreateRSVPDto) {
-    return this.eventsService.rsvp(id, req.user.id, createRSVPDto);
+  async rsvp(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+    @Body() createRSVPDto: CreateRSVPDto,
+  ) {
+    return this.eventsService.rsvp(id, req.user.sub, createRSVPDto);
   }
 
   @Get('rsvps/me')
@@ -88,8 +93,8 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get all RSVPs for the current user' })
   @ApiResponse({ status: 200, description: 'List of user RSVPs' })
-  async getUserRSVPs(@Request() req: any) {
-    return this.eventsService.getUserRSVPs(req.user.id);
+  async getUserRSVPs(@Request() req: AuthenticatedRequest) {
+    return this.eventsService.getUserRSVPs(req.user.sub);
   }
 
   @Post(':id/feedback')
@@ -100,10 +105,10 @@ export class EventsController {
   @ApiResponse({ status: 400, description: 'Must RSVP to submit feedback' })
   async submitFeedback(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() eventFeedbackDto: EventFeedbackDto,
   ) {
-    return this.eventsService.submitFeedback(id, req.user.id, eventFeedbackDto);
+    return this.eventsService.submitFeedback(id, req.user.sub, eventFeedbackDto);
   }
 
   @Get(':id/feedback')
@@ -119,7 +124,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Check in to an event (awards points)' })
   @ApiResponse({ status: 200, description: 'Checked in successfully, points awarded' })
   @ApiResponse({ status: 400, description: 'Must RSVP first or already checked in' })
-  async checkIn(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.checkIn(id, req.user.id);
+  async checkIn(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.eventsService.checkIn(id, req.user.sub);
   }
 }

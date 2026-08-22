@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
 import {
@@ -27,25 +28,25 @@ export class MeetupProposalsController {
 
   @Post()
   @ApiOperation({ summary: 'Propose a privacy-minimized meetup after conversation' })
-  create(@Request() req: any, @Body() dto: CreateMeetupProposalDto) {
+  create(@Request() req: AuthenticatedRequest, @Body() dto: CreateMeetupProposalDto) {
     return this.meetupProposalsService.create(req.user.sub, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get sent and received meetup proposals' })
-  findAll(@Request() req: any) {
+  findAll(@Request() req: AuthenticatedRequest) {
     return this.meetupProposalsService.findAllForUser(req.user.sub);
   }
 
   @Get('stats')
   @ApiOperation({ summary: 'Get the current member meetup statistics' })
-  getStats(@Request() req: any) {
+  getStats(@Request() req: AuthenticatedRequest) {
     return this.meetupProposalsService.getStats(req.user.sub);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a meetup proposal only when the member is a participant' })
-  findOne(@Param('id') id: string, @Request() req: any) {
+  findOne(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.meetupProposalsService.findOneForUser(id, req.user.sub);
   }
 
@@ -53,7 +54,7 @@ export class MeetupProposalsController {
   @ApiOperation({ summary: 'Accept or decline a pending proposal as its recipient' })
   updateStatus(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: UpdateMeetupProposalDto,
   ) {
     return this.meetupProposalsService.updateStatus(id, req.user.sub, dto);
@@ -63,7 +64,7 @@ export class MeetupProposalsController {
   @ApiOperation({ summary: 'Submit participant-specific post-meetup outcome feedback' })
   complete(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: CompleteMeetupDto,
   ) {
     return this.meetupProposalsService.complete(id, req.user.sub, dto);
@@ -71,7 +72,7 @@ export class MeetupProposalsController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Cancel an active meetup proposal as a participant' })
-  remove(@Param('id') id: string, @Request() req: any) {
+  remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.meetupProposalsService.remove(id, req.user.sub);
   }
 }

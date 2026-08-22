@@ -1,4 +1,5 @@
 import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ABTestService } from './ab-test.service';
 
@@ -17,7 +18,7 @@ export class ABTestController {
   constructor(private readonly abTestService: ABTestService) {}
 
   @Get('variant')
-  getVariant(@Request() req: any) {
+  getVariant(@Request() req: AuthenticatedRequest) {
     return {
       variant: this.abTestService.assignVariant(req.user.sub),
       authority: 'experimental-only',

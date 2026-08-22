@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CoachingService } from './coaching.service';
 import {
@@ -27,22 +28,22 @@ export class CoachingController {
 
   @Get('me')
   @ApiOperation({ summary: 'Get the current reward-based coaching plan and practice context' })
-  getMine(@Request() req: any, @Query('petId') petId?: string) {
+  getMine(@Request() req: AuthenticatedRequest, @Query('petId') petId?: string) {
     return this.coachingService.getDashboard(req.user.sub, petId);
   }
 
   @Post('plans')
   @ApiOperation({ summary: 'Start one focused coaching plan for an owned pet' })
-  createPlan(@Request() req: any, @Body() dto: CreateTrainingPlanDto) {
+  createPlan(@Request() req: AuthenticatedRequest, @Body() dto: CreateTrainingPlanDto) {
     return this.coachingService.createPlan(req.user.sub, dto);
   }
 
   @Patch('plans/:planId/status')
   @ApiOperation({ summary: 'Pause or resume an owned coaching plan' })
   updatePlanStatus(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('planId') planId: string,
-    @Body() dto: UpdateTrainingPlanStatusDto
+    @Body() dto: UpdateTrainingPlanStatusDto,
   ) {
     return this.coachingService.setPlanStatus(req.user.sub, planId, dto);
   }
@@ -50,9 +51,9 @@ export class CoachingController {
   @Post('plans/:planId/sessions')
   @ApiOperation({ summary: 'Record an observable practice session and adapt the next difficulty' })
   recordSession(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('planId') planId: string,
-    @Body() dto: RecordTrainingSessionDto
+    @Body() dto: RecordTrainingSessionDto,
   ) {
     return this.coachingService.recordSession(req.user.sub, planId, dto);
   }

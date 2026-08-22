@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AwardBadgeDto } from './dto/award-badge.dto';
 import { AwardPointsDto } from './dto/award-points.dto';
@@ -74,7 +75,7 @@ export class GamificationController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get gamification summary for current user' })
-  async getMySummary(@Request() req: any) {
+  async getMySummary(@Request() req: AuthenticatedRequest) {
     const userId = req.user.sub;
 
     const [points, badges, streak] = await Promise.all([
@@ -85,7 +86,7 @@ export class GamificationController {
 
     return {
       points: points.totalPoints,
-      badges: badges.map((badge: any) => badge.badgeType),
+      badges: badges.map((badge) => badge.badgeType),
       badgeCount: badges.length,
       streak: streak.currentWeek,
       lastActivity: streak.lastActivityAt,

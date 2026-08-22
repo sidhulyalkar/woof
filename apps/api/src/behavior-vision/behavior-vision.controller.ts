@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BehaviorVisionService } from './behavior-vision.service';
 import {
@@ -40,23 +41,17 @@ export class BehaviorVisionController {
 
   @Post('analyze')
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Analyze a transient pet image/video and update the individual behavior model',
-  })
-  @UseInterceptors(
-    FileInterceptor('media', {
-      limits: { fileSize: 50 * 1024 * 1024 },
-    })
-  )
+  @ApiOperation({ summary: 'Analyze a transient pet image/video and update the individual behavior model' })
+  @UseInterceptors(FileInterceptor('media', { limits: { fileSize: 50 * 1024 * 1024 } }))
   analyze(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: AnalyzeBehaviorMediaDto,
-    @UploadedFile() media?: Express.Multer.File
+    @UploadedFile() media?: Express.Multer.File,
   ) {
     if (!media) throw new BadRequestException('Behavior Vision requires an image or video');
     if (!ALLOWED_MEDIA_TYPES.has(media.mimetype)) {
       throw new BadRequestException(
-        'Behavior Vision accepts JPEG, PNG, WebP, MP4, WebM, or QuickTime media only'
+        'Behavior Vision accepts JPEG, PNG, WebP, MP4, WebM, or QuickTime media only',
       );
     }
     return this.behaviorVision.analyze(req.user.sub, dto, media);
@@ -64,25 +59,28 @@ export class BehaviorVisionController {
 
   @Get('profile')
   @ApiOperation({ summary: 'Get the individualized behavior profile for one owned pet' })
-  profile(@Request() req: any, @Query() query: BehaviorTimelineQueryDto) {
+  profile(@Request() req: AuthenticatedRequest, @Query() query: BehaviorTimelineQueryDto) {
     return this.behaviorVision.profile(req.user.sub, query.petId);
   }
 
   @Get('timeline')
   @ApiOperation({ summary: 'Get recent derived behavior observations for one owned pet' })
-  timeline(@Request() req: any, @Query() query: BehaviorTimelineQueryDto) {
+  timeline(@Request() req: AuthenticatedRequest, @Query() query: BehaviorTimelineQueryDto) {
     return this.behaviorVision.timeline(req.user.sub, query.petId, query.limit ?? 30);
   }
 
   @Post('feedback')
   @ApiOperation({ summary: 'Correct or confirm an automated behavior observation' })
-  feedback(@Request() req: any, @Body() dto: BehaviorObservationFeedbackDto) {
+  feedback(@Request() req: AuthenticatedRequest, @Body() dto: BehaviorObservationFeedbackDto) {
     return this.behaviorVision.recordFeedback(req.user.sub, dto);
   }
 
   @Delete('observations/:observationId')
   @ApiOperation({ summary: 'Delete one derived behavior observation and its feedback' })
-  deleteObservation(@Request() req: any, @Param('observationId') observationId: string) {
+  deleteObservation(
+    @Request() req: AuthenticatedRequest,
+    @Param('observationId') observationId: string,
+  ) {
     return this.behaviorVision.deleteObservation(req.user.sub, observationId);
   }
 }
