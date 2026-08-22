@@ -1,39 +1,37 @@
-"use client"
+'use client';
 
-import { Component, ReactNode } from "react"
-import { AlertTriangle, RefreshCw } from "lucide-react"
-import { Button } from "./button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card"
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Button } from './button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
 
 interface Props {
-  children: ReactNode
-  fallback?: ReactNode
+  children: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  error?: Error
+  hasError: boolean;
+  error?: Error;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
-    super(props)
-    this.state = { hasError: false }
+    super(props);
+    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo)
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback
-      }
+      if (this.props.fallback) return this.props.fallback;
 
       return (
         <div className="flex min-h-[400px] items-center justify-center p-4">
@@ -44,14 +42,14 @@ export class ErrorBoundary extends Component<Props, State> {
                 <CardTitle>Something went wrong</CardTitle>
               </div>
               <CardDescription>
-                {this.state.error?.message || "An unexpected error occurred"}
+                {this.state.error?.message || 'An unexpected error occurred'}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 onClick={() => {
-                  this.setState({ hasError: false, error: undefined })
-                  window.location.reload()
+                  this.setState({ hasError: false, error: undefined });
+                  window.location.reload();
                 }}
                 className="w-full gap-2"
               >
@@ -61,23 +59,23 @@ export class ErrorBoundary extends Component<Props, State> {
             </CardContent>
           </Card>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }
 
 interface ErrorStateProps {
-  title?: string
-  message?: string
-  onRetry?: () => void
-  className?: string
+  title?: string;
+  message?: string;
+  onRetry?: () => void;
+  className?: string;
 }
 
 export function ErrorState({
-  title = "Something went wrong",
-  message = "We encountered an error loading this content",
+  title = 'Something went wrong',
+  message = 'We encountered an error loading this content',
   onRetry,
   className,
 }: ErrorStateProps) {
@@ -101,5 +99,5 @@ export function ErrorState({
         )}
       </Card>
     </div>
-  )
+  );
 }
