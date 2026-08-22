@@ -82,7 +82,7 @@ export const activitiesApi = {
 
   async updateActivity(
     id: string,
-    data: UpdateActivityRequest | Partial<CreateActivityDto>,
+    data: UpdateActivityRequest | Partial<CreateActivityDto>
   ): Promise<Activity> {
     const payload = isLegacyActivityWrite(data as MobileActivityWrite)
       ? normalizeActivityWrite(data as CreateActivityDto)

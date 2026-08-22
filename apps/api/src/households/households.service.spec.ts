@@ -46,7 +46,9 @@ describe('HouseholdsService', () => {
       pet: {
         findFirst: jest.fn(),
       },
-      $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+      $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) =>
+        callback(tx)
+      ),
     };
 
     return {
@@ -95,7 +97,7 @@ describe('HouseholdsService', () => {
             userId,
           },
         },
-      }),
+      })
     );
     expect(tx.householdPet.upsert).toHaveBeenCalledTimes(2);
   });
@@ -110,7 +112,7 @@ describe('HouseholdsService', () => {
     ]);
 
     await expect(service.resolveActivityHousehold(userId, [petA, petB])).resolves.toBe(
-      'household-together',
+      'household-together'
     );
   });
 
@@ -123,7 +125,7 @@ describe('HouseholdsService', () => {
     prisma.pet.findFirst.mockResolvedValue({ id: petA });
 
     await expect(service.resolveActivityHousehold(userId, [petA, petB])).rejects.toBeInstanceOf(
-      BadRequestException,
+      BadRequestException
     );
   });
 
@@ -132,7 +134,7 @@ describe('HouseholdsService', () => {
     prisma.householdMember.findFirst.mockResolvedValue({ role: 'MEMBER' });
 
     await expect(service.update(userId, 'household-a', { name: 'Pack HQ' })).rejects.toBeInstanceOf(
-      ForbiddenException,
+      ForbiddenException
     );
     expect(prisma.household.update).not.toHaveBeenCalled();
   });

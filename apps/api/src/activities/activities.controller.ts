@@ -10,12 +10,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActivitiesService } from './activities.service';
 import { CreateActivityDto, UpdateActivityDto } from './dto/activity.dto';
@@ -40,7 +35,7 @@ export class ActivitiesController {
     @Request() req: any,
     @Query('skip') skip?: number,
     @Query('take') take?: number,
-    @Query('petId') petId?: string,
+    @Query('petId') petId?: string
   ) {
     return this.activitiesService.findAll(req.user.sub, skip, take, petId);
   }
@@ -53,11 +48,7 @@ export class ActivitiesController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update one owned activity' })
-  async update(
-    @Request() req: any,
-    @Param('id') id: string,
-    @Body() dto: UpdateActivityDto,
-  ) {
+  async update(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateActivityDto) {
     return this.activitiesService.update(req.user.sub, id, dto);
   }
 

@@ -37,7 +37,7 @@ describe('ActivitiesService dogOS participation', () => {
       service: new ActivitiesService(
         prisma as unknown as PrismaService,
         careEvents as unknown as CareEventsService,
-        households as unknown as HouseholdsService,
+        households as unknown as HouseholdsService
       ),
     };
   }
@@ -71,7 +71,7 @@ describe('ActivitiesService dogOS participation', () => {
     expect(households.resolveActivityHousehold).toHaveBeenCalledWith(
       userId,
       [petA, petB],
-      undefined,
+      undefined
     );
     expect(prisma.activity.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -92,7 +92,7 @@ describe('ActivitiesService dogOS participation', () => {
             ],
           },
         }),
-      }),
+      })
     );
   });
 
@@ -126,7 +126,7 @@ describe('ActivitiesService dogOS participation', () => {
         pathway: 'MOVE',
         dedupeKey: 'activity:activity-2:completed',
         context: expect.objectContaining({ participantCount: 2 }),
-      }),
+      })
     );
     expect(careEvents.record).toHaveBeenNthCalledWith(
       2,
@@ -135,7 +135,7 @@ describe('ActivitiesService dogOS participation', () => {
         petId: petB,
         pathway: 'MOVE',
         dedupeKey: `activity:activity-2:pet:${petB}:completed`,
-      }),
+      })
     );
   });
 
@@ -167,7 +167,7 @@ describe('ActivitiesService dogOS participation', () => {
             create: [{ petId: petA, metrics: undefined }],
           },
         }),
-      }),
+      })
     );
   });
 
@@ -180,7 +180,7 @@ describe('ActivitiesService dogOS participation', () => {
         petIds: [petA],
         startedAt: '2026-08-21T18:00:00.000Z',
         endedAt: '2026-08-21T17:00:00.000Z',
-      }),
+      })
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(prisma.activity.create).not.toHaveBeenCalled();
