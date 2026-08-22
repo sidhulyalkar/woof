@@ -11,6 +11,8 @@ on:
       - 'apps/api/src/coaching/**'
       - 'apps/api/src/auth/authenticated-request.ts'
       - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/common/filters/all-exceptions.filter.ts'
+      - 'apps/api/src/common/filters/all-exceptions.filter.spec.ts'
       - 'apps/api/src/gamification/gamification.controller.ts'
       - 'apps/api/src/behavior-vision/behavior-profile.spec.ts'
       - 'apps/api/src/behavior-vision/behavior-vision.service.ts'
@@ -47,6 +49,7 @@ on:
       - '.github/workflows/adventure-system-ci.yml'
       - 'DEPLOYMENT_GUIDE.md'
       - 'docs/ADVENTURE_QUALIFICATION.md'
+      - 'docker-compose.yml'
 
 permissions:
   contents: read
@@ -133,6 +136,7 @@ jobs:
       - name: Check redesign formatting
         run: >-
           pnpm exec prettier --check
+          docker-compose.yml
           apps/web/.eslintrc.js
           apps/web/next.config.ts
           apps/web/tailwind.config.ts
@@ -141,6 +145,8 @@ jobs:
           apps/api/src/care-events
           apps/api/src/auth/authenticated-request.ts
           apps/api/src/config/env.validation.ts
+          apps/api/src/common/filters/all-exceptions.filter.ts
+          apps/api/src/common/filters/all-exceptions.filter.spec.ts
           apps/api/src/activities/activities.module.ts
           apps/api/src/activities/activities.service.ts
           apps/api/src/coaching/coaching.controller.ts
@@ -183,6 +189,8 @@ jobs:
           'src/care-events/**/*.ts'
           src/auth/authenticated-request.ts
           src/config/env.validation.ts
+          src/common/filters/all-exceptions.filter.ts
+          src/common/filters/all-exceptions.filter.spec.ts
           src/activities/activities.module.ts
           src/activities/activities.service.ts
           src/coaching/coaching.controller.ts
