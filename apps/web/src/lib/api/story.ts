@@ -54,7 +54,7 @@ export type StoryQuery = {
 export type StoryCurationInput = {
   sourceType: StorySourceType;
   sourceId: string;
-  action: 'SAVE' | 'HIDE' | 'CLEAR';
+  action: 'SAVE' | 'CLEAR';
   note?: string;
 };
 
@@ -65,10 +65,13 @@ export const storyApi = {
     }),
 
   curate: (input: StoryCurationInput) =>
-    apiClient.put<{
-      sourceType: StorySourceType;
-      sourceId: string;
-      state: StoryCurationState | null;
-      note: string | null;
-    }, StoryCurationInput>('/story/curation', input),
+    apiClient.put<
+      {
+        sourceType: StorySourceType;
+        sourceId: string;
+        state: StoryCurationState | null;
+        note: string | null;
+      },
+      StoryCurationInput
+    >('/story/curation', input),
 };
