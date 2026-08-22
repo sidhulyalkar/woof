@@ -16,7 +16,7 @@ function createHarness() {
         ...data,
         readAt: null,
         createdAt: new Date(),
-      }),
+      })
     ),
     update: jest.fn(),
   };
@@ -33,7 +33,7 @@ function createHarness() {
           ...data,
           readAt: null,
           createdAt: new Date(),
-        }),
+        })
       ),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn(),
@@ -41,7 +41,9 @@ function createHarness() {
       updateMany: jest.fn(),
     },
     $queryRaw: jest.fn().mockResolvedValue([]),
-    $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+    $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) =>
+      callback(tx)
+    ),
   };
   const careEvents = {
     record: jest.fn().mockResolvedValue({
@@ -72,7 +74,7 @@ function createHarness() {
       prisma as unknown as PrismaService,
       careEvents as unknown as CareEventsService,
       households as unknown as HouseholdsService,
-      notifications as unknown as NotificationsService,
+      notifications as unknown as NotificationsService
     ),
   };
 }
@@ -105,7 +107,7 @@ describe('AutopilotService', () => {
           nonDiagnostic: true,
           activityMinutes: 74,
         }),
-      }),
+      })
     );
   });
 
@@ -138,7 +140,7 @@ describe('AutopilotService', () => {
           sourceCareEventId: 'care-event-existing',
           signalType: 'TRACKER_BATTERY_LOW',
         }),
-      }),
+      })
     );
     expect(tx.$queryRaw).toHaveBeenCalled();
     expect(txNotification.create).toHaveBeenCalledTimes(1);
@@ -190,7 +192,7 @@ describe('AutopilotService', () => {
           sourceCareEventId: 'care-event-existing',
           signalType: 'TRACKER_BATTERY_LOW',
         }),
-      }),
+      })
     );
     expect(txNotification.create).not.toHaveBeenCalled();
   });
@@ -247,7 +249,7 @@ describe('AutopilotService', () => {
           baselineSamples: 7,
           provider: 'TRACTIVE',
         }),
-      }),
+      })
     );
   });
 
@@ -268,7 +270,7 @@ describe('AutopilotService', () => {
         level: 'INFO',
         nonDiagnostic: true,
         evidence: { batteryPercent: 14, provider: 'FI' },
-      }),
+      })
     );
   });
 
@@ -320,7 +322,10 @@ describe('AutopilotService', () => {
     };
     prisma.notification.findMany.mockResolvedValue([row]);
     txNotification.findFirst.mockResolvedValue(row);
-    notifications.sendPushNotification.mockResolvedValue({ success: false, reason: 'no_subscription' });
+    notifications.sendPushNotification.mockResolvedValue({
+      success: false,
+      reason: 'no_subscription',
+    });
 
     const result = await service.dispatchDueReminders();
 
@@ -329,7 +334,7 @@ describe('AutopilotService', () => {
       expect.objectContaining({
         where: { id: 'reminder-1' },
         data: { payload: expect.objectContaining({ lastAttemptAt: expect.any(String) }) },
-      }),
+      })
     );
     expect(prisma.notification.update).not.toHaveBeenCalled();
   });
