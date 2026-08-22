@@ -88,10 +88,7 @@ export default function AutopilotPage() {
     return [...byId.values()];
   }, [households.data]);
 
-  const petNames = useMemo(
-    () => new Map(pets.map((pet) => [pet.id, pet.name] as const)),
-    [pets],
-  );
+  const petNames = useMemo(() => new Map(pets.map((pet) => [pet.id, pet.name] as const)), [pets]);
 
   const createReminder = useMutation({
     mutationFn: (input: CreateCareReminderInput) => autopilotApi.createReminder(input),
@@ -166,8 +163,8 @@ export default function AutopilotPage() {
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 Autopilot keeps care reminders together and can surface conservative tracker
-                check-ins. It does not diagnose your dog, award wearable XP, or store tracker GPS
-                in this release.
+                check-ins. It does not diagnose your dog, award wearable XP, or store tracker GPS in
+                this release.
               </p>
             </div>
           </div>
@@ -187,7 +184,11 @@ export default function AutopilotPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="space-y-1.5 text-xs font-semibold text-muted-foreground">
                   Dog
-                  <select className={inputClass} value={petId} onChange={(e) => setPetId(e.target.value)}>
+                  <select
+                    className={inputClass}
+                    value={petId}
+                    onChange={(e) => setPetId(e.target.value)}
+                  >
                     <option value="">Household / general</option>
                     {pets.map((pet) => (
                       <option key={pet.id} value={pet.id}>
@@ -275,7 +276,10 @@ export default function AutopilotPage() {
               )}
 
               <div className="flex gap-2">
-                <Button type="submit" disabled={createReminder.isPending || !title.trim() || !dueAt}>
+                <Button
+                  type="submit"
+                  disabled={createReminder.isPending || !title.trim() || !dueAt}
+                >
                   {createReminder.isPending && (
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                   )}
@@ -340,7 +344,8 @@ export default function AutopilotPage() {
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {petNames.get(signal.petId) ?? 'Your dog'} · {formatDate(signal.observedAt)}
+                              {petNames.get(signal.petId) ?? 'Your dog'} ·{' '}
+                              {formatDate(signal.observedAt)}
                             </p>
                             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                               {signal.body}
@@ -395,8 +400,10 @@ export default function AutopilotPage() {
                             <div>
                               <h3 className="font-semibold">{reminder.title}</h3>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                {reminder.petId ? petNames.get(reminder.petId) ?? 'Dog' : 'Household'} ·{' '}
-                                {formatDate(reminder.dueAt)}
+                                {reminder.petId
+                                  ? (petNames.get(reminder.petId) ?? 'Dog')
+                                  : 'Household'}{' '}
+                                · {formatDate(reminder.dueAt)}
                               </p>
                             </div>
                             <Button
