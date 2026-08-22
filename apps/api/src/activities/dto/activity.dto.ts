@@ -1,5 +1,8 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsDateString,
   IsIn,
   IsObject,
@@ -16,13 +19,34 @@ const ACTIVITY_TYPES = [
   'TRAINING',
   'GROOMING',
   'VET_VISIT',
+  'ENRICHMENT',
+  'SCENT',
+  'PUZZLE',
+  'SOCIAL',
+  'MEETUP',
+  'PARALLEL_WALK',
+  'RECOVERY',
+  'REST',
+  'DECOMPRESSION',
   'OTHER',
 ];
 
 export class CreateActivityDto {
+  /** Legacy single-pet field. dogOS clients should prefer petIds. */
   @IsOptional()
   @IsUUID()
   petId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(16)
+  @IsUUID('4', { each: true })
+  petIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  householdId?: string;
 
   @IsOptional()
   @IsDateString()
@@ -58,6 +82,17 @@ export class UpdateActivityDto {
   @IsOptional()
   @IsUUID()
   petId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(16)
+  @IsUUID('4', { each: true })
+  petIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  householdId?: string;
 
   @IsOptional()
   @IsDateString()
