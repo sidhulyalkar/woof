@@ -194,6 +194,13 @@ type SubmitQuizInput = {
   featureVector: MLFeatureVector;
 };
 
+type QuizSaveResponse = {
+  id: string;
+  petId: string | null;
+  sessionId: string;
+  completedAt: string;
+};
+
 export const queryKeys = {
   feed: ['feed'] as const,
   activities: ['activities'] as const,
@@ -525,18 +532,20 @@ export function useUploadImage(options?: UseMutationOptions<{ url: string }, Err
 }
 
 export function useSubmitQuiz(
-  options?: UseMutationOptions<ExtensibleRecord, Error, SubmitQuizInput>
+  options?: UseMutationOptions<QuizSaveResponse, Error, SubmitQuizInput>
 ) {
   const queryClient = useQueryClient();
 
-  return useMutation<ExtensibleRecord, Error, SubmitQuizInput>({
-    mutationFn: async (quizSubmission) => {
-      const userId = useSessionStore.getState().user?.id;
-      if (!userId) throw new Error('User not authenticated');
+  return useMutation<QuizSaveResponse, Error, SubmitQuizInput>({
+    mutationFn: async ({ session }) => {
+      const responses = Object.fromEntries(
+        session.responses.map(({ questionId, answer }) => [questionId, answer])
+      );
 
-      return apiClient.post<ExtensibleRecord>('/quiz/submit', {
-        ...quizSubmission,
-        userId,
+      return apiClient.post<QuizSaveResponse>('/quiz/responses', {
+        sessionId: session.id,
+        petId: session.petId,
+        responses,
       });
     },
     onSuccess: () => {
