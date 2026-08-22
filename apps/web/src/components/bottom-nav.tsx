@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/', icon: PawPrint, label: 'Today' },
   { href: '/compass', icon: Compass, label: 'Compass' },
-  { href: '/journey', icon: Map, label: 'Journey', isSpecial: true },
+  { href: '/journey', icon: Map, label: 'Story', isSpecial: true },
   { href: '/autopilot', icon: Sparkles, label: 'Auto' },
   { href: '/coach', icon: Brain, label: 'Coach' },
   { href: '/pack', icon: Users, label: 'Pack' },
@@ -32,7 +32,7 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                aria-label="Open Adventure Journey"
+                aria-label="Open Our Story"
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'group -mt-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border brand-mark text-primary-foreground transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5',
