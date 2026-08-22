@@ -66,31 +66,34 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Woof API')
-    .setDescription(
-      'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.',
-    )
-    .setVersion('1.0')
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User profiles')
-    .addTag('pets', 'Pet profiles and management')
-    .addTag('activities', 'Activity tracking')
-    .addTag('social', 'Posts, likes, and comments')
-    .addTag('meetups', 'Meetup coordination')
-    .addTag('compatibility', 'Explainable compatibility ranking')
-    .addTag('quiz', 'Matching preference sessions')
-    .addBearerAuth()
-    .build();
+  const apiDocsEnabled = !isProduction || configService.get<string>('API_DOCS_ENABLED') === 'true';
+  if (apiDocsEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Woof API')
+      .setDescription(
+        'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.',
+      )
+      .setVersion('1.0')
+      .addTag('auth', 'Authentication endpoints')
+      .addTag('users', 'User profiles')
+      .addTag('pets', 'Pet profiles and management')
+      .addTag('activities', 'Activity tracking')
+      .addTag('social', 'Posts, likes, and comments')
+      .addTag('meetups', 'Meetup coordination')
+      .addTag('compatibility', 'Explainable compatibility ranking')
+      .addTag('quiz', 'Matching preference sessions')
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document, {
-    customSiteTitle: 'Woof API Docs',
-    customCss: `
-      .swagger-ui .topbar { background-color: #0d1117; }
-      .swagger-ui .info .title { color: #b86912; }
-    `,
-  });
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document, {
+      customSiteTitle: 'Woof API Docs',
+      customCss: `
+        .swagger-ui .topbar { background-color: #0d1117; }
+        .swagger-ui .info .title { color: #b86912; }
+      `,
+    });
+  }
 
   const port = configService.get<number>('PORT') || 4000;
   await app.listen(port);
@@ -99,7 +102,7 @@ async function bootstrap() {
   🐾 Woof API is running
   Server: http://localhost:${port}
   API:    http://localhost:${port}/${apiPrefix}
-  Docs:   http://localhost:${port}/docs
+  Docs:   ${apiDocsEnabled ? `http://localhost:${port}/docs` : 'disabled'}
   Mode:   ${configService.get<string>('NODE_ENV') || 'development'}
   `);
 }
