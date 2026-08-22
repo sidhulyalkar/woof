@@ -395,9 +395,9 @@ export class AnalyticsService {
     return { total, active: activeRows.length };
   }
 
-  private asRecord(value: unknown): Record<string, any> {
+  private asRecord(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, any>)
+      ? (value as Record<string, unknown>)
       : {};
   }
 
