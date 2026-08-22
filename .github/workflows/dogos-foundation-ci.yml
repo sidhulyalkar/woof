@@ -1,0 +1,141 @@
+name: dogOS Foundation CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/activities/**'
+      - 'apps/api/src/households/**'
+      - 'apps/api/src/dogos/**'
+      - 'apps/api/src/pets/pets.controller.ts'
+      - 'apps/api/src/pets/pets.module.ts'
+      - 'apps/api/src/pets/pets.service.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/mobile/**'
+      - 'packages/database/prisma/schema.prisma'
+      - 'packages/database/prisma/migrations/20260822064500_add_dogos_household_core/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/dogos-foundation-ci.yml'
+      - 'docs/DOGOS_ARCHITECTURE.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-foundation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: dogOS household + multi-pet qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-dogos-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Check Prisma schema formatting
+        run: |
+          pnpm --filter @woof/database exec prisma format
+          git diff --exit-code -- packages/database/prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject destructive dogOS migration operations
+        run: |
+          migration="packages/database/prisma/migrations/20260822064500_add_dogos_household_core/migration.sql"
+          if grep -Ein '\b(DROP[[:space:]]+(TABLE|COLUMN|INDEX|CONSTRAINT)|TRUNCATE|DELETE[[:space:]]+FROM)\b' "$migration"; then
+            echo "dogOS foundation migration must remain additive; destructive SQL was detected."
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Verify migrated database matches Prisma datamodel
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Check dogOS formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/activities
+          apps/api/src/households
+          apps/api/src/pets/pets.controller.ts
+          apps/api/src/pets/pets.module.ts
+          apps/api/src/pets/pets.service.ts
+          apps/api/src/app.module.ts
+          apps/mobile/src/api/activities.ts
+          apps/mobile/src/types/activity.ts
+          .github/workflows/dogos-foundation-ci.yml
+          docs/DOGOS_ARCHITECTURE.md
+
+      - name: Lint dogOS API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/activities/**/*.ts'
+          'src/households/**/*.ts'
+          src/pets/pets.controller.ts
+          src/pets/pets.module.ts
+          src/pets/pets.service.ts
+          src/app.module.ts
+
+      - name: Lint mobile client
+        run: pnpm --filter @woof/mobile lint
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check mobile client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Run household contract tests
+        run: pnpm --filter @woof/api exec jest src/households/households.service.spec.ts --runInBand
+
+      - name: Run multi-pet activity contract tests
+        run: pnpm --filter @woof/api exec jest src/activities/activities.service.spec.ts --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build

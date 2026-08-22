@@ -37,9 +37,19 @@ export class PetsController {
   async findAll(
     @Query('skip') skip?: number,
     @Query('take') take?: number,
-    @Query('ownerId') ownerId?: string,
+    @Query('ownerId') ownerId?: string
   ) {
     return this.petsService.findAll(skip, take, ownerId);
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Get pets owned by the authenticated user' })
+  async findMine(
+    @Request() req: AuthenticatedRequest,
+    @Query('skip') skip?: number,
+    @Query('take') take?: number
+  ) {
+    return this.petsService.findAll(skip, take, req.user.sub);
   }
 
   @Get(':id')
@@ -57,7 +67,7 @@ export class PetsController {
   async update(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() updatePetDto: UpdatePetDto,
+    @Body() updatePetDto: UpdatePetDto
   ) {
     return this.petsService.updateOwned(id, req.user.sub, updatePetDto);
   }

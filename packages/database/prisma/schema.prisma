@@ -33,32 +33,34 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  pets                     Pet[]
-  activities               Activity[]
-  posts                    Post[]
-  likes                    Like[]
-  comments                 Comment[]
-  notifications            Notification[]
-  integrationTokens        IntegrationToken[]
-  mutualGoals              MutualGoal[]
-  meetups                  Meetup[]
-  meetupInvites            MeetupInvite[]
-  redeemedRewards          Reward[]
-  quizResponses            QuizResponse[]
-  featureVector            MLFeatureVector?
-  conversationParticipants ConversationParticipant[]
-  messages                 Message[]
-  verifications            Verification[]            @relation("UserVerifications")
-  hostedEvents             CommunityEvent[]          @relation("EventHost")
-  eventRsvps               EventRSVP[]               @relation("EventRSVPs")
-  eventFeedbacks           EventFeedback[]           @relation("EventFeedbacks")
-  locationPings            LocationPing[]            @relation("UserLocationPings")
-  mediaAssets              MediaAsset[]
-  mediaAlbums              MediaAlbum[]
-  mediaExternalReferences  MediaExternalReference[]
-  careEvents               CareEvent[]
-  rewardLedgerEntries      RewardLedger[]
-  questInteractions        QuestInteraction[]
+  pets                      Pet[]
+  activities                Activity[]
+  householdMemberships      HouseholdMember[]
+  activityHumanParticipants ActivityHumanParticipant[]
+  posts                     Post[]
+  likes                     Like[]
+  comments                  Comment[]
+  notifications             Notification[]
+  integrationTokens         IntegrationToken[]
+  mutualGoals               MutualGoal[]
+  meetups                   Meetup[]
+  meetupInvites             MeetupInvite[]
+  redeemedRewards           Reward[]
+  quizResponses             QuizResponse[]
+  featureVector             MLFeatureVector?
+  conversationParticipants  ConversationParticipant[]
+  messages                  Message[]
+  verifications             Verification[]             @relation("UserVerifications")
+  hostedEvents              CommunityEvent[]           @relation("EventHost")
+  eventRsvps                EventRSVP[]                @relation("EventRSVPs")
+  eventFeedbacks            EventFeedback[]            @relation("EventFeedbacks")
+  locationPings             LocationPing[]             @relation("UserLocationPings")
+  mediaAssets               MediaAsset[]
+  mediaAlbums               MediaAlbum[]
+  mediaExternalReferences   MediaExternalReference[]
+  careEvents                CareEvent[]
+  rewardLedgerEntries       RewardLedger[]
+  questInteractions         QuestInteraction[]
 
   @@map("users")
 }
@@ -81,6 +83,8 @@ model Pet {
   owner                   User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   devices                 Device[]
   activities              Activity[]
+  householdMemberships    HouseholdPet[]
+  activityParticipations  ActivityPetParticipant[]
   posts                   Post[]
   mutualGoals             MutualGoal[]
   meetupInvites           MeetupInvite[]
@@ -114,6 +118,55 @@ model Device {
 }
 
 // ============================================
+// dogOS HOUSEHOLDS
+// ============================================
+
+model Household {
+  id        String   @id @default(uuid())
+  name      String   @default("My household")
+  timezone  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members    HouseholdMember[]
+  pets       HouseholdPet[]
+  activities Activity[]
+
+  @@map("households")
+}
+
+model HouseholdMember {
+  id          String   @id @default(uuid())
+  householdId String   @map("household_id")
+  userId      String   @map("user_id")
+  role        String   @default("MEMBER")
+  status      String   @default("ACTIVE")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@index([userId, status])
+  @@map("household_members")
+}
+
+model HouseholdPet {
+  id          String   @id @default(uuid())
+  householdId String   @map("household_id")
+  petId       String   @map("pet_id")
+  status      String   @default("ACTIVE")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  pet       Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, petId])
+  @@index([petId, status])
+  @@map("household_pets")
+}
+
+// ============================================
 // ACTIVITIES & FITNESS
 // ============================================
 
@@ -121,23 +174,58 @@ model Activity {
   id           String    @id @default(uuid())
   userId       String    @map("user_id")
   petId        String?   @map("pet_id")
+  householdId  String?   @map("household_id")
   startedAt    DateTime  @map("started_at")
   endedAt      DateTime? @map("ended_at")
   type         String // WALK, RUN, PLAY, HIKE
   route        Json? // GeoJSON
   humanMetrics Json?     @map("human_metrics") // {steps, calories, hr_avg}
-  petMetrics   Json?     @map("pet_metrics") // {distance, active_time}
+  petMetrics   Json?     @map("pet_metrics") // legacy primary-pet metrics
   jointMetrics Json?     @map("joint_metrics") // {sync_score}
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pet   Pet?   @relation(fields: [petId], references: [id], onDelete: SetNull)
-  posts Post[]
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet               Pet?                       @relation(fields: [petId], references: [id], onDelete: SetNull)
+  household         Household?                 @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  humanParticipants ActivityHumanParticipant[]
+  petParticipants   ActivityPetParticipant[]
+  posts             Post[]
 
   @@index([userId])
   @@index([petId])
+  @@index([householdId, startedAt])
   @@index([startedAt])
   @@map("activities")
+}
+
+model ActivityHumanParticipant {
+  id         String   @id @default(uuid())
+  activityId String   @map("activity_id")
+  userId     String   @map("user_id")
+  role       String   @default("PARTICIPANT")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+  @@index([userId])
+  @@map("activity_human_participants")
+}
+
+model ActivityPetParticipant {
+  id         String   @id @default(uuid())
+  activityId String   @map("activity_id")
+  petId      String   @map("pet_id")
+  metrics    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  pet      Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, petId])
+  @@index([petId])
+  @@map("activity_pet_participants")
 }
 
 model MutualGoal {
