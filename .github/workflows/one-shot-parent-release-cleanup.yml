@@ -1,0 +1,90 @@
+name: One-shot parent release cleanup
+
+on:
+  push:
+    branches: [agent/pet-media-library-v1]
+    paths:
+      - '.github/workflows/one-shot-parent-release-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/pet-media-library-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Unify Media Library authentication state
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('apps/web/src/app/library/page.tsx')
+          text = path.read_text()
+          text = text.replace(
+              "import { useSessionStore } from '@/store/session';",
+              "import { useAuthStore } from '@/lib/stores/auth-store';",
+              1,
+          )
+          text = text.replace(
+              'const user = useSessionStore((state) => state.user);',
+              'const user = useAuthStore((state) => state.user);',
+              1,
+          )
+          path.write_text(text)
+
+      - name: Format exact parent release surfaces
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/behavior-vision/behavior-profile.spec.ts
+          apps/api/src/behavior-vision/behavior-profile.ts
+          apps/api/src/behavior-vision/behavior-vision.model.ts
+          apps/api/src/behavior-vision/behavior-vision.service.spec.ts
+          apps/api/src/behavior-vision/behavior-vision.service.ts
+          apps/api/src/behavior-vision/behavior-vision.types.ts
+          apps/api/src/behavior-vision/dto/behavior-vision.dto.ts
+          apps/api/src/media-library/media-library.service.spec.ts
+          apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/app/coach/observe/page.tsx
+          apps/web/src/app/library/page.tsx
+          apps/web/e2e/library-regression.spec.ts
+
+      - name: Remove branch-construction scaffolding
+        shell: bash
+        run: |
+          git rm -r --ignore-unmatch .coach-payload
+          git rm --ignore-unmatch .github/workflows/publish-coach-upgrade.yml
+          git rm --ignore-unmatch .github/workflows/publish-media-beta.yml
+          git rm --ignore-unmatch scripts/finalize-media-beta.py
+          rm .github/workflows/one-shot-parent-release-cleanup.yml
+
+      - name: Commit cleanup and self-delete helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            apps/api/src/behavior-vision \
+            apps/api/src/media-library/media-library.service.spec.ts \
+            apps/web/src/lib/api/behavior-vision.ts \
+            apps/web/src/app/coach/observe/page.tsx \
+            apps/web/src/app/library/page.tsx \
+            apps/web/e2e/library-regression.spec.ts \
+            .github/workflows/one-shot-parent-release-cleanup.yml
+          git commit -m "chore: clean parent release candidate"
+          git push origin HEAD:agent/pet-media-library-v1
