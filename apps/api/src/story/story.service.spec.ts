@@ -113,7 +113,7 @@ describe('StoryService', () => {
     prisma.activity.findMany.mockResolvedValue([activity()]);
     prisma.activity.count.mockResolvedValue(1);
     prisma.careEvent.findMany.mockResolvedValue([careEvent()]);
-    prisma.mediaAsset.findMany.mockResolvedValue([media()]);
+    prisma.mediaAsset.findMany.mockResolvedValueOnce([media()]).mockResolvedValueOnce([]);
     prisma.mediaAsset.count.mockResolvedValue(1);
     prisma.mediaAsset.findFirst
       .mockResolvedValueOnce({
@@ -135,6 +135,49 @@ describe('StoryService', () => {
     expect(result.stats).toEqual(
       expect.objectContaining({ activities: 1, activeMinutes: 45, memories: 1 })
     );
+  });
+
+  it('merges captured and undated media by effective chronology before applying the source bound', async () => {
+    const { service, prisma } = createHarness();
+    const capturedId = '99999999-9999-4999-8999-999999999999';
+    const undatedId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    prisma.mediaAsset.findMany
+      .mockResolvedValueOnce([
+        media({
+          id: capturedId,
+          capturedAt: new Date('2025-01-01T12:00:00.000Z'),
+          createdAt: new Date('2025-01-02T12:00:00.000Z'),
+        }),
+      ])
+      .mockResolvedValueOnce([
+        media({
+          id: undatedId,
+          capturedAt: null,
+          createdAt: new Date('2026-08-20T12:00:00.000Z'),
+        }),
+      ]);
+
+    const result = await service.getStory(userId, {});
+
+    expect(prisma.mediaAsset.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ capturedAt: { not: null } }),
+        orderBy: { capturedAt: 'desc' },
+      })
+    );
+    expect(prisma.mediaAsset.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ capturedAt: null }),
+        orderBy: { createdAt: 'desc' },
+      })
+    );
+    expect(
+      result.moments
+        .filter((moment) => moment.sourceType === 'MEDIA')
+        .map((moment) => moment.sourceId)
+    ).toEqual([undatedId, capturedId]);
   });
 
   it('does not duplicate an Activity-backed CareEvent or narrate tracker device upkeep', async () => {
@@ -212,7 +255,7 @@ describe('StoryService', () => {
     const { service, prisma } = createHarness();
     prisma.activity.findMany.mockResolvedValue([activity()]);
     prisma.activity.count.mockResolvedValue(1);
-    prisma.mediaAsset.findMany.mockResolvedValue([media()]);
+    prisma.mediaAsset.findMany.mockResolvedValueOnce([media()]).mockResolvedValueOnce([]);
     prisma.notification.findMany.mockResolvedValue([
       {
         id: 'curation-saved',
