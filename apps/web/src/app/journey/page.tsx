@@ -388,8 +388,9 @@ export default function JourneyPage() {
                   <p className="font-semibold">Your sources stay themselves</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                     Saving, annotating, or unsaving a Story moment changes only your Story curation.
-                    It does not edit or delete the Activity, CareEvent, tracker observation, or Media
-                    Library asset underneath it. Raw tracker GPS is not part of this Story surface.
+                    It does not edit or delete the Activity, CareEvent, tracker observation, or
+                    Media Library asset underneath it. Raw tracker GPS is not part of this Story
+                    surface.
                   </p>
                 </div>
               </div>
