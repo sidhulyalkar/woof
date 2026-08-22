@@ -276,7 +276,7 @@ export class BehaviorVisionService {
     }
 
     return entries
-      .map((entry) => {
+      .map((entry): StoredBehaviorObservation | null => {
         const data = this.asObject(entry.data);
         const context = data.context;
         const analysis = data.analysis;
@@ -293,6 +293,7 @@ export class BehaviorVisionService {
 
         const mediaType = data.mediaType === 'video' ? 'video' : 'image';
         const mediaSha256 = typeof data.mediaSha256 === 'string' ? data.mediaSha256 : '';
+        const ownerFeedback = feedbackByObservation.get(entry.id);
         return {
           id: entry.id,
           petId: entry.petId ?? petId,
@@ -305,8 +306,8 @@ export class BehaviorVisionService {
               (context as Record<string, unknown>).audioAnalysisAllowed === true,
           },
           analysis: analysis as StoredBehaviorObservation['analysis'],
-          ownerFeedback: feedbackByObservation.get(entry.id),
-        } satisfies StoredBehaviorObservation;
+          ...(ownerFeedback ? { ownerFeedback } : {}),
+        };
       })
       .filter((entry): entry is StoredBehaviorObservation => entry !== null);
   }
