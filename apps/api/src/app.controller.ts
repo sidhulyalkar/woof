@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AppService } from './app.service';
 
 @ApiTags('health')
@@ -15,9 +15,25 @@ export class AppController {
   }
 
   @Get('health')
-  @ApiOperation({ summary: 'Health check' })
-  @ApiResponse({ status: 200, description: 'Service health status' })
+  @ApiOperation({ summary: 'Compatibility readiness check' })
+  @ApiResponse({ status: 200, description: 'Service is ready to receive traffic' })
+  @ApiResponse({ status: 503, description: 'A required dependency is unavailable' })
   getHealth() {
     return this.appService.getHealth();
+  }
+
+  @Get('health/live')
+  @ApiOperation({ summary: 'Process liveness check' })
+  @ApiResponse({ status: 200, description: 'API process is alive' })
+  getLiveness() {
+    return this.appService.getLiveness();
+  }
+
+  @Get('health/ready')
+  @ApiOperation({ summary: 'Dependency readiness check' })
+  @ApiResponse({ status: 200, description: 'Service dependencies are ready' })
+  @ApiResponse({ status: 503, description: 'A required dependency is unavailable' })
+  getReadiness() {
+    return this.appService.getReadiness();
   }
 }
