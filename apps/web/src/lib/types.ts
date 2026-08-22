@@ -237,21 +237,28 @@ export interface Highlight {
   expiresAt: string
 }
 
-export type MapMarkerData =
-  | { kind: "pet"; name: string; breed?: string; age?: number }
-  | { kind: "event"; title: string; datetime?: string; attendees?: number }
-  | { kind: "service"; name: string; rating?: number; category?: string }
-
-export interface MapMarker {
+type MapMarkerBase = {
   id: string
-  type: "pet" | "event" | "service"
   lat: number
   lng: number
   title: string
   subtitle?: string
   avatarUrl?: string
-  data: MapMarkerData
 }
+
+export type MapMarker =
+  | (MapMarkerBase & {
+      type: "pet"
+      data: { distance: number; compatibility: number }
+    })
+  | (MapMarkerBase & {
+      type: "event"
+      data: { attendees: number; capacity: number }
+    })
+  | (MapMarkerBase & {
+      type: "service"
+      data: { rating: number; reviews: number }
+    })
 
 export interface Service {
   id: string
