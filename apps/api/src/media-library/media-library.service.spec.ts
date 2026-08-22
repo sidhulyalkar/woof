@@ -129,10 +129,23 @@ describe('MediaLibraryService', () => {
     expect(storage.createPrivateUploadIntent).toHaveBeenCalledWith(
       expect.objectContaining({ folder: 'private/media/user-1/pet-1' }),
     );
-    const persisted = JSON.stringify(prisma.mediaAsset.create.mock.calls[0][0]);
-    expect(persisted).toContain('private/media/user-1/pet-1/object.jpg');
-    expect(persisted).not.toContain('signed-put');
-    expect(persisted).not.toContain('PUBLIC');
+
+    const createArgs = prisma.mediaAsset.create.mock.calls[0]?.[0];
+    expect(createArgs).toBeDefined();
+    expect(createArgs?.data).toEqual(
+      expect.objectContaining({
+        ownerId: 'user-1',
+        petId: 'pet-1',
+        storageKey: 'private/media/user-1/pet-1/object.jpg',
+        sizeBytes: 1024n,
+        status: 'PENDING',
+      }),
+    );
+    expect(createArgs?.data).not.toHaveProperty('uploadUrl');
+    expect(createArgs?.data).not.toHaveProperty('signedUrl');
+    expect(createArgs?.data).not.toHaveProperty('visibility', 'PUBLIC');
+    expect(result.uploadUrl).toBe('https://private-storage.example/signed-put');
+    expect(result.privacy.visibility).toBe('PRIVATE');
     expect(prisma.telemetry.create).not.toHaveBeenCalled();
   });
 
