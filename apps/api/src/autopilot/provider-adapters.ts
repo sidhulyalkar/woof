@@ -22,7 +22,7 @@ function containsLocationTelemetry(value: unknown): boolean {
   if (Array.isArray(value)) return value.some((entry) => containsLocationTelemetry(entry));
 
   return Object.entries(value as Record<string, unknown>).some(
-    ([key, nested]) => LOCATION_KEYS.has(key.toLowerCase()) || containsLocationTelemetry(nested),
+    ([key, nested]) => LOCATION_KEYS.has(key.toLowerCase()) || containsLocationTelemetry(nested)
   );
 }
 
@@ -63,9 +63,12 @@ function normalizeFi(dto: IngestTrackerObservationDto): NormalizedTrackerObserva
       ? {
           activityMinutes: finiteNumber(
             payload.activityMinutes ?? payload.minutesActive ?? payload.activeMinutes,
-            'activityMinutes',
+            'activityMinutes'
           ),
-          distanceMeters: finiteNumber(payload.distanceMeters ?? payload.distance_m, 'distanceMeters'),
+          distanceMeters: finiteNumber(
+            payload.distanceMeters ?? payload.distance_m,
+            'distanceMeters'
+          ),
           steps: finiteNumber(payload.steps, 'steps'),
         }
       : {
@@ -90,9 +93,12 @@ function normalizeTractive(dto: IngestTrackerObservationDto): NormalizedTrackerO
       ? {
           activityMinutes: finiteNumber(
             payload.activeMinutes ?? payload.activityMinutes ?? payload.minutes_active,
-            'activityMinutes',
+            'activityMinutes'
           ),
-          distanceMeters: finiteNumber(payload.distanceMeters ?? payload.distance, 'distanceMeters'),
+          distanceMeters: finiteNumber(
+            payload.distanceMeters ?? payload.distance,
+            'distanceMeters'
+          ),
           steps: finiteNumber(payload.steps, 'steps'),
         }
       : {
@@ -112,11 +118,11 @@ function normalizeTractive(dto: IngestTrackerObservationDto): NormalizedTrackerO
 
 export function normalizeProviderObservation(
   provider: string,
-  dto: IngestTrackerObservationDto,
+  dto: IngestTrackerObservationDto
 ): NormalizedTrackerObservation {
   if (containsLocationTelemetry(dto.payload)) {
     throw new BadRequestException(
-      'Autopilot v1 does not accept location telemetry; location connectors require explicit retention controls',
+      'Autopilot v1 does not accept location telemetry; location connectors require explicit retention controls'
     );
   }
 
