@@ -5,53 +5,27 @@ on:
     branches: [agent/woof-adventure-system-v1]
   pull_request:
     paths:
-      - 'apps/api/.env.example'
       - 'apps/api/src/adventure/**'
       - 'apps/api/src/care-events/**'
       - 'apps/api/src/activities/**'
       - 'apps/api/src/coaching/**'
-      - 'apps/api/src/auth/authenticated-request.ts'
       - 'apps/api/src/config/env.validation.ts'
-      - 'apps/api/src/common/filters/all-exceptions.filter.ts'
-      - 'apps/api/src/common/filters/all-exceptions.filter.spec.ts'
       - 'apps/api/src/gamification/gamification.controller.ts'
-      - 'apps/api/src/behavior-vision/behavior-profile.spec.ts'
-      - 'apps/api/src/behavior-vision/behavior-vision.service.ts'
-      - 'apps/api/src/chat/chat.gateway.ts'
-      - 'apps/api/src/goals/goals.controller.ts'
-      - 'apps/api/src/quiz/dto/save-quiz-response.dto.ts'
-      - 'apps/api/src/media-library/media-library.service.spec.ts'
-      - 'apps/api/src/app.controller.ts'
-      - 'apps/api/src/app.service.ts'
-      - 'apps/api/src/app.service.spec.ts'
       - 'apps/api/src/app.module.ts'
-      - 'apps/api/src/main.ts'
-      - 'apps/web/.eslintrc.js'
-      - 'apps/web/next.config.ts'
-      - 'apps/web/tailwind.config.ts'
-      - 'apps/web/vitest.config.ts'
-      - 'apps/web/src/app/**'
-      - 'apps/web/src/components/activity/activity-history.tsx'
+      - 'apps/web/src/app/page.tsx'
+      - 'apps/web/src/app/compass/**'
+      - 'apps/web/src/app/journey/**'
+      - 'apps/web/src/app/pack/**'
       - 'apps/web/src/components/bottom-nav.tsx'
-      - 'apps/web/src/components/events/EventDetailsDialog.tsx'
-      - 'apps/web/src/components/matches/MatchDiscoveryScreen.tsx'
-      - 'apps/web/src/components/onboarding/**'
-      - 'apps/web/src/components/quiz/**'
-      - 'apps/web/src/data/quizQuestions.ts'
-      - 'apps/web/src/hooks/use-push-notifications.ts'
-      - 'apps/web/src/lib/api.ts'
-      - 'apps/web/src/lib/api/**'
-      - 'apps/web/src/lib/analytics.ts'
-      - 'apps/web/src/lib/push-notifications.ts'
-      - 'apps/web/src/lib/types.ts'
-      - 'apps/web/src/store/session.ts'
-      - 'apps/web/src/types/quiz.ts'
+      - 'apps/web/src/lib/api/adventure.ts'
+      - 'apps/web/src/lib/api/adventure.spec.ts'
+      - 'apps/web/src/lib/api/pack.ts'
       - 'packages/database/prisma/schema.prisma'
       - 'packages/database/prisma/migrations/**'
       - '.github/workflows/adventure-system-ci.yml'
-      - 'DEPLOYMENT_GUIDE.md'
       - 'docs/ADVENTURE_QUALIFICATION.md'
-      - 'docker-compose.yml'
+      - 'docs/ADVENTURE_ROLLOUT.md'
+      - 'docs/WOOF_ADVENTURE_SYSTEM.md'
 
 permissions:
   contents: read
@@ -135,115 +109,32 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
 
-      - name: Check redesign formatting
+      - name: Check Adventure release formatting
         run: >-
           pnpm exec prettier --check
-          docker-compose.yml
-          apps/web/.eslintrc.js
-          apps/web/next.config.ts
-          apps/web/tailwind.config.ts
-          apps/web/vitest.config.ts
           apps/api/src/adventure
           apps/api/src/care-events
-          apps/api/src/auth/authenticated-request.ts
           apps/api/src/config/env.validation.ts
-          apps/api/src/common/filters/all-exceptions.filter.ts
-          apps/api/src/common/filters/all-exceptions.filter.spec.ts
           apps/api/src/activities/activities.module.ts
           apps/api/src/activities/activities.service.ts
           apps/api/src/coaching/coaching.controller.ts
           apps/api/src/coaching/coaching.module.ts
           apps/api/src/gamification/gamification.controller.ts
-          apps/api/src/behavior-vision/behavior-profile.spec.ts
-          apps/api/src/goals/goals.controller.ts
-          apps/api/src/quiz/dto/save-quiz-response.dto.ts
-          apps/api/src/media-library/media-library.service.spec.ts
-          apps/api/src/app.controller.ts
-          apps/api/src/app.service.ts
-          apps/api/src/app.service.spec.ts
           apps/api/src/app.module.ts
-          apps/api/src/main.ts
           apps/web/src/app/page.tsx
           apps/web/src/app/compass
-          apps/web/src/app/health/page.tsx
           apps/web/src/app/journey
-          apps/web/src/app/notifications/page.tsx
           apps/web/src/app/pack
-          apps/web/src/components/activity/activity-history.tsx
           apps/web/src/components/bottom-nav.tsx
-          apps/web/src/components/events/EventDetailsDialog.tsx
-          apps/web/src/components/matches/MatchDiscoveryScreen.tsx
-          apps/web/src/components/onboarding
-          apps/web/src/components/quiz
-          apps/web/src/data/quizQuestions.ts
-          apps/web/src/hooks/use-push-notifications.ts
-          apps/web/src/lib/api.ts
-          apps/web/src/lib/api
-          apps/web/src/lib/analytics.ts
-          apps/web/src/lib/push-notifications.ts
-          apps/web/src/lib/types.ts
-          apps/web/src/store/session.ts
-          apps/web/src/types/quiz.ts
+          apps/web/src/lib/api/adventure.ts
+          apps/web/src/lib/api/adventure.spec.ts
+          apps/web/src/lib/api/pack.ts
 
-      - name: Lint Adventure API changes
-        run: >-
-          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
-          'src/adventure/**/*.ts'
-          'src/care-events/**/*.ts'
-          src/auth/authenticated-request.ts
-          src/config/env.validation.ts
-          src/common/filters/all-exceptions.filter.ts
-          src/common/filters/all-exceptions.filter.spec.ts
-          src/activities/activities.module.ts
-          src/activities/activities.service.ts
-          src/coaching/coaching.controller.ts
-          src/coaching/coaching.module.ts
-          src/gamification/gamification.controller.ts
-          src/behavior-vision/behavior-profile.spec.ts
-          src/behavior-vision/behavior-vision.service.ts
-          src/chat/chat.gateway.ts
-          src/goals/goals.controller.ts
-          src/quiz/dto/save-quiz-response.dto.ts
-          src/media-library/media-library.service.spec.ts
-          src/app.controller.ts
-          src/app.service.ts
-          src/app.service.spec.ts
-          src/app.module.ts
-          src/main.ts
+      - name: Lint monorepo
+        run: pnpm lint
 
-      - name: Lint Adventure web changes
-        run: >-
-          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
-          next.config.ts
-          tailwind.config.ts
-          vitest.config.ts
-          src/app/page.tsx
-          src/app/compass/page.tsx
-          src/app/health/page.tsx
-          src/app/journey/page.tsx
-          src/app/notifications/page.tsx
-          src/app/pack/page.tsx
-          src/components/activity/activity-history.tsx
-          src/components/bottom-nav.tsx
-          src/components/events/EventDetailsDialog.tsx
-          src/components/matches/MatchDiscoveryScreen.tsx
-          'src/components/onboarding/**/*.tsx'
-          'src/components/quiz/**/*.tsx'
-          src/data/quizQuestions.ts
-          src/hooks/use-push-notifications.ts
-          src/lib/api.ts
-          'src/lib/api/**/*.ts'
-          src/lib/analytics.ts
-          src/lib/push-notifications.ts
-          src/lib/types.ts
-          src/store/session.ts
-          src/types/quiz.ts
-
-      - name: Type-check API
-        run: pnpm --filter @woof/api type-check
-
-      - name: Type-check web app
-        run: pnpm --filter @woof/web type-check
+      - name: Type-check monorepo
+        run: pnpm type-check
 
       - name: Run Adventure web contract tests
         run: pnpm --filter @woof/web test
