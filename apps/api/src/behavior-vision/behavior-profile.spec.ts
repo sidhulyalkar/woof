@@ -153,4 +153,4 @@ describe('individual behavior profile', () => {
     expect(arousal?.sampleCount).toBe(1);
     expect(arousal?.mean).toBeCloseTo(0.2);
   });
-}
+});
