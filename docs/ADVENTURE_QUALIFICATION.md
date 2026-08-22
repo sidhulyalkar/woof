@@ -6,6 +6,7 @@ This document is the merge checkpoint for the Adventure System integration branc
 
 - Prisma schema validates and remains formatter-clean.
 - The complete PostgreSQL migration chain applies to a fresh pgvector/PostgreSQL 15 database.
+- The current chain includes a forward-only normalization of the inherited Media Library index name so the physical database and Prisma datamodel can remain zero-diff.
 - The Adventure migration remains additive and contains no destructive `DROP`, `TRUNCATE`, or bulk `DELETE` operations.
 - The freshly migrated database matches the Prisma datamodel according to `prisma migrate diff`.
 - Prettier passes on all branch-owned Adventure, CareEvent, Activity/Coach integration, Pack, Compass, Journey, navigation, API-client, and compatibility-session surfaces.
