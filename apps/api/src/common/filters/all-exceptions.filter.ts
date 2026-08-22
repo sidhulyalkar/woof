@@ -26,7 +26,7 @@ type RequestWithOptionalUser = Request & {
 
 export function redactRequestHeaders(headers: Request['headers']) {
   return Object.fromEntries(
-    Object.entries(headers).filter(([name]) => !SENSITIVE_HEADERS.has(name.toLowerCase())),
+    Object.entries(headers).filter(([name]) => !SENSITIVE_HEADERS.has(name.toLowerCase()))
   );
 }
 
@@ -46,9 +46,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<RequestWithOptionalUser>();
 
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
     const message = normalizeHttpMessage(exceptionResponse);
@@ -56,7 +54,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     this.logger.error(
       `${request.method} ${safePath}`,
-      exception instanceof Error ? exception.stack : exception,
+      exception instanceof Error ? exception.stack : exception
     );
 
     if (process.env.NODE_ENV === 'production') {

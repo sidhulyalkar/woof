@@ -59,7 +59,7 @@ export function MatchDiscoveryScreen() {
 
       setTimeout(() => {
         setSwipeDirection(null);
-        setCurrentIndex(prev => prev + 1);
+        setCurrentIndex((prev) => prev + 1);
 
         if (matches && currentIndex >= matches.length - 2) {
           refetch();
@@ -92,7 +92,12 @@ export function MatchDiscoveryScreen() {
           <p className="text-muted-foreground mb-4">
             Check back soon! We're finding more paw-fect matches for you.
           </p>
-          <Button onClick={() => { setCurrentIndex(0); refetch(); }}>
+          <Button
+            onClick={() => {
+              setCurrentIndex(0);
+              refetch();
+            }}
+          >
             Refresh Matches
           </Button>
         </Card>
@@ -123,8 +128,8 @@ export function MatchDiscoveryScreen() {
             swipeDirection === 'left'
               ? 'transform -translate-x-full opacity-0'
               : swipeDirection === 'right'
-              ? 'transform translate-x-full opacity-0'
-              : 'transform translate-x-0 opacity-100'
+                ? 'transform translate-x-full opacity-0'
+                : 'transform translate-x-0 opacity-100'
           }`}
         >
           <Card className="overflow-hidden shadow-2xl">
@@ -136,9 +141,7 @@ export function MatchDiscoveryScreen() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-8xl">
-                  🐕
-                </div>
+                <div className="w-full h-full flex items-center justify-center text-8xl">🐕</div>
               )}
 
               <div className="absolute top-4 right-4">
@@ -152,7 +155,10 @@ export function MatchDiscoveryScreen() {
                 <div className="absolute top-4 left-4">
                   <Badge variant="secondary" className="bg-white/90 text-sm">
                     <MapPin className="w-3 h-3 mr-1" />
-                    {match.distance < 1 ? `${(match.distance * 1000).toFixed(0)}m` : `${match.distance.toFixed(1)}km`} away
+                    {match.distance < 1
+                      ? `${(match.distance * 1000).toFixed(0)}m`
+                      : `${match.distance.toFixed(1)}km`}{' '}
+                    away
                   </Badge>
                 </div>
               )}
@@ -160,7 +166,9 @@ export function MatchDiscoveryScreen() {
 
             <div className="p-6 space-y-4">
               <div>
-                <h2 className="text-3xl font-bold">{match.pet.name}, {match.pet.age}</h2>
+                <h2 className="text-3xl font-bold">
+                  {match.pet.name}, {match.pet.age}
+                </h2>
                 <p className="text-lg text-muted-foreground">{match.pet.breed}</p>
                 <div className="flex items-center gap-2 mt-2">
                   <Avatar className="w-8 h-8">

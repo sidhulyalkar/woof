@@ -21,13 +21,20 @@ export function PetProfileStep({ data, onNext, onBack }: OnboardingStepProps) {
     <Card className="space-y-6 p-6">
       <div>
         <h2 className="text-2xl font-bold">Add your companion</h2>
-        <p className="text-muted-foreground">A few basics help Woof personalize shared activities.</p>
+        <p className="text-muted-foreground">
+          A few basics help Woof personalize shared activities.
+        </p>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="pet-name">Name</Label>
-          <Input id="pet-name" value={name} onChange={(event) => setName(event.target.value)} required />
+          <Input
+            id="pet-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="pet-species">Species</Label>
@@ -49,11 +56,17 @@ export function PetProfileStep({ data, onNext, onBack }: OnboardingStepProps) {
       </div>
 
       <div className="flex gap-3">
-        {onBack && <Button variant="outline" onClick={onBack}>Back</Button>}
+        {onBack && (
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+        )}
         <Button
           className="flex-1"
           disabled={!name.trim()}
-          onClick={() => onNext({ petName: name.trim(), petSpecies: species, petBreed: breed.trim() })}
+          onClick={() =>
+            onNext({ petName: name.trim(), petSpecies: species, petBreed: breed.trim() })
+          }
         >
           Continue
         </Button>

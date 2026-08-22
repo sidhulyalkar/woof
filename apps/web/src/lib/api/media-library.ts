@@ -132,8 +132,9 @@ export const mediaLibraryApi = {
 
   updateAsset: async (
     assetId: string,
-    update: { favorite?: boolean; albumIds?: string[]; tags?: string[] },
-  ) => apiClient.patch(`/media-library/assets/${assetId}`, update) as unknown as Promise<MediaAsset>,
+    update: { favorite?: boolean; albumIds?: string[]; tags?: string[] }
+  ) =>
+    apiClient.patch(`/media-library/assets/${assetId}`, update) as unknown as Promise<MediaAsset>,
 
   deleteAsset: async (assetId: string) =>
     apiClient.delete(`/media-library/assets/${assetId}`) as unknown as Promise<{
@@ -156,7 +157,7 @@ export const mediaLibraryApi = {
     petId: string,
     accessToken: string,
     sessionId: string,
-    albumIds: string[] = [],
+    albumIds: string[] = []
   ) =>
     apiClient.post('/media-library/providers/google-photos/import', {
       petId,

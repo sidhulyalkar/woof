@@ -41,18 +41,18 @@ export type InsightsResponse = {
 
 export const insightsApi = {
   getMine: async (petId?: string) =>
-    (apiClient.get<InsightsResponse>('/insights/me', {
+    apiClient.get<InsightsResponse>('/insights/me', {
       params: petId ? { petId } : undefined,
-    }) as unknown as Promise<InsightsResponse>),
+    }) as unknown as Promise<InsightsResponse>,
 
   feedback: async (
     petId: string,
     recommendation: Pick<InsightRecommendation, 'id' | 'category'>,
-    outcome: 'shown' | 'accepted' | 'dismissed' | 'completed',
+    outcome: 'shown' | 'accepted' | 'dismissed' | 'completed'
   ) =>
-    (apiClient.post(`/insights/pets/${petId}/recommendation-feedback`, {
+    apiClient.post(`/insights/pets/${petId}/recommendation-feedback`, {
       recommendationId: recommendation.id,
       category: recommendation.category,
       outcome,
-    }) as unknown as Promise<{ id: string }>),
+    }) as unknown as Promise<{ id: string }>,
 };

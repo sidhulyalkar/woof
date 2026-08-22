@@ -9,7 +9,7 @@ describe('redactRequestHeaders', () => {
         'x-api-key': 'private-key',
         'user-agent': 'woof-test-agent',
         'x-request-id': 'request-123',
-      }),
+      })
     ).toEqual({
       'user-agent': 'woof-test-agent',
       'x-request-id': 'request-123',

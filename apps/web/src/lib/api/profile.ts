@@ -15,6 +15,5 @@ export interface LegacyGamificationSummary {
 
 export const profileApi = {
   update: (data: ProfileUpdate) => apiClient.patch<AuthUser>('/users/me', data),
-  gamificationSummary: () =>
-    apiClient.get<LegacyGamificationSummary>('/gamification/me/summary'),
+  gamificationSummary: () => apiClient.get<LegacyGamificationSummary>('/gamification/me/summary'),
 };

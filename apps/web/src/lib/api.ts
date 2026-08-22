@@ -201,9 +201,7 @@ export const compatibilityApi = {
       RawRecommendationsResponse | RawCompatibilityRecommendation[]
     >(`/compatibility/recommendations/${petId}`);
 
-    const recommendations = Array.isArray(response)
-      ? response
-      : response.recommendations ?? [];
+    const recommendations = Array.isArray(response) ? response : (response.recommendations ?? []);
 
     return recommendations.map(normalizeRecommendation);
   },

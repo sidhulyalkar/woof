@@ -27,7 +27,7 @@ async function bootstrap() {
         },
       },
       crossOriginEmbedderPolicy: false,
-    }),
+    })
   );
 
   app.useGlobalFilters(new AllExceptionsFilter());
@@ -63,7 +63,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-    }),
+    })
   );
 
   const apiDocsEnabled = !isProduction || configService.get<string>('API_DOCS_ENABLED') === 'true';
@@ -71,7 +71,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Woof API')
       .setDescription(
-        'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.',
+        'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.'
       )
       .setVersion('1.0')
       .addTag('auth', 'Authentication endpoints')

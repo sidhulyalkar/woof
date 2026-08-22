@@ -54,7 +54,7 @@ const normalizePost = (post: RawPost): Post => {
 
 export const webSocialApi = {
   async getFeed(): Promise<Post[]> {
-    const response = await apiClient.get('/social/posts') as FeedEnvelope;
+    const response = (await apiClient.get('/social/posts')) as FeedEnvelope;
     return (response.posts ?? []).map(normalizePost);
   },
 

@@ -243,7 +243,7 @@ export function useComments(postId: string, options?: ManagedQueryOptions<Commen
 }
 
 export function useCreateComment(
-  options?: UseMutationOptions<Comment, Error, { postId: string; text: string }>,
+  options?: UseMutationOptions<Comment, Error, { postId: string; text: string }>
 ) {
   const queryClient = useQueryClient();
 
@@ -281,7 +281,7 @@ export function useCreateComment(
 }
 
 export function useDeleteComment(
-  options?: UseMutationOptions<void, Error, { commentId: string; postId: string }>,
+  options?: UseMutationOptions<void, Error, { commentId: string; postId: string }>
 ) {
   const queryClient = useQueryClient();
 
@@ -304,7 +304,7 @@ export function useActivities(options?: ManagedQueryOptions<Activity[]>) {
 }
 
 export function useCreateActivity(
-  options?: UseMutationOptions<Activity, Error, Partial<Activity>>,
+  options?: UseMutationOptions<Activity, Error, Partial<Activity>>
 ) {
   const queryClient = useQueryClient();
 
@@ -318,7 +318,7 @@ export function useCreateActivity(
 }
 
 export function useUpdateActivity(
-  options?: UseMutationOptions<Activity, Error, { id: string; data: Partial<Activity> }>,
+  options?: UseMutationOptions<Activity, Error, { id: string; data: Partial<Activity> }>
 ) {
   const queryClient = useQueryClient();
 
@@ -333,7 +333,7 @@ export function useUpdateActivity(
 
 export function useLeaderboard(
   timeframe: 'weekly' | 'monthly' = 'weekly',
-  options?: ManagedQueryOptions<LeaderboardEntry[]>,
+  options?: ManagedQueryOptions<LeaderboardEntry[]>
 ) {
   return useQuery<LeaderboardEntry[]>({
     queryKey: queryKeys.leaderboard(timeframe),
@@ -417,7 +417,7 @@ export function useConversation(conversationId: string, options?: ManagedQueryOp
 }
 
 export function useSendMessage(
-  options?: UseMutationOptions<any, Error, { conversationId: string; content: string }>,
+  options?: UseMutationOptions<any, Error, { conversationId: string; content: string }>
 ) {
   const queryClient = useQueryClient();
 
@@ -478,13 +478,9 @@ export function useRecordInteraction(
     any,
     Error,
     { targetUserId: string; action: 'like' | 'skip' | 'super_like' }
-  >,
+  >
 ) {
-  return useMutation<
-    any,
-    Error,
-    { targetUserId: string; action: 'like' | 'skip' | 'super_like' }
-  >({
+  return useMutation<any, Error, { targetUserId: string; action: 'like' | 'skip' | 'super_like' }>({
     mutationFn: (data) => apiClient.post<any>('/matches/interact', data),
     ...options,
   });

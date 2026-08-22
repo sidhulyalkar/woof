@@ -178,13 +178,16 @@ export const behaviorVisionApi = {
     const filename = input.media instanceof File ? input.media.name : `behavior-${Date.now()}.webm`;
     form.append('media', input.media, filename);
 
-    return apiClient.post('/behavior-vision/analyze', form) as unknown as Promise<BehaviorVisionResult>;
+    return apiClient.post(
+      '/behavior-vision/analyze',
+      form
+    ) as unknown as Promise<BehaviorVisionResult>;
   },
 
   profile: async (petId: string) =>
-    apiClient.get('/behavior-vision/profile', { params: { petId } }) as unknown as Promise<
-      IndividualBehaviorProfile
-    >,
+    apiClient.get('/behavior-vision/profile', {
+      params: { petId },
+    }) as unknown as Promise<IndividualBehaviorProfile>,
 
   timeline: async (petId: string, limit = 30) =>
     apiClient.get('/behavior-vision/timeline', { params: { petId, limit } }) as unknown as Promise<

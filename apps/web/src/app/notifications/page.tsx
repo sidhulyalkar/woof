@@ -14,7 +14,7 @@ function readMetadataNumber(metadata: Record<string, unknown>, key: string): num
 }
 
 function readPetNames(
-  metadata: Record<string, unknown>,
+  metadata: Record<string, unknown>
 ): { yours: string; theirs: string } | undefined {
   const value = metadata.petNames;
   if (!value || typeof value !== 'object') return undefined;
@@ -107,7 +107,9 @@ export default function NotificationsPage() {
     <div className="container mx-auto max-w-3xl p-4">
       <div className="mb-6">
         <h1 className="mb-2 text-3xl font-bold">Notifications</h1>
-        <p className="text-muted-foreground">Stay updated with personalized suggestions and alerts</p>
+        <p className="text-muted-foreground">
+          Stay updated with personalized suggestions and alerts
+        </p>
       </div>
 
       {nudges.length === 0 ? (
@@ -123,7 +125,9 @@ export default function NotificationsPage() {
           {nudges.map((nudge) => {
             const metadata = nudge.payload.metadata;
             const distance = metadata ? readMetadataNumber(metadata, 'distance') : undefined;
-            const messageCount = metadata ? readMetadataNumber(metadata, 'messageCount') : undefined;
+            const messageCount = metadata
+              ? readMetadataNumber(metadata, 'messageCount')
+              : undefined;
             const petNames = metadata ? readPetNames(metadata) : undefined;
 
             return (
@@ -136,7 +140,9 @@ export default function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-start justify-between gap-4">
                       <div>
-                        <h3 className="mb-1 font-medium">{nudge.payload.message || 'New suggestion'}</h3>
+                        <h3 className="mb-1 font-medium">
+                          {nudge.payload.message || 'New suggestion'}
+                        </h3>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Badge variant="outline" className="text-xs">
                             {nudge.payload.reason.replace('_', ' ')}

@@ -38,5 +38,7 @@ export const privacyApi = {
     apiClient.get('/privacy/location-summary') as unknown as Promise<LocationSummary>,
 
   clearLocationHistory: () =>
-    apiClient.delete('/privacy/location-history') as unknown as Promise<ClearLocationHistoryResponse>,
+    apiClient.delete(
+      '/privacy/location-history'
+    ) as unknown as Promise<ClearLocationHistoryResponse>,
 };

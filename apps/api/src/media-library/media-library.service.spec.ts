@@ -45,9 +45,11 @@ function makePrisma() {
       create: jest.fn().mockResolvedValue(pendingAsset()),
       findFirst: jest.fn().mockResolvedValue(pendingAsset()),
       findMany: jest.fn().mockResolvedValue([]),
-      update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
-        Promise.resolve({ ...pendingAsset(), ...data }),
-      ),
+      update: jest
+        .fn()
+        .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ ...pendingAsset(), ...data })
+        ),
       delete: jest.fn().mockResolvedValue({}),
       aggregate: jest.fn().mockResolvedValue({ _sum: { sizeBytes: 0n } }),
     },
@@ -67,9 +69,9 @@ function makePrisma() {
     telemetry: {
       create: jest.fn().mockResolvedValue({ id: 'event-1', createdAt }),
     },
-    $transaction: jest.fn().mockImplementation((operations: Array<Promise<unknown>>) =>
-      Promise.all(operations),
-    ),
+    $transaction: jest
+      .fn()
+      .mockImplementation((operations: Array<Promise<unknown>>) => Promise.all(operations)),
   };
 }
 
@@ -107,7 +109,7 @@ function makeService(prisma = makePrisma(), storage = makeStorage()) {
     service: new MediaLibraryService(
       prisma as unknown as PrismaService,
       storage as unknown as StorageService,
-      config as unknown as ConfigService,
+      config as unknown as ConfigService
     ),
   };
 }
@@ -127,7 +129,7 @@ describe('MediaLibraryService', () => {
 
     expect(result.assetId).toBe('11111111-1111-4111-8111-111111111111');
     expect(storage.createPrivateUploadIntent).toHaveBeenCalledWith(
-      expect.objectContaining({ folder: 'private/media/user-1/pet-1' }),
+      expect.objectContaining({ folder: 'private/media/user-1/pet-1' })
     );
 
     const createArgs = prisma.mediaAsset.create.mock.calls[0]?.[0];
@@ -139,7 +141,7 @@ describe('MediaLibraryService', () => {
         storageKey: 'private/media/user-1/pet-1/object.jpg',
         sizeBytes: 1024n,
         status: 'PENDING',
-      }),
+      })
     );
     expect(createArgs?.data).not.toHaveProperty('uploadUrl');
     expect(createArgs?.data).not.toHaveProperty('signedUrl');
@@ -163,11 +165,11 @@ describe('MediaLibraryService', () => {
     await expect(
       service.completeUpload('user-1', {
         assetId: '11111111-1111-4111-8111-111111111111',
-      }),
+      })
     ).rejects.toThrow('did not match');
     expect(storage.deleteFile).toHaveBeenCalledWith('private/media/user-1/pet-1/object.jpg');
     expect(prisma.mediaAsset.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) })
     );
   });
 
@@ -184,7 +186,7 @@ describe('MediaLibraryService', () => {
         filename: 'too-much.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
-      }),
+      })
     ).rejects.toThrow('storage quota');
   });
 
@@ -213,7 +215,7 @@ describe('MediaLibraryService', () => {
       'https://photospicker.googleapis.com/v1/sessions',
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: `Bearer ${accessToken}` }),
-      }),
+      })
     );
     expect(JSON.stringify(prisma.telemetry.create.mock.calls)).not.toContain(accessToken);
     expect(JSON.stringify(prisma.mediaAsset.create.mock.calls)).not.toContain(accessToken);

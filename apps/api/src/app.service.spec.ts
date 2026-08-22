@@ -21,7 +21,7 @@ describe('AppService health checks', () => {
         status: 'alive',
         timestamp: expect.any(String),
         uptime: expect.any(Number),
-      }),
+      })
     );
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
@@ -39,7 +39,7 @@ describe('AppService health checks', () => {
             latencyMs: expect.any(Number),
           }),
         },
-      }),
+      })
     );
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });

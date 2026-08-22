@@ -10,11 +10,7 @@ interface PushSubscriptionResponse {
 }
 
 export function isPushSupported(): boolean {
-  return (
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  );
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {

@@ -87,7 +87,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
 
   const toggleTag = (tag: string) => {
     setFeedbackTags((previous) =>
-      previous.includes(tag) ? previous.filter((item) => item !== tag) : [...previous, tag],
+      previous.includes(tag) ? previous.filter((item) => item !== tag) : [...previous, tag]
     );
   };
 
@@ -235,7 +235,13 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                           <label className="text-sm">Vibe Score</label>
                           <span className="text-sm font-semibold">{vibeScore[0]}/5</span>
                         </div>
-                        <Slider value={vibeScore} onValueChange={setVibeScore} min={1} max={5} step={1} />
+                        <Slider
+                          value={vibeScore}
+                          onValueChange={setVibeScore}
+                          min={1}
+                          max={5}
+                          step={1}
+                        />
                       </div>
 
                       <div>
@@ -243,7 +249,13 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
                           <label className="text-sm">Pet Density</label>
                           <span className="text-sm font-semibold">{petDensity[0]}/5</span>
                         </div>
-                        <Slider value={petDensity} onValueChange={setPetDensity} min={1} max={5} step={1} />
+                        <Slider
+                          value={petDensity}
+                          onValueChange={setPetDensity}
+                          min={1}
+                          max={5}
+                          step={1}
+                        />
                       </div>
 
                       <div>

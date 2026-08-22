@@ -19,7 +19,8 @@ export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
       <div>
         <h2 className="text-2xl font-bold">Optional permissions</h2>
         <p className="text-muted-foreground">
-          Choose what you may want to enable later. Woof will still ask through your browser or device before accessing anything.
+          Choose what you may want to enable later. Woof will still ask through your browser or
+          device before accessing anything.
         </p>
       </div>
 
@@ -33,7 +34,9 @@ export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
           />
           <span>
             <span className="block font-medium">Helpful reminders</span>
-            <span className="text-sm text-muted-foreground">Allow Woof to offer notification setup later.</span>
+            <span className="text-sm text-muted-foreground">
+              Allow Woof to offer notification setup later.
+            </span>
           </span>
         </label>
         <label className="flex items-start gap-3 rounded-xl border p-4">
@@ -45,7 +48,9 @@ export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
           />
           <span>
             <span className="block font-medium">Nearby experiences</span>
-            <span className="text-sm text-muted-foreground">Allow Woof to offer location access when a map feature needs it.</span>
+            <span className="text-sm text-muted-foreground">
+              Allow Woof to offer location access when a map feature needs it.
+            </span>
           </span>
         </label>
       </div>
@@ -55,7 +60,11 @@ export function PermissionsStep({ data, onNext, onBack }: OnboardingStepProps) {
       </p>
 
       <div className="flex gap-3">
-        {onBack && <Button variant="outline" onClick={onBack}>Back</Button>}
+        {onBack && (
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+        )}
         <Button
           className="flex-1"
           onClick={() => onNext({ allowNotifications: notifications, allowLocation: location })}

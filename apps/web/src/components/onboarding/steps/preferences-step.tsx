@@ -26,7 +26,7 @@ export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
 
   const toggle = (id: string) => {
     setSelected((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
     );
   };
 
@@ -40,7 +40,9 @@ export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
       </div>
 
       <fieldset className="space-y-3">
-        <Label asChild><legend>Activity preferences</legend></Label>
+        <Label asChild>
+          <legend>Activity preferences</legend>
+        </Label>
         {options.map((option) => {
           const checked = selected.includes(option.id);
           return (
@@ -61,7 +63,11 @@ export function PreferencesStep({ data, onNext, onBack }: OnboardingStepProps) {
       </fieldset>
 
       <div className="flex gap-3">
-        {onBack && <Button variant="outline" onClick={onBack}>Back</Button>}
+        {onBack && (
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+        )}
         <Button className="flex-1" onClick={() => onNext({ activityPreferences: selected })}>
           Continue
         </Button>

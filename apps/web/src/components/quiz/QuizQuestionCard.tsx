@@ -13,7 +13,12 @@ interface QuizQuestionCardProps {
   onChange: (answer: string | string[] | number, customAnswer?: string) => void;
 }
 
-export function QuizQuestionCard({ question, value, customValue, onChange }: QuizQuestionCardProps) {
+export function QuizQuestionCard({
+  question,
+  value,
+  customValue,
+  onChange,
+}: QuizQuestionCardProps) {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customText, setCustomText] = useState(customValue || '');
 
@@ -70,7 +75,9 @@ export function QuizQuestionCard({ question, value, customValue, onChange }: Qui
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="font-semibold text-gray-900">{option.label}</div>
-                  {option.description && <div className="text-sm text-gray-600 mt-1">{option.description}</div>}
+                  {option.description && (
+                    <div className="text-sm text-gray-600 mt-1">{option.description}</div>
+                  )}
                 </div>
                 {value === option.value.toString() && (
                   <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
