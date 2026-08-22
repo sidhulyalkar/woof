@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { UserProfileStep } from './steps/user-profile-step';
 import { PetProfileStep } from './steps/pet-profile-step';
 import { PreferencesStep } from './steps/preferences-step';
 import { PermissionsStep } from './steps/permissions-step';
+import type { OnboardingData } from './onboarding-types';
 
 const steps = [
   { id: 'profile', title: 'Your Profile', component: UserProfileStep },
@@ -19,19 +19,19 @@ const steps = [
 export function OnboardingWizard() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<OnboardingData>({});
 
   const progress = ((currentStep + 1) / steps.length) * 100;
   const CurrentStepComponent = steps[currentStep].component;
 
-  const handleNext = (data: Record<string, any>) => {
-    setFormData({ ...formData, ...data });
+  const handleNext = (data: Partial<OnboardingData>) => {
+    const nextData = { ...formData, ...data };
+    setFormData(nextData);
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Complete onboarding
-      handleComplete({ ...formData, ...data });
+      void handleComplete(nextData);
     }
   };
 
@@ -41,13 +41,14 @@ export function OnboardingWizard() {
     }
   };
 
-  const handleComplete = async (data: Record<string, any>) => {
+  const handleComplete = async (data: OnboardingData) => {
     try {
-      // Save all onboarding data
-      // TODO: Call API to save data
-      console.log('Onboarding complete:', data);
-
-      // Redirect to main app
+      // This legacy wizard currently hands off only local preferences. Durable account/pet
+      // creation is owned by the canonical onboarding route, so do not imply persistence here.
+      console.info('Onboarding flow completed', {
+        hasPetProfile: Boolean(data.petName),
+        preferenceCount: data.activityPreferences?.length ?? 0,
+      });
       router.push('/');
     } catch (error) {
       console.error('Onboarding failed:', error);
@@ -57,7 +58,6 @@ export function OnboardingWizard() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="mx-auto max-w-2xl space-y-8 py-8">
-        {/* Progress Bar */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
@@ -68,7 +68,6 @@ export function OnboardingWizard() {
           <Progress value={progress} />
         </div>
 
-        {/* Current Step */}
         <CurrentStepComponent
           data={formData}
           onNext={handleNext}
