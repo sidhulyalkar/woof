@@ -1,0 +1,184 @@
+name: Fix PR7 live contracts A once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/fix-pr7-live-contracts-a-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @woof/database db:generate
+
+      - name: Backport generic typed contracts only
+        shell: bash
+        run: |
+          git fetch origin agent/woof-adventure-system-v1
+          git restore --source=origin/agent/woof-adventure-system-v1 -- \
+            apps/web/src/lib/api.ts \
+            apps/web/src/lib/api/profile.ts \
+            apps/web/src/lib/api/quiz.ts \
+            apps/web/src/data/quizQuestions.ts \
+            apps/web/src/components/quiz/OnboardingQuiz.tsx \
+            apps/web/src/components/quiz/QuizQuestionCard.tsx \
+            apps/web/src/components/onboarding/onboarding-types.ts \
+            apps/web/src/components/onboarding/onboarding-wizard.tsx \
+            apps/web/src/components/onboarding/steps/user-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/pet-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/preferences-step.tsx \
+            apps/web/src/components/onboarding/steps/permissions-step.tsx
+
+          python - <<'PY'
+          from pathlib import Path
+
+          # Preserve the parent branch's pre-Adventure gamification write contract.
+          api = Path('apps/web/src/lib/api.ts')
+          text = api.read_text()
+          text = text.replace(
+              "// Legacy read-only gamification surfaces remain for old profile screens. All\n"
+              "// reward writes are intentionally absent: Adventure rewards are server-owned\n"
+              "// CareEvents processed through RewardPolicy -> RewardLedger.\n",
+              "",
+          )
+          start = text.index('export const gamificationApi = {')
+          end = text.index('\n};', start) + 3
+          block = """export const gamificationApi = {
+  getProfile: (userId: string) => apiClient.get<unknown>(`/gamification/profile/${userId}`),
+  getLeaderboard: () => apiClient.get<unknown[]>('/gamification/leaderboard'),
+  awardPoints: (data: { userId: string; points: number; reason: string }) =>
+    apiClient.post<unknown>('/gamification/points', data),
+};"""
+          api.write_text(text[:start] + block + text[end:])
+
+          # Keep notifications on the parent semantics while making the transport contract typed.
+          notifications = Path('apps/web/src/app/notifications/page.tsx')
+          text = notifications.read_text()
+          text = text.replace(
+              "import { Bell, MapPin, MessageCircle, Trophy, X } from 'lucide-react';",
+              "import { Bell, MapPin, Trophy, X } from 'lucide-react';",
+          )
+          text = text.replace("import { useAuthStore } from '@/lib/stores/auth-store';\n", '')
+          text = text.replace(
+              '    metadata?: Record<string, any>;',
+              """    metadata?: {
+      distance?: number;
+      petNames?: { yours: string; theirs: string };
+      messageCount?: number;
+      [key: string]: unknown;
+    };""",
+          )
+          text = text.replace('  const { user } = useAuthStore();\n', '')
+          text = text.replace(
+              "      const response = await apiClient.get('/nudges');",
+              "      const response = await apiClient.get<Nudge[]>('/nudges');",
+          )
+          text = text.replace("            We'll let you know", "            We&apos;ll let you know")
+          notifications.write_text(text)
+
+          # Anonymous login failures remain page-local, but are narrowed without `any`.
+          login = Path('apps/web/src/app/login/page.tsx')
+          text = login.read_text()
+          if "import { isAxiosError } from 'axios';" not in text:
+              text = text.replace("'use client';\n\n", "'use client';\n\nimport { isAxiosError } from 'axios';\n")
+          old = """    } catch (err: any) {
+      console.error('Login failed', err);
+      setError(err?.response?.data?.message || 'Invalid email or password.');
+    } finally {"""
+          new = """    } catch (err: unknown) {
+      console.error('Login failed', err);
+      const serverMessage = isAxiosError<{ message?: string }>(err)
+        ? err.response?.data?.message
+        : undefined;
+      setError(serverMessage ?? 'Invalid email or password.');
+    } finally {"""
+          if text.count(old) != 1:
+              raise SystemExit('login error block changed unexpectedly')
+          login.write_text(text.replace(old, new, 1))
+          PY
+
+          rm -f \
+            apps/web/src/app/profile/page_old.tsx \
+            apps/web/src/lib/mock-data.ts
+
+          if grep -qi adventure apps/web/src/lib/api.ts; then
+            echo 'Adventure semantics leaked into parent api.ts'
+            exit 1
+          fi
+
+          pnpm exec prettier --write \
+            apps/web/src/lib/api.ts \
+            apps/web/src/lib/api/profile.ts \
+            apps/web/src/lib/api/quiz.ts \
+            apps/web/src/data/quizQuestions.ts \
+            apps/web/src/components/quiz/OnboardingQuiz.tsx \
+            apps/web/src/components/quiz/QuizQuestionCard.tsx \
+            apps/web/src/components/onboarding/onboarding-types.ts \
+            apps/web/src/components/onboarding/onboarding-wizard.tsx \
+            apps/web/src/components/onboarding/steps/user-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/pet-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/preferences-step.tsx \
+            apps/web/src/components/onboarding/steps/permissions-step.tsx \
+            apps/web/src/app/notifications/page.tsx \
+            apps/web/src/app/login/page.tsx
+
+      - name: Prove static debt decreases and unit contracts hold
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @woof/web exec eslint src --format json --output-file /tmp/web-eslint.json
+          pnpm --filter @woof/web type-check > /tmp/web-tsc.txt 2>&1
+          set -e
+          LINT_COUNT=$(node -e "const f=require('/tmp/web-eslint.json'); console.log(f.reduce((n,x)=>n+x.messages.filter(m=>m.severity>0).length,0))")
+          TSC_COUNT=$(grep -c 'error TS' /tmp/web-tsc.txt || true)
+          echo "post-contract lint diagnostics: $LINT_COUNT (baseline 84)"
+          echo "post-contract TypeScript errors: $TSC_COUNT (baseline 70)"
+          test "$LINT_COUNT" -lt 84
+          test "$TSC_COUNT" -lt 70
+          pnpm --filter @woof/web test
+
+      - name: Commit exact product paths only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            apps/web/src/lib/api.ts \
+            apps/web/src/lib/api/profile.ts \
+            apps/web/src/lib/api/quiz.ts \
+            apps/web/src/data/quizQuestions.ts \
+            apps/web/src/components/quiz/OnboardingQuiz.tsx \
+            apps/web/src/components/quiz/QuizQuestionCard.tsx \
+            apps/web/src/components/onboarding/onboarding-types.ts \
+            apps/web/src/components/onboarding/onboarding-wizard.tsx \
+            apps/web/src/components/onboarding/steps/user-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/pet-profile-step.tsx \
+            apps/web/src/components/onboarding/steps/preferences-step.tsx \
+            apps/web/src/components/onboarding/steps/permissions-step.tsx \
+            apps/web/src/app/notifications/page.tsx \
+            apps/web/src/app/login/page.tsx \
+            apps/web/src/app/profile/page_old.tsx \
+            apps/web/src/lib/mock-data.ts
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(web): align live API and onboarding contracts"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
