@@ -41,17 +41,23 @@ export class BehaviorVisionController {
 
   @Post('analyze')
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Analyze a transient pet image/video and update the individual behavior model' })
-  @UseInterceptors(FileInterceptor('media', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  @ApiOperation({
+    summary: 'Analyze a transient pet image/video and update the individual behavior model',
+  })
+  @UseInterceptors(
+    FileInterceptor('media', {
+      limits: { fileSize: 50 * 1024 * 1024 },
+    })
+  )
   analyze(
     @Request() req: AuthenticatedRequest,
     @Body() dto: AnalyzeBehaviorMediaDto,
-    @UploadedFile() media?: Express.Multer.File,
+    @UploadedFile() media?: Express.Multer.File
   ) {
     if (!media) throw new BadRequestException('Behavior Vision requires an image or video');
     if (!ALLOWED_MEDIA_TYPES.has(media.mimetype)) {
       throw new BadRequestException(
-        'Behavior Vision accepts JPEG, PNG, WebP, MP4, WebM, or QuickTime media only',
+        'Behavior Vision accepts JPEG, PNG, WebP, MP4, WebM, or QuickTime media only'
       );
     }
     return this.behaviorVision.analyze(req.user.sub, dto, media);
@@ -79,7 +85,7 @@ export class BehaviorVisionController {
   @ApiOperation({ summary: 'Delete one derived behavior observation and its feedback' })
   deleteObservation(
     @Request() req: AuthenticatedRequest,
-    @Param('observationId') observationId: string,
+    @Param('observationId') observationId: string
   ) {
     return this.behaviorVision.deleteObservation(req.user.sub, observationId);
   }

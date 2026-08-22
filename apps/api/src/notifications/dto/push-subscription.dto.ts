@@ -52,7 +52,7 @@ export class SendPushDto {
 
   @ApiProperty({ required: false })
   @IsObject()
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 
   @ApiProperty({ required: false })
   @IsString()

@@ -6,8 +6,22 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import * as Sentry from '@sentry/node';
+
+type RequestPrincipal = {
+  sub?: string;
+  id?: string;
+  email?: string;
+};
+
+type RequestWithPrincipal = Request & {
+  user?: RequestPrincipal;
+};
+
+type HttpErrorBody = {
+  message?: string | string[];
+};
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -16,7 +30,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithPrincipal>();
 
     const status =
       exception instanceof HttpException
@@ -28,13 +42,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    // Log the error
     this.logger.error(
       `${request.method} ${request.url}`,
       exception instanceof Error ? exception.stack : exception,
     );
 
-    // Send to Sentry in production
     if (process.env.NODE_ENV === 'production') {
       Sentry.captureException(exception, {
         contexts: {
@@ -44,24 +56,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
             headers: request.headers,
           },
         },
-        user: request['user']
+        user: request.user
           ? {
-              id: (request['user'] as any).id,
-              email: (request['user'] as any).email,
+              id: request.user.sub ?? request.user.id,
+              email: request.user.email,
             }
           : undefined,
       });
     }
 
+    const errorBody =
+      message && typeof message === 'object' && !Array.isArray(message)
+        ? (message as HttpErrorBody)
+        : undefined;
+    const responseMessage =
+      typeof message === 'string'
+        ? message
+        : Array.isArray(errorBody?.message)
+          ? errorBody.message.join(' ')
+          : errorBody?.message ?? 'Internal server error';
+
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: typeof message === 'string' ? message : (message as any).message,
-      error:
-        exception instanceof HttpException
-          ? exception.name
-          : 'InternalServerError',
+      message: responseMessage,
+      error: exception instanceof HttpException ? exception.name : 'InternalServerError',
     });
   }
 }

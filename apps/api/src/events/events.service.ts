@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { GamificationService } from '../gamification/gamification.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -20,7 +21,9 @@ export class EventsService {
         description: dto.description,
         venueType: dto.type || 'park',
         startTime: new Date(dto.startTime),
-        endTime: dto.endTime ? new Date(dto.endTime) : new Date(new Date(dto.startTime).getTime() + 2 * 60 * 60 * 1000),
+        endTime: dto.endTime
+          ? new Date(dto.endTime)
+          : new Date(new Date(dto.startTime).getTime() + 2 * 60 * 60 * 1000),
         venueName: dto.locationName,
         address: dto.locationName,
         lat: dto.lat,
@@ -31,10 +34,10 @@ export class EventsService {
   }
 
   async findAll(type?: string, upcoming?: boolean) {
-    const where: any = {};
+    const where: Prisma.CommunityEventWhereInput = {};
 
     if (type) {
-      where.type = type;
+      where.venueType = type;
     }
 
     if (upcoming) {
@@ -128,7 +131,7 @@ export class EventsService {
     const event = await this.findOne(eventId);
 
     if (event.capacity && dto.status === 'going') {
-      const goingCount = event.rsvps.filter((r: any) => r.status === 'going').length;
+      const goingCount = event.rsvps.filter((rsvp) => rsvp.status === 'going').length;
       if (goingCount >= event.capacity) {
         throw new BadRequestException('Event is full');
       }
@@ -328,7 +331,7 @@ export class EventsService {
     });
 
     const avgVibeScore =
-      feedback.reduce((sum: number, f: any) => sum + f.vibeScore, 0) / feedback.length || 0;
+      feedback.reduce((sum, item) => sum + item.vibeScore, 0) / feedback.length || 0;
 
     return {
       feedback,

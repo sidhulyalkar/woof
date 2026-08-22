@@ -43,7 +43,7 @@ export class CoachingController {
   updatePlanStatus(
     @Request() req: AuthenticatedRequest,
     @Param('planId') planId: string,
-    @Body() dto: UpdateTrainingPlanStatusDto,
+    @Body() dto: UpdateTrainingPlanStatusDto
   ) {
     return this.coachingService.setPlanStatus(req.user.sub, planId, dto);
   }
@@ -53,7 +53,7 @@ export class CoachingController {
   recordSession(
     @Request() req: AuthenticatedRequest,
     @Param('planId') planId: string,
-    @Body() dto: RecordTrainingSessionDto,
+    @Body() dto: RecordTrainingSessionDto
   ) {
     return this.coachingService.recordSession(req.user.sub, planId, dto);
   }

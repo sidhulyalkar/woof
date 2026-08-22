@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsObject } from 'class-validator';
 
 export enum GoalStatus {
   ACTIVE = 'ACTIVE',
@@ -25,5 +25,6 @@ export class UpdateGoalDto {
   reminderTime?: string;
 
   @IsOptional()
-  metadata?: any;
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

@@ -43,7 +43,7 @@ export class CreateBusinessDto {
   @ApiProperty({ description: 'Hours of operation as JSON', required: false })
   @IsOptional()
   @IsObject()
-  hours?: Record<string, any>;
+  hours?: Record<string, unknown>;
 
   @ApiProperty({ description: 'Services offered', required: false, type: [String] })
   @IsOptional()

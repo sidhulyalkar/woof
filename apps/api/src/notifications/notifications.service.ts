@@ -1,8 +1,66 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@woof/database';
 import * as webPush from 'web-push';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushSubscriptionDto, SendPushDto } from './dto/push-subscription.dto';
+
+type StoredPushSubscription = {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+};
+
+type PushDeliveryError = {
+  statusCode?: number;
+  message?: string;
+  stack?: string;
+};
+
+function toStoredSubscription(subscription: PushSubscriptionDto): Prisma.InputJsonObject {
+  return {
+    endpoint: subscription.endpoint,
+    expirationTime: subscription.expirationTime ?? null,
+    keys: {
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+  };
+}
+
+function readStoredSubscription(value: Prisma.JsonValue): StoredPushSubscription | null {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+  const endpoint = value.endpoint;
+  const keys = value.keys;
+  if (
+    typeof endpoint !== 'string' ||
+    !keys ||
+    Array.isArray(keys) ||
+    typeof keys !== 'object' ||
+    typeof keys.p256dh !== 'string' ||
+    typeof keys.auth !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    endpoint,
+    expirationTime: typeof value.expirationTime === 'number' ? value.expirationTime : null,
+    keys: { p256dh: keys.p256dh, auth: keys.auth },
+  };
+}
+
+function readPushError(error: unknown): PushDeliveryError {
+  if (!error || typeof error !== 'object') return {};
+  const candidate = error as Record<string, unknown>;
+  return {
+    statusCode: typeof candidate.statusCode === 'number' ? candidate.statusCode : undefined,
+    message: typeof candidate.message === 'string' ? candidate.message : undefined,
+    stack: typeof candidate.stack === 'string' ? candidate.stack : undefined,
+  };
+}
 
 @Injectable()
 export class NotificationsService {
@@ -19,25 +77,19 @@ export class NotificationsService {
     this.pushConfigured = Boolean(publicKey && privateKey);
 
     if (this.pushConfigured) {
-      webPush.setVapidDetails(
-        'mailto:support@woof.app',
-        publicKey!,
-        privateKey!,
-      );
+      webPush.setVapidDetails('mailto:support@woof.app', publicKey!, privateKey!);
       this.logger.log('Web Push configured');
     } else {
       this.logger.warn('VAPID keys not configured; push delivery is disabled');
     }
   }
 
-  async subscribePushNotification(
-    userId: string,
-    subscription: PushSubscriptionDto,
-  ) {
+  async subscribePushNotification(userId: string, subscription: PushSubscriptionDto) {
     if (!this.pushConfigured) {
       return { success: false, reason: 'push_not_configured' };
     }
 
+    const subscriptionData = toStoredSubscription(subscription);
     const token = await this.prisma.integrationToken.upsert({
       where: {
         userId_provider: {
@@ -48,17 +100,13 @@ export class NotificationsService {
       create: {
         userId,
         provider: 'push_subscription',
-        data: subscription as any,
+        data: subscriptionData,
         scopes: ['notifications'],
-        expiresAt: subscription.expirationTime
-          ? new Date(subscription.expirationTime)
-          : null,
+        expiresAt: subscription.expirationTime ? new Date(subscription.expirationTime) : null,
       },
       update: {
-        data: subscription as any,
-        expiresAt: subscription.expirationTime
-          ? new Date(subscription.expirationTime)
-          : null,
+        data: subscriptionData,
+        expiresAt: subscription.expirationTime ? new Date(subscription.expirationTime) : null,
       },
     });
 
@@ -78,8 +126,8 @@ export class NotificationsService {
       return { success: true };
     }
 
-    const subscriptionData = subscription.data as any;
-    if (!endpoint || subscriptionData.endpoint === endpoint) {
+    const subscriptionData = readStoredSubscription(subscription.data);
+    if (!endpoint || subscriptionData?.endpoint === endpoint) {
       await this.prisma.integrationToken.delete({
         where: { id: subscription.id },
       });
@@ -109,7 +157,13 @@ export class NotificationsService {
       return { success: false, reason: 'no_subscription' };
     }
 
-    const pushSubscription = subscription.data as any;
+    const pushSubscription = readStoredSubscription(subscription.data);
+    if (!pushSubscription) {
+      this.logger.warn(`Invalid stored push subscription removed for user ${userId}`);
+      await this.unsubscribePushNotification(userId);
+      return { success: false, reason: 'invalid_subscription' };
+    }
+
     const notificationPayload = JSON.stringify({
       title,
       body,
@@ -125,25 +179,23 @@ export class NotificationsService {
       await webPush.sendNotification(pushSubscription, notificationPayload);
       this.logger.log(`Push notification sent to user ${userId}: ${title}`);
       return { success: true };
-    } catch (error: any) {
-      if (error?.statusCode === 410 || error?.statusCode === 404) {
+    } catch (error: unknown) {
+      const pushError = readPushError(error);
+      if (pushError.statusCode === 410 || pushError.statusCode === 404) {
         this.logger.warn(`Expired push subscription removed for user ${userId}`);
         await this.unsubscribePushNotification(userId);
         return { success: false, reason: 'subscription_expired' };
       }
 
       this.logger.error(
-        `Failed to send push notification: ${error?.message || 'unknown error'}`,
-        error?.stack,
+        `Failed to send push notification: ${pushError.message || 'unknown error'}`,
+        pushError.stack,
       );
       return { success: false, reason: 'delivery_failed' };
     }
   }
 
-  async sendBulkPushNotifications(
-    userIds: string[],
-    data: Omit<SendPushDto, 'userId'>,
-  ) {
+  async sendBulkPushNotifications(userIds: string[], data: Omit<SendPushDto, 'userId'>) {
     const results = await Promise.all(
       userIds.map((userId) => this.sendPushNotification({ ...data, userId })),
     );
@@ -159,7 +211,7 @@ export class NotificationsService {
     userId: string,
     nudgeType: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
   ) {
     return this.sendPushNotification({
       userId,
@@ -175,11 +227,7 @@ export class NotificationsService {
     });
   }
 
-  async sendAchievementNotification(
-    userId: string,
-    title: string,
-    message: string,
-  ) {
+  async sendAchievementNotification(userId: string, title: string, message: string) {
     return this.sendPushNotification({
       userId,
       title: `🏆 ${title}`,
@@ -190,11 +238,7 @@ export class NotificationsService {
     });
   }
 
-  async sendEventReminder(
-    userId: string,
-    eventTitle: string,
-    eventId: string,
-  ) {
+  async sendEventReminder(userId: string, eventTitle: string, eventId: string) {
     return this.sendPushNotification({
       userId,
       title: 'Event Reminder',

@@ -1,9 +1,20 @@
+import type { Prisma } from '@woof/database';
+import { PrismaService } from '../prisma/prisma.service';
 import { CompatibilityService } from './compatibility.service';
 
-describe('CompatibilityService deterministic baseline', () => {
-  const service = new CompatibilityService({} as any);
+type PetFixture = {
+  id: string;
+  name: string;
+  species: string;
+  breed: string | null;
+  birthdate: Date | null;
+  temperament: Prisma.JsonValue | null;
+};
 
-  const basePet = {
+describe('CompatibilityService deterministic baseline', () => {
+  const service = new CompatibilityService({} as PrismaService);
+
+  const basePet: PetFixture = {
     id: 'pet-a',
     name: 'Shasta',
     species: 'DOG',
@@ -12,10 +23,10 @@ describe('CompatibilityService deterministic baseline', () => {
     temperament: ['Friendly', 'Energetic', 'Social'],
   };
 
-  const score = (a: any, b: any) => (service as any).scoreBaseline(a, b);
+  const score = (a: PetFixture, b: PetFixture) => service['scoreBaseline'](a, b);
 
   it('returns exactly the same result for the same inputs', () => {
-    const other = {
+    const other: PetFixture = {
       ...basePet,
       id: 'pet-b',
       name: 'Nova',
@@ -26,13 +37,13 @@ describe('CompatibilityService deterministic baseline', () => {
   });
 
   it('ranks strong temperament overlap above a disjoint profile', () => {
-    const aligned = {
+    const aligned: PetFixture = {
       ...basePet,
       id: 'pet-b',
       name: 'Nova',
       temperament: ['Friendly', 'Energetic', 'Social'],
     };
-    const disjoint = {
+    const disjoint: PetFixture = {
       ...basePet,
       id: 'pet-c',
       name: 'Milo',
@@ -43,13 +54,13 @@ describe('CompatibilityService deterministic baseline', () => {
   });
 
   it('uses breed as a weak supporting signal rather than a hard gate', () => {
-    const sameBreed = {
+    const sameBreed: PetFixture = {
       ...basePet,
       id: 'pet-b',
       name: 'Nova',
       breed: 'Siberian Husky',
     };
-    const differentBreed = {
+    const differentBreed: PetFixture = {
       ...basePet,
       id: 'pet-c',
       name: 'Milo',
@@ -64,12 +75,12 @@ describe('CompatibilityService deterministic baseline', () => {
   });
 
   it('lowers confidence when profile signals are missing', () => {
-    const complete = {
+    const complete: PetFixture = {
       ...basePet,
       id: 'pet-b',
       name: 'Nova',
     };
-    const sparse = {
+    const sparse: PetFixture = {
       id: 'pet-c',
       name: 'Milo',
       species: 'DOG',
@@ -82,7 +93,7 @@ describe('CompatibilityService deterministic baseline', () => {
   });
 
   it('always returns a bounded score and confidence', () => {
-    const other = {
+    const other: PetFixture = {
       id: 'pet-b',
       name: 'Nova',
       species: 'CAT',

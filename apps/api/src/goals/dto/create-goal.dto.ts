@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsDateString, IsEnum } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, IsDateString, IsEnum, IsObject } from 'class-validator';
 
 export enum GoalType {
   DISTANCE = 'DISTANCE',
@@ -30,7 +30,7 @@ export class CreateGoalDto {
   targetNumber: number;
 
   @IsString()
-  targetUnit: string; // km, minutes, steps, count, kcal, friends
+  targetUnit: string;
 
   @IsDateString()
   startDate: string;
@@ -40,12 +40,13 @@ export class CreateGoalDto {
 
   @IsOptional()
   @IsString()
-  reminderTime?: string; // HH:MM format
+  reminderTime?: string;
 
   @IsOptional()
   @IsBoolean()
   isRecurring?: boolean;
 
   @IsOptional()
-  metadata?: any; // Additional goal-specific data
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }
