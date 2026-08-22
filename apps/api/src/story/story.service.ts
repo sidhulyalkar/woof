@@ -95,64 +95,82 @@ export class StoryService {
     const activityWhere = this.activityWhere(userId, petId, before);
     const careWhere = this.careWhere(userId, accessiblePetIds, petId, before);
     const mediaWhere = this.mediaWhere(userId, petId, before);
+    const mediaSelect = {
+      id: true,
+      petId: true,
+      filename: true,
+      mediaType: true,
+      capturedAt: true,
+      createdAt: true,
+      favorite: true,
+      pet: { select: { name: true } },
+    } satisfies Prisma.MediaAssetSelect;
 
-    const [activities, careEvents, mediaAssets, curationRows, stats] = await Promise.all([
-      this.prisma.activity.findMany({
-        where: activityWhere,
-        take: STORY_SCAN_PER_SOURCE,
-        orderBy: { startedAt: 'desc' },
-        select: {
-          id: true,
-          petId: true,
-          type: true,
-          startedAt: true,
-          endedAt: true,
-          route: true,
-          pet: { select: { id: true, name: true } },
-          petParticipants: {
-            select: { petId: true, pet: { select: { name: true } } },
+    const [activities, careEvents, capturedMedia, undatedMedia, curationRows, stats] =
+      await Promise.all([
+        this.prisma.activity.findMany({
+          where: activityWhere,
+          take: STORY_SCAN_PER_SOURCE,
+          orderBy: { startedAt: 'desc' },
+          select: {
+            id: true,
+            petId: true,
+            type: true,
+            startedAt: true,
+            endedAt: true,
+            route: true,
+            pet: { select: { id: true, name: true } },
+            petParticipants: {
+              select: { petId: true, pet: { select: { name: true } } },
+            },
           },
-        },
-      }),
-      this.prisma.careEvent.findMany({
-        where: careWhere,
-        take: STORY_SCAN_PER_SOURCE,
-        orderBy: { occurredAt: 'desc' },
-        select: {
-          id: true,
-          petId: true,
-          eventType: true,
-          pathway: true,
-          occurredAt: true,
-          source: true,
-          context: true,
-          outcome: true,
-          pet: { select: { name: true } },
-        },
-      }),
-      this.prisma.mediaAsset.findMany({
-        where: mediaWhere,
-        take: STORY_SCAN_PER_SOURCE,
-        orderBy: [{ capturedAt: 'desc' }, { createdAt: 'desc' }],
-        select: {
-          id: true,
-          petId: true,
-          filename: true,
-          mediaType: true,
-          capturedAt: true,
-          createdAt: true,
-          favorite: true,
-          pet: { select: { name: true } },
-        },
-      }),
-      this.prisma.notification.findMany({
-        where: { userId, type: 'STORY_CURATION' },
-        take: 2000,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, payload: true },
-      }),
-      this.getLifeStats(userId, petId),
-    ]);
+        }),
+        this.prisma.careEvent.findMany({
+          where: careWhere,
+          take: STORY_SCAN_PER_SOURCE,
+          orderBy: { occurredAt: 'desc' },
+          select: {
+            id: true,
+            petId: true,
+            eventType: true,
+            pathway: true,
+            occurredAt: true,
+            source: true,
+            context: true,
+            outcome: true,
+            pet: { select: { name: true } },
+          },
+        }),
+        this.prisma.mediaAsset.findMany({
+          where: { ...mediaWhere, capturedAt: { not: null } },
+          take: STORY_SCAN_PER_SOURCE,
+          orderBy: { capturedAt: 'desc' },
+          select: mediaSelect,
+        }),
+        this.prisma.mediaAsset.findMany({
+          where: { ...mediaWhere, capturedAt: null },
+          take: STORY_SCAN_PER_SOURCE,
+          orderBy: { createdAt: 'desc' },
+          select: mediaSelect,
+        }),
+        this.prisma.notification.findMany({
+          where: { userId, type: 'STORY_CURATION' },
+          take: 2000,
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, payload: true },
+        }),
+        this.getLifeStats(userId, petId),
+      ]);
+
+    const mediaById = new Map(
+      [...capturedMedia, ...undatedMedia].map((asset) => [asset.id, asset] as const)
+    );
+    const mediaAssets = [...mediaById.values()]
+      .sort(
+        (a, b) =>
+          (b.capturedAt ?? b.createdAt).getTime() - (a.capturedAt ?? a.createdAt).getTime()
+      )
+      .slice(0, STORY_SCAN_PER_SOURCE);
 
     const curations = new Map<string, StoryCurationPayload>();
     for (const row of curationRows) {
@@ -196,11 +214,7 @@ export class StoryService {
     const careMoments = careEvents
       .filter((event) => {
         const context = jsonObject(event.context);
-        // Activities already appear from the canonical Activity record. Their
-        // reward-side CareEvent is evidence, not a second life-story moment.
         if (readString(context?.activityId)) return false;
-        // Device upkeep is useful to Autopilot, but it is not part of the dog's
-        // life narrative. Daily wearable summaries remain eligible as context.
         return event.eventType !== 'TRACKER_DEVICE_STATUS';
       })
       .map((event) => {
