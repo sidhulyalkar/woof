@@ -219,6 +219,9 @@ importers:
       expo-constants:
         specifier: ~17.0.3
         version: 17.0.8(expo@54.0.37)(react-native@0.81.4)
+      expo-file-system:
+        specifier: ~19.0.23
+        version: 19.0.24(expo@54.0.37)(react-native@0.81.4)
       expo-image-picker:
         specifier: ~16.0.4
         version: 16.0.6(expo@54.0.37)
@@ -237,6 +240,9 @@ importers:
       expo-secure-store:
         specifier: ~14.0.0
         version: 14.0.1(expo@54.0.37)
+      expo-sharing:
+        specifier: ~14.0.8
+        version: 14.0.8(expo@54.0.37)
       expo-status-bar:
         specifier: ~3.0.8
         version: 3.0.9(react-native@0.81.4)(react@19.1.0)
@@ -10973,6 +10979,14 @@ packages:
   /expo-server@1.0.7:
     resolution: {integrity: sha512-mcmyML3oXcqFUXUxtdtCL1O00ztNI2v76d+MdniXRUgHNxIcHZ05zo+DqBaOOT6LQnPk4vA4YHqQl7iGUfRb3g==}
     engines: {node: '>=20.16.0'}
+    dev: false
+
+  /expo-sharing@14.0.8(expo@54.0.37):
+    resolution: {integrity: sha512-A1pPr2iBrxypFDCWVAESk532HK+db7MFXbvO2sCV9ienaFXAk7lIBm6bkqgE6vzRd9O3RGdEGzYx80cYlc089Q==}
+    peerDependencies:
+      expo: '*'
+    dependencies:
+      expo: 54.0.37(@babel/core@7.29.7)(expo-router@5.0.7)(react-native@0.81.4)(react@19.1.0)(typescript@5.9.3)
     dev: false
 
   /expo-status-bar@3.0.9(react-native@0.81.4)(react@19.1.0):

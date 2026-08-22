@@ -28,7 +28,7 @@ export default function FeedScreen({ navigation }: any) {
   const loadFeed = async () => {
     try {
       const response = await socialApi.getFeed(page, 20);
-      setPosts(response.data);
+      setPosts(response.posts);
     } catch (error) {
       Alert.alert('Error', 'Failed to load feed');
     } finally {
@@ -44,24 +44,24 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const handleLike = async (postId: string) => {
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (!post) return;
 
     try {
       if (post.isLiked) {
         await socialApi.unlikePost(postId);
-        setPosts(prev => prev.map(p =>
-          p.id === postId
-            ? { ...p, isLiked: false, likesCount: p.likesCount - 1 }
-            : p
-        ));
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, isLiked: false, likesCount: p.likesCount - 1 } : p
+          )
+        );
       } else {
         await socialApi.likePost(postId);
-        setPosts(prev => prev.map(p =>
-          p.id === postId
-            ? { ...p, isLiked: true, likesCount: p.likesCount + 1 }
-            : p
-        ));
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, isLiked: true, likesCount: p.likesCount + 1 } : p
+          )
+        );
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to like post');
@@ -84,18 +84,11 @@ export default function FeedScreen({ navigation }: any) {
       <Text style={styles.postContent}>{item.content}</Text>
 
       {item.mediaUrls && item.mediaUrls.length > 0 && (
-        <Image
-          source={{ uri: item.mediaUrls[0] }}
-          style={styles.postImage}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: item.mediaUrls[0] }} style={styles.postImage} resizeMode="cover" />
       )}
 
       <View style={styles.postActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleLike(item.id)}
-        >
+        <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(item.id)}>
           <Ionicons
             name={item.isLiked ? 'heart' : 'heart-outline'}
             size={24}
@@ -141,9 +134,7 @@ export default function FeedScreen({ navigation }: any) {
         renderItem={renderPost}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyEmoji}>📱</Text>

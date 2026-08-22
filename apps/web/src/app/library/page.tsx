@@ -354,7 +354,10 @@ export default function MediaLibraryPage() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="font-semibold">Albums</h2>
             {selectedIds.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
+                  {selectedIds.length} selected
+                </span>
                 <Button
                   type="button"
                   size="sm"

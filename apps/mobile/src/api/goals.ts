@@ -47,7 +47,7 @@ export interface Goal {
   streakCount: number;
   bestStreak: number;
   completedDays: string[];
-  metadata?: any;
+  metadata?: unknown;
   createdAt: string;
   updatedAt: string;
   pet?: {
@@ -67,7 +67,7 @@ export interface CreateGoalRequest {
   endDate: string;
   reminderTime?: string;
   isRecurring?: boolean;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface UpdateGoalRequest {
@@ -75,7 +75,7 @@ export interface UpdateGoalRequest {
   targetUnit?: string;
   status?: GoalStatus;
   reminderTime?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface GoalStatistics {
@@ -93,44 +93,39 @@ const goalsApi = {
    * Get all goals for the current user
    */
   async getGoals(petId?: string, status?: GoalStatus): Promise<Goal[]> {
-    const params: any = {};
+    const params: Record<string, string> = {};
     if (petId) params.petId = petId;
     if (status) params.status = status;
 
-    const response = await apiClient.get('/goals', { params });
-    return response.data;
+    return apiClient.get<Goal[]>('/goals', { params });
   },
 
   /**
    * Get a single goal by ID
    */
   async getGoal(id: string): Promise<Goal> {
-    const response = await apiClient.get(`/goals/${id}`);
-    return response.data;
+    return apiClient.get<Goal>(`/goals/${id}`);
   },
 
   /**
    * Create a new goal
    */
   async createGoal(data: CreateGoalRequest): Promise<Goal> {
-    const response = await apiClient.post('/goals', data);
-    return response.data;
+    return apiClient.post<Goal>('/goals', data);
   },
 
   /**
    * Update a goal
    */
   async updateGoal(id: string, data: UpdateGoalRequest): Promise<Goal> {
-    const response = await apiClient.patch(`/goals/${id}`, data);
-    return response.data;
+    return apiClient.patch<Goal>(`/goals/${id}`, data);
   },
 
   /**
    * Update goal progress
    */
   async updateProgress(id: string, value: number): Promise<Goal> {
-    const response = await apiClient.patch(`/goals/${id}/progress`, { value });
-    return response.data;
+    return apiClient.patch<Goal>(`/goals/${id}/progress`, { value });
   },
 
   /**
@@ -144,8 +139,7 @@ const goalsApi = {
    * Get goal statistics for the current user
    */
   async getStatistics(): Promise<GoalStatistics> {
-    const response = await apiClient.get('/goals/statistics');
-    return response.data;
+    return apiClient.get<GoalStatistics>('/goals/statistics');
   },
 
   /**

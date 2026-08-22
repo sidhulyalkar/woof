@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { usersApi } from '../api/users';
@@ -29,10 +21,10 @@ export default function ProfileScreen({ navigation }: any) {
     try {
       const [statsData, petsData] = await Promise.all([
         gamificationApi.getMyStats(),
-        petsApi.getMyPets(),
+        petsApi.getPets(user?.id),
       ]);
       setStats(statsData);
-      setPets(petsData);
+      setPets(petsData.pets);
     } catch (error) {
       Alert.alert('Error', 'Failed to load profile');
     } finally {
@@ -41,18 +33,14 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: logout,
-        },
-      ]
-    );
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: logout,
+      },
+    ]);
   };
 
   if (loading) {
@@ -66,7 +54,10 @@ export default function ProfileScreen({ navigation }: any) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+        >
           <Ionicons name="settings-outline" size={24} color="#1f2937" />
         </TouchableOpacity>
       </View>
@@ -150,7 +141,10 @@ export default function ProfileScreen({ navigation }: any) {
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Leaderboard')}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('Leaderboard')}
+        >
           <Ionicons name="trophy-outline" size={24} color="#6b7280" />
           <Text style={styles.menuItemText}>Leaderboard</Text>
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />

@@ -215,7 +215,7 @@ test.describe('Private pet media library', () => {
     await page.getByRole('button', { name: /weekend adventures/i }).click();
     await expect(page.getByTestId('media-library-grid').locator('[data-asset-id]')).toHaveCount(1);
 
-    await page.getByTestId('media-library-grid').locator('[data-asset-id="asset-1"]').click();
+    await page.getByRole('button', { name: /select asset-1[.]jpg/i }).click();
     await expect(page.getByText(/1 selected/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /export 1 to google/i })).toBeVisible();
   });

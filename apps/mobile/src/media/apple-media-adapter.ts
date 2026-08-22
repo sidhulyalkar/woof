@@ -31,7 +31,7 @@ function safeFilename(value: string | null | undefined, mimeType: string, index:
 
 async function sizeFor(uri: string, reported: number | null | undefined) {
   if (typeof reported === 'number' && reported > 0) return reported;
-  const info = await FileSystem.getInfoAsync(uri, { size: true });
+  const info = await FileSystem.getInfoAsync(uri);
   if (!info.exists || typeof info.size !== 'number' || info.size <= 0) {
     throw new Error('Could not determine the selected media size.');
   }
@@ -52,7 +52,8 @@ export async function pickApplePetMedia(maxItems = 20): Promise<ApplePickedPetMe
     quality: 1,
     base64: false,
     exif: false,
-    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    preferredAssetRepresentationMode:
+      ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
   });
   if (result.canceled) return [];
 
@@ -66,7 +67,7 @@ export async function pickApplePetMedia(maxItems = 20): Promise<ApplePickedPetMe
       sizeBytes: await sizeFor(asset.uri, asset.fileSize),
       width: Number.isFinite(asset.width) ? asset.width : null,
       height: Number.isFinite(asset.height) ? asset.height : null,
-      durationMs: Number.isFinite(asset.duration) ? asset.duration ?? null : null,
+      durationMs: Number.isFinite(asset.duration) ? (asset.duration ?? null) : null,
       assetId: asset.assetId ?? null,
       source: 'apple-photos-picker',
     });
@@ -118,8 +119,10 @@ function utiFor(mimeType: string) {
 /** Downloads a short-lived private original to the app cache, opens iOS share sheet, then deletes it. */
 export async function sharePrivateMediaOnApple(asset: NativeMediaAsset) {
   if (Platform.OS !== 'ios') throw new Error('Apple share sheet is available on iOS/iPadOS only.');
-  if (!asset.url) throw new Error('This media item does not currently have a private download URL.');
-  if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is unavailable on this device.');
+  if (!asset.url)
+    throw new Error('This media item does not currently have a private download URL.');
+  if (!(await Sharing.isAvailableAsync()))
+    throw new Error('Sharing is unavailable on this device.');
   if (!FileSystem.cacheDirectory) throw new Error('Temporary sharing storage is unavailable.');
 
   const filename = safeFilename(asset.filename, asset.mimeType, 0);

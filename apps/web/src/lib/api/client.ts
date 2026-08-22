@@ -17,21 +17,20 @@ apiClient.interceptors.request.use((config) => {
 
 // Response interceptor to unwrap data and handle errors
 apiClient.interceptors.response.use(
-  response => {
+  (response) => {
     // Axios responses have the actual data in response.data
     // We can return response.data directly for simplicity
     return response.data;
   },
-  error => {
-    if (error.response) {
-      // If we get a 401 Unauthorized, it means our token is invalid or expired
-      if (error.response.status === 401) {
-        console.warn('API responded with 401, logging out');
-        localStorage.removeItem('authToken');
-        // Optionally, redirect to login page
-        if (typeof window !== 'undefined') {
-          window.location.pathname = '/login';
-        }
+  (error) => {
+    const requestHadAuthToken =
+      typeof window !== 'undefined' && Boolean(localStorage.getItem('authToken'));
+
+    if (error.response?.status === 401 && requestHadAuthToken) {
+      console.warn('Authenticated API request returned 401; clearing the stale session');
+      localStorage.removeItem('authToken');
+      if (window.location.pathname !== '/login') {
+        window.location.pathname = '/login';
       }
     }
     return Promise.reject(error);

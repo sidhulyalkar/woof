@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { petsApi } from '../api/pets';
+import { useAuth } from '../contexts/AuthContext';
 import { Pet } from '../types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function PetsListScreen({ navigation }: Props) {
+  const { user } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,8 +29,12 @@ export default function PetsListScreen({ navigation }: Props) {
 
   const loadPets = async () => {
     try {
-      const data = await petsApi.getMyPets();
-      setPets(data);
+      if (!user?.id) {
+        setPets([]);
+        return;
+      }
+      const data = await petsApi.getPets(user.id);
+      setPets(data.pets);
     } catch (error: any) {
       Alert.alert('Error', 'Failed to load pets');
     } finally {
@@ -72,10 +78,7 @@ export default function PetsListScreen({ navigation }: Props) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Pets</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('AddPet')}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddPet')}>
           <Text style={styles.addButtonText}>+ Add Pet</Text>
         </TouchableOpacity>
       </View>
@@ -98,9 +101,7 @@ export default function PetsListScreen({ navigation }: Props) {
           renderItem={renderPet}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         />
       )}
     </View>

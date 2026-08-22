@@ -15,6 +15,15 @@ export const petsApi = {
     });
   },
 
+  /** Nearby discovery requires a dedicated privacy-preserving proximity API. */
+  async getNearbyPets(
+    _latitude: number,
+    _longitude: number,
+    _radiusMeters: number
+  ): Promise<Pet[]> {
+    return [];
+  },
+
   async getPet(id: string): Promise<Pet> {
     return apiClient.get(`/pets/${id}`);
   },
