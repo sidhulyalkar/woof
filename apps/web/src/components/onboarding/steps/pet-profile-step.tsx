@@ -5,17 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface OnboardingStepProps {
-  data: Record<string, any>;
-  onNext: (data: Record<string, any>) => void;
-  onBack?: () => void;
-}
+import type { OnboardingStepProps } from '../onboarding-types';
 
 export function PetProfileStep({ data, onNext, onBack }: OnboardingStepProps) {
-  const [name, setName] = useState(String(data.petName ?? ''));
-  const [species, setSpecies] = useState(String(data.petSpecies ?? 'DOG'));
-  const [breed, setBreed] = useState(String(data.petBreed ?? ''));
+  const [name, setName] = useState(data.petName ?? '');
+  const [species, setSpecies] = useState(data.petSpecies ?? 'DOG');
+  const [breed, setBreed] = useState(data.petBreed ?? '');
 
   return (
     <Card className="space-y-6 p-6">
@@ -57,11 +52,12 @@ export function PetProfileStep({ data, onNext, onBack }: OnboardingStepProps) {
 
       <div className="flex gap-3">
         {onBack && (
-          <Button variant="outline" onClick={onBack}>
+          <Button type="button" variant="outline" onClick={onBack}>
             Back
           </Button>
         )}
         <Button
+          type="button"
           className="flex-1"
           disabled={!name.trim()}
           onClick={() =>
