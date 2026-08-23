@@ -113,7 +113,7 @@ export class ChatService {
       throw new BadRequestException('Choose another member');
     }
 
-    const [target, blocked] = await Promise.all([
+    const [target, blocked, candidates] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: participantId },
         select: { id: true, visibility: true },
@@ -127,20 +127,20 @@ export class ChatService {
         },
         select: { id: true },
       }),
+      this.prisma.conversation.findMany({
+        where: {
+          AND: [
+            { participants: { some: { userId } } },
+            { participants: { some: { userId: participantId } } },
+          ],
+        },
+        select: { id: true, participants: { select: { userId: true } } },
+        take: 20,
+      }),
     ]);
-    if (!target || target.visibility === 'PRIVATE') throw new NotFoundException('Member not found');
+
     if (blocked) throw new ForbiddenException('Conversation is unavailable');
 
-    const candidates = await this.prisma.conversation.findMany({
-      where: {
-        AND: [
-          { participants: { some: { userId } } },
-          { participants: { some: { userId: participantId } } },
-        ],
-      },
-      select: { id: true, participants: { select: { userId: true } } },
-      take: 20,
-    });
     const existing = candidates.find(
       (conversation) =>
         conversation.participants.length === 2 &&
@@ -148,6 +148,10 @@ export class ChatService {
         conversation.participants.some((participant) => participant.userId === participantId)
     );
     if (existing) return { id: existing.id, created: false };
+
+    if (!target || target.visibility !== 'PUBLIC') {
+      throw new NotFoundException('Member not found');
+    }
 
     const conversation = await this.prisma.conversation.create({
       data: {
