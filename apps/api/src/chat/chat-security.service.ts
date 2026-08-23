@@ -85,6 +85,7 @@ export class ChatSecurityService {
 
     const existing = await this.getReceipt(input.userId, input.clientMessageId);
     if (existing) {
+      this.assertReceiptConversation(existing, input.conversationId);
       const message = await this.prisma.message.findUnique({ where: { id: existing.message_id } });
       if (message) return { message, duplicate: true };
     }
@@ -99,6 +100,7 @@ export class ChatSecurityService {
           LIMIT 1
         `);
         if (receiptRows[0]) {
+          this.assertReceiptConversation(receiptRows[0], input.conversationId);
           const persisted = await tx.message.findUnique({ where: { id: receiptRows[0].message_id } });
           if (!persisted) throw new DuplicateReceiptRaceError();
           return { message: persisted, duplicate: true };
@@ -134,9 +136,16 @@ export class ChatSecurityService {
       if (!(error instanceof DuplicateReceiptRaceError)) throw error;
       const raced = await this.getReceipt(input.userId, input.clientMessageId);
       if (!raced) throw error;
+      this.assertReceiptConversation(raced, input.conversationId);
       const message = await this.prisma.message.findUnique({ where: { id: raced.message_id } });
       if (!message) throw error;
       return { message, duplicate: true };
+    }
+  }
+
+  private assertReceiptConversation(receipt: MessageReceiptRow, conversationId: string) {
+    if (receipt.conversation_id !== conversationId) {
+      throw new BadRequestException('clientMessageId has already been used');
     }
   }
 
