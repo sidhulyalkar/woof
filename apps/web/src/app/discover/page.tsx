@@ -62,7 +62,7 @@ export default function DiscoverPage() {
   });
 
   const user = profile.data ?? cachedUser;
-  const ownedPets = user?.pets ?? [];
+  const ownedPets = useMemo(() => user?.pets ?? [], [user?.pets]);
 
   useEffect(() => {
     if (ownedPets.length === 0) {
