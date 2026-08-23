@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { BehaviorShadowService } from './behavior-shadow.service';
 import { BehaviorVisionService } from './behavior-vision.service';
 import {
   AnalyzeBehaviorMediaDto,
@@ -37,7 +38,10 @@ const ALLOWED_MEDIA_TYPES = new Set([
 @UseGuards(JwtAuthGuard)
 @Controller('behavior-vision')
 export class BehaviorVisionController {
-  constructor(private readonly behaviorVision: BehaviorVisionService) {}
+  constructor(
+    private readonly behaviorVision: BehaviorVisionService,
+    private readonly behaviorShadow: BehaviorShadowService
+  ) {}
 
   @Post('analyze')
   @ApiConsumes('multipart/form-data')
@@ -73,6 +77,14 @@ export class BehaviorVisionController {
   @ApiOperation({ summary: 'Get recent derived behavior observations for one owned pet' })
   timeline(@Request() req: AuthenticatedRequest, @Query() query: BehaviorTimelineQueryDto) {
     return this.behaviorVision.timeline(req.user.sub, query.petId, query.limit ?? 30);
+  }
+
+  @Get('shadow')
+  @ApiOperation({
+    summary: 'Inspect Behavior Moments evidence and promotion-readiness metrics with zero authority',
+  })
+  shadow(@Request() req: AuthenticatedRequest, @Query() query: BehaviorTimelineQueryDto) {
+    return this.behaviorShadow.snapshot(req.user.sub, query.petId);
   }
 
   @Post('feedback')
