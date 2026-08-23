@@ -9,7 +9,6 @@ const key = Buffer.alloc(32, 9).toString('base64');
 function harness() {
   const integrationToken = {
     findMany: jest.fn().mockResolvedValue([]),
-    count: jest.fn().mockResolvedValue(0),
     upsert: jest.fn().mockResolvedValue({ id: 'token-1' }),
     findUnique: jest.fn().mockResolvedValue(null),
     deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -59,6 +58,22 @@ describe('ConnectorCredentialStore', () => {
       scopes: ['activity'],
       expiresAt: null,
     });
+    await expect(store.state(userId, 'TRACTIVE')).resolves.toBe('USABLE');
+  });
+
+  it('marks expired and malformed credentials unusable rather than connected', async () => {
+    const { store, integrationToken } = harness();
+    integrationToken.findUnique.mockResolvedValueOnce({
+      data: { v: 1, alg: 'A256GCM', iv: 'x', tag: 'y', ciphertext: 'z' },
+      expiresAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    await expect(store.state(userId, 'FI')).resolves.toBe('EXPIRED');
+
+    integrationToken.findUnique.mockResolvedValueOnce({
+      data: { plaintext: 'should-never-be-accepted' },
+      expiresAt: null,
+    });
+    await expect(store.state(userId, 'FI')).resolves.toBe('INVALID');
   });
 
   it('lists connection metadata without decrypting credential payloads', async () => {
