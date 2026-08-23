@@ -98,7 +98,7 @@ describe('ConnectorOperationalStore integration', () => {
     const count = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM dogos_connectors.import_receipts
-      WHERE connection_id = ${connection.id}
+      WHERE connection_id = CAST(${connection.id} AS uuid)
         AND resource_type = 'WEARABLE_DAILY_ACTIVITY'
         AND external_object_id = 'day-1'
     `);
@@ -147,7 +147,7 @@ describe('ConnectorOperationalStore integration', () => {
     >(Prisma.sql`
       SELECT mode, status, remote_receipt_ref
       FROM dogos_connectors.revocation_receipts
-      WHERE connection_id = ${connection.id}
+      WHERE connection_id = CAST(${connection.id} AS uuid)
       ORDER BY attempted_at DESC
       LIMIT 1
     `);
