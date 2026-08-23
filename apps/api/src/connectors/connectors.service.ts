@@ -194,7 +194,14 @@ export class ConnectorsService {
    * connector import path. It is intentionally not exposed to browser callers.
    */
   async ingestDevicePartnerEnvelopeFromTransport(userId: string, input: unknown) {
-    const envelope: DevicePartnerEnvelope = parseDevicePartnerEnvelope(input);
+    let envelope: DevicePartnerEnvelope;
+    try {
+      envelope = parseDevicePartnerEnvelope(input);
+    } catch (error) {
+      this.metrics.recordDeviceContractRejection();
+      throw error;
+    }
+
     const started = performance.now();
     try {
       const result = await this.ingestWearableFromTransport(
