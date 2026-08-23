@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { NudgesModule } from '../nudges/nudges.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatSecurityService } from './chat-security.service';
+import { ChatService } from './chat.service';
 
 @Module({
   imports: [
@@ -18,6 +20,7 @@ import { ChatSecurityService } from './chat-security.service';
     NudgesModule,
     PrismaModule,
   ],
-  providers: [ChatGateway, ChatSecurityService],
+  controllers: [ChatController],
+  providers: [ChatGateway, ChatSecurityService, ChatService],
 })
 export class ChatModule {}
