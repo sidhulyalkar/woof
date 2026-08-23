@@ -139,7 +139,9 @@ function concierge(petId: string) {
 }
 
 test.describe('dogOS release polish', () => {
-  test('Today keeps Concierge and Adventure on the same explicitly selected dog', async ({ page }) => {
+  test('Today keeps Concierge and Adventure on the same explicitly selected dog', async ({
+    page,
+  }) => {
     await authenticate(page);
     await page.route('**/pets/me**', (route) =>
       fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
@@ -155,13 +157,17 @@ test.describe('dogOS release polish', () => {
 
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Nova has 1 adventures available/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /Nova has 1 adventures available/i })
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Miso' }).click();
 
     await expect(page).toHaveURL(/pet=pet-2/);
     await expect(page.getByRole('heading', { name: /Miso's day at a glance/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Miso has 1 adventures available/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /Miso has 1 adventures available/i })
+    ).toBeVisible();
   });
 
   test('Activity reads canonical history, switches dogs, and quick-logs without fake route data', async ({
