@@ -26,9 +26,9 @@ describe('ChatSecurityService', () => {
     const { prisma, service } = build();
     prisma.conversationParticipant.findUnique.mockResolvedValue(null);
 
-    await expect(service.assertConversationAccess('user-1', 'conversation-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.assertConversationAccess('user-1', 'conversation-1')
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.blockedUser.findFirst).not.toHaveBeenCalled();
   });
 
@@ -37,14 +37,16 @@ describe('ChatSecurityService', () => {
     prisma.conversationParticipant.findUnique.mockResolvedValue(participant());
     prisma.blockedUser.findFirst.mockResolvedValue({ id: 'block-1' });
 
-    await expect(service.assertConversationAccess('user-1', 'conversation-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.assertConversationAccess('user-1', 'conversation-1')
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('allows an unblocked participant and returns only the other participant ids', async () => {
     const { prisma, service } = build();
-    prisma.conversationParticipant.findUnique.mockResolvedValue(participant(['user-1', 'user-2', 'user-3']));
+    prisma.conversationParticipant.findUnique.mockResolvedValue(
+      participant(['user-1', 'user-2', 'user-3'])
+    );
     prisma.blockedUser.findFirst.mockResolvedValue(null);
 
     await expect(service.assertConversationAccess('user-1', 'conversation-1')).resolves.toEqual({
@@ -75,7 +77,7 @@ describe('ChatSecurityService', () => {
         conversationId: 'conversation-1',
         clientMessageId: 'client-message-123',
         text: 'hello',
-      }),
+      })
     ).resolves.toEqual({ message: persisted, duplicate: true });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -91,7 +93,7 @@ describe('ChatSecurityService', () => {
         conversationId: 'conversation-1',
         clientMessageId: 'client-message-123',
         text: '   ',
-      }),
+      })
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
