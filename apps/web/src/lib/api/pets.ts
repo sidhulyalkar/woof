@@ -20,9 +20,19 @@ export type OwnedPetsResponse = {
   take: number;
 };
 
+export type CreateDogInput = {
+  name: string;
+  species: 'DOG';
+  breed?: string;
+  sex?: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  birthdate?: string;
+};
+
 export const petsApi = {
   getMine: (take = 100) =>
     apiClient.get<OwnedPetsResponse>('/pets/me', {
       params: { take },
     }),
+
+  createDog: (input: CreateDogInput) => apiClient.post<OwnedPet, CreateDogInput>('/pets', input),
 };
