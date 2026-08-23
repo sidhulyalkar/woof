@@ -1,7 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS dogos_discovery;
 
 CREATE TABLE IF NOT EXISTS dogos_discovery.locations (
-  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id TEXT PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
   lat_bucket INTEGER NOT NULL,
   lng_bucket INTEGER NOT NULL,
   precision_m INTEGER NOT NULL DEFAULT 2200,
