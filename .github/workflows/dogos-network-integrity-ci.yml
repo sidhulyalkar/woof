@@ -77,16 +77,14 @@ jobs:
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Print exact Network Integrity formatter patch
-        run: |
-          files=(
-            apps/api/src/chat/chat.service.ts
-            apps/api/src/chat/chat.service.spec.ts
-            apps/api/src/chat/chat.service.integration.spec.ts
-          )
-          pnpm exec prettier --write "${files[@]}"
-          git diff -- "${files[@]}"
-          git diff --exit-code -- "${files[@]}"
+      - name: Check Network Integrity formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/chat/chat.service.ts
+          apps/api/src/chat/chat.service.spec.ts
+          apps/api/src/chat/chat.service.integration.spec.ts
+          .github/workflows/dogos-network-integrity-ci.yml
+          docs/DOGOS_NETWORK_INTEGRITY_SCALE.md
 
       - name: Lint Network Integrity API surface
         run: >-
