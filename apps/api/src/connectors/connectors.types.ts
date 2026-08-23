@@ -2,7 +2,12 @@ export const CONNECTOR_PROVIDERS = ['FI', 'TRACTIVE', 'VET_PARTNER', 'CHEWY', 'P
 export type ConnectorProvider = (typeof CONNECTOR_PROVIDERS)[number];
 
 export type ConnectorDomain = 'WEARABLE' | 'VET' | 'RETAIL';
-export type ConnectorAvailability = 'PARTNER_REQUIRED' | 'CONNECTED';
+export type ConnectorAvailability =
+  | 'PARTNER_REQUIRED'
+  | 'CONNECTED'
+  | 'REAUTH_REQUIRED'
+  | 'REVOKED';
+export type ConnectorCredentialState = 'MISSING' | 'USABLE' | 'EXPIRED' | 'INVALID';
 
 export type ConnectorCapability =
   | 'DAILY_ACTIVITY'
@@ -32,4 +37,12 @@ export type ConnectorCredentialEnvelope = {
   iv: string;
   tag: string;
   ciphertext: string;
+};
+
+export type VerifiedWearableTransportEvent = {
+  externalPetId: string;
+  externalObjectId: string;
+  kind: 'DAILY_ACTIVITY' | 'DEVICE_STATUS';
+  observedAt: string;
+  payload: Record<string, unknown>;
 };
