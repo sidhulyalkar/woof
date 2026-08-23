@@ -73,7 +73,6 @@ jobs:
             apps/api/src/concierge \
             apps/api/src/app.module.ts \
             apps/api/src/config/env.validation.ts \
-            apps/api/.env.example \
             apps/web/src/app/page.tsx \
             apps/web/src/components/concierge \
             apps/web/src/lib/api/concierge.ts \
