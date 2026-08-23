@@ -1,0 +1,150 @@
+name: dogOS Chat Delivery Integrity CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/components/inbox/chat-window.tsx'
+      - 'apps/web/src/lib/socket.ts'
+      - 'apps/web/src/lib/chat-delivery.ts'
+      - 'apps/web/src/lib/chat-delivery.spec.ts'
+      - 'apps/api/src/chat/**'
+      - '.github/workflows/dogos-chat-delivery-integrity-ci.yml'
+      - 'docs/DOGOS_CHAT_DELIVERY_INTEGRITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-chat-delivery-integrity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  JWT_SECRET: ci-only-chat-delivery-secret
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Stable retry identity + canonical receipt qualification
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Chat Delivery Integrity v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Check Chat Delivery formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/web/src/components/inbox/chat-window.tsx
+          apps/web/src/lib/socket.ts
+          apps/web/src/lib/chat-delivery.ts
+          apps/web/src/lib/chat-delivery.spec.ts
+          .github/workflows/dogos-chat-delivery-integrity-ci.yml
+          docs/DOGOS_CHAT_DELIVERY_INTEGRITY.md
+
+      - name: Lint Chat Delivery web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/components/inbox/chat-window.tsx
+          src/lib/socket.ts
+          src/lib/chat-delivery.ts
+          src/lib/chat-delivery.spec.ts
+
+      - name: Enforce caller-owned retry identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          socket = Path('apps/web/src/lib/socket.ts').read_text()
+          composer = Path('apps/web/src/components/inbox/chat-window.tsx').read_text()
+          delivery = Path('apps/web/src/lib/chat-delivery.ts').read_text()
+
+          for forbidden in ['randomUUID', 'Date.now()', 'Math.random()']:
+              if forbidden in socket:
+                  raise SystemExit(f'socket transport must not generate message identity: {forbidden}')
+
+          socket_required = [
+              'sendMessage: (conversationId: string, text: string, clientMessageId: string)',
+              "'message:send'",
+              '{ conversationId, clientMessageId, text }',
+          ]
+          missing = [token for token in socket_required if token not in socket]
+          if missing:
+              raise SystemExit(f'missing socket retry-identity contract: {missing}')
+
+          composer_required = [
+              'getOrCreateChatSendAttempt',
+              'pendingSendRef.current = attempt',
+              'attempt.clientMessageId',
+              'invalidateAttemptForEditedDraft',
+              'reconcileDraftAfterAcknowledgedSend',
+          ]
+          missing = [token for token in composer_required if token not in composer]
+          if missing:
+              raise SystemExit(f'missing composer delivery contract: {missing}')
+
+          delivery_required = [
+              'existing.conversationId === conversationId',
+              'existing.text === text',
+              'clientMessageId: createId()',
+          ]
+          missing = [token for token in delivery_required if token not in delivery]
+          if missing:
+              raise SystemExit(f'missing stable-attempt contract: {missing}')
+          PY
+
+      - name: Enforce canonical server receipt boundary
+        run: |
+          grep -q 'dogos_chat.message_receipts' apps/api/src/chat/chat-security.service.ts
+          grep -q 'ON CONFLICT (user_id, client_message_id) DO NOTHING' apps/api/src/chat/chat-security.service.ts
+          grep -q 'if (!result.duplicate)' apps/api/src/chat/chat.gateway.ts
+          grep -q 'chatSecurity.persistMessage' apps/api/src/chat/chat.gateway.ts
+
+      - name: Type-check web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run stable retry-state contracts
+        run: pnpm --filter @woof/web exec vitest run src/lib/chat-delivery.spec.ts
+
+      - name: Run canonical server receipt regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-security.service.spec.ts
+          src/chat/chat.gateway.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
