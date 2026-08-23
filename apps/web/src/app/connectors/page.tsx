@@ -204,9 +204,9 @@ export default function ConnectorsPage() {
 
                           {provider.availability === 'REAUTH_REQUIRED' && (
                             <p className="mt-3 rounded-2xl border border-border/70 bg-background/55 p-3 text-xs leading-relaxed text-muted-foreground">
-                              The stored provider credential is expired or could not be authenticated.
-                              No new provider data will import until a verified reauthorization flow
-                              becomes available.
+                              The stored provider credential is expired or could not be
+                              authenticated. No new provider data will import until a verified
+                              reauthorization flow becomes available.
                             </p>
                           )}
 
