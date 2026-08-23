@@ -134,7 +134,12 @@ test('explicit rough-location discovery leads to an empty canonical conversation
           species: 'DOG',
           breed: 'Retriever mix',
           avatarUrl: null,
-          owner: { id: 'user-2', handle: 'luna-human', avatarUrl: null, isVerified: true },
+          owner: {
+            id: 'user-2',
+            handle: 'luna-human',
+            avatarUrl: null,
+            isVerified: true,
+          },
           distanceBand: 'WITHIN_5_KM',
         },
       ],
@@ -185,7 +190,9 @@ test('explicit rough-location discovery leads to an empty canonical conversation
   );
 
   await page.goto('/discover');
-  await expect(page.getByText('Luna', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /Luna with luna-human/i }),
+  ).toBeVisible();
   await expect(page.getByText(/within about 5 km/i)).toHaveCount(0);
 
   await page.getByRole('button', { name: /Use rough location/i }).click();
