@@ -70,7 +70,7 @@ export function MatchCard({ match, distanceBand }: MatchCardProps) {
               <span
                 className={cn(
                   'h-2 w-2 rounded-full bg-current',
-                  getScoreColor(match.compatibility.overall),
+                  getScoreColor(match.compatibility.overall)
                 )}
               />
               <span className={cn('text-sm font-bold', getScoreColor(match.compatibility.overall))}>

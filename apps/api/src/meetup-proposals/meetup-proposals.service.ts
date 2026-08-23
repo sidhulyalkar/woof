@@ -67,11 +67,11 @@ export class MeetupProposalsService {
       (conversation) =>
         conversation.participants.length === 2 &&
         conversation.participants.some((participant) => participant.userId === proposerId) &&
-        conversation.participants.some((participant) => participant.userId === dto.recipientId),
+        conversation.participants.some((participant) => participant.userId === dto.recipientId)
     );
     if (!directConversation) {
       throw new BadRequestException(
-        'Start a two-person conversation before proposing an in-person meetup',
+        'Start a two-person conversation before proposing an in-person meetup'
       );
     }
 
@@ -83,9 +83,7 @@ export class MeetupProposalsService {
         suggestedVenue: {
           name: dto.suggestedVenue.name.trim(),
           type: dto.suggestedVenue.type.trim(),
-          ...(dto.suggestedVenue.area?.trim()
-            ? { area: dto.suggestedVenue.area.trim() }
-            : {}),
+          ...(dto.suggestedVenue.area?.trim() ? { area: dto.suggestedVenue.area.trim() } : {}),
         },
         notes: dto.notes?.trim() || null,
       },
@@ -154,7 +152,7 @@ export class MeetupProposalsService {
     await this.recordTelemetry(
       userId,
       dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
-      { proposalId: id, otherUserId: proposal.proposerId },
+      { proposalId: id, otherUserId: proposal.proposerId }
     );
     return updated;
   }
@@ -186,14 +184,18 @@ export class MeetupProposalsService {
       dto.meetAgain ? `meet_again_${dto.meetAgain}` : null,
     ].filter((tag): tag is string => tag !== null);
     const safeTags = [...structuredTags, ...(dto.feedbackTags ?? [])]
-      .map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_'))
+      .map((tag) =>
+        tag
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '_')
+      )
       .filter(Boolean);
     const uniqueTags = [...new Set(safeTags)].slice(0, 16);
 
     await this.recordTelemetry(userId, OUTCOME_EVENT, {
       proposalId: id,
-      otherUserId:
-        proposal.proposerId === userId ? proposal.recipientId : proposal.proposerId,
+      otherUserId: proposal.proposerId === userId ? proposal.recipientId : proposal.proposerId,
       occurred: dto.occurred,
       dogExperience: dto.dogExperience ?? null,
       ownerExperience: dto.ownerExperience ?? null,
@@ -215,9 +217,7 @@ export class MeetupProposalsService {
     const updated = await this.prisma.meetupProposal.update({
       where: { id },
       data: {
-        status: dto.occurred
-          ? MeetupProposalStatus.COMPLETED
-          : MeetupProposalStatus.CANCELLED,
+        status: dto.occurred ? MeetupProposalStatus.COMPLETED : MeetupProposalStatus.CANCELLED,
         occurredAt: dto.occurred ? (proposal.occurredAt ?? new Date()) : null,
         rating: aggregateRating,
         feedbackTags: mergedTags,
@@ -281,11 +281,7 @@ export class MeetupProposalsService {
     };
   }
 
-  private async recordTelemetry(
-    userId: string,
-    event: string,
-    data: Prisma.InputJsonObject,
-  ) {
+  private async recordTelemetry(userId: string, event: string, data: Prisma.InputJsonObject) {
     await this.prisma.telemetry.create({
       data: { userId, source: 'meetup', event, data },
     });

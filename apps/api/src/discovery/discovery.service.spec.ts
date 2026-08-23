@@ -40,7 +40,7 @@ describe('DiscoveryService', () => {
         latBucket: expect.any(Number),
         lngBucket: expect.any(Number),
         precisionM: 2200,
-      }),
+      })
     );
     const persistedInput = locations.upsert.mock.calls[0][0] as Record<string, unknown>;
     expect(persistedInput).not.toHaveProperty('latitude');
@@ -108,9 +108,7 @@ describe('DiscoveryService', () => {
         updated_at: new Date(),
       },
     ]);
-    prisma.blockedUser.findMany.mockResolvedValue([
-      { userId: 'user-1', blockedId: 'user-2' },
-    ]);
+    prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-1', blockedId: 'user-2' }]);
     prisma.pet.findMany.mockResolvedValue([
       {
         id: 'pet-3',
@@ -131,11 +129,15 @@ describe('DiscoveryService', () => {
           ownerId: { in: ['user-3'] },
           owner: { visibility: 'PUBLIC' },
         }),
-      }),
+      })
     );
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]).toEqual(
-      expect.objectContaining({ petId: 'pet-3', ownerId: 'user-3', distanceBand: expect.any(String) }),
+      expect.objectContaining({
+        petId: 'pet-3',
+        ownerId: 'user-3',
+        distanceBand: expect.any(String),
+      })
     );
     expect(result.candidates[0]).not.toHaveProperty('latitude');
     expect(result.candidates[0]).not.toHaveProperty('longitude');

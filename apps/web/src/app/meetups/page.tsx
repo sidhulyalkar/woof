@@ -69,8 +69,9 @@ function ChoiceGroup<T extends string>({
 function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
   const queryClient = useQueryClient();
   const [dogExperience, setDogExperience] = useState<MeetupOutcome['dogExperience'] | null>(null);
-  const [ownerExperience, setOwnerExperience] =
-    useState<MeetupOutcome['ownerExperience'] | null>(null);
+  const [ownerExperience, setOwnerExperience] = useState<MeetupOutcome['ownerExperience'] | null>(
+    null
+  );
   const [meetAgain, setMeetAgain] = useState<MeetupOutcome['meetAgain'] | null>(null);
   const [safe, setSafe] = useState<boolean | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -81,7 +82,7 @@ function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
       setMessage(
         result.reportSuggested
           ? 'Feedback saved. Because you flagged a safety concern, reporting options should be considered.'
-          : 'Thanks. That tiny bit of context will make future matching more useful.',
+          : 'Thanks. That tiny bit of context will make future matching more useful.'
       );
       await queryClient.invalidateQueries({ queryKey: ['meetup-proposals'] });
     },
@@ -107,7 +108,8 @@ function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
         <p className="eyebrow">Close the loop</p>
         <h3 className="mt-1 font-semibold">How did it go?</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Three quick answers become outcome evidence for future compatibility. They are not a health diagnosis.
+          Three quick answers become outcome evidence for future compatibility. They are not a
+          health diagnosis.
         </p>
       </div>
 
@@ -228,7 +230,7 @@ export default function MeetupsPage() {
       ...proposals.data.sent.map((proposal) => ({ proposal, direction: 'sent' as const })),
     ].sort(
       (a, b) =>
-        new Date(b.proposal.suggestedTime).getTime() - new Date(a.proposal.suggestedTime).getTime(),
+        new Date(b.proposal.suggestedTime).getTime() - new Date(a.proposal.suggestedTime).getTime()
     );
   }, [proposals.data, user]);
 
@@ -253,7 +255,8 @@ export default function MeetupsPage() {
         <Card className="surface-soft rounded-2xl p-4">
           <p className="text-sm font-semibold">Keep coordination simple and public-place first</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Woof meetup proposals store a venue label and area, not a private home coordinate. Blocking either participant disables coordination.
+            Woof meetup proposals store a venue label and area, not a private home coordinate.
+            Blocking either participant disables coordination.
           </p>
         </Card>
 
@@ -268,7 +271,11 @@ export default function MeetupsPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               No substitute plans are shown while canonical meetup records cannot be read.
             </p>
-            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => proposals.refetch()}>
+            <Button
+              variant="outline"
+              className="mt-4 bg-transparent"
+              onClick={() => proposals.refetch()}
+            >
               Try again
             </Button>
           </Card>
@@ -277,7 +284,8 @@ export default function MeetupsPage() {
             <CalendarDays className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
             <h2 className="mt-3 font-semibold">No meetup plans yet</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Start with an explainable match, chat first, then suggest a public place when it feels right.
+              Start with an explainable match, chat first, then suggest a public place when it feels
+              right.
             </p>
             <Button asChild className="mt-5">
               <Link href="/discover">Find a compatible dog</Link>

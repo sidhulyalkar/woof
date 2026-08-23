@@ -28,7 +28,7 @@ function bucketCenter(bucket: number, offset: number) {
 
 function approximateKm(
   source: { latBucket: number; lngBucket: number },
-  target: { latBucket: number; lngBucket: number },
+  target: { latBucket: number; lngBucket: number }
 ) {
   const sourceLat = bucketCenter(source.latBucket, 90);
   const targetLat = bucketCenter(target.latBucket, 90);
@@ -50,7 +50,7 @@ function distanceBand(distanceKm: number): DistanceBand {
 export class DiscoveryService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly locations: DiscoveryLocationStore,
+    private readonly locations: DiscoveryLocationStore
   ) {}
 
   async updateLocation(userId: string, latitude: number, longitude: number) {
@@ -125,7 +125,11 @@ export class DiscoveryService {
     if (!ownLocation || !ownLocation.enabled || ownLocation.expires_at.getTime() <= Date.now()) {
       return {
         petId,
-        locationStatus: ownLocation?.enabled ? 'STALE' : ownLocation ? 'DISABLED' : 'NOT_CONFIGURED',
+        locationStatus: ownLocation?.enabled
+          ? 'STALE'
+          : ownLocation
+            ? 'DISABLED'
+            : 'NOT_CONFIGURED',
         candidates: [],
         boundaries: this.boundaries(),
       };
@@ -168,7 +172,7 @@ export class DiscoveryService {
       select: { userId: true, blockedId: true },
     });
     const blockedOwnerIds = new Set(
-      blocks.map((block) => (block.userId === userId ? block.blockedId : block.userId)),
+      blocks.map((block) => (block.userId === userId ? block.blockedId : block.userId))
     );
     const eligibleOwnerIds = nearbyOwnerIds.filter((ownerId) => !blockedOwnerIds.has(ownerId));
 
@@ -200,7 +204,7 @@ export class DiscoveryService {
         if (!candidateLocation) return null;
         const approximateDistanceKm = approximateKm(
           { latBucket: ownLocation.lat_bucket, lngBucket: ownLocation.lng_bucket },
-          { latBucket: candidateLocation.lat_bucket, lngBucket: candidateLocation.lng_bucket },
+          { latBucket: candidateLocation.lat_bucket, lngBucket: candidateLocation.lng_bucket }
         );
         if (approximateDistanceKm > safeRadiusKm + 1.5) return null;
         return {

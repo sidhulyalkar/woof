@@ -1,7 +1,15 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, LocateFixed, MapPinOff, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles } from 'lucide-react';
+import {
+  Loader2,
+  LocateFixed,
+  MapPinOff,
+  RefreshCw,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -127,8 +135,14 @@ export default function DiscoverPage() {
   });
 
   const distanceByPet = useMemo(
-    () => new Map((nearby.data?.candidates ?? []).map((candidate) => [candidate.petId, candidate.distanceBand])),
-    [nearby.data],
+    () =>
+      new Map(
+        (nearby.data?.candidates ?? []).map((candidate) => [
+          candidate.petId,
+          candidate.distanceBand,
+        ])
+      ),
+    [nearby.data]
   );
 
   const orderedMatches = useMemo(() => {
@@ -207,11 +221,17 @@ export default function DiscoverPage() {
                   <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-semibold">One dog, one discovery context</h2>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Compatibility uses the same active dog as Today. Learned scoring can rerank only when its release evidence is promoted; deterministic scoring remains the fallback.
+                      Compatibility uses the same active dog as Today. Learned scoring can rerank
+                      only when its release evidence is promoted; deterministic scoring remains the
+                      fallback.
                     </p>
                   </div>
                 </div>
-                <PetSwitcher currentPetId={selectedPetId} label="Finding friends for" onChange={choosePet} />
+                <PetSwitcher
+                  currentPetId={selectedPetId}
+                  label="Finding friends for"
+                  onChange={choosePet}
+                />
               </Card>
             )}
 
@@ -227,7 +247,9 @@ export default function DiscoverPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-semibold">
-                      {locationStatus === 'OPTED_IN' ? 'Nearby context is on' : 'Make matches locally useful'}
+                      {locationStatus === 'OPTED_IN'
+                        ? 'Nearby context is on'
+                        : 'Make matches locally useful'}
                     </h2>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                       {locationStatus === 'OPTED_IN'
@@ -262,7 +284,11 @@ export default function DiscoverPage() {
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" disabled={enableLocation.isPending} onClick={() => enableLocation.mutate()}>
+                    <Button
+                      size="sm"
+                      disabled={enableLocation.isPending}
+                      onClick={() => enableLocation.mutate()}
+                    >
                       {enableLocation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                       ) : (
@@ -276,30 +302,42 @@ export default function DiscoverPage() {
                 {enableLocation.isError && (
                   <p className="mt-3 flex items-start gap-2 text-xs text-destructive" role="alert">
                     <MapPinOff className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    Location was not enabled. You can keep using profile-based compatibility without it.
+                    Location was not enabled. You can keep using profile-based compatibility without
+                    it.
                   </p>
                 )}
                 {locationStatus === 'OPTED_IN' && nearby.data && (
                   <p className="mt-3 text-xs text-muted-foreground">
                     {nearby.data.candidates.length} public candidate
-                    {nearby.data.candidates.length === 1 ? '' : 's'} currently fall inside your coarse nearby window. Nearby matches are sorted first.
+                    {nearby.data.candidates.length === 1 ? '' : 's'} currently fall inside your
+                    coarse nearby window. Nearby matches are sorted first.
                   </p>
                 )}
               </Card>
             )}
 
             {isLoading ? (
-              <div className="flex min-h-72 flex-col items-center justify-center gap-3" role="status">
+              <div
+                className="flex min-h-72 flex-col items-center justify-center gap-3"
+                role="status"
+              >
                 <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-                <p className="text-sm text-muted-foreground">Loading your dog and ranking candidates…</p>
+                <p className="text-sm text-muted-foreground">
+                  Loading your dog and ranking candidates…
+                </p>
               </div>
             ) : profile.isError && !cachedUser ? (
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
                 <h2 className="text-lg font-semibold">Your profile could not be refreshed</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Discovery needs the current dog list before it can rank relationships. Other authenticated surfaces remain available.
+                  Discovery needs the current dog list before it can rank relationships. Other
+                  authenticated surfaces remain available.
                 </p>
-                <Button variant="outline" className="mt-5 gap-2 bg-transparent" onClick={() => profile.refetch()}>
+                <Button
+                  variant="outline"
+                  className="mt-5 gap-2 bg-transparent"
+                  onClick={() => profile.refetch()}
+                >
                   <RefreshCw className="h-4 w-4" aria-hidden="true" />
                   Retry profile
                 </Button>
@@ -308,7 +346,8 @@ export default function DiscoverPage() {
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
                 <h2 className="text-lg font-semibold">Start with your dog</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Woof needs a real dog profile before it can explain compatibility or local context.
+                  Woof needs a real dog profile before it can explain compatibility or local
+                  context.
                 </p>
                 <Button className="mt-5" asChild>
                   <Link href="/pets/new">Add your dog</Link>
@@ -316,9 +355,12 @@ export default function DiscoverPage() {
               </div>
             ) : matches.isError ? (
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
-                <h2 className="text-lg font-semibold">Recommendations are temporarily unavailable</h2>
+                <h2 className="text-lg font-semibold">
+                  Recommendations are temporarily unavailable
+                </h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Discovery failed locally without blocking the rest of Woof. No substitute matches are invented.
+                  Discovery failed locally without blocking the rest of Woof. No substitute matches
+                  are invented.
                 </p>
                 <Button
                   variant="outline"
@@ -338,7 +380,8 @@ export default function DiscoverPage() {
               <div className="surface-soft flex min-h-72 flex-col items-center justify-center rounded-2xl px-6 text-center">
                 <h2 className="text-lg font-semibold">No compatible candidates yet</h2>
                 <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Woof will not fill an empty network with fake profiles. As real public members become eligible, explainable matches will appear here.
+                  Woof will not fill an empty network with fake profiles. As real public members
+                  become eligible, explainable matches will appear here.
                 </p>
               </div>
             ) : (
@@ -351,7 +394,9 @@ export default function DiscoverPage() {
                   />
                 ))}
                 <div className="py-5 text-center">
-                  <p className="text-sm text-muted-foreground">That is the current real candidate set.</p>
+                  <p className="text-sm text-muted-foreground">
+                    That is the current real candidate set.
+                  </p>
                   <Button
                     variant="ghost"
                     className="mt-2 gap-2"

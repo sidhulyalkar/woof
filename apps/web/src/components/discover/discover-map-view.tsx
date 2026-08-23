@@ -22,7 +22,9 @@ export function DiscoverMapView() {
           <div>
             <h2 className="text-sm font-semibold">Places are not dog pins</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              This surface shows real service-provider records. Woof does not place members or dogs on a public map, and nearby matching never returns another household&apos;s coordinates.
+              This surface shows real service-provider records. Woof does not place members or dogs
+              on a public map, and nearby matching never returns another household&apos;s
+              coordinates.
             </p>
           </div>
         </div>
@@ -37,7 +39,8 @@ export function DiscoverMapView() {
         <Card className="surface-soft rounded-2xl p-6 text-center">
           <h2 className="font-semibold">Places and services are temporarily unavailable</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Woof will not substitute invented businesses or fake reviews while the service directory cannot be read.
+            Woof will not substitute invented businesses or fake reviews while the service directory
+            cannot be read.
           </p>
           <Button
             variant="outline"
@@ -53,7 +56,8 @@ export function DiscoverMapView() {
           <MapPin className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
           <h2 className="mt-3 font-semibold">No verified service records yet</h2>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            This stays empty until real providers are available. Discovery matches continue to work independently.
+            This stays empty until real providers are available. Discovery matches continue to work
+            independently.
           </p>
         </Card>
       ) : (

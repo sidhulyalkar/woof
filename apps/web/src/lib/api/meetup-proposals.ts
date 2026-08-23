@@ -44,7 +44,7 @@ export const meetupProposalsApi = {
   complete: (id: string, outcome: MeetupOutcome) =>
     apiClient.put<{ proposal: MeetupProposal; feedbackRecorded: true; reportSuggested: boolean }>(
       `/meetup-proposals/${id}/complete`,
-      outcome,
+      outcome
     ),
   cancel: (id: string) => apiClient.delete<MeetupProposal>(`/meetup-proposals/${id}`),
 };

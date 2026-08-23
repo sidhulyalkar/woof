@@ -16,10 +16,12 @@ describe('MeetupProposalsService structured outcomes', () => {
     const prisma = {
       meetupProposal: {
         findUnique: jest.fn().mockResolvedValue(proposal),
-        update: jest.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-          ...proposal,
-          ...data,
-        })),
+        update: jest
+          .fn()
+          .mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+            ...proposal,
+            ...data,
+          })),
       },
       telemetry: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -58,7 +60,7 @@ describe('MeetupProposalsService structured outcomes', () => {
           status: 'completed',
           feedbackTags: ['dog_comfortable', 'owner_great', 'meet_again_yes'],
         }),
-      }),
+      })
     );
   });
 });

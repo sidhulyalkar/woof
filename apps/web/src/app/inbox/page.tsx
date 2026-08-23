@@ -53,7 +53,9 @@ export default function InboxPage() {
       })
       .catch(() => {
         requestedMemberRef.current = null;
-        setStartError('That conversation could not be opened. The member may no longer be available.');
+        setStartError(
+          'That conversation could not be opened. The member may no longer be available.'
+        );
       });
   }, [memberParam, queryClient, user]);
 
@@ -61,16 +63,16 @@ export default function InboxPage() {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return [conversation.participant.name, conversation.participant.petName ?? ''].some((value) =>
-      value.toLowerCase().includes(query),
+      value.toLowerCase().includes(query)
     );
   });
 
   const activeConversation = (conversations.data ?? []).find(
-    (conversation) => conversation.id === selectedConversation,
+    (conversation) => conversation.id === selectedConversation
   );
   const unreadCount = (conversations.data ?? []).reduce(
     (total, conversation) => total + conversation.unreadCount,
-    0,
+    0
   );
 
   return (
@@ -99,7 +101,9 @@ export default function InboxPage() {
                 aria-hidden="true"
               />
               <Input
-                placeholder={unreadCount > 0 ? `Search · ${unreadCount} unread` : 'Search conversations'}
+                placeholder={
+                  unreadCount > 0 ? `Search · ${unreadCount} unread` : 'Search conversations'
+                }
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-9"
@@ -111,7 +115,10 @@ export default function InboxPage() {
 
       <main className="mx-auto max-w-lg">
         {startError && (
-          <div className="mx-4 mt-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive" role="alert">
+          <div
+            className="mx-4 mt-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+            role="alert"
+          >
             {startError}
           </div>
         )}

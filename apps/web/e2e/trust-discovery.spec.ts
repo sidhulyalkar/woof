@@ -102,7 +102,7 @@ test('explicit rough-location discovery leads to an empty canonical conversation
 
   await page.route('**/auth/me', (route) => fulfillJson(route, user));
   await page.route('**/compatibility/recommendations/pet-1**', (route) =>
-    fulfillJson(route, { recommendations: [recommendation] }),
+    fulfillJson(route, { recommendations: [recommendation] })
   );
   await page.route('**/discovery/location', async (route) => {
     if (route.request().method() === 'PUT') {
@@ -151,7 +151,7 @@ test('explicit rough-location discovery leads to an empty canonical conversation
         publicProfilesOnly: true,
         maxRadiusKm: 10,
       },
-    }),
+    })
   );
 
   await page.route('**/chat/conversations', async (route) => {
@@ -179,20 +179,18 @@ test('explicit rough-location discovery leads to an empty canonical conversation
               updatedAt: '2026-08-23T08:00:00.000Z',
             },
           ]
-        : [],
+        : []
     );
   });
   await page.route('**/chat/conversations/conversation-1/messages**', (route) =>
-    fulfillJson(route, { data: [], total: 0, page: 1, limit: 50 }),
+    fulfillJson(route, { data: [], total: 0, page: 1, limit: 50 })
   );
   await page.route('**/chat/conversations/conversation-1/read', (route) =>
-    fulfillJson(route, { ok: true }),
+    fulfillJson(route, { ok: true })
   );
 
   await page.goto('/discover');
-  await expect(
-    page.getByRole('heading', { name: /Luna with luna-human/i }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Luna with luna-human/i })).toBeVisible();
   await expect(page.getByText(/within about 5 km/i)).toHaveCount(0);
 
   await page.getByRole('button', { name: /Use rough location/i }).click();

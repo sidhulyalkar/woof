@@ -79,7 +79,7 @@ export const chatSocket = {
               mediaUrl: ack.message.mediaUrls[0] ?? null,
               createdAt: ack.message.timestamp,
             });
-          },
+          }
         );
     }),
   onMessage: (callback: (message: ChatMessage) => void) => {

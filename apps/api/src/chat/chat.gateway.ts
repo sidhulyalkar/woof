@@ -35,7 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly chatSecurity: ChatSecurityService,
-    private readonly nudgesService: NudgesService,
+    private readonly nudgesService: NudgesService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -65,10 +65,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('message:send')
-  async handleMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: SendChatMessage,
-  ) {
+  async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendChatMessage) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
 
@@ -91,9 +88,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!result.duplicate) {
         this.server.to(`conversation:${data.conversationId}`).emit('message:received', message);
-        void this.nudgesService.checkChatActivityNudges(data.conversationId, userId).catch((error) => {
-          this.logger.warn(`Chat nudge check failed: ${this.errorName(error)}`);
-        });
+        void this.nudgesService
+          .checkChatActivityNudges(data.conversationId, userId)
+          .catch((error) => {
+            this.logger.warn(`Chat nudge check failed: ${this.errorName(error)}`);
+          });
       }
 
       return { success: true, duplicate: result.duplicate, message };
@@ -106,7 +105,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('conversation:join')
   async handleJoinConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
@@ -123,7 +122,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('conversation:leave')
   async handleLeaveConversation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
@@ -140,7 +139,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing:start')
   async handleTypingStart(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     return this.emitTyping(client, data.conversationId, 'typing:start');
   }
@@ -148,12 +147,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing:stop')
   async handleTypingStop(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
     return this.emitTyping(client, data.conversationId, 'typing:stop');
   }
 
-  private async emitTyping(client: Socket, conversationId: string, event: 'typing:start' | 'typing:stop') {
+  private async emitTyping(
+    client: Socket,
+    conversationId: string,
+    event: 'typing:start' | 'typing:stop'
+  ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
 

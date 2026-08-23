@@ -8,7 +8,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { chatApi, type ChatConversation, type ChatMessage, type ChatMessagePage } from '@/lib/api/chat';
+import {
+  chatApi,
+  type ChatConversation,
+  type ChatMessage,
+  type ChatMessagePage,
+} from '@/lib/api/chat';
 import { meetupProposalsApi } from '@/lib/api/meetup-proposals';
 import { chatSocket, connectSocket } from '@/lib/socket';
 import { cn } from '@/lib/utils';
@@ -54,7 +59,7 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
             data: [...current.data, message],
             total: current.total + 1,
           };
-        },
+        }
       );
       void chatApi.markRead(conversation.id).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -85,7 +90,7 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
         (current) => {
           if (!current || current.data.some((entry) => entry.id === persisted.id)) return current;
           return { ...current, data: [...current.data, persisted], total: current.total + 1 };
-        },
+        }
       );
       setInputValue('');
       await queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
@@ -132,7 +137,9 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
           </Button>
           <Avatar className="h-10 w-10">
             <AvatarImage src={conversation.participant.avatarUrl || '/placeholder.svg'} alt="" />
-            <AvatarFallback>{conversation.participant.name.slice(0, 1).toUpperCase()}</AvatarFallback>
+            <AvatarFallback>
+              {conversation.participant.name.slice(0, 1).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <h2 className="truncate font-semibold">
@@ -159,7 +166,11 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
             <p className="mt-1 text-sm text-muted-foreground">
               Woof will not substitute a demo transcript while canonical messages cannot be read.
             </p>
-            <Button variant="outline" className="mt-4 bg-transparent" onClick={() => messages.refetch()}>
+            <Button
+              variant="outline"
+              className="mt-4 bg-transparent"
+              onClick={() => messages.refetch()}
+            >
               Try again
             </Button>
           </div>
@@ -167,7 +178,8 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
           <div className="surface-soft rounded-2xl p-5 text-center">
             <p className="font-semibold">Start with a simple hello</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Messages are private to members of this conversation. Once you have chatted, you can suggest a public-place meetup.
+              Messages are private to members of this conversation. Once you have chatted, you can
+              suggest a public-place meetup.
             </p>
           </div>
         ) : (
@@ -191,14 +203,17 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
                 <div className={cn('flex gap-2', isCurrentUser ? 'justify-end' : 'justify-start')}>
                   {!isCurrentUser && (
                     <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarImage src={conversation.participant.avatarUrl || '/placeholder.svg'} alt="" />
+                      <AvatarImage
+                        src={conversation.participant.avatarUrl || '/placeholder.svg'}
+                        alt=""
+                      />
                       <AvatarFallback>{conversation.participant.name.slice(0, 1)}</AvatarFallback>
                     </Avatar>
                   )}
                   <div
                     className={cn(
                       'max-w-[78%] rounded-2xl px-4 py-2',
-                      isCurrentUser ? 'bg-primary text-primary-foreground' : 'glass',
+                      isCurrentUser ? 'bg-primary text-primary-foreground' : 'glass'
                     )}
                   >
                     <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>

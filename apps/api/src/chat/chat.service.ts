@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatSecurityService } from './chat-security.service';
@@ -10,7 +15,7 @@ const MAX_MESSAGES = 100;
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly security: ChatSecurityService,
+    private readonly security: ChatSecurityService
   ) {}
 
   async listConversations(userId: string) {
@@ -62,7 +67,9 @@ export class ChatService {
       }
 
       const self = conversation.participants.find((participant) => participant.userId === userId);
-      const others = conversation.participants.filter((participant) => participant.userId !== userId);
+      const others = conversation.participants.filter(
+        (participant) => participant.userId !== userId
+      );
       if (others.length !== 1) continue;
       const other = others[0]!;
       const lastMessage = conversation.messages[0] ?? null;
@@ -138,7 +145,7 @@ export class ChatService {
       (conversation) =>
         conversation.participants.length === 2 &&
         conversation.participants.some((participant) => participant.userId === userId) &&
-        conversation.participants.some((participant) => participant.userId === participantId),
+        conversation.participants.some((participant) => participant.userId === participantId)
     );
     if (existing) return { id: existing.id, created: false };
 

@@ -21,7 +21,7 @@ export class ChatController {
   @ApiOperation({ summary: 'Create or reuse an authorized direct conversation' })
   create(
     @Request() req: AuthenticatedRequest,
-    @Body() body: { participantId?: string; participantIds?: string[] },
+    @Body() body: { participantId?: string; participantIds?: string[] }
   ) {
     const participantId = body.participantId ?? body.participantIds?.[0];
     return this.chatService.createDirectConversation(req.user.sub, participantId ?? '');
@@ -33,13 +33,13 @@ export class ChatController {
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query('limit') limit?: string
   ) {
     return this.chatService.getMessages(
       req.user.sub,
       id,
       page ? Number(page) : 1,
-      limit ? Number(limit) : 50,
+      limit ? Number(limit) : 50
     );
   }
 

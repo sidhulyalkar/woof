@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,11 +23,10 @@ export class DiscoveryController {
   constructor(private readonly discoveryService: DiscoveryService) {}
 
   @Put('location')
-  @ApiOperation({ summary: 'Opt into nearby discovery using a coarse server-derived location cell' })
-  updateLocation(
-    @Request() req: AuthenticatedRequest,
-    @Body() dto: UpdateDiscoveryLocationDto,
-  ) {
+  @ApiOperation({
+    summary: 'Opt into nearby discovery using a coarse server-derived location cell',
+  })
+  updateLocation(@Request() req: AuthenticatedRequest, @Body() dto: UpdateDiscoveryLocationDto) {
     return this.discoveryService.updateLocation(req.user.sub, dto.latitude, dto.longitude);
   }
 
@@ -39,13 +48,13 @@ export class DiscoveryController {
     @Request() req: AuthenticatedRequest,
     @Param('petId') petId: string,
     @Query('radiusKm') radiusKm?: string,
-    @Query('limit') limit?: string,
+    @Query('limit') limit?: string
   ) {
     return this.discoveryService.getNearbyCandidates(
       req.user.sub,
       petId,
       radiusKm ? Number(radiusKm) : 5,
-      limit ? Number(limit) : 20,
+      limit ? Number(limit) : 20
     );
   }
 }
