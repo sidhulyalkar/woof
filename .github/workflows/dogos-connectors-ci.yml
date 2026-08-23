@@ -1,0 +1,163 @@
+name: dogOS Connectors CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/connectors/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/.env.example'
+      - 'packages/database/prisma/migrations/20260823004500_add_dogos_connectors_operational_schema/**'
+      - '.github/workflows/dogos-connectors-ci.yml'
+      - 'docs/DOGOS_CONNECTORS.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-connectors-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Connectors transport + provenance qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-connectors-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      ENABLE_DOGOS_AUTOPILOT: 'true'
+      ENABLE_DOGOS_OUR_STORY: 'true'
+      ENABLE_DOGOS_CONNECTORS: 'true'
+      CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Check Prisma schema formatting
+        run: |
+          pnpm --filter @woof/database exec prisma format
+          git diff --exit-code -- packages/database/prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject destructive connector migration operations
+        run: |
+          migration='packages/database/prisma/migrations/20260823004500_add_dogos_connectors_operational_schema/migration.sql'
+          if grep -EIn '\b(DROP|TRUNCATE)\b|ALTER[[:space:]]+TABLE[[:space:]]+(public\.)?(users|pets|activities|care_events|media_assets)\b' "$migration"; then
+            echo 'Connectors migration must remain additive and cannot alter canonical dogOS tables.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Verify canonical Prisma datamodel still has zero drift
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Check Connectors formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/connectors \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            .github/workflows/dogos-connectors-ci.yml \
+            docs/DOGOS_CONNECTORS.md
+          git diff --exit-code -- \
+            apps/api/src/connectors \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            .github/workflows/dogos-connectors-ci.yml \
+            docs/DOGOS_CONNECTORS.md
+
+      - name: Lint Connectors API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/connectors/**/*.ts'
+          src/app.module.ts
+          src/config/env.validation.ts
+
+      - name: Reject direct canonical mutations from Connectors
+        run: |
+          if grep -REin '\.(pet|activity|careEvent|mediaAsset)\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b|\b(INSERT[[:space:]]+INTO|UPDATE|DELETE[[:space:]]+FROM)[[:space:]]+(public\.)?(pets|activities|care_events|media_assets)\b' apps/api/src/connectors; then
+            echo 'Connector transport must delegate canonical writes to domain importers.'
+            exit 1
+          fi
+
+      - name: Reject browser provider impersonation routes
+        run: |
+          if grep -EIn 'import/wearable|@Body\(|importWearable' apps/api/src/connectors/connectors.controller.ts; then
+            echo 'Provider-originated payloads must not be accepted from the public browser API.'
+            exit 1
+          fi
+
+      - name: Reject raw provider payload persistence
+        run: |
+          migration='packages/database/prisma/migrations/20260823004500_add_dogos_connectors_operational_schema/migration.sql'
+          if grep -EIn '(raw_provider|raw_payload|provider_payload|payload_json)[[:space:]]' "$migration"; then
+            echo 'Operational connector persistence may store normalized hashes, not raw provider payloads.'
+            exit 1
+          fi
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run connector crypto + lifecycle contracts
+        run: pnpm --filter @woof/api exec jest src/connectors --runInBand --testPathIgnorePatterns=integration
+
+      - name: Run connector operational integration contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/connectors/connector-operational.store.integration.spec.ts
+          --runInBand
+
+      - name: Run Autopilot replay regression
+        run: pnpm --filter @woof/api exec jest src/autopilot/autopilot.service.spec.ts --runInBand
+
+      - name: Run Our Story source contracts
+        run: pnpm --filter @woof/api exec jest src/story --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
