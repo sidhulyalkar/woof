@@ -52,16 +52,15 @@ jobs:
         run: pnpm --filter @woof/database db:generate
 
       - name: Check Behavior Moments formatting
-        run: |
-          pnpm exec prettier --write \
-            apps/api/src/behavior-vision \
-            apps/web/src/lib/api/behavior-vision.ts \
-            apps/web/src/lib/api/behavior-vision.spec.ts \
-            apps/web/src/app/coach/layout.tsx \
-            apps/web/src/app/coach/observe/shadow/page.tsx \
-            .github/workflows/dogos-behavior-moments-ci.yml \
-            docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
-          git diff --exit-code
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/behavior-vision
+          apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/lib/api/behavior-vision.spec.ts
+          apps/web/src/app/coach/layout.tsx
+          apps/web/src/app/coach/observe/shadow/page.tsx
+          .github/workflows/dogos-behavior-moments-ci.yml
+          docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
 
       - name: Lint Behavior Moments API surface
         run: >-
