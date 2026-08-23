@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   CanActivate,
   ExecutionContext,
@@ -7,11 +7,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+function tokenDigest(value: string) {
+  return createHash('sha256').update(value, 'utf8').digest();
+}
+
 function constantTimeEqual(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) return false;
-  return timingSafeEqual(leftBuffer, rightBuffer);
+  return timingSafeEqual(tokenDigest(left), tokenDigest(right));
 }
 
 @Injectable()
