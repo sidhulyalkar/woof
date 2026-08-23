@@ -254,11 +254,7 @@ export class ConnectorOperationalStore {
     `);
   }
 
-  async getImportReceipt(
-    connectionId: string,
-    resourceType: string,
-    externalObjectId: string,
-  ) {
+  async getImportReceipt(connectionId: string, resourceType: string, externalObjectId: string) {
     const rows = await this.prisma.$queryRaw<ImportReceiptRow[]>(Prisma.sql`
       SELECT id, connection_id, resource_type, external_object_id, payload_hash,
              disposition, canonical_ref_type, canonical_ref_id, occurred_at,
