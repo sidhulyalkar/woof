@@ -21,6 +21,7 @@ const envSchema = z.object({
   ENABLE_DOGOS_AUTOPILOT: z.enum(['true', 'false']).optional(),
   ENABLE_DOGOS_OUR_STORY: z.enum(['true', 'false']).optional(),
   ENABLE_DOGOS_CONNECTORS: z.enum(['true', 'false']).optional(),
+  ENABLE_DOGOS_CONCIERGE: z.enum(['true', 'false']).optional(),
   CONNECTOR_CREDENTIALS_KEY: z.string().optional(),
   MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce
     .number()

@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
+import { ConciergeBriefing } from '@/components/concierge/concierge-briefing';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { adventureApi, type AdventureQuest, type WellbeingPathway } from '@/lib/api/adventure';
@@ -172,6 +173,8 @@ export default function HomePage() {
           </section>
         ) : (
           <>
+            <ConciergeBriefing />
+
             <section className="rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.11] via-card/90 to-secondary/[0.08] p-5 shadow-sm">
               <p className="eyebrow">Today&apos;s party quest</p>
               <h1 className="mt-1 text-3xl font-bold tracking-tight">
