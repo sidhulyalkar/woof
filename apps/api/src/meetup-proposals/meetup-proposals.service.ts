@@ -180,16 +180,26 @@ export class MeetupProposalsService {
       throw new BadRequestException('You already submitted feedback for this meetup');
     }
 
-    const safeTags = (dto.feedbackTags ?? [])
+    const structuredTags = [
+      dto.dogExperience ? `dog_${dto.dogExperience}` : null,
+      dto.ownerExperience ? `owner_${dto.ownerExperience}` : null,
+      dto.meetAgain ? `meet_again_${dto.meetAgain}` : null,
+    ].filter((tag): tag is string => tag !== null);
+    const safeTags = [...structuredTags, ...(dto.feedbackTags ?? [])]
       .map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_'))
       .filter(Boolean);
+    const uniqueTags = [...new Set(safeTags)].slice(0, 16);
+
     await this.recordTelemetry(userId, OUTCOME_EVENT, {
       proposalId: id,
       otherUserId:
         proposal.proposerId === userId ? proposal.recipientId : proposal.proposerId,
       occurred: dto.occurred,
+      dogExperience: dto.dogExperience ?? null,
+      ownerExperience: dto.ownerExperience ?? null,
+      meetAgain: dto.meetAgain ?? null,
       rating: dto.rating ?? null,
-      feedbackTags: safeTags,
+      feedbackTags: uniqueTags,
       checklistOk: dto.checklistOk ?? null,
     });
 
@@ -200,7 +210,7 @@ export class MeetupProposalsService {
         : previousRating === null
           ? dto.rating
           : Math.round(((previousRating + dto.rating) / 2) * 10) / 10;
-    const mergedTags = [...new Set([...(proposal.feedbackTags ?? []), ...safeTags])].slice(0, 16);
+    const mergedTags = [...new Set([...(proposal.feedbackTags ?? []), ...uniqueTags])].slice(0, 16);
 
     const updated = await this.prisma.meetupProposal.update({
       where: { id },
