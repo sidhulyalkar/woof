@@ -224,7 +224,11 @@ export default function ActivityPage() {
 
               <div className="mt-4">
                 <p className="text-xs font-semibold text-muted-foreground">About how long?</p>
-                <div className="mt-2 grid grid-cols-4 gap-2" role="group" aria-label="Activity duration">
+                <div
+                  className="mt-2 grid grid-cols-4 gap-2"
+                  role="group"
+                  aria-label="Activity duration"
+                >
                   {QUICK_DURATIONS.map((minutes) => (
                     <button
                       key={minutes}
@@ -284,7 +288,10 @@ export default function ActivityPage() {
               </div>
 
               {activities.isLoading ? (
-                <Card className="surface-soft mt-3 flex items-center gap-3 rounded-2xl p-4" role="status">
+                <Card
+                  className="surface-soft mt-3 flex items-center gap-3 rounded-2xl p-4"
+                  role="status"
+                >
                   <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
                   <span className="text-sm text-muted-foreground">Loading canonical history…</span>
                 </Card>
