@@ -39,12 +39,11 @@ export class BehaviorShadowService {
       this.behaviorVision.profile(userId, petId),
     ]);
 
-    const reviewed = observations.filter((entry) => entry.ownerFeedback !== undefined);
+    const modelUsable = observations.filter((entry) => entry.analysis.mediaQuality.usable);
+    const reviewed = modelUsable.filter((entry) => entry.ownerFeedback !== undefined);
     const confirmed = reviewed.filter((entry) => entry.ownerFeedback?.accurate === true);
     const rejected = reviewed.filter((entry) => entry.ownerFeedback?.accurate === false);
-    const usable = observations.filter(
-      (entry) => entry.analysis.mediaQuality.usable && entry.ownerFeedback?.accurate !== false
-    );
+    const usable = modelUsable.filter((entry) => entry.ownerFeedback?.accurate !== false);
     const pairedSessions = this.countPairedSessions(usable);
     const confirmationRate = reviewed.length ? confirmed.length / reviewed.length : null;
     const evidenceReady =
@@ -71,7 +70,7 @@ export class BehaviorShadowService {
         ownerReviewedObservations: reviewed.length,
         ownerConfirmedObservations: confirmed.length,
         ownerRejectedObservations: rejected.length,
-        ownerUnreviewedObservations: observations.length - reviewed.length,
+        ownerUnreviewedObservations: modelUsable.length - reviewed.length,
         confirmationRate,
         usableRate: observations.length ? usable.length / observations.length : 0,
         contextsSeen: profile.contextsSeen.length,
