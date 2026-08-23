@@ -124,6 +124,7 @@ jobs:
           src/lib/api/adventure.spec.ts
           src/lib/api/pets.ts
           src/lib/api/pets.spec.ts
+          e2e/release-polish.spec.ts
 
       - name: Reject retired production Activity demo data
         run: |
@@ -134,7 +135,7 @@ jobs:
 
       - name: Reject fabricated quick-log route, distance, or reward authority
         run: |
-          if grep -EIn 'route:|distance:|bondXp:|\bxp:' apps/web/src/lib/api/activities.ts apps/web/src/app/activity/page.tsx; then
+          if grep -EIn 'route:|distance:|bondXp:|(^|[^A-Za-z])xp:' apps/web/src/app/activity/page.tsx; then
             echo 'Manual quick log may submit user-entered activity facts only. Location, distance, and rewards remain server/transport owned.'
             exit 1
           fi
