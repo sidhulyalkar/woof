@@ -1,0 +1,163 @@
+name: dogOS Release Polish CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/app/activity/page.tsx'
+      - 'apps/web/src/app/pets/new/page.tsx'
+      - 'apps/web/src/components/concierge/concierge-briefing.tsx'
+      - 'apps/web/src/components/pets/**'
+      - 'apps/web/src/lib/active-pet.ts'
+      - 'apps/web/src/lib/active-pet.spec.ts'
+      - 'apps/web/src/lib/api/activities.ts'
+      - 'apps/web/src/lib/api/activities.spec.ts'
+      - 'apps/web/src/lib/api/adventure.ts'
+      - 'apps/web/src/lib/api/adventure.spec.ts'
+      - 'apps/web/src/lib/api/pets.ts'
+      - 'apps/web/src/lib/api/pets.spec.ts'
+      - 'apps/web/e2e/release-polish.spec.ts'
+      - '.github/workflows/dogos-release-polish-ci.yml'
+      - 'docs/DOGOS_RELEASE_POLISH.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-release-polish-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  ENABLE_ADVENTURE_SYSTEM: 'true'
+  ENABLE_DOGOS_AUTOPILOT: 'true'
+  ENABLE_DOGOS_OUR_STORY: 'true'
+  ENABLE_DOGOS_CONNECTORS: 'true'
+  ENABLE_DOGOS_CONCIERGE: 'true'
+  CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+
+jobs:
+  qualify:
+    name: Multi-pet + canonical user-loop qualification
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema or migration ownership in release polish
+        run: |
+          git fetch origin main --depth=1
+          if ! git diff --quiet origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations; then
+            echo 'Release polish must integrate existing sources of truth without changing database ownership.'
+            git diff --name-only origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations
+            exit 1
+          fi
+
+      - name: Check release-polish formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/web/src/app/activity/page.tsx \
+            apps/web/src/app/pets/new/page.tsx \
+            apps/web/src/components/concierge/concierge-briefing.tsx \
+            apps/web/src/components/pets \
+            apps/web/src/lib/active-pet.ts \
+            apps/web/src/lib/active-pet.spec.ts \
+            apps/web/src/lib/api/activities.ts \
+            apps/web/src/lib/api/activities.spec.ts \
+            apps/web/src/lib/api/adventure.ts \
+            apps/web/src/lib/api/adventure.spec.ts \
+            apps/web/src/lib/api/pets.ts \
+            apps/web/src/lib/api/pets.spec.ts \
+            apps/web/e2e/release-polish.spec.ts \
+            .github/workflows/dogos-release-polish-ci.yml \
+            docs/DOGOS_RELEASE_POLISH.md
+          git diff --exit-code -- \
+            apps/web/src/app/activity/page.tsx \
+            apps/web/src/app/pets/new/page.tsx \
+            apps/web/src/components/concierge/concierge-briefing.tsx \
+            apps/web/src/components/pets \
+            apps/web/src/lib/active-pet.ts \
+            apps/web/src/lib/active-pet.spec.ts \
+            apps/web/src/lib/api/activities.ts \
+            apps/web/src/lib/api/activities.spec.ts \
+            apps/web/src/lib/api/adventure.ts \
+            apps/web/src/lib/api/adventure.spec.ts \
+            apps/web/src/lib/api/pets.ts \
+            apps/web/src/lib/api/pets.spec.ts \
+            apps/web/e2e/release-polish.spec.ts \
+            .github/workflows/dogos-release-polish-ci.yml \
+            docs/DOGOS_RELEASE_POLISH.md
+
+      - name: Lint release-polish web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/activity/page.tsx
+          src/app/pets/new/page.tsx
+          src/components/concierge/concierge-briefing.tsx
+          'src/components/pets/**/*.tsx'
+          src/lib/active-pet.ts
+          src/lib/active-pet.spec.ts
+          src/lib/api/activities.ts
+          src/lib/api/activities.spec.ts
+          src/lib/api/adventure.ts
+          src/lib/api/adventure.spec.ts
+          src/lib/api/pets.ts
+          src/lib/api/pets.spec.ts
+
+      - name: Reject retired production Activity demo data
+        run: |
+          if grep -EIn 'mockActivities|Great walk in the park|37\.7749|37\.7759|Morning walk around the neighborhood' apps/web/src/app/activity/page.tsx; then
+            echo 'The production Activity surface must never substitute hard-coded demo history.'
+            exit 1
+          fi
+
+      - name: Reject fabricated quick-log route, distance, or reward authority
+        run: |
+          if grep -EIn 'route:|distance:|bondXp:|\bxp:' apps/web/src/lib/api/activities.ts apps/web/src/app/activity/page.tsx; then
+            echo 'Manual quick log may submit user-entered activity facts only. Location, distance, and rewards remain server/transport owned.'
+            exit 1
+          fi
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run active-dog and canonical transport contracts
+        run: >-
+          pnpm --filter @woof/web exec vitest run
+          src/lib/active-pet.spec.ts
+          src/lib/api/pets.spec.ts
+          src/lib/api/activities.spec.ts
+          src/lib/api/adventure.spec.ts
+          src/lib/api/concierge.spec.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run multi-pet and activation browser contracts
+        run: pnpm --filter @woof/web exec playwright test e2e/release-polish.spec.ts --project=chromium
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
