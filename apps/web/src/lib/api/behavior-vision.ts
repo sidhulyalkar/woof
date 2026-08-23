@@ -140,6 +140,48 @@ export type BehaviorVisionResult = {
   safety: string;
 };
 
+export type BehaviorShadowSnapshot = {
+  policy: {
+    version: string;
+    mode: 'shadow-evidence-only';
+    canInfluenceCompatibility: false;
+    canMutateCanonicalPetState: false;
+    canMakeSafetyDecision: false;
+    promotionEnabled: false;
+    promotionRequiresSeparateQualifiedRelease: true;
+  };
+  evaluation: {
+    observations: number;
+    usableObservations: number;
+    ownerReviewedObservations: number;
+    ownerConfirmedObservations: number;
+    ownerRejectedObservations: number;
+    ownerUnreviewedObservations: number;
+    confirmationRate: number | null;
+    usableRate: number;
+    contextsSeen: number;
+    pairedSessions: number;
+    personalizationConfidence: number;
+    modelVersions: string[];
+    evidenceReady: boolean;
+    readinessGates: {
+      usableObservations: number;
+      ownerReviewedObservations: number;
+      confirmationRate: number;
+      contexts: number;
+      pairedSessions: number;
+    };
+  };
+  moments: Array<{
+    observationId: string;
+    startMs: number;
+    endMs: number;
+    confidence: number;
+    labels: string[];
+    sources: string[];
+  }>;
+};
+
 export type BehaviorVisionInput = {
   petId: string;
   media: File | Blob;
@@ -201,6 +243,11 @@ export const behaviorVisionApi = {
         ownerFeedback?: { accurate: boolean; note?: string };
       }>
     >,
+
+  shadow: async (petId: string) =>
+    apiClient.get('/behavior-vision/shadow', {
+      params: { petId },
+    }) as unknown as Promise<BehaviorShadowSnapshot>,
 
   feedback: async (observationId: string, accurate: boolean, note?: string) =>
     apiClient.post('/behavior-vision/feedback', {

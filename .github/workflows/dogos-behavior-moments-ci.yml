@@ -1,0 +1,132 @@
+name: dogOS Behavior Moments Shadow CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/behavior-vision/**'
+      - 'apps/web/src/lib/api/behavior-vision.ts'
+      - 'apps/web/src/lib/api/behavior-vision.spec.ts'
+      - 'apps/web/src/app/coach/layout.tsx'
+      - 'apps/web/src/app/coach/observe/shadow/**'
+      - 'apps/web/e2e/behavior-moments-shadow.spec.ts'
+      - '.github/workflows/dogos-behavior-moments-ci.yml'
+      - 'docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-behavior-moments-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  JWT_SECRET: ci-only-test-secret
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Shadow evidence + zero-authority qualification
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Check Behavior Moments formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/behavior-vision
+          apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/lib/api/behavior-vision.spec.ts
+          apps/web/src/app/coach/layout.tsx
+          apps/web/src/app/coach/observe/shadow/page.tsx
+          apps/web/e2e/behavior-moments-shadow.spec.ts
+          .github/workflows/dogos-behavior-moments-ci.yml
+          docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
+
+      - name: Lint Behavior Moments API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/behavior-vision
+
+      - name: Lint Behavior Moments web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/lib/api/behavior-vision.ts
+          src/lib/api/behavior-vision.spec.ts
+          src/app/coach/layout.tsx
+          src/app/coach/observe/shadow/page.tsx
+          e2e/behavior-moments-shadow.spec.ts
+
+      - name: Reject canonical pet mutation from Behavior Vision
+        run: |
+          if grep -ERIn 'prisma\.pet\.(create|update|updateMany|upsert|delete|deleteMany)' apps/api/src/behavior-vision; then
+            echo 'Behavior Moments shadow code may read owned pets but cannot mutate canonical pet state.'
+            exit 1
+          fi
+
+      - name: Reject compatibility authority escape
+        run: |
+          if grep -ERIn 'behavior-vision|BEHAVIOR_VISION|BehaviorShadow|BehaviorMoment' apps/api/src/compatibility; then
+            echo 'Behavior Moments shadow evidence cannot influence compatibility in this release.'
+            exit 1
+          fi
+
+      - name: Require literal zero-authority policy
+        run: |
+          grep -q "mode: 'shadow-evidence-only'" apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'canInfluenceCompatibility: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'canMutateCanonicalPetState: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'canMakeSafetyDecision: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'promotionEnabled: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'promotionRequiresSeparateQualifiedRelease: true' apps/api/src/behavior-vision/behavior-shadow.service.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run Behavior Moments shadow contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/behavior-vision/behavior-shadow.service.spec.ts
+          src/behavior-vision/behavior-vision.service.spec.ts
+          src/behavior-vision/behavior-profile.spec.ts
+
+      - name: Run Behavior Moments web transport contract
+        run: pnpm --filter @woof/web exec vitest run src/lib/api/behavior-vision.spec.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run Shadow Lab browser contract
+        run: pnpm --filter @woof/web exec playwright test e2e/behavior-moments-shadow.spec.ts --project=chromium
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
