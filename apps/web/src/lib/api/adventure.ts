@@ -1,7 +1,15 @@
+import { getActivePetId } from '../active-pet';
 import { apiClient } from './client';
 
 export type WellbeingPathway =
-  'MOVE' | 'EXPLORE' | 'ENRICH' | 'LEARN' | 'CONNECT' | 'CARE' | 'RECOVER' | 'BOND';
+  | 'MOVE'
+  | 'EXPLORE'
+  | 'ENRICH'
+  | 'LEARN'
+  | 'CONNECT'
+  | 'CARE'
+  | 'RECOVER'
+  | 'BOND';
 
 export type AdventureQuest = {
   id: string;
@@ -73,11 +81,17 @@ export type QuestCompletion = {
   message: string;
 };
 
+function resolvedPetId(explicitPetId?: string) {
+  return explicitPetId ?? getActivePetId() ?? undefined;
+}
+
 export const adventureApi = {
-  getMine: (petId?: string) =>
-    apiClient.get<AdventureDashboard>('/adventure/me', {
-      params: petId ? { petId } : undefined,
-    }),
+  getMine: (petId?: string) => {
+    const activePetId = resolvedPetId(petId);
+    return apiClient.get<AdventureDashboard>('/adventure/me', {
+      params: activePetId ? { petId: activePetId } : undefined,
+    });
+  },
 
   selectQuest: (questId: string, petId: string) =>
     apiClient.post<{ ok: boolean }>(`/adventure/quests/${questId}/select`, { petId }),
