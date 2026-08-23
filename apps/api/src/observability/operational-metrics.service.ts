@@ -33,6 +33,7 @@ export class OperationalMetricsService {
   private readonly startedAt = new Date();
   private readonly requests = new Map<string, RequestMetric>();
   private readonly connectorImports = new Map<string, ConnectorMetric>();
+  private deviceContractRejections = 0;
 
   recordRequest(input: {
     method: string;
@@ -79,6 +80,10 @@ export class OperationalMetricsService {
     this.connectorImports.set(key, current);
   }
 
+  recordDeviceContractRejection() {
+    this.deviceContractRejections += 1;
+  }
+
   snapshot() {
     return {
       scope: 'process' as const,
@@ -91,6 +96,7 @@ export class OperationalMetricsService {
         rawPayloadsCollected: false as const,
         requestUrlsCollected: false as const,
       },
+      deviceContractRejections: this.deviceContractRejections,
       requests: [...this.requests.values()].sort((left, right) =>
         `${left.method}:${left.operation}:${left.statusClass}`.localeCompare(
           `${right.method}:${right.operation}:${right.statusClass}`
@@ -124,6 +130,9 @@ export class OperationalMetricsService {
     }
 
     lines.push(
+      '# HELP woof_device_contract_rejections_total Device envelopes rejected before trusted provider labels are available.',
+      '# TYPE woof_device_contract_rejections_total counter',
+      `woof_device_contract_rejections_total ${this.deviceContractRejections}`,
       '# HELP woof_connector_imports_total Verified device imports by provider, kind and outcome.',
       '# TYPE woof_connector_imports_total counter'
     );
