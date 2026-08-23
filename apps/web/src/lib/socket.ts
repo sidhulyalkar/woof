@@ -30,13 +30,6 @@ export function disconnectSocket() {
   if (socket?.connected) socket.disconnect();
 }
 
-export function createChatClientMessageId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
 type SendAck = {
   success: boolean;
   duplicate?: boolean;
