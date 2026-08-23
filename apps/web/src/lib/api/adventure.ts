@@ -2,14 +2,7 @@ import { getActivePetId } from '../active-pet';
 import { apiClient } from './client';
 
 export type WellbeingPathway =
-  | 'MOVE'
-  | 'EXPLORE'
-  | 'ENRICH'
-  | 'LEARN'
-  | 'CONNECT'
-  | 'CARE'
-  | 'RECOVER'
-  | 'BOND';
+  'MOVE' | 'EXPLORE' | 'ENRICH' | 'LEARN' | 'CONNECT' | 'CARE' | 'RECOVER' | 'BOND';
 
 export type AdventureQuest = {
   id: string;
