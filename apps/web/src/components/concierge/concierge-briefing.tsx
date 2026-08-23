@@ -88,7 +88,10 @@ export function ConciergeBriefing() {
         {visibleSuggestions.length > 0 && (
           <div className="mt-4 space-y-2">
             {visibleSuggestions.map((suggestion) => (
-              <article key={suggestion.id} className="rounded-2xl border border-border/70 bg-card/65 p-3">
+              <article
+                key={suggestion.id}
+                className="rounded-2xl border border-border/70 bg-card/65 p-3"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{suggestion.title}</p>
