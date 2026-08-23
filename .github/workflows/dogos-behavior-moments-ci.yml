@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/api/src/behavior-vision/**'
       - 'apps/web/src/lib/api/behavior-vision.ts'
+      - 'apps/web/src/lib/api/behavior-vision.spec.ts'
       - 'apps/web/src/app/coach/layout.tsx'
       - 'apps/web/src/app/coach/observe/shadow/**'
       - '.github/workflows/dogos-behavior-moments-ci.yml'
@@ -55,6 +56,7 @@ jobs:
           pnpm exec prettier --check
           apps/api/src/behavior-vision
           apps/web/src/lib/api/behavior-vision.ts
+          apps/web/src/lib/api/behavior-vision.spec.ts
           apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/observe/shadow/page.tsx
           .github/workflows/dogos-behavior-moments-ci.yml
@@ -69,6 +71,7 @@ jobs:
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           src/lib/api/behavior-vision.ts
+          src/lib/api/behavior-vision.spec.ts
           src/app/coach/layout.tsx
           src/app/coach/observe/shadow/page.tsx
 
@@ -107,6 +110,9 @@ jobs:
           src/behavior-vision/behavior-shadow.service.spec.ts
           src/behavior-vision/behavior-vision.service.spec.ts
           src/behavior-vision/behavior-profile.spec.ts
+
+      - name: Run Behavior Moments web transport contract
+        run: pnpm --filter @woof/web exec vitest run src/lib/api/behavior-vision.spec.ts
 
       - name: Build API
         run: pnpm --filter @woof/api build
