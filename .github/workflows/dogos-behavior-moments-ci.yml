@@ -9,6 +9,7 @@ on:
       - 'apps/web/src/lib/api/behavior-vision.spec.ts'
       - 'apps/web/src/app/coach/layout.tsx'
       - 'apps/web/src/app/coach/observe/shadow/**'
+      - 'apps/web/e2e/behavior-moments-shadow.spec.ts'
       - '.github/workflows/dogos-behavior-moments-ci.yml'
       - 'docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md'
 
@@ -59,6 +60,7 @@ jobs:
           apps/web/src/lib/api/behavior-vision.spec.ts
           apps/web/src/app/coach/layout.tsx
           apps/web/src/app/coach/observe/shadow/page.tsx
+          apps/web/e2e/behavior-moments-shadow.spec.ts
           .github/workflows/dogos-behavior-moments-ci.yml
           docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
 
@@ -74,6 +76,7 @@ jobs:
           src/lib/api/behavior-vision.spec.ts
           src/app/coach/layout.tsx
           src/app/coach/observe/shadow/page.tsx
+          e2e/behavior-moments-shadow.spec.ts
 
       - name: Reject canonical pet mutation from Behavior Vision
         run: |
@@ -113,6 +116,12 @@ jobs:
 
       - name: Run Behavior Moments web transport contract
         run: pnpm --filter @woof/web exec vitest run src/lib/api/behavior-vision.spec.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run Shadow Lab browser contract
+        run: pnpm --filter @woof/web exec playwright test e2e/behavior-moments-shadow.spec.ts --project=chromium
 
       - name: Build API
         run: pnpm --filter @woof/api build
