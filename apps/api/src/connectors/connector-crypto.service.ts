@@ -46,11 +46,7 @@ export class ConnectorCryptoService {
     }
 
     try {
-      const decipher = createDecipheriv(
-        'aes-256-gcm',
-        key,
-        Buffer.from(envelope.iv, 'base64url'),
-      );
+      const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64url'));
       decipher.setAAD(Buffer.from(context, 'utf8'));
       decipher.setAuthTag(Buffer.from(envelope.tag, 'base64url'));
       const plaintext = Buffer.concat([
@@ -70,7 +66,7 @@ export class ConnectorCryptoService {
   private requireKey() {
     if (!this.key) {
       throw new ServiceUnavailableException(
-        'Connector credential encryption is not configured for this environment',
+        'Connector credential encryption is not configured for this environment'
       );
     }
     return this.key;
