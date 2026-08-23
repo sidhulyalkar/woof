@@ -36,6 +36,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { ServicesModule } from './services/services.module';
 import { SocialModule } from './social/social.module';
 import { StorageModule } from './storage/storage.module';
+import { StoryModule } from './story/story.module';
 import { TrustSafetyModule } from './trust-safety/trust-safety.module';
 import { UsersModule } from './users/users.module';
 import { VerificationModule } from './verification/verification.module';
@@ -68,6 +69,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     ActivitiesModule,
     AdventureModule,
     AutopilotModule,
+    StoryModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,
