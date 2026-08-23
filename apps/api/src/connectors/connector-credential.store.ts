@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConnectorCryptoService } from './connector-crypto.service';
-import type { ConnectorCredentialEnvelope, ConnectorProvider } from './connectors.types';
+import type {
+  ConnectorCredentialEnvelope,
+  ConnectorCredentialState,
+  ConnectorProvider,
+} from './connectors.types';
 
 function providerKey(provider: ConnectorProvider) {
   return `dogos_connector:${provider}`;
@@ -65,11 +69,31 @@ export class ConnectorCredentialStore {
     }));
   }
 
-  async has(userId: string, provider: ConnectorProvider) {
-    const count = await this.prisma.integrationToken.count({
-      where: { userId, provider: providerKey(provider) },
+  async state(userId: string, provider: ConnectorProvider): Promise<ConnectorCredentialState> {
+    const row = await this.prisma.integrationToken.findUnique({
+      where: {
+        userId_provider: {
+          userId,
+          provider: providerKey(provider),
+        },
+      },
+      select: { data: true, expiresAt: true },
     });
-    return count > 0;
+    if (!row) return 'MISSING';
+    if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return 'EXPIRED';
+
+    const envelope = readEnvelope(row.data);
+    if (!envelope || !this.crypto.isConfigured()) return 'INVALID';
+    try {
+      this.crypto.decrypt(envelope, contextKey(userId, provider));
+      return 'USABLE';
+    } catch {
+      return 'INVALID';
+    }
+  }
+
+  async has(userId: string, provider: ConnectorProvider) {
+    return (await this.state(userId, provider)) === 'USABLE';
   }
 
   async put(
@@ -112,14 +136,18 @@ export class ConnectorCredentialStore {
       },
       select: { data: true, scopes: true, expiresAt: true },
     });
-    if (!row) return null;
+    if (!row || (row.expiresAt && row.expiresAt.getTime() <= Date.now())) return null;
     const envelope = readEnvelope(row.data);
     if (!envelope) return null;
-    return {
-      credentials: this.crypto.decrypt(envelope, contextKey(userId, provider)),
-      scopes: row.scopes,
-      expiresAt: row.expiresAt,
-    };
+    try {
+      return {
+        credentials: this.crypto.decrypt(envelope, contextKey(userId, provider)),
+        scopes: row.scopes,
+        expiresAt: row.expiresAt,
+      };
+    } catch {
+      return null;
+    }
   }
 
   async remove(userId: string, provider: ConnectorProvider) {
