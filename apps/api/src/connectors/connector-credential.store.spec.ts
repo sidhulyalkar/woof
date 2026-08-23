@@ -32,7 +32,7 @@ describe('ConnectorCredentialStore', () => {
       'FI',
       { accessToken: 'access-secret', refreshToken: 'refresh-secret' },
       ['activity', 'profile', 'activity'],
-      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-01T00:00:00.000Z')
     );
 
     const args = integrationToken.upsert.mock.calls[0]?.[0];
