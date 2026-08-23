@@ -166,13 +166,36 @@ jobs:
           src/lib/socket.ts
           e2e/trust-discovery.spec.ts
 
-      - name: Reject caller-authorized rooms and global presence broadcasts
+      - name: Enforce server-authorized rooms and scoped presence
         run: |
-          if grep -EIn "server\.emit\(['\"]user:(online|offline)|client\.join\(.*conversation" apps/api/src/chat/chat.gateway.ts; then
-            echo 'Chat rooms must be server-authorized and presence must not be globally broadcast.'
+          if grep -EIn "server\.emit\(['\"]user:(online|offline)" apps/api/src/chat/chat.gateway.ts; then
+            echo 'Global presence broadcasts are forbidden.'
             exit 1
           fi
-          grep -q 'chatSecurity.assertConversationAccess' apps/api/src/chat/chat.gateway.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          join_start = source.index("@SubscribeMessage('conversation:join')")
+          leave_start = source.index("@SubscribeMessage('conversation:leave')")
+          typing_start = source.index("@SubscribeMessage('typing:start')")
+          private_typing = source.index('private async emitTyping')
+
+          join_handler = source[join_start:leave_start]
+          leave_handler = source[leave_start:typing_start]
+          typing_handler = source[private_typing:]
+
+          checks = [
+              ('conversation join', join_handler, 'client.join(`conversation:${data.conversationId}`)'),
+              ('conversation leave', leave_handler, 'client.leave(`conversation:${data.conversationId}`)'),
+              ('typing emit', typing_handler, 'client.to(`conversation:${conversationId}`).emit'),
+          ]
+          for label, handler, room_operation in checks:
+              authorization = handler.find('chatSecurity.assertConversationAccess')
+              operation = handler.find(room_operation)
+              if authorization < 0 or operation < 0 or authorization > operation:
+                  raise SystemExit(f'{label} must authorize conversation access before its room operation')
+          PY
           grep -q 'chatSecurity.persistMessage' apps/api/src/chat/chat.gateway.ts
           grep -q 'clientMessageId' apps/web/src/lib/socket.ts
 
