@@ -12,6 +12,16 @@ The intended pipeline is:
 
 For wearables, the domain importer already exists: Fi/Tractive summaries pass through Autopilot's adapter and immutable zero-reward CareEvent path.
 
+## Three persistence zones
+
+Phase C intentionally separates three different kinds of state:
+
+1. **Canonical dogOS truth** remains in the existing `public` schema. `Pet`, `Activity`, `CareEvent`, `MediaAsset`, Story, Adventure, and household records retain their existing owners and mutation rules.
+2. **Connector operational metadata** lives in the isolated PostgreSQL schema `dogos_connectors`. It stores only queryable transport metadata: connection lifecycle, provider-to-pet identity mapping, cursors, hash-only import receipts, and revocation receipts.
+3. **Provider secrets** remain in `IntegrationToken`, but only after authenticated encryption. No OAuth access/refresh token is stored in the operational schema.
+
+This prevents provider bookkeeping from becoming a parallel dog database while keeping sync state relational and auditable.
+
 ## Provider registry
 
 Phase C begins with these provider classes:
@@ -43,7 +53,40 @@ Phase C therefore wraps connector credential payloads in an authenticated encryp
 
 `CONNECTOR_CREDENTIALS_KEY` must decode to exactly 32 bytes. Production startup fails when Connectors is enabled without a valid key.
 
-For this first scaffold, `IntegrationToken` is used only as the encrypted **credential vault**. It is not the future home for sync cursors, provider-pet identity mapping, import receipts, or provenance history. Those require explicit relational persistence in the next Phase C slice.
+A connection is not considered healthy merely because a credential row exists. `CONNECTED` requires both:
+
+- an operational connection in `dogos_connectors.connections` with `status=CONNECTED`
+- a decryptable, unexpired authenticated credential envelope
+
+Expired, malformed, or authentication-failing credentials degrade the operational connection to `REAUTH_REQUIRED`.
+
+## Operational relational schema
+
+The additive migration creates five tables under `dogos_connectors`:
+
+- `connections`
+  - user/provider lifecycle
+  - external account ID/display label
+  - granted scopes
+  - connected, sync, and revoked timestamps
+- `pet_identities`
+  - provider animal ID ↔ dogOS pet ID
+  - unique per connection
+  - a database trigger rejects any mapping where the pet is not owned by the connection user
+- `sync_cursors`
+  - per-connection, per-resource cursor and watermark
+- `import_receipts`
+  - provider external object ID
+  - SHA-256 of the normalized canonical observation
+  - imported/skipped/failed disposition
+  - optional canonical reference ID/type
+  - no raw provider payload
+- `revocation_receipts`
+  - local credential deletion vs future remote revocation
+  - success/unavailable/failure evidence
+  - no raw provider response body
+
+The migration is additive. It does not alter canonical dogOS tables.
 
 ## Wearables
 
@@ -56,7 +99,23 @@ Fi and Tractive retain the Phase A normalization policy:
 - wearable observations cannot earn Bond XP
 - connector transport cannot mutate `Pet` or `Activity`
 
-A connector wearable import requires a verified encrypted credential row before it can reach Autopilot.
+There is intentionally **no public browser wearable-ingestion endpoint**. A browser must not be able to impersonate Fi or Tractive by posting a provider-shaped JSON body.
+
+The internal verified-transport seam requires all of the following before delegation to Autopilot:
+
+1. operational connection status is `CONNECTED`
+2. encrypted provider credential authenticates and is not expired
+3. external provider pet ID maps to an owned dogOS pet
+4. provider is a wearable provider
+5. provider payload passes the existing Autopilot summary/location normalization rules
+
+The connector then records a hash-only import receipt referencing the resulting immutable CareEvent.
+
+### Lost-response repair
+
+Autopilot/CareEvent remains the exactly-once source boundary. The connector receipt is downstream evidence, not a second dedupe authority.
+
+If a process dies after CareEvent persistence but before the connector receipt is written, replay re-enters Autopilot, receives the existing canonical observation, and repairs the missing receipt from that persisted observation. If the retry payload differs from the canonical observation, the canonical receipt is repaired first and the altered retry is rejected.
 
 ## Veterinary records
 
@@ -70,7 +129,7 @@ The registry defines the allowed v1 intent:
 - documents remain source references
 - no connector computes dosage, prescribes treatment, or directly rewrites canonical pet health fields
 
-Provider-specific identity mapping and immutable import receipts are required before a real vet transport can be enabled.
+A real vet transport must use the same connection, identity, cursor, and import-receipt boundary before it can be enabled.
 
 ## Retail
 
@@ -90,13 +149,13 @@ Precise tracker location import is disabled in this slice. Provider definitions 
 
 Before location can be enabled, Connectors must add an explicit scope, retention duration, deletion/revocation behavior, and user-visible permission surface. Phase A's location-rejection behavior remains the default.
 
-## Current API
+## Current public API
 
 All routes are JWT-protected and feature-gated by `ENABLE_DOGOS_CONNECTORS`.
 
 - `GET /connectors`
   - provider capabilities
-  - truthful connection state
+  - truthful operational + credential connection state
   - credential-vault readiness
   - global safety boundaries
 - `POST /connectors/:provider/oauth/start`
@@ -104,23 +163,10 @@ All routes are JWT-protected and feature-gated by `ENABLE_DOGOS_CONNECTORS`.
   - never invents an undocumented authorization URL
 - `DELETE /connectors/:provider`
   - deletes local encrypted credentials
+  - records local revocation evidence when an operational connection exists
   - does not falsely claim remote revocation when no official revocation transport is configured
-- `POST /connectors/:provider/import/wearable`
-  - Fi/Tractive only
-  - requires a verified connector credential
-  - delegates to Autopilot normalization and reward policy
 
-## Next persistence slice
-
-Before enabling a real external sync, add explicit relational models for:
-
-1. connector connection metadata and lifecycle
-2. provider ↔ Woof pet identity mapping
-3. per-resource sync cursors
-4. immutable import receipts with provider external ID/hash, timestamps, source kind, status, and dedupe uniqueness
-5. revocation/deletion receipts
-
-Secrets should remain in the encrypted credential vault, separate from these queryable metadata models.
+Provider ingestion, connection registration, identity binding, and cursor advancement are internal transport seams, not browser APIs.
 
 ## CI invariants
 
@@ -129,12 +175,17 @@ The dedicated Connectors lane must prove:
 - credential plaintext is absent from persisted envelopes
 - ciphertext is bound to user/provider AAD
 - missing/malformed encryption key fails closed
+- expired/corrupt credentials cannot remain `CONNECTED`
 - unsupported/partner-gated providers cannot manufacture OAuth state
-- a connection state requires an actual encrypted credential row
-- wearable import requires connection verification
-- wearable import reuses Autopilot
+- browser provider impersonation is not exposed
+- cross-user provider-pet mapping is rejected by the database
+- sync cursors persist independently from canonical records
+- import receipt uniqueness prevents provenance duplication
+- lost receipt repair derives from immutable Autopilot/CareEvent truth
+- altered external-object replays are rejected
 - retail definitions prohibit autonomous purchase
 - precise location remains disabled
+- operational tables contain no raw provider payload column
 - connector source contains no direct canonical `Pet`, `Activity`, `CareEvent`, or `MediaAsset` mutation calls
 - strict lint/type-check and API build remain green
 - inherited Autopilot, Our Story, Foundation, Adventure, and root CI remain green on the same exact head
