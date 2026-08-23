@@ -14,6 +14,12 @@ import {
   type ChatMessage,
   type ChatMessagePage,
 } from '@/lib/api/chat';
+import {
+  getOrCreateChatSendAttempt,
+  invalidateAttemptForEditedDraft,
+  reconcileDraftAfterAcknowledgedSend,
+  type ChatSendAttempt,
+} from '@/lib/chat-delivery';
 import { meetupProposalsApi } from '@/lib/api/meetup-proposals';
 import { chatSocket, connectSocket } from '@/lib/socket';
 import { cn } from '@/lib/utils';
@@ -33,6 +39,7 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
   const [sending, setSending] = useState(false);
   const [proposalMessage, setProposalMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pendingSendRef = useRef<ChatSendAttempt | null>(null);
 
   const messages = useQuery({
     queryKey: ['chat', 'messages', conversation.id],
@@ -66,6 +73,7 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
     });
 
     return () => {
+      pendingSendRef.current = null;
       removeMessageListener();
       chatSocket.leaveConversation(conversation.id);
       if (activeSocket.connected) {
@@ -81,10 +89,21 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
   const handleSend = async () => {
     const text = inputValue.trim();
     if (!text || sending) return;
+
+    const attempt = getOrCreateChatSendAttempt(pendingSendRef.current, conversation.id, text);
+    pendingSendRef.current = attempt;
     setSending(true);
     setSendError(null);
+
     try {
-      const persisted = await chatSocket.sendMessage(conversation.id, text);
+      const persisted = await chatSocket.sendMessage(
+        conversation.id,
+        attempt.text,
+        attempt.clientMessageId
+      );
+      if (pendingSendRef.current?.clientMessageId === attempt.clientMessageId) {
+        pendingSendRef.current = null;
+      }
       queryClient.setQueryData<ChatMessagePage>(
         ['chat', 'messages', conversation.id],
         (current) => {
@@ -92,10 +111,12 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
           return { ...current, data: [...current.data, persisted], total: current.total + 1 };
         }
       );
-      setInputValue('');
-      await queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+      setInputValue((current) => reconcileDraftAfterAcknowledgedSend(current, attempt.text));
+      void queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
     } catch {
-      setSendError('That message was not saved. Your draft is still here.');
+      setSendError(
+        'Delivery was not confirmed. Your draft is still here, and retrying it will not duplicate it.'
+      );
     } finally {
       setSending(false);
     }
@@ -251,7 +272,15 @@ export function ChatWindow({ conversation, currentUserId, onBack }: ChatWindowPr
             placeholder="Message…"
             value={inputValue}
             maxLength={4000}
-            onChange={(event) => setInputValue(event.target.value)}
+            onChange={(event) => {
+              const nextDraft = event.target.value;
+              pendingSendRef.current = invalidateAttemptForEditedDraft(
+                pendingSendRef.current,
+                nextDraft
+              );
+              setInputValue(nextDraft);
+              setSendError(null);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
