@@ -28,6 +28,13 @@ export function disconnectSocket() {
   if (socket?.connected) socket.disconnect();
 }
 
+function newClientMessageId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+}
+
 export const chatSocket = {
   joinConversation: (conversationId: string) => {
     getSocket().emit('conversation:join', { conversationId });
@@ -36,7 +43,11 @@ export const chatSocket = {
     getSocket().emit('conversation:leave', { conversationId });
   },
   sendMessage: (conversationId: string, text: string) => {
-    getSocket().emit('message:send', { conversationId, text });
+    getSocket().emit('message:send', {
+      conversationId,
+      clientMessageId: newClientMessageId(),
+      text,
+    });
   },
   onMessage: (callback: (message: unknown) => void) => {
     getSocket().on('message:received', callback);
