@@ -112,9 +112,7 @@ export class ChatService {
     );
 
     return visible.map((conversation) => {
-      const other = conversation.participants.find(
-        (participant) => participant.userId !== userId
-      )!;
+      const other = conversation.participants.find((participant) => participant.userId !== userId)!;
       const lastMessage = conversation.messages[0] ?? null;
 
       return {
