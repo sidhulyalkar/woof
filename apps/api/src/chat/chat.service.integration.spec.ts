@@ -1,19 +1,23 @@
 import { randomUUID } from 'node:crypto';
+import { PrismaService } from '../prisma/prisma.service';
 import { ChatSecurityService } from './chat-security.service';
 import { ChatService } from './chat.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 describe('ChatService integration', () => {
   const prisma = new PrismaService();
   const security = { assertConversationAccess: jest.fn() } as unknown as ChatSecurityService;
   const service = new ChatService(prisma, security);
   const usersToDelete: string[] = [];
+  const conversationsToDelete: string[] = [];
 
   beforeAll(async () => {
     await prisma.$connect();
   });
 
   afterAll(async () => {
+    if (conversationsToDelete.length > 0) {
+      await prisma.conversation.deleteMany({ where: { id: { in: conversationsToDelete } } });
+    }
     if (usersToDelete.length > 0) {
       await prisma.telemetry.deleteMany({ where: { userId: { in: usersToDelete } } });
       await prisma.user.deleteMany({ where: { id: { in: usersToDelete } } });
@@ -48,6 +52,7 @@ describe('ChatService integration', () => {
 
     expect(attempts.filter((attempt) => attempt.created)).toHaveLength(1);
     expect(new Set(attempts.map((attempt) => attempt.id)).size).toBe(1);
+    conversationsToDelete.push(attempts[0]!.id);
 
     const conversations = await prisma.conversation.findMany({
       where: {
@@ -95,6 +100,7 @@ describe('ChatService integration', () => {
       },
       select: { id: true },
     });
+    conversationsToDelete.push(conversation.id);
 
     await prisma.message.createMany({
       data: [
