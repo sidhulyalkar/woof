@@ -207,6 +207,7 @@ jobs:
         run: >-
           pnpm --filter @woof/api exec jest --runInBand
           src/chat/chat-security.service.spec.ts
+          src/chat/chat.service.spec.ts
           src/discovery/discovery.service.spec.ts
           src/meetup-proposals/meetup-proposals.outcomes.spec.ts
           src/compatibility/compatibility.baseline.spec.ts
