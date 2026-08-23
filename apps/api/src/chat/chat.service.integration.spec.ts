@@ -92,10 +92,7 @@ describe('ChatService integration', () => {
     const conversation = await prisma.conversation.create({
       data: {
         participants: {
-          create: [
-            { userId: owner.id, lastReadAt },
-            { userId: other.id },
-          ],
+          create: [{ userId: owner.id, lastReadAt }, { userId: other.id }],
         },
       },
       select: { id: true },
