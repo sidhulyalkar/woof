@@ -1,0 +1,174 @@
+name: dogOS Network Integrity + Scale CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/**'
+      - '.github/workflows/dogos-network-integrity-ci.yml'
+      - 'docs/DOGOS_NETWORK_INTEGRITY_SCALE.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-network-integrity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Direct-thread integrity + bounded Inbox qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-network-integrity-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Network Integrity + Scale v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Network Integrity formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/chat/chat.service.ts
+          apps/api/src/chat/chat.service.spec.ts
+          apps/api/src/chat/chat.service.integration.spec.ts
+          .github/workflows/dogos-network-integrity-ci.yml
+          docs/DOGOS_NETWORK_INTEGRITY_SCALE.md
+
+      - name: Lint Network Integrity API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/chat/chat.service.ts
+          src/chat/chat.service.spec.ts
+          src/chat/chat.service.integration.spec.ts
+
+      - name: Enforce symmetric transaction-scoped pair locking
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('apps/api/src/chat/chat.service.ts').read_text()
+          start = source.index('async createDirectConversation')
+          end = source.index('async getMessages', start)
+          block = source[start:end]
+
+          required = [
+              '$transaction',
+              'pg_advisory_xact_lock',
+              'hashtextextended',
+              'directPairLockKey',
+              'conversation.findMany',
+              'conversation.create',
+          ]
+          missing = [token for token in required if token not in block]
+          if missing:
+              raise SystemExit(f'missing direct-thread integrity tokens: {missing}')
+
+          if source.index('.sort()', source.index('function directPairLockKey')) > source.index('class ChatService'):
+              raise SystemExit('direct pair key must sort users before entering ChatService')
+
+          if block.index('pg_advisory_xact_lock') > block.index('conversation.findMany'):
+              raise SystemExit('pair lock must be acquired before candidate conversation lookup')
+          if block.index('pg_advisory_xact_lock') > block.index('conversation.create'):
+              raise SystemExit('pair lock must be acquired before conversation creation')
+          PY
+
+      - name: Enforce bounded set-based Inbox reads
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('apps/api/src/chat/chat.service.ts').read_text()
+          start = source.index('async listConversations')
+          end = source.index('async createDirectConversation', start)
+          block = source[start:end]
+
+          if 'assertConversationAccess' in block:
+              raise SystemExit('Inbox list must not reintroduce per-thread authorization queries')
+          if 'message.count' in block:
+              raise SystemExit('Inbox list must not reintroduce per-thread unread counts')
+          for token in ['blockedUser.findMany', 'getUnreadCounts', 'directConversations']:
+              if token not in block:
+                  raise SystemExit(f'missing bounded Inbox token: {token}')
+
+          unread_start = source.index('private async getUnreadCounts')
+          unread = source[unread_start:]
+          for token in ['conversation_participants', 'LEFT JOIN messages', 'last_read_at', 'Prisma.join(conversationIds)']:
+              if token not in unread:
+                  raise SystemExit(f'missing set-based unread token: {token}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run chat unit contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/chat/chat.service.spec.ts
+          src/chat/chat-security.service.spec.ts
+          --runInBand
+
+      - name: Run real PostgreSQL network integrity contracts
+        run: pnpm --filter @woof/api exec jest src/chat/chat.service.integration.spec.ts --runInBand
+
+      - name: Run Trust + Discovery backend regression
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/chat/chat.gateway.spec.ts
+          src/discovery/discovery.service.spec.ts
+          src/meetup-proposals/meetup-proposals.service.spec.ts
+          --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
