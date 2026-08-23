@@ -36,7 +36,7 @@ export default function NewPetPage() {
         queryClient.invalidateQueries({ queryKey: ['adventure', 'me'] }),
         queryClient.invalidateQueries({ queryKey: ['concierge', 'today'] }),
       ]);
-      router.replace('/');
+      router.replace(`/?pet=${encodeURIComponent(pet.id)}`);
     },
   });
 
@@ -94,7 +94,9 @@ export default function NewPetPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dog-breed">Breed or mix <span className="text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor="dog-breed">
+                Breed or mix <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Input
                 id="dog-breed"
                 autoComplete="off"
@@ -107,7 +109,9 @@ export default function NewPetPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="dog-birthdate">Birthday <span className="text-muted-foreground">(optional)</span></Label>
+                <Label htmlFor="dog-birthdate">
+                  Birthday <span className="text-muted-foreground">(optional)</span>
+                </Label>
                 <Input
                   id="dog-birthdate"
                   type="date"
@@ -117,7 +121,9 @@ export default function NewPetPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dog-sex">Sex <span className="text-muted-foreground">(optional)</span></Label>
+                <Label htmlFor="dog-sex">
+                  Sex <span className="text-muted-foreground">(optional)</span>
+                </Label>
                 <select
                   id="dog-sex"
                   value={sex}
@@ -147,7 +153,12 @@ export default function NewPetPage() {
               </p>
             )}
 
-            <Button className="w-full" size="lg" type="submit" disabled={!name.trim() || createDog.isPending}>
+            <Button
+              className="w-full"
+              size="lg"
+              type="submit"
+              disabled={!name.trim() || createDog.isPending}
+            >
               {createDog.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
               )}
