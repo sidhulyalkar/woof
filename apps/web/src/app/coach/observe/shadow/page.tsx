@@ -46,37 +46,38 @@ export default function BehaviorShadowPage() {
 
   const evaluation = snapshot.data?.evaluation;
   const gates = evaluation?.readinessGates;
-  const gateRows = evaluation && gates
-    ? [
-        {
-          label: 'Usable observations',
-          value: `${evaluation.usableObservations} / ${gates.usableObservations}`,
-          pass: evaluation.usableObservations >= gates.usableObservations,
-        },
-        {
-          label: 'Owner-reviewed observations',
-          value: `${evaluation.ownerReviewedObservations} / ${gates.ownerReviewedObservations}`,
-          pass: evaluation.ownerReviewedObservations >= gates.ownerReviewedObservations,
-        },
-        {
-          label: 'Owner confirmation',
-          value: `${percent(evaluation.confirmationRate)} / ${Math.round(gates.confirmationRate * 100)}%`,
-          pass:
-            evaluation.confirmationRate !== null &&
-            evaluation.confirmationRate >= gates.confirmationRate,
-        },
-        {
-          label: 'Contexts sampled',
-          value: `${evaluation.contextsSeen} / ${gates.contexts}`,
-          pass: evaluation.contextsSeen >= gates.contexts,
-        },
-        {
-          label: 'Paired sessions',
-          value: `${evaluation.pairedSessions} / ${gates.pairedSessions}`,
-          pass: evaluation.pairedSessions >= gates.pairedSessions,
-        },
-      ]
-    : [];
+  const gateRows =
+    evaluation && gates
+      ? [
+          {
+            label: 'Usable observations',
+            value: `${evaluation.usableObservations} / ${gates.usableObservations}`,
+            pass: evaluation.usableObservations >= gates.usableObservations,
+          },
+          {
+            label: 'Owner-reviewed observations',
+            value: `${evaluation.ownerReviewedObservations} / ${gates.ownerReviewedObservations}`,
+            pass: evaluation.ownerReviewedObservations >= gates.ownerReviewedObservations,
+          },
+          {
+            label: 'Owner confirmation',
+            value: `${percent(evaluation.confirmationRate)} / ${Math.round(gates.confirmationRate * 100)}%`,
+            pass:
+              evaluation.confirmationRate !== null &&
+              evaluation.confirmationRate >= gates.confirmationRate,
+          },
+          {
+            label: 'Contexts sampled',
+            value: `${evaluation.contextsSeen} / ${gates.contexts}`,
+            pass: evaluation.contextsSeen >= gates.contexts,
+          },
+          {
+            label: 'Paired sessions',
+            value: `${evaluation.pairedSessions} / ${gates.pairedSessions}`,
+            pass: evaluation.pairedSessions >= gates.pairedSessions,
+          },
+        ]
+      : [];
 
   return (
     <div className="min-h-screen bg-background pb-28">
@@ -199,11 +200,16 @@ export default function BehaviorShadowPage() {
                       {gate.pass ? (
                         <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
                       ) : (
-                        <CircleDashed className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                        <CircleDashed
+                          className="h-4 w-4 text-muted-foreground"
+                          aria-hidden="true"
+                        />
                       )}
                       {gate.label}
                     </span>
-                    <span className="text-xs font-semibold text-muted-foreground">{gate.value}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {gate.value}
+                    </span>
                   </div>
                 ))}
               </div>
