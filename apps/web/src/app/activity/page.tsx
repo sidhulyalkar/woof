@@ -172,7 +172,7 @@ export default function ActivityPage() {
               anonymous bucket.
             </p>
             <Button className="mt-5" asChild>
-              <Link href="/profile">Open your pack</Link>
+              <Link href="/pets/new">Add your dog</Link>
             </Button>
           </Card>
         ) : selectedPet ? (
@@ -186,8 +186,8 @@ export default function ActivityPage() {
                   <p className="eyebrow">Quick log</p>
                   <h2 className="mt-1 text-lg font-bold">Save what just happened</h2>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    One tap creates a real completed Activity. No fake routes, no inferred distance,
-                    and no background claim about where you went.
+                    A few taps create a real completed Activity. No fake routes, no inferred
+                    distance, and no background claim about where you went.
                   </p>
                 </div>
               </div>
