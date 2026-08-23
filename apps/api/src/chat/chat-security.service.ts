@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { acquireRelationshipLocks } from '../trust-safety/relationship-lock';
 
 const MAX_MESSAGE_LENGTH = 4_000;
 const CLIENT_MESSAGE_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
@@ -11,6 +12,11 @@ type MessageReceiptRow = {
   message_id: string;
   conversation_id: string;
 };
+
+type ConversationAccessClient = Pick<
+  Prisma.TransactionClient,
+  'conversationParticipant' | 'blockedUser' | '$queryRaw'
+>;
 
 export type PersistedChatMessage = {
   id: string;
@@ -26,44 +32,7 @@ export class ChatSecurityService {
   constructor(private readonly prisma: PrismaService) {}
 
   async assertConversationAccess(userId: string, conversationId: string) {
-    const participant = await this.prisma.conversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
-      select: {
-        conversation: {
-          select: {
-            participants: { select: { userId: true } },
-          },
-        },
-      },
-    });
-
-    if (!participant) {
-      throw new ForbiddenException('Conversation is unavailable');
-    }
-
-    const otherUserIds = participant.conversation.participants
-      .map((entry) => entry.userId)
-      .filter((participantUserId) => participantUserId !== userId);
-
-    if (otherUserIds.length === 0) {
-      throw new ForbiddenException('Conversation is unavailable');
-    }
-
-    const blocked = await this.prisma.blockedUser.findFirst({
-      where: {
-        OR: otherUserIds.flatMap((otherUserId) => [
-          { userId, blockedId: otherUserId },
-          { userId: otherUserId, blockedId: userId },
-        ]),
-      },
-      select: { id: true },
-    });
-
-    if (blocked) {
-      throw new ForbiddenException('Conversation is unavailable');
-    }
-
-    return { otherUserIds };
+    return this.assertConversationAccessWithClient(this.prisma, userId, conversationId, false);
   }
 
   async persistMessage(input: {
@@ -94,6 +63,13 @@ export class ChatSecurityService {
 
     try {
       const message = await this.prisma.$transaction(async (tx) => {
+        await this.assertConversationAccessWithClient(
+          tx,
+          input.userId,
+          input.conversationId,
+          true
+        );
+
         const receiptRows = await tx.$queryRaw<MessageReceiptRow[]>(Prisma.sql`
           SELECT message_id, conversation_id
           FROM dogos_chat.message_receipts
@@ -145,6 +121,56 @@ export class ChatSecurityService {
       if (!message) throw error;
       return { message, duplicate: true };
     }
+  }
+
+  private async assertConversationAccessWithClient(
+    client: ConversationAccessClient,
+    userId: string,
+    conversationId: string,
+    lockRelationships: boolean
+  ) {
+    const participant = await client.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: {
+        conversation: {
+          select: {
+            participants: { select: { userId: true } },
+          },
+        },
+      },
+    });
+
+    if (!participant) {
+      throw new ForbiddenException('Conversation is unavailable');
+    }
+
+    const otherUserIds = participant.conversation.participants
+      .map((entry) => entry.userId)
+      .filter((participantUserId) => participantUserId !== userId);
+
+    if (otherUserIds.length === 0) {
+      throw new ForbiddenException('Conversation is unavailable');
+    }
+
+    if (lockRelationships) {
+      await acquireRelationshipLocks(client, userId, otherUserIds);
+    }
+
+    const blocked = await client.blockedUser.findFirst({
+      where: {
+        OR: otherUserIds.flatMap((otherUserId) => [
+          { userId, blockedId: otherUserId },
+          { userId: otherUserId, blockedId: userId },
+        ]),
+      },
+      select: { id: true },
+    });
+
+    if (blocked) {
+      throw new ForbiddenException('Conversation is unavailable');
+    }
+
+    return { otherUserIds };
   }
 
   private assertReceiptConversation(receipt: MessageReceiptRow, conversationId: string) {
