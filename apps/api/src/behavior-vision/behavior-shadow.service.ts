@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { BehaviorVisionService } from './behavior-vision.service';
-import type { BehaviorEvidenceSource, StoredBehaviorObservation } from './behavior-vision.types';
+import type {
+  BehaviorContext,
+  BehaviorEvidenceSource,
+  BehaviorPhase,
+  StoredBehaviorObservation,
+} from './behavior-vision.types';
 
 export const BEHAVIOR_SHADOW_POLICY_VERSION = 'woof-behavior-shadow-v1';
 
@@ -14,6 +19,9 @@ const READINESS_GATES = {
 
 export type BehaviorMoment = {
   observationId: string;
+  observationCreatedAt: string;
+  context: BehaviorContext;
+  phase: BehaviorPhase;
   startMs: number;
   endMs: number;
   confidence: number;
@@ -136,6 +144,9 @@ export class BehaviorShadowService {
 
     return groups.slice(0, 12).map((group) => ({
       observationId: observation.id,
+      observationCreatedAt: observation.createdAt,
+      context: observation.context.context,
+      phase: observation.context.phase,
       startMs: group.startMs,
       endMs: group.endMs,
       confidence: group.confidence,
