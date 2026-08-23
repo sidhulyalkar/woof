@@ -68,15 +68,13 @@ function ChoiceGroup<T extends string>({
 
 function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
   const queryClient = useQueryClient();
-  const [dogExperience, setDogExperience] = useState<
-    NonNullable<MeetupOutcome['dogExperience']> | null
-  >(null);
-  const [ownerExperience, setOwnerExperience] = useState<
-    NonNullable<MeetupOutcome['ownerExperience']> | null
-  >(null);
-  const [meetAgain, setMeetAgain] = useState<
-    NonNullable<MeetupOutcome['meetAgain']> | null
-  >(null);
+  const [dogExperience, setDogExperience] = useState<NonNullable<
+    MeetupOutcome['dogExperience']
+  > | null>(null);
+  const [ownerExperience, setOwnerExperience] = useState<NonNullable<
+    MeetupOutcome['ownerExperience']
+  > | null>(null);
+  const [meetAgain, setMeetAgain] = useState<NonNullable<MeetupOutcome['meetAgain']> | null>(null);
   const [safe, setSafe] = useState<boolean | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
