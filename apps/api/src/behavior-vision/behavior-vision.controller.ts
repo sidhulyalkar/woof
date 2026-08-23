@@ -81,7 +81,8 @@ export class BehaviorVisionController {
 
   @Get('shadow')
   @ApiOperation({
-    summary: 'Inspect Behavior Moments evidence and promotion-readiness metrics with zero authority',
+    summary:
+      'Inspect Behavior Moments evidence and promotion-readiness metrics with zero authority',
   })
   shadow(@Request() req: AuthenticatedRequest, @Query() query: BehaviorTimelineQueryDto) {
     return this.behaviorShadow.snapshot(req.user.sub, query.petId);
