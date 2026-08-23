@@ -27,7 +27,7 @@ export class DiscoveryLocationStore {
       INSERT INTO dogos_discovery.locations (
         user_id, lat_bucket, lng_bucket, precision_m, enabled, expires_at, updated_at
       ) VALUES (
-        CAST(${input.userId} AS uuid), ${input.latBucket}, ${input.lngBucket},
+        CAST(${input.userId} AS text), ${input.latBucket}, ${input.lngBucket},
         ${input.precisionM}, TRUE, ${input.expiresAt}, NOW()
       )
       ON CONFLICT (user_id) DO UPDATE SET
@@ -46,7 +46,7 @@ export class DiscoveryLocationStore {
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE dogos_discovery.locations
       SET enabled = FALSE, updated_at = NOW()
-      WHERE user_id = CAST(${userId} AS uuid)
+      WHERE user_id = CAST(${userId} AS text)
     `);
   }
 
@@ -54,7 +54,7 @@ export class DiscoveryLocationStore {
     const rows = await this.prisma.$queryRaw<LocationRow[]>(Prisma.sql`
       SELECT user_id, lat_bucket, lng_bucket, precision_m, enabled, expires_at, updated_at
       FROM dogos_discovery.locations
-      WHERE user_id = CAST(${userId} AS uuid)
+      WHERE user_id = CAST(${userId} AS text)
       LIMIT 1
     `);
     return rows[0] ?? null;
@@ -71,7 +71,7 @@ export class DiscoveryLocationStore {
     return this.prisma.$queryRaw<LocationRow[]>(Prisma.sql`
       SELECT user_id, lat_bucket, lng_bucket, precision_m, enabled, expires_at, updated_at
       FROM dogos_discovery.locations
-      WHERE user_id <> CAST(${input.userId} AS uuid)
+      WHERE user_id <> CAST(${input.userId} AS text)
         AND enabled = TRUE
         AND expires_at > NOW()
         AND lat_bucket BETWEEN ${input.minLatBucket} AND ${input.maxLatBucket}
