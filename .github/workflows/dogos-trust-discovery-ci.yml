@@ -1,0 +1,216 @@
+name: dogOS Trust + Discovery CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/**'
+      - 'apps/api/src/discovery/**'
+      - 'apps/api/src/meetup-proposals/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/web/src/app/discover/**'
+      - 'apps/web/src/app/inbox/**'
+      - 'apps/web/src/app/meetups/**'
+      - 'apps/web/src/components/discover/**'
+      - 'apps/web/src/components/inbox/**'
+      - 'apps/web/src/components/pets/pet-switcher.tsx'
+      - 'apps/web/src/lib/api/chat.ts'
+      - 'apps/web/src/lib/api/chat.spec.ts'
+      - 'apps/web/src/lib/api/discovery.ts'
+      - 'apps/web/src/lib/api/discovery.spec.ts'
+      - 'apps/web/src/lib/api/meetup-proposals.ts'
+      - 'apps/web/src/lib/api/meetup-proposals.spec.ts'
+      - 'apps/web/src/lib/socket.ts'
+      - 'apps/web/e2e/trust-discovery.spec.ts'
+      - 'packages/database/prisma/migrations/20260823081000_add_dogos_chat_delivery_receipts/**'
+      - 'packages/database/prisma/migrations/20260823082000_add_dogos_discovery_location_cells/**'
+      - '.github/workflows/dogos-trust-discovery-ci.yml'
+      - 'docs/DOGOS_TRUST_DISCOVERY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-trust-discovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-test-secret
+  ML_SERVICE_ENABLED: 'false'
+  ENABLE_ADVENTURE_SYSTEM: 'true'
+  ENABLE_DOGOS_AUTOPILOT: 'true'
+  ENABLE_DOGOS_OUR_STORY: 'true'
+  ENABLE_DOGOS_CONNECTORS: 'true'
+  ENABLE_DOGOS_CONCIERGE: 'true'
+  CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+jobs:
+  qualify:
+    name: Authorized network + privacy qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply full migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Trust + Discovery formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/chat \
+            apps/api/src/discovery \
+            apps/api/src/meetup-proposals/dto/update-meetup-proposal.dto.ts \
+            apps/api/src/meetup-proposals/meetup-proposals.service.ts \
+            apps/api/src/meetup-proposals/meetup-proposals.outcomes.spec.ts \
+            apps/api/src/app.module.ts \
+            apps/web/src/app/discover/page.tsx \
+            apps/web/src/app/inbox/page.tsx \
+            apps/web/src/app/meetups/page.tsx \
+            apps/web/src/components/discover/discover-map-view.tsx \
+            apps/web/src/components/discover/match-card.tsx \
+            apps/web/src/components/inbox/chat-window.tsx \
+            apps/web/src/components/pets/pet-switcher.tsx \
+            apps/web/src/lib/api/chat.ts \
+            apps/web/src/lib/api/chat.spec.ts \
+            apps/web/src/lib/api/discovery.ts \
+            apps/web/src/lib/api/discovery.spec.ts \
+            apps/web/src/lib/api/meetup-proposals.ts \
+            apps/web/src/lib/api/meetup-proposals.spec.ts \
+            apps/web/src/lib/socket.ts \
+            apps/web/e2e/trust-discovery.spec.ts \
+            .github/workflows/dogos-trust-discovery-ci.yml \
+            docs/DOGOS_TRUST_DISCOVERY.md
+          git diff --exit-code
+
+      - name: Lint Trust + Discovery API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/chat
+          src/discovery
+          src/meetup-proposals/dto/update-meetup-proposal.dto.ts
+          src/meetup-proposals/meetup-proposals.service.ts
+          src/meetup-proposals/meetup-proposals.outcomes.spec.ts
+          src/app.module.ts
+
+      - name: Lint Trust + Discovery web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/discover/page.tsx
+          src/app/inbox/page.tsx
+          src/app/meetups/page.tsx
+          src/components/discover/discover-map-view.tsx
+          src/components/discover/match-card.tsx
+          src/components/inbox/chat-window.tsx
+          src/components/pets/pet-switcher.tsx
+          src/lib/api/chat.ts
+          src/lib/api/chat.spec.ts
+          src/lib/api/discovery.ts
+          src/lib/api/discovery.spec.ts
+          src/lib/api/meetup-proposals.ts
+          src/lib/api/meetup-proposals.spec.ts
+          src/lib/socket.ts
+          e2e/trust-discovery.spec.ts
+
+      - name: Reject caller-authorized rooms and global presence broadcasts
+        run: |
+          if grep -EIn "server\.emit\(['\"]user:(online|offline)|client\.join\(.*conversation" apps/api/src/chat/chat.gateway.ts; then
+            echo 'Chat rooms must be server-authorized and presence must not be globally broadcast.'
+            exit 1
+          fi
+          grep -q 'chatSecurity.assertConversationAccess' apps/api/src/chat/chat.gateway.ts
+          grep -q 'chatSecurity.persistMessage' apps/api/src/chat/chat.gateway.ts
+          grep -q 'clientMessageId' apps/web/src/lib/socket.ts
+
+      - name: Reject precise location persistence
+        run: |
+          if grep -EIn 'latitude|longitude|home_location|homeLocation' \
+            packages/database/prisma/migrations/20260823082000_add_dogos_discovery_location_cells/migration.sql \
+            apps/api/src/discovery/discovery-location.store.ts; then
+            echo 'Discovery persistence may contain coarse buckets only, never precise coordinates or home location.'
+            exit 1
+          fi
+          grep -q 'exactCoordinatesReturned: false' apps/api/src/discovery/discovery.service.ts
+          grep -q 'homeLocationExposed: false' apps/api/src/discovery/discovery.service.ts
+
+      - name: Reject production network demo state
+        run: |
+          if grep -EIn 'mockMessages|mockConversations|mockServices|Sarah Johnson|Golden Gate Park Trail|\[v0\]' \
+            apps/web/src/app/inbox/page.tsx \
+            apps/web/src/components/inbox/chat-window.tsx \
+            apps/web/src/components/discover/discover-map-view.tsx; then
+            echo 'Production trust surfaces must never substitute seeded network state.'
+            exit 1
+          fi
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run trust, discovery, meetup and compatibility contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-security.service.spec.ts
+          src/discovery/discovery.service.spec.ts
+          src/meetup-proposals/meetup-proposals.outcomes.spec.ts
+          src/compatibility/compatibility.baseline.spec.ts
+
+      - name: Run network web transport contracts
+        run: >-
+          pnpm --filter @woof/web exec vitest run
+          src/lib/api/chat.spec.ts
+          src/lib/api/discovery.spec.ts
+          src/lib/api/meetup-proposals.spec.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run privacy-safe discovery browser contract
+        run: pnpm --filter @woof/web exec playwright test e2e/trust-discovery.spec.ts --project=chromium
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
