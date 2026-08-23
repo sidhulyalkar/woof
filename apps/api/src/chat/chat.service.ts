@@ -11,6 +11,15 @@ import { ChatSecurityService } from './chat-security.service';
 const MAX_CONVERSATIONS = 50;
 const MAX_MESSAGES = 100;
 
+type UnreadCountRow = {
+  conversation_id: string;
+  unread_count: bigint | number;
+};
+
+function directPairLockKey(userId: string, participantId: string) {
+  return `woof:direct-chat:${[userId, participantId].sort().join(':')}`;
+}
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -29,7 +38,6 @@ export class ChatService {
         participants: {
           select: {
             userId: true,
-            lastReadAt: true,
             user: {
               select: {
                 id: true,
@@ -58,30 +66,58 @@ export class ChatService {
       },
     });
 
-    const visible = [];
-    for (const conversation of conversations) {
-      try {
-        await this.security.assertConversationAccess(userId, conversation.id);
-      } catch {
-        continue;
-      }
+    const directConversations = conversations.filter((conversation) => {
+      if (conversation.participants.length !== 2) return false;
+      return conversation.participants.some((participant) => participant.userId === userId);
+    });
+    if (directConversations.length === 0) return [];
 
-      const self = conversation.participants.find((participant) => participant.userId === userId);
-      const others = conversation.participants.filter(
+    const otherUserIds = [
+      ...new Set(
+        directConversations.flatMap((conversation) =>
+          conversation.participants
+            .filter((participant) => participant.userId !== userId)
+            .map((participant) => participant.userId)
+        )
+      ),
+    ];
+
+    const blockedRelations =
+      otherUserIds.length === 0
+        ? []
+        : await this.prisma.blockedUser.findMany({
+            where: {
+              OR: [
+                { userId, blockedId: { in: otherUserIds } },
+                { userId: { in: otherUserIds }, blockedId: userId },
+              ],
+            },
+            select: { userId: true, blockedId: true },
+          });
+    const blockedOtherUserIds = new Set(
+      blockedRelations.map((relation) =>
+        relation.userId === userId ? relation.blockedId : relation.userId
+      )
+    );
+
+    const visible = directConversations.filter((conversation) => {
+      const other = conversation.participants.find((participant) => participant.userId !== userId);
+      return Boolean(other && !blockedOtherUserIds.has(other.userId));
+    });
+    if (visible.length === 0) return [];
+
+    const unreadCounts = await this.getUnreadCounts(
+      userId,
+      visible.map((conversation) => conversation.id)
+    );
+
+    return visible.map((conversation) => {
+      const other = conversation.participants.find(
         (participant) => participant.userId !== userId
-      );
-      if (others.length !== 1) continue;
-      const other = others[0]!;
+      )!;
       const lastMessage = conversation.messages[0] ?? null;
-      const unreadCount = await this.prisma.message.count({
-        where: {
-          conversationId: conversation.id,
-          senderId: { not: userId },
-          ...(self?.lastReadAt ? { createdAt: { gt: self.lastReadAt } } : {}),
-        },
-      });
 
-      visible.push({
+      return {
         id: conversation.id,
         participant: {
           id: other.user.id,
@@ -100,12 +136,10 @@ export class ChatService {
               createdAt: lastMessage.createdAt,
             }
           : null,
-        unreadCount,
+        unreadCount: unreadCounts.get(conversation.id) ?? 0,
         updatedAt: conversation.updatedAt,
-      });
-    }
-
-    return visible;
+      };
+    });
   }
 
   async createDirectConversation(userId: string, participantId: string) {
@@ -113,56 +147,70 @@ export class ChatService {
       throw new BadRequestException('Choose another member');
     }
 
-    const [target, blocked, candidates] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: participantId },
-        select: { id: true, visibility: true },
-      }),
-      this.prisma.blockedUser.findFirst({
-        where: {
-          OR: [
-            { userId, blockedId: participantId },
-            { userId: participantId, blockedId: userId },
-          ],
+    const pairKey = directPairLockKey(userId, participantId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${pairKey}, 0))
+      `);
+
+      const [target, blocked, candidates] = await Promise.all([
+        tx.user.findUnique({
+          where: { id: participantId },
+          select: { id: true, visibility: true },
+        }),
+        tx.blockedUser.findFirst({
+          where: {
+            OR: [
+              { userId, blockedId: participantId },
+              { userId: participantId, blockedId: userId },
+            ],
+          },
+          select: { id: true },
+        }),
+        tx.conversation.findMany({
+          where: {
+            AND: [
+              { participants: { some: { userId } } },
+              { participants: { some: { userId: participantId } } },
+            ],
+          },
+          select: { id: true, participants: { select: { userId: true } } },
+          take: 20,
+        }),
+      ]);
+
+      if (blocked) throw new ForbiddenException('Conversation is unavailable');
+
+      const existing = candidates.find(
+        (conversation) =>
+          conversation.participants.length === 2 &&
+          conversation.participants.some((participant) => participant.userId === userId) &&
+          conversation.participants.some((participant) => participant.userId === participantId)
+      );
+      if (existing) return { id: existing.id, created: false };
+
+      if (!target || target.visibility !== 'PUBLIC') {
+        throw new NotFoundException('Member not found');
+      }
+
+      const conversation = await tx.conversation.create({
+        data: {
+          participants: {
+            create: [{ userId }, { userId: participantId }],
+          },
         },
         select: { id: true },
-      }),
-      this.prisma.conversation.findMany({
-        where: {
-          AND: [
-            { participants: { some: { userId } } },
-            { participants: { some: { userId: participantId } } },
-          ],
+      });
+      await tx.telemetry.create({
+        data: {
+          userId,
+          source: 'chat',
+          event: 'CONVERSATION_STARTED',
+          data: { conversationId: conversation.id },
         },
-        select: { id: true, participants: { select: { userId: true } } },
-        take: 20,
-      }),
-    ]);
-
-    if (blocked) throw new ForbiddenException('Conversation is unavailable');
-
-    const existing = candidates.find(
-      (conversation) =>
-        conversation.participants.length === 2 &&
-        conversation.participants.some((participant) => participant.userId === userId) &&
-        conversation.participants.some((participant) => participant.userId === participantId)
-    );
-    if (existing) return { id: existing.id, created: false };
-
-    if (!target || target.visibility !== 'PUBLIC') {
-      throw new NotFoundException('Member not found');
-    }
-
-    const conversation = await this.prisma.conversation.create({
-      data: {
-        participants: {
-          create: [{ userId }, { userId: participantId }],
-        },
-      },
-      select: { id: true },
+      });
+      return { id: conversation.id, created: true };
     });
-    await this.recordTelemetry(userId, 'CONVERSATION_STARTED', { conversationId: conversation.id });
-    return { id: conversation.id, created: true };
   }
 
   async getMessages(userId: string, conversationId: string, page = 1, limit = 50) {
@@ -213,9 +261,23 @@ export class ChatService {
     return { ok: true };
   }
 
-  private async recordTelemetry(userId: string, event: string, data: Prisma.InputJsonObject) {
-    await this.prisma.telemetry.create({
-      data: { userId, source: 'chat', event, data },
-    });
+  private async getUnreadCounts(userId: string, conversationIds: string[]) {
+    if (conversationIds.length === 0) return new Map<string, number>();
+
+    const rows = await this.prisma.$queryRaw<UnreadCountRow[]>(Prisma.sql`
+      SELECT
+        cp.conversation_id,
+        COUNT(m.id) AS unread_count
+      FROM conversation_participants cp
+      LEFT JOIN messages m
+        ON m.conversation_id = cp.conversation_id
+       AND m.sender_id <> ${userId}
+       AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+      WHERE cp.user_id = ${userId}
+        AND cp.conversation_id IN (${Prisma.join(conversationIds)})
+      GROUP BY cp.conversation_id
+    `);
+
+    return new Map(rows.map((row) => [row.conversation_id, Number(row.unread_count)]));
   }
 }
