@@ -26,13 +26,13 @@ This prevents provider bookkeeping from becoming a parallel dog database while k
 
 Phase C begins with these provider classes:
 
-| Provider | Domain | v1 availability | Permitted capability |
-| --- | --- | --- | --- |
-| Fi | Wearable | `PARTNER_REQUIRED` | Daily activity, device status |
-| Tractive | Wearable | `PARTNER_REQUIRED` | Daily activity, device status |
-| Veterinary partner | Vet | `PARTNER_REQUIRED` | Appointment/vaccination import, medication/document references |
-| Chewy | Retail | `PARTNER_REQUIRED` | Catalog references, user-approved handoff |
-| Petco | Retail | `PARTNER_REQUIRED` | Catalog references, user-approved handoff |
+| Provider           | Domain   | v1 availability    | Permitted capability                                           |
+| ------------------ | -------- | ------------------ | -------------------------------------------------------------- |
+| Fi                 | Wearable | `PARTNER_REQUIRED` | Daily activity, device status                                  |
+| Tractive           | Wearable | `PARTNER_REQUIRED` | Daily activity, device status                                  |
+| Veterinary partner | Vet      | `PARTNER_REQUIRED` | Appointment/vaccination import, medication/document references |
+| Chewy              | Retail   | `PARTNER_REQUIRED` | Catalog references, user-approved handoff                      |
+| Petco              | Retail   | `PARTNER_REQUIRED` | Catalog references, user-approved handoff                      |
 
 `PARTNER_REQUIRED` is intentional. dogOS does not turn a consumer login page, reverse-engineered endpoint, or undocumented mobile API into a claimed OAuth integration.
 
