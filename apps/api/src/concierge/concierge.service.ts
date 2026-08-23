@@ -132,11 +132,7 @@ export class ConciergeService {
       const ownerExperience = outcome.ownerExperience;
       const dogExperience = outcome.dogExperience;
       const safeOptOut = outcome.safeOptOut === true;
-      if (
-        ownerExperience !== 'a_lot_today' &&
-        dogExperience !== 'not_their_thing' &&
-        !safeOptOut
-      ) {
+      if (ownerExperience !== 'a_lot_today' && dogExperience !== 'not_their_thing' && !safeOptOut) {
         continue;
       }
 
@@ -266,8 +262,7 @@ export class ConciergeService {
         kind: 'RECOVERY_PACE',
         priority: 'GENTLE',
         title: `Keep ${input.petName}'s options easy today`,
-        body:
-          'Consider a familiar, low-pressure activity or recovery-oriented option. Stopping early is still a successful choice.',
+        body: 'Consider a familiar, low-pressure activity or recovery-oriented option. Stopping early is still a successful choice.',
         reason: input.pace.reason,
         evidence: input.pace.evidence,
         action: { label: 'See recovery options', href: '/compass' },
@@ -284,9 +279,9 @@ export class ConciergeService {
         kind: 'CONNECTION_ATTENTION',
         priority: 'INFO',
         title: `${reauth.label} needs reauthorization`,
-        body:
-          'New context from this service is paused. Existing dogOS records remain unchanged, and Concierge will not pretend stale provider access is current.',
-        reason: 'Connectors reports that the authenticated provider credential is not currently usable.',
+        body: 'New context from this service is paused. Existing dogOS records remain unchanged, and Concierge will not pretend stale provider access is current.',
+        reason:
+          'Connectors reports that the authenticated provider credential is not currently usable.',
         evidence: [
           {
             source: 'CONNECTOR',
