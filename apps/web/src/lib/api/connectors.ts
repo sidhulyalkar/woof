@@ -3,10 +3,7 @@ import { apiClient } from './client';
 export type ConnectorProvider = 'FI' | 'TRACTIVE' | 'VET_PARTNER' | 'CHEWY' | 'PETCO';
 export type ConnectorDomain = 'WEARABLE' | 'VET' | 'RETAIL';
 export type ConnectorAvailability =
-  | 'PARTNER_REQUIRED'
-  | 'CONNECTED'
-  | 'REAUTH_REQUIRED'
-  | 'REVOKED';
+  'PARTNER_REQUIRED' | 'CONNECTED' | 'REAUTH_REQUIRED' | 'REVOKED';
 export type ConnectorCredentialState = 'MISSING' | 'USABLE' | 'EXPIRED' | 'INVALID';
 
 export type ConnectorConnection = {
