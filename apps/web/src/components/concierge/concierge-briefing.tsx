@@ -5,17 +5,26 @@ import { CloudOff, HeartHandshake, Loader2, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { adventureApi } from '@/lib/api/adventure';
 import { conciergeApi } from '@/lib/api/concierge';
 
-export function ConciergeBriefing({ petId, revision }: { petId: string; revision: string }) {
+export function ConciergeBriefing() {
+  const adventure = useQuery({
+    queryKey: ['adventure', 'me'],
+    queryFn: () => adventureApi.getMine(),
+    retry: false,
+  });
+  const petId = adventure.data?.pet.id;
+  const revision = adventure.data?.generatedAt ?? 'pending';
   const briefing = useQuery({
-    queryKey: ['concierge', 'today', petId, revision],
+    queryKey: ['concierge', 'today', petId ?? 'none', revision],
     queryFn: () => conciergeApi.getToday(petId),
+    enabled: Boolean(petId),
     retry: false,
     staleTime: 30_000,
   });
 
-  if (briefing.isLoading) {
+  if (briefing.isLoading || !petId) {
     return (
       <Card className="surface-soft mb-4 flex items-center gap-3 rounded-3xl p-4" role="status">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
