@@ -1,0 +1,213 @@
+name: dogOS Trust Enforcement Atomicity CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/**'
+      - 'apps/api/src/trust-safety/**'
+      - '.github/workflows/dogos-trust-enforcement-atomicity-ci.yml'
+      - 'docs/DOGOS_TRUST_ENFORCEMENT_ATOMICITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-trust-enforcement-atomicity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-trust-atomicity-secret
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Atomic block dominance qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Trust Enforcement Atomicity v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Trust Enforcement formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/trust-safety/relationship-lock.ts
+          apps/api/src/trust-safety/relationship-lock.spec.ts
+          apps/api/src/trust-safety/trust-safety.service.ts
+          apps/api/src/trust-safety/trust-safety.service.spec.ts
+          apps/api/src/chat/chat-security.service.ts
+          apps/api/src/chat/chat-security.service.spec.ts
+          apps/api/src/chat/chat.service.ts
+          apps/api/src/chat/chat.service.spec.ts
+          apps/api/src/chat/chat-block-atomicity.integration.spec.ts
+          .github/workflows/dogos-trust-enforcement-atomicity-ci.yml
+          docs/DOGOS_TRUST_ENFORCEMENT_ATOMICITY.md
+
+      - name: Lint Trust Enforcement API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/trust-safety/relationship-lock.ts
+          src/trust-safety/relationship-lock.spec.ts
+          src/trust-safety/trust-safety.service.ts
+          src/trust-safety/trust-safety.service.spec.ts
+          src/chat/chat-security.service.ts
+          src/chat/chat-security.service.spec.ts
+          src/chat/chat.service.ts
+          src/chat/chat.service.spec.ts
+          src/chat/chat-block-atomicity.integration.spec.ts
+
+      - name: Enforce deterministic shared relationship locks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lock = Path('apps/api/src/trust-safety/relationship-lock.ts').read_text()
+          required = [
+              '[userAId, userBId].sort()',
+              'relationshipLockKeys',
+              '].sort()',
+              'for (const key of keys)',
+              'SELECT 1 AS locked',
+              'pg_advisory_xact_lock',
+              'hashtextextended',
+          ]
+          missing = [token for token in required if token not in lock]
+          if missing:
+              raise SystemExit(f'missing relationship-lock invariant: {missing}')
+          if 'SELECT pg_advisory_xact_lock' in lock:
+              raise SystemExit('Prisma must not deserialize the advisory lock void return directly')
+          PY
+
+      - name: Enforce block and unblock serialization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('apps/api/src/trust-safety/trust-safety.service.ts').read_text()
+          block_start = source.index('async blockUser')
+          unblock_start = source.index('async unblockUser', block_start)
+          get_blocked_start = source.index('async getBlockedUsers', unblock_start)
+          block = source[block_start:unblock_start]
+          unblock = source[unblock_start:get_blocked_start]
+
+          for label, body, mutation in [
+              ('block', block, 'tx.blockedUser.upsert'),
+              ('unblock', unblock, 'tx.blockedUser.deleteMany'),
+          ]:
+              for token in ['$transaction', 'acquireRelationshipLocks', mutation]:
+                  if token not in body:
+                      raise SystemExit(f'{label} missing transactional trust token: {token}')
+              if body.index('acquireRelationshipLocks') > body.index(mutation):
+                  raise SystemExit(f'{label} must acquire relationship lock before canonical mutation')
+
+          if block.index('await Promise.all') < block.index('this.prisma.$transaction'):
+              raise SystemExit('ancillary block effects must run only after the canonical block transaction')
+          PY
+
+      - name: Enforce write-time chat trust rechecks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          security = Path('apps/api/src/chat/chat-security.service.ts').read_text()
+          persist_start = security.index('async persistMessage')
+          access_helper_start = security.index('private async assertConversationAccessWithClient')
+          persist = security[persist_start:access_helper_start]
+          helper = security[access_helper_start:]
+
+          if "input.conversationId,\n          true" not in persist:
+              raise SystemExit('message transaction must request a locked write-time access recheck')
+          if persist.index('assertConversationAccessWithClient') > persist.index('tx.message.create'):
+              raise SystemExit('message access recheck must precede canonical message creation')
+          if helper.index('acquireRelationshipLocks') > helper.index('blockedUser.findFirst'):
+              raise SystemExit('message block policy must be checked after relationship lock acquisition')
+
+          chat = Path('apps/api/src/chat/chat.service.ts').read_text()
+          direct_start = chat.index('async createDirectConversation')
+          direct_end = chat.index('async getMessages', direct_start)
+          direct = chat[direct_start:direct_end]
+          for token in ['directPairLockKey', 'acquireRelationshipLocks', 'blockedUser.findFirst']:
+              if token not in direct:
+                  raise SystemExit(f'direct conversation path missing trust token: {token}')
+          if direct.index('acquireRelationshipLocks') > direct.index('blockedUser.findFirst'):
+              raise SystemExit('direct conversation block policy must run after the relationship lock')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run trust serialization unit contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/trust-safety/relationship-lock.spec.ts
+          src/trust-safety/trust-safety.service.spec.ts
+          src/chat/chat-security.service.spec.ts
+          src/chat/chat.service.spec.ts
+
+      - name: Run real PostgreSQL block dominance contract
+        run: pnpm --filter @woof/api exec jest src/chat/chat-block-atomicity.integration.spec.ts --runInBand
+
+      - name: Run direct-thread and delivery regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat.service.integration.spec.ts
+          src/chat/chat.gateway.spec.ts
+
+      - name: Run Trust + Discovery backend regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/discovery/discovery.service.spec.ts
+          src/meetup-proposals/meetup-proposals.outcomes.spec.ts
+          src/compatibility/compatibility.baseline.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
