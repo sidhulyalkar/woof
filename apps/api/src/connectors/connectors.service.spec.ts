@@ -64,7 +64,7 @@ function harness() {
     service: new ConnectorsService(
       credentials as unknown as ConnectorCredentialStore,
       operational as unknown as ConnectorOperationalStore,
-      autopilot as unknown as AutopilotService,
+      autopilot as unknown as AutopilotService
     ),
   };
 }
@@ -87,7 +87,7 @@ describe('ConnectorsService', () => {
           availability: 'PARTNER_REQUIRED',
           autonomousPurchaseAllowed: false,
         }),
-      ]),
+      ])
     );
     expect(dashboard.boundaries).toEqual(
       expect.objectContaining({
@@ -96,7 +96,7 @@ describe('ConnectorsService', () => {
         canonicalPetMutationAllowed: false,
         autonomousRetailPurchaseAllowed: false,
         rawProviderPayloadStored: false,
-      }),
+      })
     );
   });
 
@@ -120,7 +120,7 @@ describe('ConnectorsService', () => {
         availability: 'CONNECTED',
         credentialState: 'USABLE',
         connection: expect.objectContaining({ id: connection.id }),
-      }),
+      })
     );
   });
 
@@ -136,7 +136,7 @@ describe('ConnectorsService', () => {
       expect.objectContaining({
         availability: 'REAUTH_REQUIRED',
         credentialState: 'EXPIRED',
-      }),
+      })
     );
     expect(operational.markReauthRequired).toHaveBeenCalledWith(userId, 'TRACTIVE');
   });
@@ -156,10 +156,10 @@ describe('ConnectorsService', () => {
 
     expect(credentials.put).toHaveBeenCalled();
     expect(operational.markConnected).toHaveBeenCalledWith(
-      expect.objectContaining({ userId, provider: 'FI', externalAccountId: 'fi-account-1' }),
+      expect.objectContaining({ userId, provider: 'FI', externalAccountId: 'fi-account-1' })
     );
     expect(credentials.put.mock.invocationCallOrder[0]).toBeLessThan(
-      operational.markConnected.mock.invocationCallOrder[0]!,
+      operational.markConnected.mock.invocationCallOrder[0]!
     );
   });
 
@@ -173,7 +173,7 @@ describe('ConnectorsService', () => {
         kind: 'DAILY_ACTIVITY',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { activityMinutes: 45 },
-      }),
+      })
     ).rejects.toBeInstanceOf(UnauthorizedException);
 
     operational.getConnection.mockResolvedValue({ ...connection, provider: 'FI' });
@@ -185,7 +185,7 @@ describe('ConnectorsService', () => {
         kind: 'DAILY_ACTIVITY',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { activityMinutes: 45 },
-      }),
+      })
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
@@ -208,15 +208,13 @@ describe('ConnectorsService', () => {
         kind: 'DAILY_ACTIVITY',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { activityMinutes: 51 },
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({ careEventId: 'care-event-1', bondXp: 0 }),
-    );
+      })
+    ).resolves.toEqual(expect.objectContaining({ careEventId: 'care-event-1', bondXp: 0 }));
 
     expect(autopilot.ingestProviderObservation).toHaveBeenCalledWith(
       userId,
       'TRACTIVE',
-      expect.objectContaining({ petId, externalEventId: 'day-1' }),
+      expect.objectContaining({ petId, externalEventId: 'day-1' })
     );
     expect(operational.recordImportReceipt).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -225,7 +223,7 @@ describe('ConnectorsService', () => {
         canonicalRefType: 'CARE_EVENT',
         canonicalRefId: 'care-event-1',
         payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/),
-      }),
+      })
     );
   });
 
@@ -261,11 +259,11 @@ describe('ConnectorsService', () => {
         kind: 'DAILY_ACTIVITY',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { activityMinutes: 99 },
-      }),
+      })
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(operational.recordImportReceipt).toHaveBeenCalledWith(
-      expect.objectContaining({ canonicalRefId: 'care-event-1', disposition: 'IMPORTED' }),
+      expect.objectContaining({ canonicalRefId: 'care-event-1', disposition: 'IMPORTED' })
     );
   });
 
@@ -294,7 +292,7 @@ describe('ConnectorsService', () => {
         kind: 'DEVICE_STATUS',
         observedAt: '2026-08-22T08:00:00.000Z',
         payload: { batteryPercent: 50 },
-      }),
+      })
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });
