@@ -55,8 +55,8 @@ describe('device partner contract', () => {
 
   it('rejects oversized payloads before they reach provider normalization', () => {
     const oversized = 'x'.repeat(DEVICE_PARTNER_MAX_PAYLOAD_BYTES + 1);
-    expect(() => parseDevicePartnerEnvelope(envelope({ payload: { blob: oversized } }), now)).toThrow(
-      BadRequestException
-    );
+    expect(() =>
+      parseDevicePartnerEnvelope(envelope({ payload: { blob: oversized } }), now)
+    ).toThrow(BadRequestException);
   });
 });
