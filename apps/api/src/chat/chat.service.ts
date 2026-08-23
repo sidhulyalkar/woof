@@ -150,7 +150,10 @@ export class ChatService {
     const pairKey = directPairLockKey(userId, participantId);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${pairKey}, 0))
+        SELECT 1 AS locked
+        FROM (
+          SELECT pg_advisory_xact_lock(hashtextextended(${pairKey}, 0))
+        ) AS pair_lock
       `);
 
       const [target, blocked, candidates] = await Promise.all([
