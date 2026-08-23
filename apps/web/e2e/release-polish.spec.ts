@@ -214,13 +214,15 @@ test.describe('dogOS release polish', () => {
     });
 
     await page.goto('/activity');
-    await expect(page.getByRole('heading', { name: /Nova's history/i })).toBeVisible();
-    await expect(page.getByText('Walk', { exact: true })).toBeVisible();
+    const novaHistory = page.getByRole('region', { name: /Nova's history/i });
+    await expect(novaHistory).toBeVisible({ timeout: 10_000 });
+    await expect(novaHistory.getByText('Walk', { exact: true })).toBeVisible();
     await expect(page.getByText(/Great walk in the park/i)).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Miso' }).click();
-    await expect(page.getByRole('heading', { name: /Miso's history/i })).toBeVisible();
-    await expect(page.getByText('Recovery', { exact: true })).toBeVisible();
+    const misoHistory = page.getByRole('region', { name: /Miso's history/i });
+    await expect(misoHistory).toBeVisible({ timeout: 10_000 });
+    await expect(misoHistory.getByText('Recovery', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Play' }).click();
     await page.getByRole('button', { name: '15m' }).click();
