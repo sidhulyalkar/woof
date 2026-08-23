@@ -1,0 +1,155 @@
+name: dogOS Concierge CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/concierge/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/.env.example'
+      - 'apps/web/src/app/page.tsx'
+      - 'apps/web/src/components/concierge/**'
+      - 'apps/web/src/lib/api/concierge.ts'
+      - 'apps/web/src/lib/api/concierge.spec.ts'
+      - '.github/workflows/dogos-concierge-ci.yml'
+      - 'docs/DOGOS_CONCIERGE.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-concierge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  ENABLE_ADVENTURE_SYSTEM: 'true'
+  ENABLE_DOGOS_AUTOPILOT: 'true'
+  ENABLE_DOGOS_OUR_STORY: 'true'
+  ENABLE_DOGOS_CONNECTORS: 'true'
+  ENABLE_DOGOS_CONCIERGE: 'true'
+  CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+
+jobs:
+  qualify:
+    name: Concierge explainability + read-only qualification
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject Concierge schema or migration ownership
+        run: |
+          git fetch origin main --depth=1
+          if ! git diff --quiet origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations; then
+            echo 'Concierge v1 is read-through composition and must not own database schema or migrations.'
+            git diff --name-only origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations
+            exit 1
+          fi
+
+      - name: Check Concierge formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/concierge \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            apps/api/.env.example \
+            apps/web/src/app/page.tsx \
+            apps/web/src/components/concierge \
+            apps/web/src/lib/api/concierge.ts \
+            apps/web/src/lib/api/concierge.spec.ts \
+            .github/workflows/dogos-concierge-ci.yml \
+            docs/DOGOS_CONCIERGE.md
+          git diff --exit-code -- \
+            apps/api/src/concierge \
+            apps/api/src/app.module.ts \
+            apps/api/src/config/env.validation.ts \
+            apps/api/.env.example \
+            apps/web/src/app/page.tsx \
+            apps/web/src/components/concierge \
+            apps/web/src/lib/api/concierge.ts \
+            apps/web/src/lib/api/concierge.spec.ts \
+            .github/workflows/dogos-concierge-ci.yml \
+            docs/DOGOS_CONCIERGE.md
+
+      - name: Lint Concierge API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/concierge/**/*.ts'
+          src/app.module.ts
+          src/config/env.validation.ts
+
+      - name: Lint Concierge web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/page.tsx
+          'src/components/concierge/**/*.tsx'
+          src/lib/api/concierge.ts
+          src/lib/api/concierge.spec.ts
+
+      - name: Reject write endpoints from Concierge
+        run: |
+          if grep -REn '@(Post|Put|Patch|Delete)\b' apps/api/src/concierge; then
+            echo 'Concierge may explain and navigate, but persistent changes belong to owning domains.'
+            exit 1
+          fi
+
+      - name: Reject persistence access from production Concierge source
+        run: |
+          production_sources=$(find apps/api/src/concierge -type f -name '*.ts' ! -name '*.spec.ts' -print)
+          if grep -EIn 'PrismaService|@woof/database|\$executeRaw|\$queryRaw|\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\(' $production_sources; then
+            echo 'Concierge v1 must remain a read-through composition layer without persistence access.'
+            exit 1
+          fi
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run Concierge evidence + safety contracts
+        run: pnpm --filter @woof/api exec jest src/concierge --runInBand
+
+      - name: Run Adventure regression
+        run: pnpm --filter @woof/api exec jest src/adventure --runInBand
+
+      - name: Run Autopilot replay regression
+        run: pnpm --filter @woof/api exec jest src/autopilot/autopilot.service.spec.ts --runInBand
+
+      - name: Run Our Story source contracts
+        run: pnpm --filter @woof/api exec jest src/story --runInBand
+
+      - name: Run Connectors lifecycle contracts
+        run: pnpm --filter @woof/api exec jest src/connectors --runInBand --testPathIgnorePatterns=integration
+
+      - name: Run Concierge web API contracts
+        run: pnpm --filter @woof/web exec vitest run src/lib/api/concierge.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
