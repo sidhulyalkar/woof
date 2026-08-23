@@ -77,7 +77,9 @@ export class ChatSecurityService {
     const text = input.text.trim();
     if (!text) throw new BadRequestException('Message text is required');
     if (text.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message text must be ${MAX_MESSAGE_LENGTH} characters or fewer`);
+      throw new BadRequestException(
+        `Message text must be ${MAX_MESSAGE_LENGTH} characters or fewer`
+      );
     }
     if (!CLIENT_MESSAGE_ID_PATTERN.test(input.clientMessageId)) {
       throw new BadRequestException('clientMessageId is invalid');
@@ -101,7 +103,9 @@ export class ChatSecurityService {
         `);
         if (receiptRows[0]) {
           this.assertReceiptConversation(receiptRows[0], input.conversationId);
-          const persisted = await tx.message.findUnique({ where: { id: receiptRows[0].message_id } });
+          const persisted = await tx.message.findUnique({
+            where: { id: receiptRows[0].message_id },
+          });
           if (!persisted) throw new DuplicateReceiptRaceError();
           return { message: persisted, duplicate: true };
         }
