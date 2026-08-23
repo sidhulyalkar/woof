@@ -35,6 +35,8 @@ export function PetSwitcher({
       queryClient.invalidateQueries({ queryKey: ['concierge', 'today'] }),
       queryClient.invalidateQueries({ queryKey: ['activities'] }),
       queryClient.invalidateQueries({ queryKey: ['story'] }),
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] }),
+      queryClient.invalidateQueries({ queryKey: ['discovery', 'nearby'] }),
     ]);
   };
 

@@ -19,6 +19,7 @@ import { CompatibilityModule } from './compatibility/compatibility.module';
 import { ConciergeModule } from './concierge/concierge.module';
 import { validateEnvironment } from './config/env.validation';
 import { ConnectorsModule } from './connectors/connectors.module';
+import { DiscoveryModule } from './discovery/discovery.module';
 import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { GoalsModule } from './goals/goals.module';
@@ -74,6 +75,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     StoryModule,
     ConnectorsModule,
     ConciergeModule,
+    DiscoveryModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,

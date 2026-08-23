@@ -1,122 +1,111 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { useSearchParams } from "next/navigation"
-import { BottomNav } from "@/components/bottom-nav"
-import { ConversationList } from "@/components/inbox/conversation-list"
-import { ChatWindow } from "@/components/inbox/chat-window"
-import { FriendsListView } from "@/components/inbox/friends-list-view"
-import { NewMessageSheet } from "@/components/inbox/new-message-sheet"
-import { Search, Plus } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-// Mock conversations data
-const mockConversations = [
-  {
-    id: "c1",
-    matchId: "1",
-    participant: {
-      id: "o1",
-      name: "Sarah Johnson",
-      avatarUrl: "/woman-and-loyal-companion.png",
-      petName: "Max",
-    },
-    lastMessage: {
-      content: "That sounds great! Max would love to join you for a hike this weekend.",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-      senderId: "o1",
-      read: false,
-    },
-    unreadCount: 2,
-  },
-  {
-    id: "c2",
-    matchId: "2",
-    participant: {
-      id: "o2",
-      name: "Michael Chen",
-      avatarUrl: "/man-with-husky.jpg",
-      petName: "Luna",
-    },
-    lastMessage: {
-      content: "Luna is super excited! See you at the dog park tomorrow at 10am.",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      senderId: "current-user",
-      read: true,
-    },
-    unreadCount: 0,
-  },
-  {
-    id: "c3",
-    matchId: "3",
-    participant: {
-      id: "o3",
-      name: "Emily Rodriguez",
-      avatarUrl: "/yoga-instructor.png",
-      petName: "Bella",
-    },
-    lastMessage: {
-      content: "Thanks for the recommendation! I'll check out that pet cafe.",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      senderId: "o3",
-      read: true,
-    },
-    unreadCount: 0,
-  },
-]
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Loader2, RefreshCw, Search } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { BottomNav } from '@/components/bottom-nav';
+import { ChatWindow } from '@/components/inbox/chat-window';
+import { ConversationList } from '@/components/inbox/conversation-list';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { authApi } from '@/lib/api';
+import { chatApi } from '@/lib/api/chat';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function InboxPage() {
-  const searchParams = useSearchParams()
-  const matchParam = searchParams.get("match")
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(matchParam || null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [showNewMessage, setShowNewMessage] = useState(false)
-  const [activeTab, setActiveTab] = useState("messages")
+  const searchParams = useSearchParams();
+  const memberParam = searchParams.get('member');
+  const cachedUser = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [startError, setStartError] = useState<string | null>(null);
+  const requestedMemberRef = useRef<string | null>(null);
 
-  const filteredConversations = mockConversations.filter((conv) =>
-    conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const profile = useQuery({
+    queryKey: ['auth-profile'],
+    queryFn: authApi.me,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const user = profile.data ?? cachedUser;
 
-  const activeConversation = mockConversations.find((c) => c.id === selectedConversation)
+  const conversations = useQuery({
+    queryKey: ['chat', 'conversations'],
+    queryFn: chatApi.getConversations,
+    enabled: Boolean(user),
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!memberParam || !user || requestedMemberRef.current === memberParam) return;
+    requestedMemberRef.current = memberParam;
+    setStartError(null);
+
+    void chatApi
+      .createConversation(memberParam)
+      .then(async ({ id }) => {
+        await queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] });
+        setSelectedConversation(id);
+      })
+      .catch(() => {
+        requestedMemberRef.current = null;
+        setStartError(
+          'That conversation could not be opened. The member may no longer be available.'
+        );
+      });
+  }, [memberParam, queryClient, user]);
+
+  const filteredConversations = (conversations.data ?? []).filter((conversation) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return [conversation.participant.name, conversation.participant.petName ?? ''].some((value) =>
+      value.toLowerCase().includes(query)
+    );
+  });
+
+  const activeConversation = (conversations.data ?? []).find(
+    (conversation) => conversation.id === selectedConversation
+  );
+  const unreadCount = (conversations.data ?? []).reduce(
+    (total, conversation) => total + conversation.unreadCount,
+    0
+  );
 
   return (
     <div className="min-h-screen pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 glass-strong border-b border-border/50">
-        <div className="px-4 py-4 max-w-lg mx-auto space-y-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Messages</h1>
-            <Button size="sm" onClick={() => setShowNewMessage(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              New Message
-            </Button>
+      <header className="glass-strong sticky top-0 z-40 border-b border-border/50">
+        <div className="mx-auto max-w-lg space-y-3 px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Private coordination</p>
+              <h1 className="mt-1 text-2xl font-bold">Messages</h1>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild size="sm" variant="outline" className="bg-transparent">
+                <Link href="/meetups">Meetups</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/discover">Discover</Link>
+              </Button>
+            </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full">
-              <TabsTrigger value="messages" className="flex-1">
-                Messages
-                {filteredConversations.filter((c) => c.unreadCount > 0).length > 0 && (
-                  <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                    {filteredConversations.filter((c) => c.unreadCount > 0).length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="friends" className="flex-1">
-                Friends
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {activeTab === "messages" && (
+          {!selectedConversation && (
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
               <Input
-                placeholder="Search conversations..."
+                placeholder={
+                  unreadCount > 0 ? `Search · ${unreadCount} unread` : 'Search conversations'
+                }
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="pl-9"
               />
             </div>
@@ -124,31 +113,52 @@ export default function InboxPage() {
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-lg mx-auto">
-        {selectedConversation && activeConversation ? (
-          <ChatWindow conversation={activeConversation} onBack={() => setSelectedConversation(null)} />
+      <main className="mx-auto max-w-lg">
+        {startError && (
+          <div
+            className="mx-4 mt-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive"
+            role="alert"
+          >
+            {startError}
+          </div>
+        )}
+
+        {!user || conversations.isLoading ? (
+          <div className="flex min-h-72 items-center justify-center gap-3" role="status">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            <span className="text-sm text-muted-foreground">Loading private conversations…</span>
+          </div>
+        ) : conversations.isError ? (
+          <div className="surface-soft mx-4 mt-5 rounded-2xl p-6 text-center">
+            <h2 className="font-semibold">Messages are temporarily unavailable</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Woof will not substitute demo conversations while canonical chat cannot be read.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4 gap-2 bg-transparent"
+              onClick={() => conversations.refetch()}
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button>
+          </div>
+        ) : selectedConversation && activeConversation ? (
+          <ChatWindow
+            conversation={activeConversation}
+            currentUserId={user.id}
+            onBack={() => setSelectedConversation(null)}
+          />
         ) : (
-          <>
-            {activeTab === "messages" && (
-              <ConversationList conversations={filteredConversations} onSelectConversation={setSelectedConversation} />
-            )}
-            {activeTab === "friends" && <FriendsListView />}
-          </>
+          <ConversationList
+            conversations={filteredConversations}
+            currentUserId={user.id}
+            onSelectConversation={setSelectedConversation}
+          />
         )}
       </main>
 
-      <NewMessageSheet
-        open={showNewMessage}
-        onOpenChange={setShowNewMessage}
-        onSelectUser={(userId) => {
-          // Create a new conversation with the selected user
-          console.log("[v0] Starting conversation with user:", userId)
-          setShowNewMessage(false)
-        }}
-      />
-
       <BottomNav />
     </div>
-  )
+  );
 }
