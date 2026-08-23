@@ -11,6 +11,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   SENTRY_DSN: z.string().optional(),
+  OPS_METRICS_TOKEN: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
@@ -74,6 +75,10 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (env.CONNECTOR_CREDENTIALS_KEY && !connectorKeyIsValid(env.CONNECTOR_CREDENTIALS_KEY)) {
     throw new Error('CONNECTOR_CREDENTIALS_KEY must decode to exactly 32 bytes');
+  }
+
+  if (env.OPS_METRICS_TOKEN && env.OPS_METRICS_TOKEN.length < 32) {
+    throw new Error('OPS_METRICS_TOKEN must be at least 32 characters when configured');
   }
 
   if (env.NODE_ENV === 'production') {
