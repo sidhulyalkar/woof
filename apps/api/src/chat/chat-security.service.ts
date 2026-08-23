@@ -95,7 +95,7 @@ export class ChatSecurityService {
         const receiptRows = await tx.$queryRaw<MessageReceiptRow[]>(Prisma.sql`
           SELECT message_id, conversation_id
           FROM dogos_chat.message_receipts
-          WHERE user_id = CAST(${input.userId} AS uuid)
+          WHERE user_id = CAST(${input.userId} AS text)
             AND client_message_id = ${input.clientMessageId}
           LIMIT 1
         `);
@@ -118,10 +118,10 @@ export class ChatSecurityService {
           INSERT INTO dogos_chat.message_receipts (
             user_id, client_message_id, conversation_id, message_id
           ) VALUES (
-            CAST(${input.userId} AS uuid),
+            CAST(${input.userId} AS text),
             ${input.clientMessageId},
-            CAST(${input.conversationId} AS uuid),
-            CAST(${persisted.id} AS uuid)
+            CAST(${input.conversationId} AS text),
+            CAST(${persisted.id} AS text)
           )
           ON CONFLICT (user_id, client_message_id) DO NOTHING
           RETURNING message_id
@@ -153,7 +153,7 @@ export class ChatSecurityService {
     const rows = await this.prisma.$queryRaw<MessageReceiptRow[]>(Prisma.sql`
       SELECT message_id, conversation_id
       FROM dogos_chat.message_receipts
-      WHERE user_id = CAST(${userId} AS uuid)
+      WHERE user_id = CAST(${userId} AS text)
         AND client_message_id = ${clientMessageId}
       LIMIT 1
     `);
