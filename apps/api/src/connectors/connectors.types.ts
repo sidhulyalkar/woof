@@ -2,11 +2,7 @@ export const CONNECTOR_PROVIDERS = ['FI', 'TRACTIVE', 'VET_PARTNER', 'CHEWY', 'P
 export type ConnectorProvider = (typeof CONNECTOR_PROVIDERS)[number];
 
 export type ConnectorDomain = 'WEARABLE' | 'VET' | 'RETAIL';
-export type ConnectorAvailability =
-  | 'PARTNER_REQUIRED'
-  | 'CONNECTED'
-  | 'REAUTH_REQUIRED'
-  | 'REVOKED';
+export type ConnectorAvailability = 'PARTNER_REQUIRED' | 'CONNECTED' | 'REAUTH_REQUIRED' | 'REVOKED';
 export type ConnectorCredentialState = 'MISSING' | 'USABLE' | 'EXPIRED' | 'INVALID';
 
 export type ConnectorCapability =
