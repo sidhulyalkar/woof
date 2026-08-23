@@ -6,17 +6,14 @@ import { AutopilotService } from '../autopilot/autopilot.service';
 import type { NormalizedTrackerObservation } from '../autopilot/autopilot.types';
 import { ConnectorCredentialStore } from './connector-credential.store';
 import { ConnectorOperationalStore } from './connector-operational.store';
-import type {
-  ConnectorProvider,
-  VerifiedWearableTransportEvent,
-} from './connectors.types';
+import type { ConnectorProvider, VerifiedWearableTransportEvent } from './connectors.types';
 import { CONNECTOR_PROVIDER_REGISTRY, parseConnectorProvider } from './provider-registry';
 
 function hashObservation(observation: NormalizedTrackerObservation) {
   const metrics = Object.fromEntries(
     Object.entries(observation.metrics)
       .filter(([, value]) => value !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right)),
+      .sort(([left], [right]) => left.localeCompare(right))
   );
   const canonical = JSON.stringify({
     provider: observation.provider,
@@ -33,7 +30,7 @@ export class ConnectorsService {
   constructor(
     private readonly credentials: ConnectorCredentialStore,
     private readonly operational: ConnectorOperationalStore,
-    private readonly autopilot: AutopilotService,
+    private readonly autopilot: AutopilotService
   ) {}
 
   async getDashboard(userId: string) {
@@ -41,7 +38,7 @@ export class ConnectorsService {
       (await this.operational.listConnections(userId)).map((connection) => [
         connection.provider,
         connection,
-      ]),
+      ])
     );
 
     const providers = await Promise.all(
@@ -91,7 +88,7 @@ export class ConnectorsService {
           connection,
           credentialState,
         };
-      }),
+      })
     );
 
     return {
@@ -156,7 +153,7 @@ export class ConnectorsService {
       input.provider,
       input.credentials,
       input.grantedScopes,
-      input.expiresAt,
+      input.expiresAt
     );
     return this.operational.markConnected({
       userId: input.userId,
@@ -177,7 +174,9 @@ export class ConnectorsService {
   }) {
     const identity = await this.operational.bindPetIdentity(input);
     if (!identity) {
-      throw new ConflictException('A connected provider and owned pet are required for identity mapping');
+      throw new ConflictException(
+        'A connected provider and owned pet are required for identity mapping'
+      );
     }
     return identity;
   }
@@ -190,7 +189,7 @@ export class ConnectorsService {
   async ingestWearableFromTransport(
     userId: string,
     providerValue: string,
-    event: VerifiedWearableTransportEvent,
+    event: VerifiedWearableTransportEvent
   ) {
     const provider = parseConnectorProvider(providerValue);
     this.assertWearable(provider);
@@ -225,7 +224,7 @@ export class ConnectorsService {
     const existing = await this.operational.getImportReceipt(
       identity.connectionId,
       resourceType,
-      event.externalObjectId,
+      event.externalObjectId
     );
     if (existing) {
       if (existing.payloadHash !== requestedHash) {
