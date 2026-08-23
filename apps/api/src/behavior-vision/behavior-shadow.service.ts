@@ -77,7 +77,9 @@ export class BehaviorShadowService {
         contextsSeen: profile.contextsSeen.length,
         pairedSessions,
         personalizationConfidence: profile.personalizationConfidence,
-        modelVersions: [...new Set(observations.map((entry) => entry.analysis.modelVersion))].sort(),
+        modelVersions: [
+          ...new Set(observations.map((entry) => entry.analysis.modelVersion)),
+        ].sort(),
         evidenceReady,
         readinessGates: READINESS_GATES,
       },
@@ -95,7 +97,8 @@ export class BehaviorShadowService {
       sessions.set(sessionKey, phases);
     }
     return [...sessions.values()].filter(
-      (phases) => phases.has('baseline') && (phases.has('during-intervention') || phases.has('recovery'))
+      (phases) =>
+        phases.has('baseline') && (phases.has('during-intervention') || phases.has('recovery'))
     ).length;
   }
 
@@ -126,7 +129,11 @@ export class BehaviorShadowService {
 
     for (const entry of timed) {
       const current = groups.at(-1);
-      if (current && entry.startMs <= current.endMs + 1000 && entry.endMs - current.startMs <= 12_000) {
+      if (
+        current &&
+        entry.startMs <= current.endMs + 1000 &&
+        entry.endMs - current.startMs <= 12_000
+      ) {
         current.endMs = Math.max(current.endMs, entry.endMs);
         current.confidence = Math.max(current.confidence, entry.confidence);
         current.labels.add(entry.label);
