@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { CloudOff, HeartHandshake, Loader2, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { PetSwitcher } from '@/components/pets/pet-switcher';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { adventureApi } from '@/lib/api/adventure';
@@ -67,6 +68,8 @@ export function ConciergeBriefing() {
             </p>
           </div>
         </div>
+
+        <PetSwitcher currentPetId={petId} />
 
         {data.briefing.topQuest && (
           <div className="mt-4 rounded-2xl border border-border/70 bg-background/55 p-4">

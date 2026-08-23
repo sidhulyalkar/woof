@@ -15,7 +15,9 @@ on:
       - 'packages/database/prisma/migrations/20260822064500_add_dogos_household_core/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/dogos-foundation-ci.yml'
+      - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_ARCHITECTURE.md'
+      - 'docs/DOGOS_RELEASE_POLISH.md'
 
 permissions:
   contents: read

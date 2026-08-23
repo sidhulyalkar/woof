@@ -14,7 +14,9 @@ on:
       - 'apps/web/src/lib/api/connectors*.ts'
       - 'packages/database/prisma/migrations/20260823004500_add_dogos_connectors_operational_schema/**'
       - '.github/workflows/dogos-connectors-ci.yml'
+      - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_CONNECTORS.md'
+      - 'docs/DOGOS_RELEASE_POLISH.md'
 
 permissions:
   contents: read

@@ -15,7 +15,9 @@ on:
       - 'apps/web/src/lib/api/autopilot.spec.ts'
       - 'apps/web/src/lib/api/households.ts'
       - '.github/workflows/dogos-autopilot-ci.yml'
+      - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_AUTOPILOT.md'
+      - 'docs/DOGOS_RELEASE_POLISH.md'
 
 permissions:
   contents: read

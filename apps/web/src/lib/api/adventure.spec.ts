@@ -15,15 +15,28 @@ describe('adventureApi', () => {
   beforeEach(() => {
     transport.get.mockReset();
     transport.post.mockReset();
+    window.localStorage.clear();
+    window.history.replaceState({}, '', '/');
   });
 
-  it('reads the server-owned dashboard with an optional pet scope', async () => {
+  it('reads the server-owned dashboard with an explicit pet scope', async () => {
     transport.get.mockResolvedValue({ quests: [] });
 
     await adventureApi.getMine('pet-1');
 
     expect(transport.get).toHaveBeenCalledWith('/adventure/me', {
       params: { petId: 'pet-1' },
+    });
+  });
+
+  it('uses the active dog context when the caller does not override it', async () => {
+    transport.get.mockResolvedValue({ quests: [] });
+    window.history.replaceState({}, '', '/?pet=pet-2');
+
+    await adventureApi.getMine();
+
+    expect(transport.get).toHaveBeenCalledWith('/adventure/me', {
+      params: { petId: 'pet-2' },
     });
   });
 
