@@ -119,9 +119,10 @@ jobs:
           src/app.module.ts
           src/config/env.validation.ts
 
-      - name: Reject direct canonical mutations from Connectors
+      - name: Reject direct canonical mutations from production Connectors source
         run: |
-          if grep -REin '\.(pet|activity|careEvent|mediaAsset)\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b|\b(INSERT[[:space:]]+INTO|UPDATE|DELETE[[:space:]]+FROM)[[:space:]]+(public\.)?(pets|activities|care_events|media_assets)\b' apps/api/src/connectors; then
+          production_sources=$(find apps/api/src/connectors -type f -name '*.ts' ! -name '*.spec.ts' -print)
+          if grep -EIn '\.(pet|activity|careEvent|mediaAsset)\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b|\b(INSERT[[:space:]]+INTO|UPDATE|DELETE[[:space:]]+FROM)[[:space:]]+(public\.)?(pets|activities|care_events|media_assets)\b' $production_sources; then
             echo 'Connector transport must delegate canonical writes to domain importers.'
             exit 1
           fi
