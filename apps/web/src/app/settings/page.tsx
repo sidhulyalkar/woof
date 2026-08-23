@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { BottomNav } from '@/components/bottom-nav';
+import { ConnectedServicesSettings } from '@/components/settings/connected-services-settings';
 import { NotificationSettings } from '@/components/settings/notification-settings';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -379,6 +380,8 @@ export default function SettingsPage() {
             </Button>
           </Card>
         </section>
+
+        <ConnectedServicesSettings />
 
         <NotificationSettings />
 
