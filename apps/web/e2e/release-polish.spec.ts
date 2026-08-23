@@ -58,23 +58,38 @@ const pets = [
   },
 ];
 
+const pixel = {
+  id: 'pet-new',
+  name: 'Pixel',
+  species: 'DOG',
+  breed: 'Mix',
+  avatarUrl: null,
+  createdAt: '2026-08-22T20:00:00.000Z',
+  _count: { activities: 0, posts: 0 },
+};
+
+function productPet(petId: string) {
+  return [...pets, pixel].find((candidate) => candidate.id === petId) ?? pets[0]!;
+}
+
 function dashboard(petId: string) {
-  const pet = pets.find((candidate) => candidate.id === petId) ?? pets[0]!;
+  const pet = productPet(petId);
+  const recovery = pet.id === 'pet-2';
   return {
     pet: { id: pet.id, name: pet.name, species: pet.species, avatarUrl: null },
-    generatedAt: `2026-08-22T20:00:0${pet.id === 'pet-1' ? '1' : '2'}.000Z`,
-    bondXp: pet.id === 'pet-1' ? 42 : 18,
+    generatedAt: `2026-08-22T20:00:${pet.id === 'pet-1' ? '01' : pet.id === 'pet-2' ? '02' : '03'}.000Z`,
+    bondXp: pet.id === 'pet-1' ? 42 : pet.id === 'pet-2' ? 18 : 0,
     rhythm: { activeWeeks: 2, windowWeeks: 4, label: 'Finding your rhythm' },
     compass: [],
     quests: [
       {
         id: `quest-${pet.id}`,
         key: `walk-${pet.id}`,
-        title: pet.id === 'pet-1' ? 'Neighborhood sniff walk' : 'Easy porch decompression',
+        title: recovery ? 'Easy porch decompression' : 'Neighborhood sniff walk',
         description: 'A low-pressure option for today.',
         why: `Chosen from recent context for ${pet.name}.`,
-        primaryPathway: pet.id === 'pet-1' ? 'MOVE' : 'RECOVER',
-        pathways: [pet.id === 'pet-1' ? 'MOVE' : 'RECOVER'],
+        primaryPathway: recovery ? 'RECOVER' : 'MOVE',
+        pathways: [recovery ? 'RECOVER' : 'MOVE'],
         xp: 8,
         confidence: 0.7,
         href: '/activity',
@@ -92,7 +107,7 @@ function dashboard(petId: string) {
 }
 
 function concierge(petId: string) {
-  const pet = pets.find((candidate) => candidate.id === petId) ?? pets[0]!;
+  const pet = productPet(petId);
   return {
     generatedAt: '2026-08-22T20:00:00.000Z',
     pet: { id: pet.id, name: pet.name, species: pet.species, avatarUrl: null },
@@ -126,7 +141,9 @@ function concierge(petId: string) {
 test.describe('dogOS release polish', () => {
   test('Today keeps Concierge and Adventure on the same explicitly selected dog', async ({ page }) => {
     await authenticate(page);
-    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+    await page.route('**/pets/me**', (route) =>
+      fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
+    );
     await page.route('**/adventure/me**', (route) => {
       const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-1';
       return fulfillJson(route, dashboard(petId));
@@ -138,20 +155,22 @@ test.describe('dogOS release polish', () => {
 
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Nova has 1 adventure available/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Nova has 1 adventures available/i })).toBeVisible();
 
     await page.getByRole('button', { name: 'Miso' }).click();
 
     await expect(page).toHaveURL(/pet=pet-2/);
     await expect(page.getByRole('heading', { name: /Miso's day at a glance/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Miso has 1 adventure available/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Miso has 1 adventures available/i })).toBeVisible();
   });
 
   test('Activity reads canonical history, switches dogs, and quick-logs without fake route data', async ({
     page,
   }) => {
     await authenticate(page);
-    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+    await page.route('**/pets/me**', (route) =>
+      fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
+    );
 
     let createdBody: Record<string, unknown> | null = null;
     await page.route('**/activities**', async (route) => {
@@ -214,24 +233,29 @@ test.describe('dogOS release polish', () => {
   test('first-dog onboarding writes the minimum profile and makes it active', async ({ page }) => {
     await authenticate(page);
     let createdBody: Record<string, unknown> | null = null;
+    let created = false;
     await page.route('**/pets', async (route) => {
       if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
       createdBody = route.request().postDataJSON() as Record<string, unknown>;
-      return fulfillJson(
-        route,
-        {
-          id: 'pet-new',
-          name: 'Pixel',
-          species: 'DOG',
-          breed: 'Mix',
-          createdAt: '2026-08-22T20:00:00.000Z',
-        },
-        201
-      );
+      created = true;
+      return fulfillJson(route, pixel, 201);
     });
-    await page.route('**/adventure/me**', (route) => fulfillJson(route, dashboard('pet-1')));
-    await page.route('**/concierge/today**', (route) => fulfillJson(route, concierge('pet-1')));
-    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+    await page.route('**/pets/me**', (route) =>
+      fulfillJson(route, {
+        pets: created ? [pixel] : [],
+        total: created ? 1 : 0,
+        skip: 0,
+        take: 100,
+      })
+    );
+    await page.route('**/adventure/me**', (route) => {
+      const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-new';
+      return fulfillJson(route, dashboard(petId));
+    });
+    await page.route('**/concierge/today**', (route) => {
+      const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-new';
+      return fulfillJson(route, concierge(petId));
+    });
 
     await page.goto('/pets/new');
     await page.getByLabel('Name').fill('Pixel');
@@ -239,6 +263,7 @@ test.describe('dogOS release polish', () => {
     await page.getByRole('button', { name: /Meet Pixel/i }).click();
 
     await expect(page).toHaveURL(/\/?pet=pet-new/);
+    await expect(page.getByRole('heading', { name: /Pixel's day at a glance/i })).toBeVisible();
     expect(createdBody).toMatchObject({ name: 'Pixel', species: 'DOG', breed: 'Mix' });
     expect(createdBody).not.toHaveProperty('temperament');
     expect(createdBody).not.toHaveProperty('vaccinations');
