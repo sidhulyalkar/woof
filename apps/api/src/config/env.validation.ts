@@ -20,6 +20,8 @@ const envSchema = z.object({
   ENABLE_ADVENTURE_SYSTEM: z.enum(['true', 'false']).optional(),
   ENABLE_DOGOS_AUTOPILOT: z.enum(['true', 'false']).optional(),
   ENABLE_DOGOS_OUR_STORY: z.enum(['true', 'false']).optional(),
+  ENABLE_DOGOS_CONNECTORS: z.enum(['true', 'false']).optional(),
+  CONNECTOR_CREDENTIALS_KEY: z.string().optional(),
   MEDIA_LIBRARY_IMAGE_MAX_BYTES: z.coerce
     .number()
     .int()
@@ -52,6 +54,11 @@ const envSchema = z.object({
   BEHAVIOR_VISION_TIMEOUT_MS: z.coerce.number().int().min(5000).max(90000).default(45000),
 });
 
+function connectorKeyIsValid(encoded: string | undefined) {
+  if (!encoded) return false;
+  return Buffer.from(encoded, 'base64').length === 32;
+}
+
 export function validateEnvironment(config: Record<string, unknown>) {
   const parsed = envSchema.safeParse(config);
 
@@ -63,6 +70,10 @@ export function validateEnvironment(config: Record<string, unknown>) {
   }
 
   const env = parsed.data;
+
+  if (env.CONNECTOR_CREDENTIALS_KEY && !connectorKeyIsValid(env.CONNECTOR_CREDENTIALS_KEY)) {
+    throw new Error('CONNECTOR_CREDENTIALS_KEY must decode to exactly 32 bytes');
+  }
 
   if (env.NODE_ENV === 'production') {
     const knownDevelopmentSecret = /^(dev-|change-this|your-)/i;
@@ -93,6 +104,15 @@ export function validateEnvironment(config: Record<string, unknown>) {
     ) {
       throw new Error(
         'Private object storage must be configured when MEDIA_DERIVATIVES_ENABLED=true'
+      );
+    }
+
+    if (
+      env.ENABLE_DOGOS_CONNECTORS === 'true' &&
+      !connectorKeyIsValid(env.CONNECTOR_CREDENTIALS_KEY)
+    ) {
+      throw new Error(
+        'CONNECTOR_CREDENTIALS_KEY is required and must decode to 32 bytes when connectors are enabled in production'
       );
     }
   }
