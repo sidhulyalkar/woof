@@ -260,7 +260,7 @@ export class ConnectorOperationalStore {
              disposition, canonical_ref_type, canonical_ref_id, occurred_at,
              imported_at, detail_code
       FROM dogos_connectors.import_receipts
-      WHERE connection_id = ${connectionId}
+      WHERE connection_id = CAST(${connectionId} AS uuid)
         AND resource_type = ${resourceType}
         AND external_object_id = ${externalObjectId}
       LIMIT 1
@@ -284,7 +284,7 @@ export class ConnectorOperationalStore {
         connection_id, resource_type, external_object_id, payload_hash, disposition,
         canonical_ref_type, canonical_ref_id, occurred_at, detail_code
       ) VALUES (
-        ${input.connectionId}, ${input.resourceType}, ${input.externalObjectId},
+        CAST(${input.connectionId} AS uuid), ${input.resourceType}, ${input.externalObjectId},
         ${input.payloadHash}, ${input.disposition}, ${input.canonicalRefType ?? null},
         ${input.canonicalRefId ?? null}, ${input.occurredAt ?? null}, ${input.detailCode ?? null}
       )
