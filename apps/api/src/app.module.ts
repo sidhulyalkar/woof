@@ -32,6 +32,7 @@ import { MeetupsModule } from './meetups/meetups.module';
 import { MLModule } from './ml/ml.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { NudgesModule } from './nudges/nudges.module';
+import { ObservabilityModule } from './observability/observability.module';
 import { PetsModule } from './pets/pets.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrivacyModule } from './privacy/privacy.module';
@@ -63,6 +64,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     ThrottlerModule.forRoot(throttlerOptions),
     ScheduleModule.forRoot(),
     PrismaModule,
+    ObservabilityModule,
     PrivacyModule,
     TrustSafetyModule,
     AuthModule,
