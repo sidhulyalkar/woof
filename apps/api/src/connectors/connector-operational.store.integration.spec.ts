@@ -57,7 +57,7 @@ describe('ConnectorOperationalStore integration', () => {
       externalPetLabel: 'Scout',
     });
     expect(identity).toEqual(
-      expect.objectContaining({ pet_id: petId, external_pet_id: 'fi-pet-1' }),
+      expect.objectContaining({ pet_id: petId, external_pet_id: 'fi-pet-1' })
     );
 
     await store.advanceSyncCursor({
@@ -122,7 +122,7 @@ describe('ConnectorOperationalStore integration', () => {
         provider: 'TRACTIVE',
         petId: other.petId,
         externalPetId: 'foreign-pet',
-      }),
+      })
     ).rejects.toThrow();
   });
 
@@ -139,7 +139,7 @@ describe('ConnectorOperationalStore integration', () => {
     const receiptId = await store.markLocallyRevoked(userId, 'PETCO');
     expect(receiptId).toEqual(expect.any(String));
     await expect(store.getConnection(userId, 'PETCO')).resolves.toEqual(
-      expect.objectContaining({ status: 'REVOKED', revokedAt: expect.any(String) }),
+      expect.objectContaining({ status: 'REVOKED', revokedAt: expect.any(String) })
     );
 
     const receipt = await prisma.$queryRaw<
