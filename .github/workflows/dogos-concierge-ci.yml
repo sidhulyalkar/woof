@@ -58,12 +58,21 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject Concierge schema or migration ownership
+      - name: Reject Concierge schema or unaudited migration ownership
         run: |
           git fetch origin main --depth=1
-          if ! git diff --quiet origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations; then
-            echo 'Concierge v1 is read-through composition and must not own database schema or migrations.'
-            git diff --name-only origin/main HEAD -- packages/database/prisma/schema.prisma packages/database/prisma/migrations
+          changed_database_files="$(
+            git diff --name-only origin/main HEAD -- \
+              packages/database/prisma/schema.prisma \
+              packages/database/prisma/migrations
+          )"
+          unexpected_database_files="$(
+            printf '%s\n' "$changed_database_files" | \
+              grep -Ev '^packages/database/prisma/migrations/(20260823081000_add_dogos_chat_delivery_receipts|20260823082000_add_dogos_discovery_location_cells)/migration\.sql$' || true
+          )"
+          if [ -n "$unexpected_database_files" ]; then
+            echo 'Concierge remains read-through only; it may inherit only the two audited Trust + Discovery operational migrations, while schema ownership and all other migrations remain forbidden.'
+            printf '%s\n' "$unexpected_database_files"
             exit 1
           fi
 
