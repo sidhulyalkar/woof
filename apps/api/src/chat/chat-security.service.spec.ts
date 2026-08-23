@@ -12,10 +12,13 @@ describe('ChatSecurityService', () => {
     const prisma = {
       conversationParticipant: { findUnique: jest.fn() },
       blockedUser: { findFirst: jest.fn() },
-      message: { findUnique: jest.fn() },
+      message: { findUnique: jest.fn(), create: jest.fn() },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) =>
+      callback(prisma)
+    );
     return {
       prisma,
       service: new ChatSecurityService(prisma as never),
@@ -80,6 +83,31 @@ describe('ChatSecurityService', () => {
       })
     ).resolves.toEqual({ message: persisted, duplicate: true });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rechecks block policy behind the relationship lock before a new message is created', async () => {
+    const { prisma, service } = build();
+    prisma.conversationParticipant.findUnique.mockResolvedValue(participant());
+    prisma.blockedUser.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'block-1' });
+    prisma.$queryRaw.mockResolvedValue([]);
+
+    await expect(
+      service.persistMessage({
+        userId: 'user-1',
+        conversationId: 'conversation-1',
+        clientMessageId: 'client-message-123',
+        text: 'hello',
+      })
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.conversationParticipant.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.blockedUser.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+      prisma.blockedUser.findFirst.mock.invocationCallOrder[1]!
+    );
+    expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
   it('rejects empty text before any message persistence transaction begins', async () => {
