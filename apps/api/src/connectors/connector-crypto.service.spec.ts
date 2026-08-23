@@ -7,7 +7,7 @@ const key = Buffer.alloc(32, 7).toString('base64');
 function service(configuredKey?: string) {
   return new ConnectorCryptoService({
     get: jest.fn((name: string) =>
-      name === 'CONNECTOR_CREDENTIALS_KEY' ? configuredKey : undefined,
+      name === 'CONNECTOR_CREDENTIALS_KEY' ? configuredKey : undefined
     ),
   } as unknown as ConfigService);
 }
@@ -17,7 +17,7 @@ describe('ConnectorCryptoService', () => {
     const crypto = service(key);
     const envelope = crypto.encrypt(
       { accessToken: 'secret-access-token', refreshToken: 'secret-refresh-token' },
-      'user-1:FI',
+      'user-1:FI'
     );
 
     expect(JSON.stringify(envelope)).not.toContain('secret-access-token');
@@ -33,9 +33,7 @@ describe('ConnectorCryptoService', () => {
     const envelope = crypto.encrypt({ accessToken: 'secret' }, 'user-1:FI');
 
     expect(() => crypto.decrypt(envelope, 'user-2:FI')).toThrow(ServiceUnavailableException);
-    expect(() => crypto.decrypt(envelope, 'user-1:TRACTIVE')).toThrow(
-      ServiceUnavailableException,
-    );
+    expect(() => crypto.decrypt(envelope, 'user-1:TRACTIVE')).toThrow(ServiceUnavailableException);
   });
 
   it('fails closed when credential encryption is not configured', () => {
@@ -43,13 +41,13 @@ describe('ConnectorCryptoService', () => {
 
     expect(crypto.isConfigured()).toBe(false);
     expect(() => crypto.encrypt({ accessToken: 'secret' }, 'user-1:FI')).toThrow(
-      ServiceUnavailableException,
+      ServiceUnavailableException
     );
   });
 
   it('rejects a deployment key that does not decode to 32 bytes', () => {
     expect(() => service(Buffer.alloc(16).toString('base64'))).toThrow(
-      'CONNECTOR_CREDENTIALS_KEY must decode to exactly 32 bytes',
+      'CONNECTOR_CREDENTIALS_KEY must decode to exactly 32 bytes'
     );
   });
 });
