@@ -8,6 +8,7 @@ function observation(input: {
   sessionKey?: string;
   phase?: 'baseline' | 'during-intervention' | 'recovery';
   accurate?: boolean;
+  usable?: boolean;
   startMs?: number;
   endMs?: number;
 }): StoredBehaviorObservation {
@@ -30,7 +31,12 @@ function observation(input: {
       schemaVersion: 'woof-behavior-observation-v1',
       modelVersion: 'shadow-model-1',
       featureVersion: 'features-1',
-      mediaQuality: { usable: true, confidence: 0.9, issues: [], recaptureInstructions: [] },
+      mediaQuality: {
+        usable: input.usable ?? true,
+        confidence: 0.9,
+        issues: [],
+        recaptureInstructions: [],
+      },
       evidence: [
         {
           label: 'oriented toward dog',
@@ -95,6 +101,25 @@ describe('BehaviorShadowService', () => {
         sources: ['pose', 'motion'],
       }),
     ]);
+  });
+
+  it('does not let confirmations on unusable observations inflate agreement', async () => {
+    const observations = [observation({ id: 'usable-rejected', accurate: false })];
+    for (let index = 0; index < 9; index += 1) {
+      observations.push(
+        observation({ id: `unusable-confirmed-${index}`, accurate: true, usable: false })
+      );
+    }
+    const vision = makeVision(observations);
+    const service = new BehaviorShadowService(vision as unknown as BehaviorVisionService);
+
+    const result = await service.snapshot('user-1', 'pet-1');
+
+    expect(result.evaluation.ownerReviewedObservations).toBe(1);
+    expect(result.evaluation.ownerConfirmedObservations).toBe(0);
+    expect(result.evaluation.ownerRejectedObservations).toBe(1);
+    expect(result.evaluation.confirmationRate).toBe(0);
+    expect(result.evaluation.evidenceReady).toBe(false);
   });
 
   it('never grants downstream authority even when evidence readiness gates are satisfied', async () => {
