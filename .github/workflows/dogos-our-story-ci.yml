@@ -13,7 +13,9 @@ on:
       - 'apps/web/src/lib/api/story.ts'
       - 'apps/web/src/lib/api/story.spec.ts'
       - '.github/workflows/dogos-our-story-ci.yml'
+      - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_OUR_STORY.md'
+      - 'docs/DOGOS_RELEASE_POLISH.md'
 
 permissions:
   contents: read
