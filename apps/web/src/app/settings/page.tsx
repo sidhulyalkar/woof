@@ -26,11 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { authApi } from '@/lib/api';
-import {
-  type MeetupLocationSharing,
-  privacyApi,
-  type PrivacyPreferences,
-} from '@/lib/api/privacy';
+import { type MeetupLocationSharing, privacyApi, type PrivacyPreferences } from '@/lib/api/privacy';
 import type { AuthUser } from '@/lib/stores/auth-store';
 
 const retentionOptions = [1, 6, 12, 24] as const;
@@ -90,7 +86,7 @@ export default function SettingsPage() {
       toast.success(
         result.deleted > 0
           ? `Deleted ${result.deleted} stored location point${result.deleted === 1 ? '' : 's'}`
-          : 'No stored location history remained',
+          : 'No stored location history remained'
       );
     },
     onError: (error) => {
@@ -137,7 +133,8 @@ export default function SettingsPage() {
         <ShieldCheck className="h-8 w-8 text-primary" aria-hidden="true" />
         <h1 className="mt-4 text-xl font-semibold">Privacy settings unavailable</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Woof could not load your consent state, so location controls remain unavailable rather than guessing.
+          Woof could not load your consent state, so location controls remain unavailable rather
+          than guessing.
         </p>
         <Button className="mt-5" onClick={() => privacyQuery.refetch()}>
           Try again
@@ -168,7 +165,11 @@ export default function SettingsPage() {
             <Avatar className="h-14 w-14 border border-border">
               <AvatarImage src={profile?.avatarUrl || '/placeholder.svg'} alt="" />
               <AvatarFallback>
-                {profile?.handle ? profile.handle.slice(0, 1).toUpperCase() : <PawPrint className="h-5 w-5" />}
+                {profile?.handle ? (
+                  profile.handle.slice(0, 1).toUpperCase()
+                ) : (
+                  <PawPrint className="h-5 w-5" />
+                )}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -193,8 +194,8 @@ export default function SettingsPage() {
               Precise location is opt-in
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Woof does not need precise location for matching. When you choose to enable it for proximity features,
-              retained points automatically expire within 24 hours.
+              Woof does not need precise location for matching. When you choose to enable it for
+              proximity features, retained points automatically expire within 24 hours.
             </p>
           </div>
 
@@ -209,8 +210,8 @@ export default function SettingsPage() {
                     Precise location
                   </label>
                   <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                    Allows temporary location pings for features you explicitly use. Turning this off also deletes
-                    retained pings.
+                    Allows temporary location pings for features you explicitly use. Turning this
+                    off also deletes retained pings.
                   </p>
                 </div>
               </div>
@@ -233,7 +234,8 @@ export default function SettingsPage() {
                     Mutual proximity suggestions
                   </label>
                   <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                    Only works when both members opt in. Other members never receive your historical coordinates.
+                    Only works when both members opt in. Other members never receive your historical
+                    coordinates.
                   </p>
                 </div>
               </div>
@@ -256,7 +258,8 @@ export default function SettingsPage() {
                     Share activity routes
                   </label>
                   <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                    Off keeps detailed walk and activity geometry private even when you share an activity summary.
+                    Off keeps detailed walk and activity geometry private even when you share an
+                    activity summary.
                   </p>
                 </div>
               </div>
@@ -286,7 +289,8 @@ export default function SettingsPage() {
                 Location retention
               </label>
               <p className="mt-1 text-sm text-muted-foreground">
-                Older location pings are pruned automatically. The server enforces a hard 24-hour maximum.
+                Older location pings are pruned automatically. The server enforces a hard 24-hour
+                maximum.
               </p>
               <select
                 id="retention-hours"
@@ -308,8 +312,8 @@ export default function SettingsPage() {
                 Meetup location sharing
               </label>
               <p className="mt-1 text-sm text-muted-foreground">
-                Proposals contain only a coarse venue area. Choose whether more specific coordination is permitted
-                after both people confirm.
+                Proposals contain only a coarse venue area. Choose whether more specific
+                coordination is permitted after both people confirm.
               </p>
               <select
                 id="meetup-location-sharing"
@@ -347,28 +351,39 @@ export default function SettingsPage() {
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Points stored</p>
-                  <p className="mt-1 text-xl font-bold">{locationSummary?.storedLocationPings ?? 0}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Points stored
+                  </p>
+                  <p className="mt-1 text-xl font-bold">
+                    {locationSummary?.storedLocationPings ?? 0}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Oldest</p>
-                  <p className="mt-1 text-sm font-medium">{formatStoredDate(locationSummary?.oldestStoredAt ?? null)}</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {formatStoredDate(locationSummary?.oldestStoredAt ?? null)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Newest</p>
-                  <p className="mt-1 text-sm font-medium">{formatStoredDate(locationSummary?.newestStoredAt ?? null)}</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {formatStoredDate(locationSummary?.newestStoredAt ?? null)}
+                  </p>
                 </div>
               </div>
             )}
 
             <div className="mt-4 rounded-xl border border-border/70 bg-background/50 p-3 text-xs leading-5 text-muted-foreground">
-              This screen intentionally reports counts and timestamps only. It never retrieves your stored coordinates.
+              This screen intentionally reports counts and timestamps only. It never retrieves your
+              stored coordinates.
             </div>
 
             <Button
               variant="outline"
               className="mt-4 w-full gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={clearLocation.isPending || (locationSummary?.storedLocationPings ?? 0) === 0}
+              disabled={
+                clearLocation.isPending || (locationSummary?.storedLocationPings ?? 0) === 0
+              }
               onClick={() => clearLocation.mutate()}
             >
               {clearLocation.isPending ? (
