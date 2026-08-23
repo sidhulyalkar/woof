@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { conciergeApi } from '@/lib/api/concierge';
 
-export function ConciergeBriefing() {
+export function ConciergeBriefing({ petId, revision }: { petId: string; revision: string }) {
   const briefing = useQuery({
-    queryKey: ['concierge', 'today'],
-    queryFn: () => conciergeApi.getToday(),
+    queryKey: ['concierge', 'today', petId, revision],
+    queryFn: () => conciergeApi.getToday(petId),
     retry: false,
     staleTime: 30_000,
   });
