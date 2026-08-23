@@ -44,7 +44,7 @@ function readEnvelope(value: Prisma.JsonValue): ConnectorCredentialEnvelope | nu
 export class ConnectorCredentialStore {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly crypto: ConnectorCryptoService,
+    private readonly crypto: ConnectorCryptoService
   ) {}
 
   encryptionConfigured() {
@@ -101,7 +101,7 @@ export class ConnectorCredentialStore {
     provider: ConnectorProvider,
     credentials: Record<string, unknown>,
     scopes: string[],
-    expiresAt: Date | null,
+    expiresAt: Date | null
   ) {
     const encrypted = this.crypto.encrypt(credentials, contextKey(userId, provider));
     await this.prisma.integrationToken.upsert({
