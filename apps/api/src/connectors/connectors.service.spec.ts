@@ -1,5 +1,6 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AutopilotService } from '../autopilot/autopilot.service';
+import { OperationalMetricsService } from '../observability/operational-metrics.service';
 import { ConnectorCredentialStore } from './connector-credential.store';
 import { ConnectorOperationalStore } from './connector-operational.store';
 import { ConnectorsService } from './connectors.service';
@@ -57,14 +58,19 @@ function harness() {
       signal: null,
     }),
   };
+  const metrics = {
+    recordConnectorImport: jest.fn(),
+  };
   return {
     credentials,
     operational,
     autopilot,
+    metrics,
     service: new ConnectorsService(
       credentials as unknown as ConnectorCredentialStore,
       operational as unknown as ConnectorOperationalStore,
-      autopilot as unknown as AutopilotService
+      autopilot as unknown as AutopilotService,
+      metrics as unknown as OperationalMetricsService
     ),
   };
 }
@@ -225,6 +231,48 @@ describe('ConnectorsService', () => {
         payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       })
     );
+  });
+
+  it('accepts a versioned wearable partner envelope and emits identifier-free outcome metrics', async () => {
+    const { service, operational, credentials, metrics } = harness();
+    operational.getConnection.mockResolvedValue(connection);
+    credentials.state.mockResolvedValue('USABLE');
+    operational.getPetIdentity.mockResolvedValue({
+      connectionId: connection.id,
+      petId,
+      externalPetId: 'tractive-pet-1',
+      externalPetLabel: 'Scout',
+      verifiedAt: '2026-08-22T00:00:00.000Z',
+    });
+
+    await expect(
+      service.ingestDevicePartnerEnvelopeFromTransport(userId, {
+        schemaVersion: 'woof-device-partner-v1',
+        provider: 'TRACTIVE',
+        externalPetId: 'tractive-pet-1',
+        externalObjectId: 'day-1',
+        kind: 'DAILY_ACTIVITY',
+        observedAt: '2026-08-22T08:00:00.000Z',
+        payload: { activeMinutes: 51 },
+      })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        contractVersion: 'woof-device-partner-v1',
+        careEventId: 'care-event-1',
+      })
+    );
+
+    expect(metrics.recordConnectorImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'TRACTIVE',
+        kind: 'DAILY_ACTIVITY',
+        outcome: 'IMPORTED',
+      })
+    );
+    const metric = metrics.recordConnectorImport.mock.calls[0]?.[0];
+    expect(JSON.stringify(metric)).not.toContain(userId);
+    expect(JSON.stringify(metric)).not.toContain('tractive-pet-1');
+    expect(JSON.stringify(metric)).not.toContain('day-1');
   });
 
   it('repairs a missing receipt from canonical truth and rejects an altered replay payload', async () => {
