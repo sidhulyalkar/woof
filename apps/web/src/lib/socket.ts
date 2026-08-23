@@ -30,13 +30,6 @@ export function disconnectSocket() {
   if (socket?.connected) socket.disconnect();
 }
 
-function newClientMessageId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
 type SendAck = {
   success: boolean;
   duplicate?: boolean;
@@ -58,13 +51,13 @@ export const chatSocket = {
   leaveConversation: (conversationId: string) => {
     getSocket().emit('conversation:leave', { conversationId });
   },
-  sendMessage: (conversationId: string, text: string) =>
+  sendMessage: (conversationId: string, text: string, clientMessageId: string) =>
     new Promise<ChatMessage>((resolve, reject) => {
       getSocket()
         .timeout(8_000)
         .emit(
           'message:send',
-          { conversationId, clientMessageId: newClientMessageId(), text },
+          { conversationId, clientMessageId, text },
           (timeoutError: Error | null, ack?: SendAck) => {
             if (timeoutError || !ack?.success || !ack.message) {
               reject(timeoutError ?? new Error(ack?.error ?? 'Message was not accepted'));
