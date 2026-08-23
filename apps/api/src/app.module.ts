@@ -17,6 +17,7 @@ import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { validateEnvironment } from './config/env.validation';
+import { ConnectorsModule } from './connectors/connectors.module';
 import { EventsModule } from './events/events.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { GoalsModule } from './goals/goals.module';
@@ -70,6 +71,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     AdventureModule,
     AutopilotModule,
     StoryModule,
+    ConnectorsModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,
