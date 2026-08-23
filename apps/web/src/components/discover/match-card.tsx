@@ -68,7 +68,10 @@ export function MatchCard({ match, distanceBand }: MatchCardProps) {
           <div className="absolute right-3 top-3">
             <div className="glass-strong flex items-center gap-2 rounded-full px-3 py-1.5">
               <span
-                className={cn('h-2 w-2 rounded-full bg-current', getScoreColor(match.compatibility.overall))}
+                className={cn(
+                  'h-2 w-2 rounded-full bg-current',
+                  getScoreColor(match.compatibility.overall),
+                )}
               />
               <span className={cn('text-sm font-bold', getScoreColor(match.compatibility.overall))}>
                 {match.compatibility.overall}% match
@@ -171,7 +174,7 @@ export function MatchCard({ match, distanceBand }: MatchCardProps) {
               <Info className="h-5 w-5" aria-hidden="true" />
             </Button>
             <Button asChild className="flex-1 gap-2">
-              <Link href={`/inbox?match=${match.id}`}>
+              <Link href={`/inbox?member=${match.owner.id}`}>
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
                 Start a conversation
               </Link>
