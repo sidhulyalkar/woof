@@ -103,7 +103,13 @@ describe('BehaviorShadowService', () => {
       const sessionKey = `session-${index}`;
       const context = index % 3 === 0 ? 'home' : index % 3 === 1 ? 'park' : 'street';
       observations.push(
-        observation({ id: `base-${index}`, sessionKey, phase: 'baseline', context, accurate: true }),
+        observation({
+          id: `base-${index}`,
+          sessionKey,
+          phase: 'baseline',
+          context,
+          accurate: true,
+        }),
         observation({
           id: `recovery-${index}`,
           sessionKey,
