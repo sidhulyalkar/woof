@@ -16,6 +16,7 @@ import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
+import { ConciergeModule } from './concierge/concierge.module';
 import { validateEnvironment } from './config/env.validation';
 import { ConnectorsModule } from './connectors/connectors.module';
 import { EventsModule } from './events/events.module';
@@ -72,6 +73,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     AutopilotModule,
     StoryModule,
     ConnectorsModule,
+    ConciergeModule,
     SocialModule,
     MeetupsModule,
     CompatibilityModule,
