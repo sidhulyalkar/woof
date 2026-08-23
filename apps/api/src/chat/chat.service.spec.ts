@@ -138,9 +138,7 @@ describe('ChatService', () => {
         inboxConversation({ id: 'conversation-1', otherUserId: 'user-2', name: 'luna-human' }),
         inboxConversation({ id: 'conversation-2', otherUserId: 'user-3', name: 'milo-human' }),
       ]);
-      prisma.blockedUser.findMany.mockResolvedValue([
-        { userId: 'user-3', blockedId: 'user-1' },
-      ]);
+      prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-3', blockedId: 'user-1' }]);
       prisma.$queryRaw.mockResolvedValue([{ conversation_id: 'conversation-1', unread_count: 3n }]);
 
       await expect(service.listConversations('user-1')).resolves.toEqual([
