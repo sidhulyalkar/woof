@@ -89,6 +89,23 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
+      - name: Enforce canonical TEXT IDs in operational SQL
+        run: |
+          operational_sql_files=(
+            apps/api/src/chat/chat-security.service.ts
+            apps/api/src/discovery/discovery-location.store.ts
+            packages/database/prisma/migrations/20260823081000_add_dogos_chat_delivery_receipts/migration.sql
+            packages/database/prisma/migrations/20260823082000_add_dogos_discovery_location_cells/migration.sql
+          )
+          if grep -EIn 'uuid' "${operational_sql_files[@]}"; then
+            echo 'Trust + Discovery operational SQL must use the canonical TEXT identity type, never UUID casts or columns.'
+            exit 1
+          fi
+          grep -Eq 'user_id TEXT .*REFERENCES public\.users\(id\)' packages/database/prisma/migrations/20260823081000_add_dogos_chat_delivery_receipts/migration.sql
+          grep -Eq 'conversation_id TEXT .*REFERENCES public\.conversations\(id\)' packages/database/prisma/migrations/20260823081000_add_dogos_chat_delivery_receipts/migration.sql
+          grep -Eq 'message_id TEXT .*REFERENCES public\.messages\(id\)' packages/database/prisma/migrations/20260823081000_add_dogos_chat_delivery_receipts/migration.sql
+          grep -Eq 'user_id TEXT .*REFERENCES public\.users\(id\)' packages/database/prisma/migrations/20260823082000_add_dogos_discovery_location_cells/migration.sql
+
       - name: Apply full migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
