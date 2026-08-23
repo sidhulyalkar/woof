@@ -1,8 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { IngestTrackerObservationDto } from '../autopilot/dto/autopilot.dto';
 import { ConnectorsEnabledGuard } from './connectors-enabled.guard';
 import { ConnectorsService } from './connectors.service';
 
@@ -26,20 +25,8 @@ export class ConnectorsController {
   }
 
   @Delete(':provider')
-  @ApiOperation({ summary: 'Remove locally stored connector credentials' })
+  @ApiOperation({ summary: 'Disconnect a provider and remove locally stored credentials' })
   disconnect(@Request() req: AuthenticatedRequest, @Param('provider') provider: string) {
     return this.connectors.disconnect(req.user.sub, provider);
-  }
-
-  @Post(':provider/import/wearable')
-  @ApiOperation({
-    summary: 'Import a verified wearable summary through the existing zero-reward Autopilot path',
-  })
-  importWearable(
-    @Request() req: AuthenticatedRequest,
-    @Param('provider') provider: string,
-    @Body() dto: IngestTrackerObservationDto,
-  ) {
-    return this.connectors.importWearableObservation(req.user.sub, provider, dto);
   }
 }
