@@ -40,7 +40,9 @@ function boundedIdentifier(value: unknown, label: string) {
   if (typeof value !== 'string') throw new BadRequestException(`${label} must be a string`);
   const normalized = value.trim();
   if (!normalized || normalized.length > 160 || /[\u0000-\u001f\u007f]/.test(normalized)) {
-    throw new BadRequestException(`${label} must be a non-empty identifier of at most 160 characters`);
+    throw new BadRequestException(
+      `${label} must be a non-empty identifier of at most 160 characters`
+    );
   }
   return normalized;
 }
@@ -54,7 +56,8 @@ function containsLocationTelemetry(value: unknown): boolean {
 }
 
 function parseObservedAt(value: unknown, now: Date) {
-  if (typeof value !== 'string') throw new BadRequestException('observedAt must be an ISO timestamp');
+  if (typeof value !== 'string')
+    throw new BadRequestException('observedAt must be an ISO timestamp');
   const observedAt = new Date(value);
   if (!Number.isFinite(observedAt.getTime())) {
     throw new BadRequestException('observedAt must be a valid timestamp');
@@ -81,7 +84,9 @@ export function parseDevicePartnerEnvelope(
 
   const provider = parseConnectorProvider(String(input.provider ?? ''));
   if (provider !== 'FI' && provider !== 'TRACTIVE') {
-    throw new BadRequestException('Device partner envelopes are supported only for wearable providers');
+    throw new BadRequestException(
+      'Device partner envelopes are supported only for wearable providers'
+    );
   }
   if (input.kind !== 'DAILY_ACTIVITY' && input.kind !== 'DEVICE_STATUS') {
     throw new BadRequestException('Unsupported device partner event kind');
