@@ -1,95 +1,100 @@
-"use client"
+'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { formatDistanceToNow } from "date-fns"
-import { cn } from "@/lib/utils"
-
-interface Conversation {
-  id: string
-  matchId: string
-  participant: {
-    id: string
-    name: string
-    avatarUrl: string
-    petName: string
-  }
-  lastMessage: {
-    content: string
-    timestamp: string
-    senderId: string
-    read: boolean
-  }
-  unreadCount: number
-}
+import { formatDistanceToNow } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import type { ChatConversation } from '@/lib/api/chat';
+import { cn } from '@/lib/utils';
 
 interface ConversationListProps {
-  conversations: Conversation[]
-  onSelectConversation: (id: string) => void
+  conversations: ChatConversation[];
+  currentUserId: string;
+  onSelectConversation: (id: string) => void;
 }
 
-export function ConversationList({ conversations, onSelectConversation }: ConversationListProps) {
+export function ConversationList({
+  conversations,
+  currentUserId,
+  onSelectConversation,
+}: ConversationListProps) {
   if (conversations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-          <span className="text-2xl">💬</span>
+      <div className="flex flex-col items-center justify-center px-4 py-16">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <span className="text-2xl" aria-hidden="true">
+            💬
+          </span>
         </div>
-        <h3 className="text-lg font-semibold mb-2">No conversations yet</h3>
-        <p className="text-sm text-muted-foreground text-center">
-          Start chatting with your matches to plan playdates and activities!
+        <h3 className="mb-2 text-lg font-semibold">No conversations yet</h3>
+        <p className="max-w-sm text-center text-sm text-muted-foreground">
+          Open an explainable match in Discover and start with a simple hello. Woof does not seed fake conversations.
         </p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="divide-y divide-border">
       {conversations.map((conversation) => {
-        const isUnread = conversation.unreadCount > 0
-        const isFromOther = conversation.lastMessage.senderId !== "current-user"
+        const isUnread = conversation.unreadCount > 0;
+        const lastMessage = conversation.lastMessage;
+        const isFromOther = lastMessage ? lastMessage.senderId !== currentUserId : false;
+        const displayName = conversation.participant.petName
+          ? `${conversation.participant.name} & ${conversation.participant.petName}`
+          : conversation.participant.name;
 
         return (
           <button
             key={conversation.id}
+            type="button"
             onClick={() => onSelectConversation(conversation.id)}
-            className="w-full px-4 py-4 flex items-start gap-3 hover:bg-muted/50 transition-colors text-left"
+            className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50"
           >
-            <Avatar className="w-12 h-12 shrink-0">
-              <AvatarImage src={conversation.participant.avatarUrl || "/placeholder.svg"} />
-              <AvatarFallback>{conversation.participant.name[0]}</AvatarFallback>
+            <Avatar className="h-12 w-12 shrink-0">
+              <AvatarImage src={conversation.participant.avatarUrl || '/placeholder.svg'} alt="" />
+              <AvatarFallback>{conversation.participant.name.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <h3 className={cn("font-semibold truncate", isUnread && "text-primary")}>
-                  {conversation.participant.name} & {conversation.participant.petName}
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <h3 className={cn('truncate font-semibold', isUnread && 'text-primary')}>
+                  {displayName}
                 </h3>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {formatDistanceToNow(new Date(conversation.lastMessage.timestamp), { addSuffix: true })}
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(lastMessage?.createdAt ?? conversation.updatedAt), {
+                    addSuffix: true,
+                  })}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-2">
                 <p
                   className={cn(
-                    "text-sm truncate",
-                    isUnread && isFromOther ? "font-medium text-foreground" : "text-muted-foreground",
+                    'truncate text-sm',
+                    isUnread && isFromOther
+                      ? 'font-medium text-foreground'
+                      : 'text-muted-foreground',
                   )}
                 >
-                  {isFromOther ? "" : "You: "}
-                  {conversation.lastMessage.content}
+                  {lastMessage ? (
+                    <>
+                      {!isFromOther ? 'You: ' : ''}
+                      {lastMessage.content}
+                    </>
+                  ) : (
+                    'No messages yet'
+                  )}
                 </p>
                 {isUnread && (
-                  <Badge variant="default" className="shrink-0 h-5 min-w-5 px-1.5 text-xs">
+                  <Badge variant="default" className="h-5 min-w-5 shrink-0 px-1.5 text-xs">
                     {conversation.unreadCount}
                   </Badge>
                 )}
               </div>
             </div>
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
