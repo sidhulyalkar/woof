@@ -43,6 +43,29 @@ CREATE TABLE dogos_connectors.pet_identities (
 CREATE INDEX connector_pet_identities_pet_idx
   ON dogos_connectors.pet_identities(pet_id);
 
+CREATE FUNCTION dogos_connectors.enforce_pet_identity_owner()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM dogos_connectors.connections AS connection
+    INNER JOIN public.pets AS pet ON pet.id = NEW.pet_id
+    WHERE connection.id = NEW.connection_id
+      AND pet.owner_id = connection.user_id
+  ) THEN
+    RAISE EXCEPTION 'connector pet identity must belong to the connection owner';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER connector_pet_identity_owner_guard
+BEFORE INSERT OR UPDATE ON dogos_connectors.pet_identities
+FOR EACH ROW
+EXECUTE FUNCTION dogos_connectors.enforce_pet_identity_owner();
+
 CREATE TABLE dogos_connectors.sync_cursors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   connection_id UUID NOT NULL REFERENCES dogos_connectors.connections(id) ON DELETE CASCADE,
