@@ -1,0 +1,246 @@
+import { expect, test, type Page, type Route } from '@playwright/test';
+
+function corsHeaders(route: Route) {
+  const requestHeaders = route.request().headers();
+  return {
+    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'access-control-allow-headers':
+      requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
+    vary: 'Origin',
+  };
+}
+
+async function fulfillJson(route: Route, body: unknown, status = 200) {
+  if (route.request().method() === 'OPTIONS') {
+    await route.fulfill({ status: 204, headers: corsHeaders(route), body: '' });
+    return;
+  }
+  await route.fulfill({
+    status,
+    headers: { ...corsHeaders(route), 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function authenticate(page: Page) {
+  await page.route('**/auth/me', (route) =>
+    fulfillJson(route, {
+      id: 'user-1',
+      email: 'owner@example.com',
+      handle: 'dog-owner',
+      pets: [],
+    })
+  );
+  await page.addInitScript(() => {
+    window.localStorage.setItem('authToken', 'browser-test-token');
+  });
+}
+
+const pets = [
+  {
+    id: 'pet-1',
+    name: 'Nova',
+    species: 'DOG',
+    breed: 'Husky mix',
+    avatarUrl: null,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    _count: { activities: 8, posts: 1 },
+  },
+  {
+    id: 'pet-2',
+    name: 'Miso',
+    species: 'DOG',
+    breed: 'Senior mix',
+    avatarUrl: null,
+    createdAt: '2025-02-01T00:00:00.000Z',
+    _count: { activities: 3, posts: 0 },
+  },
+];
+
+function dashboard(petId: string) {
+  const pet = pets.find((candidate) => candidate.id === petId) ?? pets[0]!;
+  return {
+    pet: { id: pet.id, name: pet.name, species: pet.species, avatarUrl: null },
+    generatedAt: `2026-08-22T20:00:0${pet.id === 'pet-1' ? '1' : '2'}.000Z`,
+    bondXp: pet.id === 'pet-1' ? 42 : 18,
+    rhythm: { activeWeeks: 2, windowWeeks: 4, label: 'Finding your rhythm' },
+    compass: [],
+    quests: [
+      {
+        id: `quest-${pet.id}`,
+        key: `walk-${pet.id}`,
+        title: pet.id === 'pet-1' ? 'Neighborhood sniff walk' : 'Easy porch decompression',
+        description: 'A low-pressure option for today.',
+        why: `Chosen from recent context for ${pet.name}.`,
+        primaryPathway: pet.id === 'pet-1' ? 'MOVE' : 'RECOVER',
+        pathways: [pet.id === 'pet-1' ? 'MOVE' : 'RECOVER'],
+        xp: 8,
+        confidence: 0.7,
+        href: '/activity',
+        actionLabel: 'Open activity',
+        variant: 'recommended',
+        safeStopEligible: true,
+        personalRelevance: 0.8,
+        expiresAt: '2026-08-23T20:00:00.000Z',
+      },
+    ],
+    learningSummary: [],
+    principles: [],
+    disclaimer: 'Recent opportunity coverage, not a health score.',
+  };
+}
+
+function concierge(petId: string) {
+  const pet = pets.find((candidate) => candidate.id === petId) ?? pets[0]!;
+  return {
+    generatedAt: '2026-08-22T20:00:00.000Z',
+    pet: { id: pet.id, name: pet.name, species: pet.species, avatarUrl: null },
+    briefing: {
+      title: `${pet.name}'s day at a glance`,
+      summary: 'No urgent care context is surfaced right now.',
+      topQuest: {
+        title: dashboard(pet.id).quests[0]!.title,
+        reason: `Chosen from recent context for ${pet.name}.`,
+        action: { label: 'Open activity', href: '/activity' },
+        evidence: [{ source: 'ADVENTURE', label: 'Adventure ranking.' }],
+      },
+    },
+    context: {
+      weather: { status: 'NOT_CONFIGURED', live: false, detail: 'No live weather.' },
+      pace: { mode: 'NORMAL', reason: 'No lower-pace feedback.', evidence: [] },
+    },
+    suggestions: [],
+    connectorSummary: { connected: 0, needsReauthorization: 0 },
+    boundaries: {
+      suggestionOnly: true,
+      liveWeatherUsed: false,
+      diagnosticInferenceAllowed: false,
+      prescriptionOrDoseCalculationAllowed: false,
+      persistentStateMutationAllowed: false,
+      autonomousPurchaseAllowed: false,
+    },
+  };
+}
+
+test.describe('dogOS release polish', () => {
+  test('Today keeps Concierge and Adventure on the same explicitly selected dog', async ({ page }) => {
+    await authenticate(page);
+    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+    await page.route('**/adventure/me**', (route) => {
+      const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-1';
+      return fulfillJson(route, dashboard(petId));
+    });
+    await page.route('**/concierge/today**', (route) => {
+      const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-1';
+      return fulfillJson(route, concierge(petId));
+    });
+
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Nova has 1 adventure available/i })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Miso' }).click();
+
+    await expect(page).toHaveURL(/pet=pet-2/);
+    await expect(page.getByRole('heading', { name: /Miso's day at a glance/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Miso has 1 adventure available/i })).toBeVisible();
+  });
+
+  test('Activity reads canonical history, switches dogs, and quick-logs without fake route data', async ({
+    page,
+  }) => {
+    await authenticate(page);
+    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+
+    let createdBody: Record<string, unknown> | null = null;
+    await page.route('**/activities**', async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      if (route.request().method() === 'POST') {
+        createdBody = route.request().postDataJSON() as Record<string, unknown>;
+        return fulfillJson(route, { id: 'activity-new', ...createdBody }, 201);
+      }
+      const petId = new URL(route.request().url()).searchParams.get('petId') ?? 'pet-1';
+      const name = petId === 'pet-2' ? 'Miso' : 'Nova';
+      return fulfillJson(route, {
+        activities: [
+          {
+            id: `activity-${petId}`,
+            userId: 'user-1',
+            petId,
+            householdId: 'house-1',
+            startedAt: '2026-08-22T18:00:00.000Z',
+            endedAt: '2026-08-22T18:30:00.000Z',
+            type: petId === 'pet-2' ? 'RECOVERY' : 'WALK',
+            route: null,
+            petParticipants: [
+              {
+                petId,
+                metrics: null,
+                pet: { id: petId, name, species: 'DOG', avatarUrl: null },
+              },
+            ],
+          },
+        ],
+        total: 1,
+        skip: 0,
+        take: 20,
+      });
+    });
+
+    await page.goto('/activity');
+    await expect(page.getByRole('heading', { name: /Nova's history/i })).toBeVisible();
+    await expect(page.getByText('Walk', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Great walk in the park/i)).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Miso' }).click();
+    await expect(page.getByRole('heading', { name: /Miso's history/i })).toBeVisible();
+    await expect(page.getByText('Recovery', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Play' }).click();
+    await page.getByRole('button', { name: '15m' }).click();
+    await page.getByRole('button', { name: /Save 15 min play/i }).click();
+
+    await expect(page.getByText(/Play saved for Miso/i)).toBeVisible();
+    expect(createdBody).toMatchObject({
+      petIds: ['pet-2'],
+      type: 'PLAY',
+      jointMetrics: { source: 'MANUAL_QUICK_LOG', enteredDurationMinutes: 15 },
+    });
+    expect(createdBody).not.toHaveProperty('route');
+    expect(createdBody).not.toHaveProperty('bondXp');
+  });
+
+  test('first-dog onboarding writes the minimum profile and makes it active', async ({ page }) => {
+    await authenticate(page);
+    let createdBody: Record<string, unknown> | null = null;
+    await page.route('**/pets', async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      createdBody = route.request().postDataJSON() as Record<string, unknown>;
+      return fulfillJson(
+        route,
+        {
+          id: 'pet-new',
+          name: 'Pixel',
+          species: 'DOG',
+          breed: 'Mix',
+          createdAt: '2026-08-22T20:00:00.000Z',
+        },
+        201
+      );
+    });
+    await page.route('**/adventure/me**', (route) => fulfillJson(route, dashboard('pet-1')));
+    await page.route('**/concierge/today**', (route) => fulfillJson(route, concierge('pet-1')));
+    await page.route('**/pets/me**', (route) => fulfillJson(route, { pets, total: 2, skip: 0, take: 100 }));
+
+    await page.goto('/pets/new');
+    await page.getByLabel('Name').fill('Pixel');
+    await page.getByLabel(/Breed or mix/i).fill('Mix');
+    await page.getByRole('button', { name: /Meet Pixel/i }).click();
+
+    await expect(page).toHaveURL(/\/?pet=pet-new/);
+    expect(createdBody).toMatchObject({ name: 'Pixel', species: 'DOG', breed: 'Mix' });
+    expect(createdBody).not.toHaveProperty('temperament');
+    expect(createdBody).not.toHaveProperty('vaccinations');
+  });
+});
