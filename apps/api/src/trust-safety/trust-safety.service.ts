@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BlockUserDto, ReportUserDto } from './dto/trust-safety.dto';
+import { acquireRelationshipLocks } from './relationship-lock';
 
 @Injectable()
 export class TrustSafetyService {
@@ -16,16 +17,19 @@ export class TrustSafetyService {
     });
     if (!target) throw new NotFoundException('Member not found');
 
-    const block = await this.prisma.blockedUser.upsert({
-      where: {
-        userId_blockedId: { userId, blockedId: dto.blockedUserId },
-      },
-      create: {
-        userId,
-        blockedId: dto.blockedUserId,
-        reason: dto.reason?.trim() || null,
-      },
-      update: { reason: dto.reason?.trim() || null },
+    const block = await this.prisma.$transaction(async (tx) => {
+      await acquireRelationshipLocks(tx, userId, [dto.blockedUserId]);
+      return tx.blockedUser.upsert({
+        where: {
+          userId_blockedId: { userId, blockedId: dto.blockedUserId },
+        },
+        create: {
+          userId,
+          blockedId: dto.blockedUserId,
+          reason: dto.reason?.trim() || null,
+        },
+        update: { reason: dto.reason?.trim() || null },
+      });
     });
 
     await Promise.all([
@@ -54,8 +58,11 @@ export class TrustSafetyService {
   }
 
   async unblockUser(userId: string, blockedUserId: string) {
-    const result = await this.prisma.blockedUser.deleteMany({
-      where: { userId, blockedId: blockedUserId },
+    const result = await this.prisma.$transaction(async (tx) => {
+      await acquireRelationshipLocks(tx, userId, [blockedUserId]);
+      return tx.blockedUser.deleteMany({
+        where: { userId, blockedId: blockedUserId },
+      });
     });
     return { unblocked: result.count > 0 };
   }
