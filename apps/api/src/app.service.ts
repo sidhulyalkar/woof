@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { ObservabilityService } from './observability/observability.service';
 
 @Injectable()
 export class AppService {
+  constructor(private readonly observability: ObservabilityService) {}
+
   getInfo() {
     return {
       name: 'Woof API',
@@ -21,12 +24,6 @@ export class AppService {
   }
 
   getHealth() {
-    return {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-      database: 'connected', // Will be updated when we add real health checks
-    };
+    return this.observability.health();
   }
 }

@@ -20,7 +20,7 @@ describe('validateEnvironment', () => {
       validateEnvironment({
         NODE_ENV: 'test',
         JWT_SECRET: base.JWT_SECRET,
-      }),
+      })
     ).toThrow(/DATABASE_URL/i);
   });
 
@@ -29,8 +29,26 @@ describe('validateEnvironment', () => {
       validateEnvironment({
         ...base,
         JWT_SECRET: 'too-short',
-      }),
+      })
     ).toThrow(/JWT_SECRET/i);
+  });
+
+  it('rejects short operational metrics credentials when configured', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        OPS_METRICS_TOKEN: 'short-token',
+      })
+    ).toThrow(/OPS_METRICS_TOKEN/i);
+  });
+
+  it('accepts a distinct long operational metrics credential', () => {
+    const config = validateEnvironment({
+      ...base,
+      OPS_METRICS_TOKEN: 'ops-8f3f89a744824fd99ee61797d67dc1023f6f7717',
+    });
+
+    expect(config.OPS_METRICS_TOKEN).toBe('ops-8f3f89a744824fd99ee61797d67dc1023f6f7717');
   });
 
   it('requires stronger non-development secrets in production', () => {
@@ -39,7 +57,7 @@ describe('validateEnvironment', () => {
         ...base,
         NODE_ENV: 'production',
         JWT_SECRET: 'dev-this-is-long-but-still-not-production-safe',
-      }),
+      })
     ).toThrow(/production/i);
   });
 

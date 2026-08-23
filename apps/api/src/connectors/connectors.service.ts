@@ -4,9 +4,15 @@ import type { IngestTrackerObservationDto } from '../autopilot/dto/autopilot.dto
 import { normalizeProviderObservation } from '../autopilot/provider-adapters';
 import { AutopilotService } from '../autopilot/autopilot.service';
 import type { NormalizedTrackerObservation } from '../autopilot/autopilot.types';
+import { OperationalMetricsService } from '../observability/operational-metrics.service';
 import { ConnectorCredentialStore } from './connector-credential.store';
 import { ConnectorOperationalStore } from './connector-operational.store';
 import type { ConnectorProvider, VerifiedWearableTransportEvent } from './connectors.types';
+import {
+  parseDevicePartnerEnvelope,
+  toVerifiedWearableTransportEvent,
+  type DevicePartnerEnvelope,
+} from './device-partner-contract';
 import { CONNECTOR_PROVIDER_REGISTRY, parseConnectorProvider } from './provider-registry';
 
 function hashObservation(observation: NormalizedTrackerObservation) {
@@ -30,7 +36,8 @@ export class ConnectorsService {
   constructor(
     private readonly credentials: ConnectorCredentialStore,
     private readonly operational: ConnectorOperationalStore,
-    private readonly autopilot: AutopilotService
+    private readonly autopilot: AutopilotService,
+    private readonly metrics: OperationalMetricsService
   ) {}
 
   async getDashboard(userId: string) {
@@ -179,6 +186,48 @@ export class ConnectorsService {
       );
     }
     return identity;
+  }
+
+  /**
+   * Versioned partner seam for future verified wearable transports. The raw
+   * envelope is validated and reduced before entering the existing idempotent
+   * connector import path. It is intentionally not exposed to browser callers.
+   */
+  async ingestDevicePartnerEnvelopeFromTransport(userId: string, input: unknown) {
+    let envelope: DevicePartnerEnvelope;
+    try {
+      envelope = parseDevicePartnerEnvelope(input);
+    } catch (error) {
+      this.metrics.recordDeviceContractRejection();
+      throw error;
+    }
+
+    const started = performance.now();
+    try {
+      const result = await this.ingestWearableFromTransport(
+        userId,
+        envelope.provider,
+        toVerifiedWearableTransportEvent(envelope)
+      );
+      this.metrics.recordConnectorImport({
+        provider: envelope.provider,
+        kind: envelope.kind,
+        outcome: result.duplicate ? 'DUPLICATE' : 'IMPORTED',
+        durationMs: Math.max(0, performance.now() - started),
+      });
+      return {
+        contractVersion: envelope.schemaVersion,
+        ...result,
+      };
+    } catch (error) {
+      this.metrics.recordConnectorImport({
+        provider: envelope.provider,
+        kind: envelope.kind,
+        outcome: 'REJECTED',
+        durationMs: Math.max(0, performance.now() - started),
+      });
+      throw error;
+    }
   }
 
   /**

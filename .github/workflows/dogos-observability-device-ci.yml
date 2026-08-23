@@ -1,0 +1,191 @@
+name: dogOS Observability + Device Contracts CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/observability/**'
+      - 'apps/api/src/connectors/device-partner-contract*.ts'
+      - 'apps/api/src/connectors/connectors.service.ts'
+      - 'apps/api/src/connectors/connectors.service.spec.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/app.service.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/config/env.validation.spec.ts'
+      - 'apps/api/.env.example'
+      - '.github/workflows/dogos-observability-device-ci.yml'
+      - 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-observability-device-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Real readiness + private metrics + device contract qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-observability-device-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_DOGOS_CONNECTORS: 'true'
+      CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      OPS_METRICS_TOKEN: ci-only-ops-metrics-secret-0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Observability + Device Contracts v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Observability + Device formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/observability
+          apps/api/src/connectors/device-partner-contract.ts
+          apps/api/src/connectors/device-partner-contract.spec.ts
+          apps/api/src/connectors/connectors.service.ts
+          apps/api/src/connectors/connectors.service.spec.ts
+          apps/api/src/app.module.ts
+          apps/api/src/app.service.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/src/config/env.validation.spec.ts
+          .github/workflows/dogos-observability-device-ci.yml
+          docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md
+
+      - name: Lint Observability + Device API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/observability/**/*.ts'
+          src/connectors/device-partner-contract.ts
+          src/connectors/device-partner-contract.spec.ts
+          src/connectors/connectors.service.ts
+          src/connectors/connectors.service.spec.ts
+          src/app.module.ts
+          src/app.service.ts
+          src/config/env.validation.ts
+          src/config/env.validation.spec.ts
+
+      - name: Enforce real database readiness
+        run: |
+          if grep -EIn "database:[[:space:]]*['\"]connected['\"]" apps/api/src/app.service.ts apps/api/src/observability; then
+            echo 'Health endpoints cannot hard-code database readiness.'
+            exit 1
+          fi
+          grep -Fq '$queryRaw`SELECT 1`' apps/api/src/observability/observability.service.ts
+          grep -Fq 'ServiceUnavailableException' apps/api/src/observability/observability.service.ts
+
+      - name: Enforce identifier-free operational metrics
+        run: |
+          metrics='apps/api/src/observability/operational-metrics.service.ts'
+          interceptor='apps/api/src/observability/request-metrics.interceptor.ts'
+          if grep -EIn '\b(userId|petId|externalObjectId|externalPetId|accountId)\b|request\.(url|originalUrl|body|query|params)' "$metrics" "$interceptor"; then
+            echo 'Operational metrics cannot collect entity identifiers, request URLs, bodies, query strings, or route parameters.'
+            exit 1
+          fi
+          grep -Fq 'userIdentifiersCollected: false' "$metrics"
+          grep -Fq 'petIdentifiersCollected: false' "$metrics"
+          grep -Fq 'providerExternalIdentifiersCollected: false' "$metrics"
+          grep -Fq 'rawPayloadsCollected: false' "$metrics"
+          grep -Fq 'requestUrlsCollected: false' "$metrics"
+
+      - name: Enforce fail-closed protected metrics access
+        run: |
+          guard='apps/api/src/observability/ops-token.guard.ts'
+          grep -Fq "createHash('sha256')" "$guard"
+          grep -Fq 'timingSafeEqual' "$guard"
+          grep -Fq 'ServiceUnavailableException' "$guard"
+          grep -Fq 'x-woof-ops-token' "$guard"
+
+      - name: Enforce private wearable partner transport
+        run: |
+          controller='apps/api/src/connectors/connectors.controller.ts'
+          contract='apps/api/src/connectors/device-partner-contract.ts'
+          if grep -EIn 'ingestDevicePartner|ingestWearable|DevicePartnerEnvelope|import/wearable' "$controller"; then
+            echo 'Provider-originated wearable events must remain on verified internal transport seams.'
+            exit 1
+          fi
+          grep -Fq "woof-device-partner-v1" "$contract"
+          grep -Fq 'DEVICE_PARTNER_MAX_PAYLOAD_BYTES' "$contract"
+          grep -Fq 'containsLocationTelemetry' "$contract"
+          grep -Fq 'does not accept precise location telemetry' "$contract"
+
+      - name: Enforce canonical connector delegation
+        run: |
+          production_sources=$(find apps/api/src/connectors -type f -name '*.ts' ! -name '*.spec.ts' -print)
+          if grep -EIn '\.(pet|activity|careEvent|mediaAsset)\.(create|update|delete|upsert|createMany|updateMany|deleteMany)\b|\b(INSERT[[:space:]]+INTO|UPDATE|DELETE[[:space:]]+FROM)[[:space:]]+(public\.)?(pets|activities|care_events|media_assets)\b' $production_sources; then
+            echo 'Device transport must delegate canonical writes to existing domain importers.'
+            exit 1
+          fi
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run Observability contracts
+        run: pnpm --filter @woof/api exec jest src/observability --runInBand
+
+      - name: Run Device partner contract
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/connectors/device-partner-contract.spec.ts
+          src/connectors/connectors.service.spec.ts
+          --runInBand
+
+      - name: Run environment validation contracts
+        run: pnpm --filter @woof/api exec jest src/config/env.validation.spec.ts --runInBand
+
+      - name: Run Autopilot source-truth regression
+        run: pnpm --filter @woof/api exec jest src/autopilot/autopilot.service.spec.ts --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
