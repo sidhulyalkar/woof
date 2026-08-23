@@ -10,8 +10,16 @@ export default function CoachLayout({ children }: { children: ReactNode }) {
   const observing = pathname.startsWith('/coach/observe');
   const history = pathname.startsWith('/coach/observe/history');
   const shadow = pathname.startsWith('/coach/observe/shadow');
-  const primaryHref = observing ? (shadow ? '/coach/observe' : '/coach/observe/shadow') : '/coach/observe';
-  const primaryLabel = observing ? (shadow ? 'Observe behavior' : 'Shadow Lab') : 'Observe behavior';
+  const primaryHref = observing
+    ? shadow
+      ? '/coach/observe'
+      : '/coach/observe/shadow'
+    : '/coach/observe';
+  const primaryLabel = observing
+    ? shadow
+      ? 'Observe behavior'
+      : 'Shadow Lab'
+    : 'Observe behavior';
   const PrimaryIcon = observing && !shadow ? FlaskConical : Video;
 
   return (
