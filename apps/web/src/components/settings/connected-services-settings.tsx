@@ -15,7 +15,8 @@ export function ConnectedServicesSettings() {
   });
 
   const connected =
-    dashboard.data?.providers.filter((provider) => provider.availability === 'CONNECTED').length ?? 0;
+    dashboard.data?.providers.filter((provider) => provider.availability === 'CONNECTED').length ??
+    0;
   const needsAttention =
     dashboard.data?.providers.filter((provider) => provider.availability === 'REAUTH_REQUIRED')
       .length ?? 0;
@@ -33,7 +34,10 @@ export function ConnectedServicesSettings() {
         </p>
       </div>
 
-      <Link href="/connectors" className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Link
+        href="/connectors"
+        className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <Card className="surface-soft flex items-center gap-3 rounded-2xl p-4 transition hover:border-primary/30">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <PlugZap className="h-5 w-5" aria-hidden="true" />
