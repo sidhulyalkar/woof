@@ -12,6 +12,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { NudgesService } from '../nudges/nudges.service';
 import { ChatSecurityService } from './chat-security.service';
+import { RealtimeAdmissionService } from './realtime-admission.service';
 
 interface SendChatMessage {
   conversationId: string;
@@ -35,6 +36,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly chatSecurity: ChatSecurityService,
+    private readonly realtimeAdmission: RealtimeAdmissionService,
     private readonly nudgesService: NudgesService
   ) {}
 
@@ -68,6 +70,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendChatMessage) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const admission = this.realtimeAdmission.consume(userId, 'message');
+    if (!admission.allowed) {
+      return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
+    }
 
     try {
       const result = await this.chatSecurity.persistMessage({
@@ -115,6 +122,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
 
+    const admission = this.realtimeAdmission.consume(userId, 'membership');
+    if (!admission.allowed) {
+      return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
+    }
+
     try {
       await this.chatSecurity.assertConversationAccess(userId, data.conversationId);
       await client.join(`conversation:${data.conversationId}`);
@@ -131,6 +143,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const admission = this.realtimeAdmission.consume(userId, 'membership');
+    if (!admission.allowed) {
+      return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
+    }
 
     try {
       await this.chatSecurity.assertConversationAccess(userId, data.conversationId);
@@ -164,6 +181,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const admission = this.realtimeAdmission.consume(userId, 'typing');
+    if (!admission.allowed) {
+      return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
+    }
 
     try {
       await this.chatSecurity.withAuthorizedRealtimeRecipients(
