@@ -151,7 +151,7 @@ export class TrustSafetyService {
           ],
         },
         select: { id: true },
-      }),
+      })
     );
   }
 
