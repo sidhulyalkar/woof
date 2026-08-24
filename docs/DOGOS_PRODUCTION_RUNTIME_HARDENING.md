@@ -38,6 +38,7 @@ The image:
 - installs OpenSSL and Alpine compatibility libraries required by the Prisma native runtime;
 - builds from the committed lockfile;
 - generates the committed Prisma client before the API build;
+- preserves both the root pnpm store and the API package's `apps/api/node_modules` dependency-link graph so direct runtime dependencies resolve from the built entrypoint;
 - runs the final application and migration release command as the unprivileged `node` user;
 - gives that runtime user ownership of the copied workspace needed by the Prisma migration engine, rather than escalating the container back to root;
 - enables Node source maps for actionable stack traces;
@@ -46,6 +47,8 @@ The image:
 The runtime image intentionally keeps the database workspace and installed Prisma CLI for this release so the deployment release command can apply committed migrations. Image-size optimization is a separate concern and must not remove migration capability accidentally.
 
 The non-root migration contract is tested because Prisma may need package-local native-engine runtime state while resolving its migration binary. A production image that builds successfully but cannot execute `prisma migrate deploy` as its configured user is considered invalid.
+
+The package-level dependency graph is also tested directly. A pnpm image can contain the root `.pnpm` store yet still fail at process start if package-local symlinks were omitted; qualification therefore resolves a canonical Nest dependency from `/app/apps/api` before the image is allowed to boot.
 
 `.dockerignore` excludes local dependencies, build outputs, reports, logs, Git metadata, and environment files from the remote Docker build context.
 
@@ -89,8 +92,9 @@ The dedicated Production Runtime CI lane must remain read-only and prove one exa
 5. run focused runtime privacy and observability tests;
 6. build the API;
 7. build the production Dockerfile from the sanitized repository context;
-8. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
-9. boot that image against PostgreSQL as the configured runtime user;
-10. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
+8. prove package-local API dependencies resolve from the built image;
+9. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
+10. boot that image against PostgreSQL as the configured runtime user;
+11. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
 
 Diagnostic heads do not qualify a release.
