@@ -5,11 +5,43 @@ type StatusCarrier = {
   status?: unknown;
 };
 
+type PrivacySafeSentryEvent = {
+  request?: unknown;
+  user?: unknown;
+  extra?: unknown;
+  breadcrumbs?: unknown;
+  spans?: Array<{
+    data?: unknown;
+    description?: string;
+    op?: string;
+  }>;
+};
+
+export function scrubSentryEvent<T extends PrivacySafeSentryEvent>(event: T) {
+  delete event.request;
+  delete event.user;
+  delete event.extra;
+  delete event.breadcrumbs;
+  return event;
+}
+
+export function scrubSentryTransaction<T extends PrivacySafeSentryEvent>(event: T) {
+  scrubSentryEvent(event);
+  for (const span of event.spans ?? []) {
+    delete span.data;
+    if (span.description) {
+      span.description = span.op || 'operation';
+    }
+  }
+  return event;
+}
+
 export function initSentry() {
   if (process.env.SENTRY_DSN) {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.NODE_ENV || 'development',
+      sendDefaultPii: false,
       integrations: [
         nodeProfilingIntegration(),
         Sentry.prismaIntegration(),
@@ -30,7 +62,10 @@ export function initSentry() {
             return null;
           }
         }
-        return event;
+        return scrubSentryEvent(event);
+      },
+      beforeSendTransaction(event) {
+        return scrubSentryTransaction(event);
       },
     });
   }
