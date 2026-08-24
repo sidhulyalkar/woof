@@ -87,7 +87,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
 
       if (!result.duplicate) {
-        this.server.to(`conversation:${data.conversationId}`).emit('message:received', message);
+        await this.chatSecurity.withAuthorizedRealtimeRecipients(
+          data.conversationId,
+          (authorizedUserIds) => {
+            this.server.to(this.userRooms(authorizedUserIds)).emit('message:received', message);
+          }
+        );
         void this.nudgesService
           .checkChatActivityNudges(data.conversationId, userId)
           .catch((error) => {
@@ -161,12 +166,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!userId) return { success: false, error: 'unauthorized' };
 
     try {
-      await this.chatSecurity.assertConversationAccess(userId, conversationId);
-      client.to(`conversation:${conversationId}`).emit(event, { userId });
+      await this.chatSecurity.withAuthorizedRealtimeRecipients(
+        conversationId,
+        (authorizedUserIds) => {
+          this.server
+            .to(this.userRooms(authorizedUserIds))
+            .except(client.id)
+            .emit(event, { userId });
+        },
+        userId
+      );
       return { success: true };
     } catch {
       return { success: false, error: 'conversation_unavailable' };
     }
+  }
+
+  private userRooms(userIds: string[]) {
+    return userIds.map((userId) => `user:${userId}`);
   }
 
   private errorName(error: unknown) {
