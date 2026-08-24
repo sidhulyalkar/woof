@@ -1,0 +1,331 @@
+name: dogOS Realtime Abuse Control CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/chat.gateway.ts'
+      - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat.module.ts'
+      - 'apps/api/src/chat/realtime-admission.service.ts'
+      - 'apps/api/src/chat/realtime-admission.service.spec.ts'
+      - '.github/workflows/dogos-realtime-abuse-ci.yml'
+      - 'docs/DOGOS_REALTIME_ABUSE_CONTROL.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-realtime-abuse-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-realtime-abuse-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Authenticated socket admission + production image qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Realtime Abuse Control v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Realtime Abuse Control formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat.module.ts
+          apps/api/src/chat/realtime-admission.service.ts
+          apps/api/src/chat/realtime-admission.service.spec.ts
+          .github/workflows/dogos-realtime-abuse-ci.yml
+          docs/DOGOS_REALTIME_ABUSE_CONTROL.md
+
+      - name: Lint Realtime Abuse Control API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/chat/chat.gateway.ts
+          src/chat/chat.gateway.spec.ts
+          src/chat/chat.module.ts
+          src/chat/realtime-admission.service.ts
+          src/chat/realtime-admission.service.spec.ts
+
+      - name: Enforce bounded authenticated admission before chat work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          limiter = Path('apps/api/src/chat/realtime-admission.service.ts').read_text()
+          module = Path('apps/api/src/chat/chat.module.ts').read_text()
+
+          required_limiter = [
+              "export type RealtimeAction = 'message' | 'typing' | 'membership'",
+              'MAX_REALTIME_BUCKETS = 10_000',
+              'PRUNE_INTERVAL = 256',
+              'this.pruneExpired(now)',
+              'this.ensureCapacity(now)',
+              'const key = `${action}:${userId}`',
+          ]
+          missing = [token for token in required_limiter if token not in limiter]
+          if missing:
+              raise SystemExit(f'missing bounded realtime admission invariant: {missing}')
+
+          if 'RealtimeAdmissionService' not in module:
+              raise SystemExit('ChatModule must own the realtime admission singleton')
+          if 'socket.id' in limiter or 'client.id' in limiter:
+              raise SystemExit('rate identity must be the authenticated user, never the socket id')
+
+          message_start = gateway.index("@SubscribeMessage('message:send')")
+          join_start = gateway.index("@SubscribeMessage('conversation:join')")
+          leave_start = gateway.index("@SubscribeMessage('conversation:leave')")
+          typing_start = gateway.index("@SubscribeMessage('typing:start')")
+          typing_impl = gateway.index('private async emitTyping')
+
+          message = gateway[message_start:join_start]
+          join = gateway[join_start:leave_start]
+          leave = gateway[leave_start:typing_start]
+          typing = gateway[typing_impl:]
+
+          checks = [
+              ('message', message, "realtimeAdmission.consume(userId, 'message')", 'chatSecurity.persistMessage'),
+              ('join', join, "realtimeAdmission.consume(userId, 'membership')", 'chatSecurity.assertConversationAccess'),
+              ('leave', leave, "realtimeAdmission.consume(userId, 'membership')", 'chatSecurity.assertConversationAccess'),
+              ('typing', typing, "realtimeAdmission.consume(userId, 'typing')", 'chatSecurity.withAuthorizedRealtimeRecipients'),
+          ]
+          for label, handler, admission_call, expensive_call in checks:
+              identity = handler.find('connectedUsers.get(client.id)')
+              admission = handler.find(admission_call)
+              expensive = handler.find(expensive_call)
+              denial = handler.find("error: 'rate_limited'")
+              if min(identity, admission, expensive, denial) < 0:
+                  raise SystemExit(f'{label} handler is missing an admission invariant')
+              if not identity < admission < denial < expensive:
+                  raise SystemExit(f'{label} must authenticate, admit, deny if needed, then perform chat work')
+
+          disconnect_start = gateway.index('handleDisconnect')
+          message_start = gateway.index("@SubscribeMessage('message:send')")
+          disconnect = gateway[disconnect_start:message_start]
+          if 'realtimeAdmission' in disconnect:
+              raise SystemExit('disconnect must not reset authenticated-user admission state')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run realtime admission and gateway contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/realtime-admission.service.spec.ts
+          src/chat/chat.gateway.spec.ts
+          src/chat/chat-security.service.spec.ts
+
+      - name: Run existing PostgreSQL authorization race regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-realtime-authorization.integration.spec.ts
+          src/chat/chat-block-atomicity.integration.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-realtime-abuse:ci .
+
+      - name: Boot production image
+        run: |
+          docker rm -f woof-api-realtime-abuse-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-realtime-abuse-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            woof-api-realtime-abuse:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/realtime-live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-realtime-abuse-ci; then
+              echo "Production image exited before liveness; status=$status"
+              cat /tmp/realtime-live.json 2>/dev/null || true
+              docker logs woof-api-realtime-abuse-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-realtime-abuse-ci || true
+            exit 1
+          fi
+
+      - name: Prove authenticated Socket.IO flood admission and reconnect retention
+        run: |
+          pnpm --filter @woof/web exec node <<'NODE'
+          const crypto = require('node:crypto');
+          const { io } = require('socket.io-client');
+
+          const secret = process.env.JWT_SECRET;
+          if (!secret) throw new Error('JWT_SECRET is required');
+
+          function jwt(sub) {
+            const now = Math.floor(Date.now() / 1000);
+            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+            const header = encode({ alg: 'HS256', typ: 'JWT' });
+            const payload = encode({ sub, iat: now, exp: now + 300 });
+            const unsigned = `${header}.${payload}`;
+            const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+            return `${unsigned}.${signature}`;
+          }
+
+          function connect(sub) {
+            return new Promise((resolve, reject) => {
+              const socket = io('http://127.0.0.1:4000', {
+                auth: { token: jwt(sub) },
+                transports: ['websocket'],
+                reconnection: false,
+                timeout: 4_000,
+              });
+              socket.once('connect', () => resolve(socket));
+              socket.once('connect_error', reject);
+            });
+          }
+
+          function ack(socket, event, payload) {
+            return new Promise((resolve, reject) => {
+              socket.timeout(4_000).emit(event, payload, (error, response) => {
+                if (error) reject(error);
+                else resolve(response);
+              });
+            });
+          }
+
+          function expectRateLimited(response, label) {
+            if (!response || response.success !== false || response.error !== 'rate_limited') {
+              throw new Error(`${label} expected rate_limited, got ${JSON.stringify(response)}`);
+            }
+            if (!Number.isFinite(response.retryAfterMs) || response.retryAfterMs <= 0) {
+              throw new Error(`${label} must include a positive retryAfterMs`);
+            }
+          }
+
+          (async () => {
+            const userOne = await connect('socket-abuse-user-1');
+
+            for (let index = 0; index < 5; index += 1) {
+              userOne.emit('message:send', {
+                conversationId: 'missing-conversation',
+                clientMessageId: `flood-message-${index}`,
+                text: 'flood probe',
+              });
+            }
+            const messageDenied = await ack(userOne, 'message:send', {
+              conversationId: 'missing-conversation',
+              clientMessageId: 'flood-message-denied',
+              text: 'flood probe',
+            });
+            expectRateLimited(messageDenied, 'message flood');
+
+            userOne.disconnect();
+            const reconnected = await connect('socket-abuse-user-1');
+            const reconnectDenied = await ack(reconnected, 'message:send', {
+              conversationId: 'missing-conversation',
+              clientMessageId: 'reconnect-message-denied',
+              text: 'reconnect probe',
+            });
+            expectRateLimited(reconnectDenied, 'reconnect flood');
+
+            for (let index = 0; index < 8; index += 1) {
+              reconnected.emit('typing:start', { conversationId: 'missing-conversation' });
+            }
+            const typingDenied = await ack(reconnected, 'typing:start', {
+              conversationId: 'missing-conversation',
+            });
+            expectRateLimited(typingDenied, 'typing flood');
+
+            for (let index = 0; index < 10; index += 1) {
+              reconnected.emit('conversation:join', { conversationId: 'missing-conversation' });
+            }
+            const membershipDenied = await ack(reconnected, 'conversation:join', {
+              conversationId: 'missing-conversation',
+            });
+            expectRateLimited(membershipDenied, 'membership flood');
+
+            const userTwo = await connect('socket-abuse-user-2');
+            const independent = await ack(userTwo, 'message:send', {
+              conversationId: 'missing-conversation',
+              clientMessageId: 'independent-user-message',
+              text: 'independent probe',
+            });
+            if (!independent || independent.error === 'rate_limited') {
+              throw new Error(`distinct user must have an independent bucket: ${JSON.stringify(independent)}`);
+            }
+
+            userTwo.disconnect();
+            reconnected.disconnect();
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Stop production image
+        if: always()
+        run: docker rm -f woof-api-realtime-abuse-ci >/dev/null 2>&1 || true

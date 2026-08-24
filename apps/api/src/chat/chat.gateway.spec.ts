@@ -11,6 +11,9 @@ describe('ChatGateway realtime authorization', () => {
       assertConversationAccess: jest.fn(),
       withAuthorizedRealtimeRecipients: jest.fn(),
     };
+    const realtimeAdmission = {
+      consume: jest.fn().mockReturnValue({ allowed: true }),
+    };
     const nudgesService = {
       checkChatActivityNudges: jest.fn().mockResolvedValue({ created: false }),
     };
@@ -20,6 +23,7 @@ describe('ChatGateway realtime authorization', () => {
     const gateway = new ChatGateway(
       jwtService as never,
       chatSecurity as never,
+      realtimeAdmission as never,
       nudgesService as never
     );
     gateway.server = { to } as never;
@@ -37,6 +41,7 @@ describe('ChatGateway realtime authorization', () => {
       client,
       jwtService,
       chatSecurity,
+      realtimeAdmission,
       nudgesService,
       emit,
       except,
@@ -45,7 +50,7 @@ describe('ChatGateway realtime authorization', () => {
   }
 
   it('delivers persisted messages only through authorized private user rooms', async () => {
-    const { gateway, client, chatSecurity, to, emit } = build();
+    const { gateway, client, chatSecurity, realtimeAdmission, to, emit } = build();
     await gateway.handleConnection(client as never);
 
     const createdAt = new Date('2026-08-24T04:00:00.000Z');
@@ -75,6 +80,7 @@ describe('ChatGateway realtime authorization', () => {
       })
     ).resolves.toMatchObject({ success: true, duplicate: false });
 
+    expect(realtimeAdmission.consume).toHaveBeenCalledWith('user-1', 'message');
     expect(chatSecurity.withAuthorizedRealtimeRecipients).toHaveBeenCalledWith(
       'conversation-1',
       expect.any(Function)
@@ -97,8 +103,25 @@ describe('ChatGateway realtime authorization', () => {
     ).toBe(false);
   });
 
+  it('rejects message floods before persistence work begins', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission } = build();
+    await gateway.handleConnection(client as never);
+    realtimeAdmission.consume.mockReturnValueOnce({ allowed: false, retryAfterMs: 750 });
+
+    await expect(
+      gateway.handleMessage(client as never, {
+        conversationId: 'conversation-1',
+        clientMessageId: 'client-message-123',
+        text: 'hello',
+      })
+    ).resolves.toEqual({ success: false, error: 'rate_limited', retryAfterMs: 750 });
+
+    expect(chatSecurity.persistMessage).not.toHaveBeenCalled();
+    expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
+  });
+
   it('requires the typing actor to remain authorized and excludes only the current socket', async () => {
-    const { gateway, client, chatSecurity, to, except, emit } = build();
+    const { gateway, client, chatSecurity, realtimeAdmission, to, except, emit } = build();
     await gateway.handleConnection(client as never);
 
     chatSecurity.withAuthorizedRealtimeRecipients.mockImplementation(
@@ -117,9 +140,37 @@ describe('ChatGateway realtime authorization', () => {
       gateway.handleTypingStart(client as never, { conversationId: 'conversation-1' })
     ).resolves.toEqual({ success: true });
 
+    expect(realtimeAdmission.consume).toHaveBeenCalledWith('user-1', 'typing');
     expect(to).toHaveBeenCalledWith(['user:user-1', 'user:user-2', 'user:user-3']);
     expect(except).toHaveBeenCalledWith('socket-1');
     expect(emit).toHaveBeenCalledWith('typing:start', { userId: 'user-1' });
+  });
+
+  it('rejects typing floods before relationship authorization work begins', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission, to } = build();
+    await gateway.handleConnection(client as never);
+    realtimeAdmission.consume.mockReturnValueOnce({ allowed: false, retryAfterMs: 500 });
+
+    await expect(
+      gateway.handleTypingStart(client as never, { conversationId: 'conversation-1' })
+    ).resolves.toEqual({ success: false, error: 'rate_limited', retryAfterMs: 500 });
+
+    expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
+    expect(to).not.toHaveBeenCalled();
+  });
+
+  it('rate-limits room membership churn before access checks', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission } = build();
+    await gateway.handleConnection(client as never);
+    client.join.mockClear();
+    realtimeAdmission.consume.mockReturnValueOnce({ allowed: false, retryAfterMs: 400 });
+
+    await expect(
+      gateway.handleJoinConversation(client as never, { conversationId: 'conversation-1' })
+    ).resolves.toEqual({ success: false, error: 'rate_limited', retryAfterMs: 400 });
+
+    expect(chatSecurity.assertConversationAccess).not.toHaveBeenCalled();
+    expect(client.join).not.toHaveBeenCalled();
   });
 
   it('does not emit typing after relationship authorization is revoked', async () => {
