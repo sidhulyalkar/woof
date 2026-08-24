@@ -63,12 +63,7 @@ export class ChatSecurityService {
 
     try {
       const message = await this.prisma.$transaction(async (tx) => {
-        await this.assertConversationAccessWithClient(
-          tx,
-          input.userId,
-          input.conversationId,
-          true
-        );
+        await this.assertConversationAccessWithClient(tx, input.userId, input.conversationId, true);
 
         const receiptRows = await tx.$queryRaw<MessageReceiptRow[]>(Prisma.sql`
           SELECT message_id, conversation_id
