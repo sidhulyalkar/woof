@@ -5,9 +5,12 @@ import {
   acquireParticipantRelationshipLocks,
   acquireRelationshipLocks,
 } from '../trust-safety/relationship-lock';
-
-const MAX_MESSAGE_LENGTH = 4_000;
-const CLIENT_MESSAGE_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
+import {
+  isChatIdentifier,
+  isClientMessageId,
+  MAX_CHAT_MESSAGE_LENGTH,
+  normalizeChatMessageText,
+} from './chat-input-contract';
 
 class DuplicateReceiptRaceError extends Error {}
 
@@ -96,18 +99,28 @@ export class ChatSecurityService {
     clientMessageId: string;
     text: string;
   }): Promise<{ message: PersistedChatMessage; duplicate: boolean }> {
-    await this.assertConversationAccess(input.userId, input.conversationId);
-
-    const text = input.text.trim();
-    if (!text) throw new BadRequestException('Message text is required');
-    if (text.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(
-        `Message text must be ${MAX_MESSAGE_LENGTH} characters or fewer`
-      );
+    if (!isChatIdentifier(input.conversationId)) {
+      throw new BadRequestException('conversationId is invalid');
     }
-    if (!CLIENT_MESSAGE_ID_PATTERN.test(input.clientMessageId)) {
+    if (!isClientMessageId(input.clientMessageId)) {
       throw new BadRequestException('clientMessageId is invalid');
     }
+    if (typeof input.text !== 'string') {
+      throw new BadRequestException('Message text is required');
+    }
+    if (input.text.length > MAX_CHAT_MESSAGE_LENGTH) {
+      throw new BadRequestException(
+        `Message text must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer`
+      );
+    }
+    if (input.text.includes('\u0000')) {
+      throw new BadRequestException('Message text is invalid');
+    }
+
+    const text = normalizeChatMessageText(input.text);
+    if (!text) throw new BadRequestException('Message text is required');
+
+    await this.assertConversationAccess(input.userId, input.conversationId);
 
     const existing = await this.getReceipt(input.userId, input.clientMessageId);
     if (existing) {

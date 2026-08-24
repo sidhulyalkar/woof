@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { MAX_CHAT_MESSAGE_LENGTH } from './chat-input-contract';
 import { ChatGateway } from './chat.gateway';
 
 describe('ChatGateway realtime authorization', () => {
@@ -76,11 +77,17 @@ describe('ChatGateway realtime authorization', () => {
       gateway.handleMessage(client as never, {
         conversationId: 'conversation-1',
         clientMessageId: 'client-message-123',
-        text: 'hello',
+        text: '  hello  ',
       })
     ).resolves.toMatchObject({ success: true, duplicate: false });
 
     expect(realtimeAdmission.consume).toHaveBeenCalledWith('user-1', 'message');
+    expect(chatSecurity.persistMessage).toHaveBeenCalledWith({
+      userId: 'user-1',
+      conversationId: 'conversation-1',
+      clientMessageId: 'client-message-123',
+      text: 'hello',
+    });
     expect(chatSecurity.withAuthorizedRealtimeRecipients).toHaveBeenCalledWith(
       'conversation-1',
       expect.any(Function)
@@ -101,6 +108,34 @@ describe('ChatGateway realtime authorization', () => {
           : String(rooms).startsWith('conversation:')
       )
     ).toBe(false);
+  });
+
+  it('rejects malformed messages before admission or persistence work begins', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission } = build();
+    await gateway.handleConnection(client as never);
+
+    const invalidPayloads = [
+      null,
+      [],
+      { conversationId: 'bad id', clientMessageId: 'client-message-123', text: 'hello' },
+      { conversationId: 'conversation-1', clientMessageId: 'short', text: 'hello' },
+      {
+        conversationId: 'conversation-1',
+        clientMessageId: 'client-message-123',
+        text: 'x'.repeat(MAX_CHAT_MESSAGE_LENGTH + 1),
+      },
+    ];
+
+    for (const payload of invalidPayloads) {
+      await expect(gateway.handleMessage(client as never, payload)).resolves.toEqual({
+        success: false,
+        error: 'invalid_payload',
+      });
+    }
+
+    expect(realtimeAdmission.consume).not.toHaveBeenCalled();
+    expect(chatSecurity.persistMessage).not.toHaveBeenCalled();
+    expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
   });
 
   it('rejects message floods before persistence work begins', async () => {
@@ -146,6 +181,20 @@ describe('ChatGateway realtime authorization', () => {
     expect(emit).toHaveBeenCalledWith('typing:start', { userId: 'user-1' });
   });
 
+  it('rejects malformed typing payloads before admission or relationship work', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission, to } = build();
+    await gateway.handleConnection(client as never);
+
+    await expect(gateway.handleTypingStart(client as never, null)).resolves.toEqual({
+      success: false,
+      error: 'invalid_payload',
+    });
+
+    expect(realtimeAdmission.consume).not.toHaveBeenCalled();
+    expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
+    expect(to).not.toHaveBeenCalled();
+  });
+
   it('rejects typing floods before relationship authorization work begins', async () => {
     const { gateway, client, chatSecurity, realtimeAdmission, to } = build();
     await gateway.handleConnection(client as never);
@@ -157,6 +206,20 @@ describe('ChatGateway realtime authorization', () => {
 
     expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
     expect(to).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed membership payloads before admission or access checks', async () => {
+    const { gateway, client, chatSecurity, realtimeAdmission } = build();
+    await gateway.handleConnection(client as never);
+    client.join.mockClear();
+
+    await expect(
+      gateway.handleJoinConversation(client as never, { conversationId: 'bad id' })
+    ).resolves.toEqual({ success: false, error: 'invalid_payload' });
+
+    expect(realtimeAdmission.consume).not.toHaveBeenCalled();
+    expect(chatSecurity.assertConversationAccess).not.toHaveBeenCalled();
+    expect(client.join).not.toHaveBeenCalled();
   });
 
   it('rate-limits room membership churn before access checks', async () => {

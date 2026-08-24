@@ -1,0 +1,374 @@
+name: dogOS Realtime Payload Integrity CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/chat-input-contract.ts'
+      - 'apps/api/src/chat/chat-input-contract.spec.ts'
+      - 'apps/api/src/chat/chat.gateway.ts'
+      - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-security.service.ts'
+      - 'apps/api/src/chat/chat-security.service.spec.ts'
+      - '.github/workflows/dogos-realtime-payload-integrity-ci.yml'
+      - 'docs/DOGOS_REALTIME_PAYLOAD_INTEGRITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-realtime-payload-integrity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-realtime-payload-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Runtime payload boundary + production image qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Realtime Payload Integrity v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Realtime Payload Integrity formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/chat/chat-input-contract.ts
+          apps/api/src/chat/chat-input-contract.spec.ts
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-security.service.ts
+          apps/api/src/chat/chat-security.service.spec.ts
+          .github/workflows/dogos-realtime-payload-integrity-ci.yml
+          docs/DOGOS_REALTIME_PAYLOAD_INTEGRITY.md
+
+      - name: Lint Realtime Payload Integrity API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/chat/chat-input-contract.ts
+          src/chat/chat-input-contract.spec.ts
+          src/chat/chat.gateway.ts
+          src/chat/chat.gateway.spec.ts
+          src/chat/chat-security.service.ts
+          src/chat/chat-security.service.spec.ts
+
+      - name: Enforce validation before admission and chat work
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          contract = Path('apps/api/src/chat/chat-input-contract.ts').read_text()
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          security = Path('apps/api/src/chat/chat-security.service.ts').read_text()
+
+          required_contract = [
+              'MAX_CHAT_MESSAGE_LENGTH = 4_000',
+              'MAX_CHAT_IDENTIFIER_LENGTH = 128',
+              'MAX_REALTIME_PACKET_BYTES = 32 * 1024',
+              'parseSendChatMessagePayload',
+              'parseConversationPayload',
+              'normalizeChatMessageText',
+              "value.includes('\\u0000')",
+          ]
+          missing = [token for token in required_contract if token not in contract]
+          if missing:
+              raise SystemExit(f'missing realtime input contract: {missing}')
+
+          if 'maxHttpBufferSize: MAX_REALTIME_PACKET_BYTES' not in gateway:
+              raise SystemExit('Socket.IO must enforce the bounded packet ceiling')
+          if 'data.conversationId' in gateway:
+              raise SystemExit('gateway must never dereference unvalidated message-body shapes directly')
+
+          message_start = gateway.index("@SubscribeMessage('message:send')")
+          join_start = gateway.index("@SubscribeMessage('conversation:join')")
+          leave_start = gateway.index("@SubscribeMessage('conversation:leave')")
+          typing_start = gateway.index("@SubscribeMessage('typing:start')")
+          typing_impl = gateway.index('private async emitTyping')
+
+          message = gateway[message_start:join_start]
+          join = gateway[join_start:leave_start]
+          leave = gateway[leave_start:typing_start]
+          typing = gateway[typing_impl:]
+
+          checks = [
+              (
+                  'message',
+                  message,
+                  'parseSendChatMessagePayload(data)',
+                  "realtimeAdmission.consume(userId, 'message')",
+                  'chatSecurity.persistMessage',
+              ),
+              (
+                  'join',
+                  join,
+                  'parseConversationPayload(data)',
+                  "realtimeAdmission.consume(userId, 'membership')",
+                  'chatSecurity.assertConversationAccess',
+              ),
+              (
+                  'leave',
+                  leave,
+                  'parseConversationPayload(data)',
+                  "realtimeAdmission.consume(userId, 'membership')",
+                  'chatSecurity.assertConversationAccess',
+              ),
+              (
+                  'typing',
+                  typing,
+                  'parseConversationPayload(data)',
+                  "realtimeAdmission.consume(userId, 'typing')",
+                  'chatSecurity.withAuthorizedRealtimeRecipients',
+              ),
+          ]
+          for label, handler, parser, admission_call, expensive_call in checks:
+              identity = handler.find('connectedUsers.get(client.id)')
+              parsed = handler.find(parser)
+              invalid = handler.find("error: 'invalid_payload'")
+              admission = handler.find(admission_call)
+              expensive = handler.find(expensive_call)
+              if min(identity, parsed, invalid, admission, expensive) < 0:
+                  raise SystemExit(f'{label} handler is missing a payload-ordering invariant')
+              if not identity < parsed < invalid < admission < expensive:
+                  raise SystemExit(
+                      f'{label} must authenticate, validate, reject invalid input, admit, then perform chat work'
+                  )
+
+          persist_start = security.index('async persistMessage')
+          access = security.index('await this.assertConversationAccess', persist_start)
+          validation_tokens = [
+              'isChatIdentifier(input.conversationId)',
+              'isClientMessageId(input.clientMessageId)',
+              'input.text.length > MAX_CHAT_MESSAGE_LENGTH',
+              "input.text.includes('\\u0000')",
+              'normalizeChatMessageText(input.text)',
+          ]
+          for token in validation_tokens:
+              location = security.find(token, persist_start, access)
+              if location < 0:
+                  raise SystemExit(f'persistMessage must validate before its first database read: {token}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run payload, gateway, persistence, and admission contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-input-contract.spec.ts
+          src/chat/chat.gateway.spec.ts
+          src/chat/chat-security.service.spec.ts
+          src/chat/realtime-admission.service.spec.ts
+
+      - name: Run existing PostgreSQL authorization race regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-realtime-authorization.integration.spec.ts
+          src/chat/chat-block-atomicity.integration.spec.ts
+          src/chat/chat.service.integration.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-realtime-payload:ci .
+
+      - name: Boot production image
+        run: |
+          docker rm -f woof-api-realtime-payload-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-realtime-payload-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            woof-api-realtime-payload:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/realtime-payload-live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-realtime-payload-ci; then
+              echo "Production image exited before liveness; status=$status"
+              cat /tmp/realtime-payload-live.json 2>/dev/null || true
+              docker logs woof-api-realtime-payload-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-realtime-payload-ci || true
+            exit 1
+          fi
+
+      - name: Prove malformed payload rejection and transport ceiling
+        run: |
+          pnpm --filter @woof/web exec node <<'NODE'
+          const crypto = require('node:crypto');
+          const { io } = require('socket.io-client');
+
+          const secret = process.env.JWT_SECRET;
+          if (!secret) throw new Error('JWT_SECRET is required');
+
+          function jwt(sub) {
+            const now = Math.floor(Date.now() / 1000);
+            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+            const header = encode({ alg: 'HS256', typ: 'JWT' });
+            const payload = encode({ sub, iat: now, exp: now + 300 });
+            const unsigned = `${header}.${payload}`;
+            const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+            return `${unsigned}.${signature}`;
+          }
+
+          function connect(sub) {
+            return new Promise((resolve, reject) => {
+              const socket = io('http://127.0.0.1:4000', {
+                auth: { token: jwt(sub) },
+                transports: ['websocket'],
+                reconnection: false,
+                timeout: 4_000,
+              });
+              socket.once('connect', () => resolve(socket));
+              socket.once('connect_error', reject);
+            });
+          }
+
+          function ack(socket, event, payload) {
+            return new Promise((resolve, reject) => {
+              socket.timeout(4_000).emit(event, payload, (error, response) => {
+                if (error) reject(error);
+                else resolve(response);
+              });
+            });
+          }
+
+          function expectInvalid(response, label) {
+            if (!response || response.success !== false || response.error !== 'invalid_payload') {
+              throw new Error(`${label} expected invalid_payload, got ${JSON.stringify(response)}`);
+            }
+          }
+
+          (async () => {
+            const socket = await connect('socket-payload-user-1');
+
+            expectInvalid(await ack(socket, 'message:send', null), 'null message');
+            expectInvalid(
+              await ack(socket, 'message:send', {
+                conversationId: 'conversation-1',
+                clientMessageId: 'short',
+                text: 'hello',
+              }),
+              'short retry id'
+            );
+            expectInvalid(
+              await ack(socket, 'message:send', {
+                conversationId: 'conversation-1',
+                clientMessageId: 'client-message-oversized',
+                text: 'x'.repeat(4_001),
+              }),
+              'oversized text'
+            );
+            expectInvalid(await ack(socket, 'typing:start', null), 'null typing');
+            expectInvalid(
+              await ack(socket, 'conversation:join', { conversationId: 'bad id' }),
+              'malformed membership id'
+            );
+
+            for (let index = 0; index < 10; index += 1) {
+              expectInvalid(await ack(socket, 'message:send', null), `invalid message ${index}`);
+            }
+
+            const ordinary = await ack(socket, 'message:send', {
+              conversationId: 'missing-conversation',
+              clientMessageId: 'client-message-after-invalids',
+              text: 'ordinary bounded payload',
+            });
+            if (!ordinary || ordinary.error !== 'message_rejected') {
+              throw new Error(
+                `invalid payloads must not consume admission budget; got ${JSON.stringify(ordinary)}`
+              );
+            }
+            socket.disconnect();
+
+            const oversized = await connect('socket-payload-user-2');
+            const disconnected = new Promise((resolve, reject) => {
+              const timer = setTimeout(
+                () => reject(new Error('over-ceiling Socket.IO frame did not disconnect')),
+                4_000
+              );
+              oversized.once('disconnect', (reason) => {
+                clearTimeout(timer);
+                resolve(reason);
+              });
+            });
+
+            oversized.emit('typing:start', { conversationId: 'x'.repeat(40_000) });
+            await disconnected;
+            if (oversized.connected) {
+              throw new Error('over-ceiling Socket.IO frame must leave the socket disconnected');
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Stop production image
+        if: always()
+        run: docker rm -f woof-api-realtime-payload-ci >/dev/null 2>&1 || true

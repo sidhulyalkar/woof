@@ -11,16 +11,16 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { NudgesService } from '../nudges/nudges.service';
+import {
+  MAX_REALTIME_PACKET_BYTES,
+  parseConversationPayload,
+  parseSendChatMessagePayload,
+} from './chat-input-contract';
 import { ChatSecurityService } from './chat-security.service';
 import { RealtimeAdmissionService } from './realtime-admission.service';
 
-interface SendChatMessage {
-  conversationId: string;
-  clientMessageId: string;
-  text: string;
-}
-
 @WebSocketGateway({
+  maxHttpBufferSize: MAX_REALTIME_PACKET_BYTES,
   cors: {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
     credentials: true,
@@ -67,9 +67,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('message:send')
-  async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendChatMessage) {
+  async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() data: unknown) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const payload = parseSendChatMessagePayload(data);
+    if (!payload) return { success: false, error: 'invalid_payload' };
 
     const admission = this.realtimeAdmission.consume(userId, 'message');
     if (!admission.allowed) {
@@ -77,12 +80,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      const result = await this.chatSecurity.persistMessage({
-        userId,
-        conversationId: data.conversationId,
-        clientMessageId: data.clientMessageId,
-        text: data.text,
-      });
+      const result = await this.chatSecurity.persistMessage({ userId, ...payload });
 
       const message = {
         id: result.message.id,
@@ -95,13 +93,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!result.duplicate) {
         await this.chatSecurity.withAuthorizedRealtimeRecipients(
-          data.conversationId,
+          payload.conversationId,
           (authorizedUserIds) => {
             this.server.to(this.userRooms(authorizedUserIds)).emit('message:received', message);
           }
         );
         void this.nudgesService
-          .checkChatActivityNudges(data.conversationId, userId)
+          .checkChatActivityNudges(payload.conversationId, userId)
           .catch((error) => {
             this.logger.warn(`Chat nudge check failed: ${this.errorName(error)}`);
           });
@@ -115,12 +113,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('conversation:join')
-  async handleJoinConversation(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string }
-  ) {
+  async handleJoinConversation(@ConnectedSocket() client: Socket, @MessageBody() data: unknown) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const payload = parseConversationPayload(data);
+    if (!payload) return { success: false, error: 'invalid_payload' };
 
     const admission = this.realtimeAdmission.consume(userId, 'membership');
     if (!admission.allowed) {
@@ -128,8 +126,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      await this.chatSecurity.assertConversationAccess(userId, data.conversationId);
-      await client.join(`conversation:${data.conversationId}`);
+      await this.chatSecurity.assertConversationAccess(userId, payload.conversationId);
+      await client.join(`conversation:${payload.conversationId}`);
       return { success: true };
     } catch {
       return { success: false, error: 'conversation_unavailable' };
@@ -137,12 +135,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('conversation:leave')
-  async handleLeaveConversation(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string }
-  ) {
+  async handleLeaveConversation(@ConnectedSocket() client: Socket, @MessageBody() data: unknown) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const payload = parseConversationPayload(data);
+    if (!payload) return { success: false, error: 'invalid_payload' };
 
     const admission = this.realtimeAdmission.consume(userId, 'membership');
     if (!admission.allowed) {
@@ -150,8 +148,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      await this.chatSecurity.assertConversationAccess(userId, data.conversationId);
-      await client.leave(`conversation:${data.conversationId}`);
+      await this.chatSecurity.assertConversationAccess(userId, payload.conversationId);
+      await client.leave(`conversation:${payload.conversationId}`);
       return { success: true };
     } catch {
       return { success: false, error: 'conversation_unavailable' };
@@ -159,28 +157,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('typing:start')
-  async handleTypingStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string }
-  ) {
-    return this.emitTyping(client, data.conversationId, 'typing:start');
+  async handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() data: unknown) {
+    return this.emitTyping(client, data, 'typing:start');
   }
 
   @SubscribeMessage('typing:stop')
-  async handleTypingStop(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: string }
-  ) {
-    return this.emitTyping(client, data.conversationId, 'typing:stop');
+  async handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() data: unknown) {
+    return this.emitTyping(client, data, 'typing:stop');
   }
 
-  private async emitTyping(
-    client: Socket,
-    conversationId: string,
-    event: 'typing:start' | 'typing:stop'
-  ) {
+  private async emitTyping(client: Socket, data: unknown, event: 'typing:start' | 'typing:stop') {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { success: false, error: 'unauthorized' };
+
+    const payload = parseConversationPayload(data);
+    if (!payload) return { success: false, error: 'invalid_payload' };
 
     const admission = this.realtimeAdmission.consume(userId, 'typing');
     if (!admission.allowed) {
@@ -189,7 +180,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       await this.chatSecurity.withAuthorizedRealtimeRecipients(
-        conversationId,
+        payload.conversationId,
         (authorizedUserIds) => {
           this.server
             .to(this.userRooms(authorizedUserIds))

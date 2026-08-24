@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { MAX_CHAT_MESSAGE_LENGTH } from './chat-input-contract';
 import { ChatSecurityService } from './chat-security.service';
 
 describe('ChatSecurityService', () => {
@@ -154,19 +155,62 @@ describe('ChatSecurityService', () => {
     expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
-  it('rejects empty text before any message persistence transaction begins', async () => {
-    const { prisma, service } = build();
-    prisma.conversationParticipant.findUnique.mockResolvedValue(participant());
-    prisma.blockedUser.findFirst.mockResolvedValue(null);
-
-    await expect(
-      service.persistMessage({
+  it.each([
+    [
+      'empty text',
+      {
         userId: 'user-1',
         conversationId: 'conversation-1',
         clientMessageId: 'client-message-123',
         text: '   ',
-      })
-    ).rejects.toBeInstanceOf(BadRequestException);
+      },
+    ],
+    [
+      'oversized raw text',
+      {
+        userId: 'user-1',
+        conversationId: 'conversation-1',
+        clientMessageId: 'client-message-123',
+        text: 'x'.repeat(MAX_CHAT_MESSAGE_LENGTH + 1),
+      },
+    ],
+    [
+      'a malformed conversation id',
+      {
+        userId: 'user-1',
+        conversationId: 'bad id',
+        clientMessageId: 'client-message-123',
+        text: 'hello',
+      },
+    ],
+    [
+      'a malformed client retry id',
+      {
+        userId: 'user-1',
+        conversationId: 'conversation-1',
+        clientMessageId: 'short',
+        text: 'hello',
+      },
+    ],
+    [
+      'PostgreSQL-incompatible NUL text',
+      {
+        userId: 'user-1',
+        conversationId: 'conversation-1',
+        clientMessageId: 'client-message-123',
+        text: 'hello\u0000world',
+      },
+    ],
+  ])('rejects %s before any database work begins', async (_label, input) => {
+    const { prisma, service } = build();
+
+    await expect(service.persistMessage(input)).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.conversationParticipant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.blockedUser.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.message.findUnique).not.toHaveBeenCalled();
+    expect(prisma.message.create).not.toHaveBeenCalled();
   });
 });
