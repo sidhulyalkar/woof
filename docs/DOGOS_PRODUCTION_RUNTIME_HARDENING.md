@@ -50,6 +50,10 @@ The non-root migration contract is tested because Prisma may need package-local 
 
 The package-level dependency graph is also tested directly. A pnpm image can contain the root `.pnpm` store yet still fail at process start if package-local symlinks were omitted; qualification therefore resolves a canonical Nest dependency from `/app/apps/api` before the image is allowed to boot.
 
+`@woof/database` is a Node runtime package, not a frontend source package. Its executable package entry is plain JavaScript while its TypeScript surface is an explicit declaration file. Raw `.ts` or `.tsx` must never be the package's Node `main`, `require`, or default export target. This preserves zero-build local/test resolution while ensuring the same workspace link can execute under plain production Node.
+
+Qualification requires the database package from inside the built image before boot and rejects a TypeScript-resolving entry. This prevents a bundle from appearing healthy while an externalized workspace dependency still points at source syntax that Node cannot parse.
+
 `.dockerignore` excludes local dependencies, build outputs, reports, logs, Git metadata, and environment files from the remote Docker build context.
 
 ## Fly deployment contract
@@ -88,13 +92,14 @@ The dedicated Production Runtime CI lane must remain read-only and prove one exa
 1. reject database schema or migration ownership in this release;
 2. apply the full existing migration chain to real PostgreSQL;
 3. pass exact formatting, zero-warning lint, and API TypeScript checks;
-4. enforce telemetry privacy, request-correlation, graceful-shutdown, docs-gating, and deployment-configuration invariants;
-5. run focused runtime privacy and observability tests;
-6. build the API;
-7. build the production Dockerfile from the sanitized repository context;
-8. prove package-local API dependencies resolve from the built image;
-9. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
-10. boot that image against PostgreSQL as the configured runtime user;
-11. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
+4. prove the database package exposes executable JavaScript plus declarations, never raw TypeScript at the Node runtime boundary;
+5. enforce telemetry privacy, request-correlation, graceful-shutdown, docs-gating, and deployment-configuration invariants;
+6. run focused runtime privacy and observability tests;
+7. build the API;
+8. build the production Dockerfile from the sanitized repository context;
+9. prove package-local API dependencies and `@woof/database` resolve and load from the built image under plain Node;
+10. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
+11. boot that image against PostgreSQL as the configured runtime user;
+12. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
 
 Diagnostic heads do not qualify a release.
