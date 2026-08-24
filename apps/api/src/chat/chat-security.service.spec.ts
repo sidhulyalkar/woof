@@ -64,9 +64,7 @@ describe('ChatSecurityService', () => {
       { userId: 'user-2' },
       { userId: 'user-3' },
     ]);
-    prisma.blockedUser.findMany.mockResolvedValue([
-      { userId: 'user-1', blockedId: 'user-2' },
-    ]);
+    prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-1', blockedId: 'user-2' }]);
     prisma.$queryRaw.mockResolvedValue([{ locked: 1 }]);
     const deliver = jest.fn();
 
@@ -91,9 +89,7 @@ describe('ChatSecurityService', () => {
       { userId: 'user-2' },
       { userId: 'user-3' },
     ]);
-    prisma.blockedUser.findMany.mockResolvedValue([
-      { userId: 'user-1', blockedId: 'user-2' },
-    ]);
+    prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-1', blockedId: 'user-2' }]);
     prisma.$queryRaw.mockResolvedValue([{ locked: 1 }]);
     const deliver = jest.fn();
 
