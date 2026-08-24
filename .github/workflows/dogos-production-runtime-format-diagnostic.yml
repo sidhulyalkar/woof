@@ -1,0 +1,38 @@
+name: dogOS Production Runtime Format Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/main.ts'
+      - 'apps/api/src/sentry.ts'
+      - 'apps/api/src/common/filters/all-exceptions.filter.ts'
+      - '.github/workflows/dogos-production-runtime-format-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  format-diagnostic:
+    name: Print locked Prettier patch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Print exact formatter patch
+        run: |
+          files=(
+            apps/api/src/main.ts
+            apps/api/src/sentry.ts
+            apps/api/src/common/filters/all-exceptions.filter.ts
+          )
+          pnpm exec prettier --write "${files[@]}"
+          git diff -- "${files[@]}"
+          git diff --exit-code -- "${files[@]}"
