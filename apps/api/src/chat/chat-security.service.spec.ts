@@ -88,7 +88,9 @@ describe('ChatSecurityService', () => {
   it('rechecks block policy behind the relationship lock before a new message is created', async () => {
     const { prisma, service } = build();
     prisma.conversationParticipant.findUnique.mockResolvedValue(participant());
-    prisma.blockedUser.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'block-1' });
+    prisma.blockedUser.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'block-1' });
     prisma.$queryRaw.mockResolvedValue([]);
 
     await expect(
