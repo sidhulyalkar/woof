@@ -1,0 +1,32 @@
+primary_region = "sjc"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "infra/docker/Dockerfile.api"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+  API_PREFIX = "api/v1"
+  API_DOCS_ENABLED = "false"
+
+[deploy]
+  release_command = "pnpm --filter @woof/database db:migrate:deploy"
+  release_command_timeout = "5m"
+  wait_timeout = "10m"
+  strategy = "rolling"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/v1/ops/health/ready"
