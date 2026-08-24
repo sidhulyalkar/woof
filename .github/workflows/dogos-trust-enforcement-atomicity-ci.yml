@@ -77,18 +77,20 @@ jobs:
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Print exact Trust Enforcement formatter patch
-        run: |
-          files=(
-            apps/api/src/trust-safety/relationship-lock.spec.ts
-            apps/api/src/trust-safety/trust-safety.service.ts
-            apps/api/src/trust-safety/trust-safety.service.spec.ts
-            apps/api/src/chat/chat-security.service.ts
-            apps/api/src/chat/chat-security.service.spec.ts
-          )
-          pnpm exec prettier --write "${files[@]}"
-          git diff -- "${files[@]}"
-          git diff --exit-code -- "${files[@]}"
+      - name: Check Trust Enforcement formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/trust-safety/relationship-lock.ts
+          apps/api/src/trust-safety/relationship-lock.spec.ts
+          apps/api/src/trust-safety/trust-safety.service.ts
+          apps/api/src/trust-safety/trust-safety.service.spec.ts
+          apps/api/src/chat/chat-security.service.ts
+          apps/api/src/chat/chat-security.service.spec.ts
+          apps/api/src/chat/chat.service.ts
+          apps/api/src/chat/chat.service.spec.ts
+          apps/api/src/chat/chat-block-atomicity.integration.spec.ts
+          .github/workflows/dogos-trust-enforcement-atomicity-ci.yml
+          docs/DOGOS_TRUST_ENFORCEMENT_ATOMICITY.md
 
       - name: Lint Trust Enforcement API surface
         run: >-
@@ -117,12 +119,11 @@ jobs:
               'SELECT 1 AS locked',
               'pg_advisory_xact_lock',
               'hashtextextended',
+              ') AS relationship_lock',
           ]
           missing = [token for token in required if token not in lock]
           if missing:
               raise SystemExit(f'missing relationship-lock invariant: {missing}')
-          if 'SELECT pg_advisory_xact_lock' in lock:
-              raise SystemExit('Prisma must not deserialize the advisory lock void return directly')
           PY
 
       - name: Enforce block and unblock serialization
@@ -162,9 +163,10 @@ jobs:
           persist = security[persist_start:access_helper_start]
           helper = security[access_helper_start:]
 
-          if "input.conversationId,\n          true" not in persist:
+          locked_recheck = 'assertConversationAccessWithClient(tx, input.userId, input.conversationId, true)'
+          if locked_recheck not in persist:
               raise SystemExit('message transaction must request a locked write-time access recheck')
-          if persist.index('assertConversationAccessWithClient') > persist.index('tx.message.create'):
+          if persist.index(locked_recheck) > persist.index('tx.message.create'):
               raise SystemExit('message access recheck must precede canonical message creation')
           if helper.index('acquireRelationshipLocks') > helper.index('blockedUser.findFirst'):
               raise SystemExit('message block policy must be checked after relationship lock acquisition')
