@@ -1,4 +1,8 @@
-import { relationshipLockKey, relationshipLockKeys } from './relationship-lock';
+import {
+  relationshipLockKey,
+  relationshipLockKeys,
+  relationshipLockKeysForParticipants,
+} from './relationship-lock';
 
 describe('relationship lock keys', () => {
   it('is symmetric for the same unordered user pair', () => {
@@ -9,6 +13,16 @@ describe('relationship lock keys', () => {
     expect(relationshipLockKeys('user-a', ['user-c', 'user-b', 'user-c', 'user-a'])).toEqual([
       relationshipLockKey('user-a', 'user-b'),
       relationshipLockKey('user-a', 'user-c'),
+    ]);
+  });
+
+  it('builds every unique unordered relationship pair for conversation participants', () => {
+    expect(
+      relationshipLockKeysForParticipants(['user-c', 'user-a', 'user-b', 'user-c', ''])
+    ).toEqual([
+      relationshipLockKey('user-a', 'user-b'),
+      relationshipLockKey('user-a', 'user-c'),
+      relationshipLockKey('user-b', 'user-c'),
     ]);
   });
 });
