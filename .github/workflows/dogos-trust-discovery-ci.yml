@@ -180,21 +180,45 @@ jobs:
           leave_start = source.index("@SubscribeMessage('conversation:leave')")
           typing_start = source.index("@SubscribeMessage('typing:start')")
           private_typing = source.index('private async emitTyping')
+          user_rooms = source.index('private userRooms')
 
           join_handler = source[join_start:leave_start]
           leave_handler = source[leave_start:typing_start]
-          typing_handler = source[private_typing:]
+          typing_handler = source[private_typing:user_rooms]
 
-          checks = [
+          room_checks = [
               ('conversation join', join_handler, 'client.join(`conversation:${data.conversationId}`)'),
               ('conversation leave', leave_handler, 'client.leave(`conversation:${data.conversationId}`)'),
-              ('typing emit', typing_handler, 'client.to(`conversation:${conversationId}`).emit'),
           ]
-          for label, handler, room_operation in checks:
+          for label, handler, room_operation in room_checks:
               authorization = handler.find('chatSecurity.assertConversationAccess')
               operation = handler.find(room_operation)
               if authorization < 0 or operation < 0 or authorization > operation:
                   raise SystemExit(f'{label} must authorize conversation access before its room operation')
+
+          typing_required = [
+              'chatSecurity.withAuthorizedRealtimeRecipients',
+              'this.server',
+              'this.userRooms(authorizedUserIds)',
+              '.except(client.id)',
+              ',\n        userId\n      );',
+          ]
+          missing = [token for token in typing_required if token not in typing_handler]
+          if missing:
+              raise SystemExit(f'typing must use lock-bound authorized private user-room fanout: {missing}')
+
+          authorization = typing_handler.find('chatSecurity.withAuthorizedRealtimeRecipients')
+          operation = typing_handler.find('this.userRooms(authorizedUserIds)')
+          if authorization > operation:
+              raise SystemExit('typing must authorize realtime recipients before private-room fanout')
+
+          forbidden_typing = [
+              'client.to(`conversation:${conversationId}`)',
+              'this.server.to(`conversation:${conversationId}`)',
+          ]
+          present = [token for token in forbidden_typing if token in typing_handler]
+          if present:
+              raise SystemExit(f'conversation room cannot authorize typing delivery: {present}')
           PY
           grep -q 'chatSecurity.persistMessage' apps/api/src/chat/chat.gateway.ts
           grep -q 'clientMessageId' apps/web/src/lib/socket.ts

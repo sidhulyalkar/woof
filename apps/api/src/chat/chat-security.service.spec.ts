@@ -10,8 +10,8 @@ describe('ChatSecurityService', () => {
 
   function build() {
     const prisma = {
-      conversationParticipant: { findUnique: jest.fn() },
-      blockedUser: { findFirst: jest.fn() },
+      conversationParticipant: { findUnique: jest.fn(), findMany: jest.fn() },
+      blockedUser: { findFirst: jest.fn(), findMany: jest.fn() },
       message: { findUnique: jest.fn(), create: jest.fn() },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(),
@@ -55,6 +55,48 @@ describe('ChatSecurityService', () => {
     await expect(service.assertConversationAccess('user-1', 'conversation-1')).resolves.toEqual({
       otherUserIds: ['user-2', 'user-3'],
     });
+  });
+
+  it('filters both endpoints of a blocked relationship from group realtime delivery', async () => {
+    const { prisma, service } = build();
+    prisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'user-1' },
+      { userId: 'user-2' },
+      { userId: 'user-3' },
+    ]);
+    prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-1', blockedId: 'user-2' }]);
+    prisma.$queryRaw.mockResolvedValue([{ locked: 1 }]);
+    const deliver = jest.fn();
+
+    await expect(
+      service.withAuthorizedRealtimeRecipients('conversation-1', deliver)
+    ).resolves.toEqual({ authorizedUserIds: ['user-3'] });
+
+    expect(deliver).toHaveBeenCalledWith(['user-3']);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(prisma.$queryRaw.mock.invocationCallOrder[2]).toBeLessThan(
+      prisma.blockedUser.findMany.mock.invocationCallOrder[0]!
+    );
+    expect(prisma.blockedUser.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      deliver.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it('rejects ephemeral realtime delivery when the required actor is no longer authorized', async () => {
+    const { prisma, service } = build();
+    prisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'user-1' },
+      { userId: 'user-2' },
+      { userId: 'user-3' },
+    ]);
+    prisma.blockedUser.findMany.mockResolvedValue([{ userId: 'user-1', blockedId: 'user-2' }]);
+    prisma.$queryRaw.mockResolvedValue([{ locked: 1 }]);
+    const deliver = jest.fn();
+
+    await expect(
+      service.withAuthorizedRealtimeRecipients('conversation-1', deliver, 'user-1')
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(deliver).not.toHaveBeenCalled();
   });
 
   it('replays an idempotent persisted message without creating or emitting a second record', async () => {

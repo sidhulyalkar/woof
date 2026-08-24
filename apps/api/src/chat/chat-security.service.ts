@@ -1,7 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
-import { acquireRelationshipLocks } from '../trust-safety/relationship-lock';
+import {
+  acquireParticipantRelationshipLocks,
+  acquireRelationshipLocks,
+} from '../trust-safety/relationship-lock';
 
 const MAX_MESSAGE_LENGTH = 4_000;
 const CLIENT_MESSAGE_ID_PATTERN = /^[A-Za-z0-9_-]{8,128}$/;
@@ -18,6 +21,8 @@ type ConversationAccessClient = Pick<
   'conversationParticipant' | 'blockedUser' | '$queryRaw'
 >;
 
+type RealtimeDelivery = (authorizedUserIds: string[]) => void | Promise<void>;
+
 export type PersistedChatMessage = {
   id: string;
   conversationId: string;
@@ -33,6 +38,56 @@ export class ChatSecurityService {
 
   async assertConversationAccess(userId: string, conversationId: string) {
     return this.assertConversationAccessWithClient(this.prisma, userId, conversationId, false);
+  }
+
+  async withAuthorizedRealtimeRecipients(
+    conversationId: string,
+    deliver: RealtimeDelivery,
+    requiredUserId?: string
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const participants = await tx.conversationParticipant.findMany({
+        where: { conversationId },
+        select: { userId: true },
+        orderBy: { userId: 'asc' },
+      });
+      const participantUserIds = [...new Set(participants.map((entry) => entry.userId))];
+
+      if (participantUserIds.length < 2) {
+        throw new ForbiddenException('Conversation is unavailable');
+      }
+
+      await acquireParticipantRelationshipLocks(tx, participantUserIds);
+
+      const blocks = await tx.blockedUser.findMany({
+        where: {
+          userId: { in: participantUserIds },
+          blockedId: { in: participantUserIds },
+        },
+        select: { userId: true, blockedId: true },
+      });
+
+      const blockedEndpoints = new Set<string>();
+      for (const block of blocks) {
+        if (block.userId === block.blockedId) continue;
+        blockedEndpoints.add(block.userId);
+        blockedEndpoints.add(block.blockedId);
+      }
+
+      const authorizedUserIds = participantUserIds.filter(
+        (participantUserId) => !blockedEndpoints.has(participantUserId)
+      );
+
+      if (requiredUserId && !authorizedUserIds.includes(requiredUserId)) {
+        throw new ForbiddenException('Conversation is unavailable');
+      }
+
+      if (authorizedUserIds.length > 0) {
+        await deliver(authorizedUserIds);
+      }
+
+      return { authorizedUserIds };
+    });
   }
 
   async persistMessage(input: {

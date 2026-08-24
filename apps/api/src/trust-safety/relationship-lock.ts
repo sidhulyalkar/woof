@@ -16,12 +16,20 @@ export function relationshipLockKeys(userId: string, otherUserIds: string[]) {
   ].sort();
 }
 
-export async function acquireRelationshipLocks(
-  tx: RelationshipLockClient,
-  userId: string,
-  otherUserIds: string[]
-) {
-  const keys = relationshipLockKeys(userId, otherUserIds);
+export function relationshipLockKeysForParticipants(userIds: string[]) {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))].sort();
+  const keys: string[] = [];
+
+  for (let index = 0; index < uniqueUserIds.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < uniqueUserIds.length; otherIndex += 1) {
+      keys.push(relationshipLockKey(uniqueUserIds[index]!, uniqueUserIds[otherIndex]!));
+    }
+  }
+
+  return keys.sort();
+}
+
+async function acquireRelationshipLockKeys(tx: RelationshipLockClient, keys: string[]) {
   for (const key of keys) {
     await tx.$queryRaw<Array<{ locked: number }>>(Prisma.sql`
       SELECT 1 AS locked
@@ -31,4 +39,19 @@ export async function acquireRelationshipLocks(
     `);
   }
   return keys;
+}
+
+export async function acquireRelationshipLocks(
+  tx: RelationshipLockClient,
+  userId: string,
+  otherUserIds: string[]
+) {
+  return acquireRelationshipLockKeys(tx, relationshipLockKeys(userId, otherUserIds));
+}
+
+export async function acquireParticipantRelationshipLocks(
+  tx: RelationshipLockClient,
+  userIds: string[]
+) {
+  return acquireRelationshipLockKeys(tx, relationshipLockKeysForParticipants(userIds));
 }

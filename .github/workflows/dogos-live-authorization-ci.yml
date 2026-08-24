@@ -1,0 +1,207 @@
+name: dogOS Live Authorization CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/chat/**'
+      - 'apps/api/src/trust-safety/relationship-lock.ts'
+      - 'apps/api/src/trust-safety/relationship-lock.spec.ts'
+      - '.github/workflows/dogos-live-authorization-ci.yml'
+      - 'docs/DOGOS_LIVE_AUTHORIZATION.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-live-authorization-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-live-authorization-secret
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Realtime block ordering + recipient qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Live Authorization v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Live Authorization formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/trust-safety/relationship-lock.ts
+          apps/api/src/trust-safety/relationship-lock.spec.ts
+          apps/api/src/chat/chat-security.service.ts
+          apps/api/src/chat/chat-security.service.spec.ts
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-live-authorization.integration.spec.ts
+          .github/workflows/dogos-live-authorization-ci.yml
+          docs/DOGOS_LIVE_AUTHORIZATION.md
+
+      - name: Lint Live Authorization API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/trust-safety/relationship-lock.ts
+          src/trust-safety/relationship-lock.spec.ts
+          src/chat/chat-security.service.ts
+          src/chat/chat-security.service.spec.ts
+          src/chat/chat.gateway.ts
+          src/chat/chat.gateway.spec.ts
+          src/chat/chat-live-authorization.integration.spec.ts
+
+      - name: Enforce participant relationship lock graph
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lock = Path('apps/api/src/trust-safety/relationship-lock.ts').read_text()
+          required = [
+              'relationshipLockKeysForParticipants',
+              'for (let index = 0;',
+              'for (let otherIndex = index + 1;',
+              'acquireParticipantRelationshipLocks',
+              'acquireRelationshipLockKeys',
+              'pg_advisory_xact_lock',
+              'hashtextextended',
+          ]
+          missing = [token for token in required if token not in lock]
+          if missing:
+              raise SystemExit(f'missing participant relationship-lock invariant: {missing}')
+          PY
+
+      - name: Enforce lock-bound realtime authorization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          security = Path('apps/api/src/chat/chat-security.service.ts').read_text()
+          start = security.index('async withAuthorizedRealtimeRecipients')
+          end = security.index('async persistMessage', start)
+          body = security[start:end]
+
+          required = [
+              'this.prisma.$transaction',
+              'conversationParticipant.findMany',
+              'acquireParticipantRelationshipLocks',
+              'blockedUser.findMany',
+              'blockedEndpoints.add(block.userId)',
+              'blockedEndpoints.add(block.blockedId)',
+              'requiredUserId',
+              'await deliver(authorizedUserIds)',
+          ]
+          missing = [token for token in required if token not in body]
+          if missing:
+              raise SystemExit(f'missing realtime authorization invariant: {missing}')
+          if body.index('acquireParticipantRelationshipLocks') > body.index('blockedUser.findMany'):
+              raise SystemExit('realtime block policy must be read after participant relationship locks')
+          if body.index('blockedUser.findMany') > body.index('await deliver(authorizedUserIds)'):
+              raise SystemExit('delivery must happen only after the locked block-policy read')
+          PY
+
+      - name: Reject conversation-room fanout authority
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          required = [
+              'withAuthorizedRealtimeRecipients',
+              'this.server.to(this.userRooms(authorizedUserIds))',
+              '.except(client.id)',
+              'userRooms(userIds: string[])',
+              '`user:${userId}`',
+          ]
+          missing = [token for token in required if token not in gateway]
+          if missing:
+              raise SystemExit(f'missing authorized user-room fanout invariant: {missing}')
+          forbidden = [
+              ".to(`conversation:${data.conversationId}`)",
+              ".to(`conversation:${conversationId}`)",
+              "client.to(`conversation:${conversationId}`)",
+          ]
+          present = [token for token in forbidden if token in gateway]
+          if present:
+              raise SystemExit(f'conversation room cannot be realtime delivery authority: {present}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run realtime authorization unit contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/trust-safety/relationship-lock.spec.ts
+          src/chat/chat-security.service.spec.ts
+          src/chat/chat.gateway.spec.ts
+
+      - name: Run real PostgreSQL realtime ordering contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-live-authorization.integration.spec.ts
+
+      - name: Run write-time block dominance regression
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat-block-atomicity.integration.spec.ts
+
+      - name: Run chat persistence regressions
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/chat/chat.service.integration.spec.ts
+          src/chat/chat.service.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
