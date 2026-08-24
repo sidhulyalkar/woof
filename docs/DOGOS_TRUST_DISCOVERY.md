@@ -46,7 +46,9 @@ Every realtime operation now checks current server-side conversation membership 
 - typing start
 - typing stop
 
-Messages are emitted only after the canonical `Message` row has committed.
+Conversation-room membership is not delivery authority. A socket may retain a `conversation:<id>` room for compatibility after joining, but message and typing fanout must target private `user:<userId>` rooms selected from current server-side policy. Realtime recipient selection runs under the same deterministic relationship advisory-lock namespace used by canonical block enforcement so a block commit and an event delivery have a defined order rather than a check-then-act gap.
+
+Messages are emitted only after the canonical `Message` row has committed. Recipient eligibility is then rechecked before realtime fanout, so a relationship block that commits before delivery removes both blocked endpoints without deleting or rewriting already-persisted message history.
 
 Every send carries a client-generated `clientMessageId`. A receipt is unique per user and message ID and is bound to one conversation. Retrying the same accepted send returns the persisted message without emitting a duplicate.
 
@@ -147,6 +149,7 @@ Trust + Discovery v1 must preserve all of the following:
 - no precise discovery coordinate persistence
 - no precise-coordinate telemetry
 - no chat room access based only on caller-supplied IDs
+- no conversation-room membership as realtime delivery authority
 - no global presence broadcasts
 - no message emit before persistence
 - no duplicate sends on idempotent retry
