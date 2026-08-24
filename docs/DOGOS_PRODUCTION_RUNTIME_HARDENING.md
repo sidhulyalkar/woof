@@ -100,6 +100,8 @@ The dedicated Production Runtime CI lane must remain read-only and prove one exa
 9. prove package-local API dependencies and `@woof/database` resolve and load from the built image under plain Node;
 10. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
 11. boot that image against PostgreSQL as the configured runtime user;
-12. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
+12. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP without disabling or bypassing the production throttle policy.
+
+The HTTP smoke intentionally lets the shortest production throttle window expire after liveness and then uses one correlated readiness request plus one docs request. This keeps abuse controls active while preventing CI itself from manufacturing a 429. Unexpected HTTP statuses print their response bodies and container logs before failing so readiness and routing failures remain actionable.
 
 Diagnostic heads do not qualify a release.
