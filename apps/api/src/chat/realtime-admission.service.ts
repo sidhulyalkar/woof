@@ -44,11 +44,7 @@ export class RealtimeAdmissionService {
   private readonly buckets = new Map<string, Bucket>();
   private operations = 0;
 
-  consume(
-    userId: string,
-    action: RealtimeAction,
-    now = Date.now()
-  ): RealtimeAdmissionDecision {
+  consume(userId: string, action: RealtimeAction, now = Date.now()): RealtimeAdmissionDecision {
     this.operations += 1;
     if (this.operations % PRUNE_INTERVAL === 0) {
       this.pruneExpired(now);
@@ -102,9 +98,7 @@ export class RealtimeAdmissionService {
 
   private pruneExpired(now: number) {
     for (const [key, bucket] of this.buckets) {
-      bucket.timestamps = bucket.timestamps.filter(
-        (timestamp) => timestamp > now - MAX_WINDOW_MS
-      );
+      bucket.timestamps = bucket.timestamps.filter((timestamp) => timestamp > now - MAX_WINDOW_MS);
       if (bucket.timestamps.length === 0) {
         this.buckets.delete(key);
       }
