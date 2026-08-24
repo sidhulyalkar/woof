@@ -1,8 +1,4 @@
-import {
-  clientIpTrackerForEnv,
-  flyClientIp,
-  isTrustedFlyRuntime,
-} from './client-ip';
+import { clientIpTrackerForEnv, flyClientIp, isTrustedFlyRuntime } from './client-ip';
 
 describe('clientIpTracker', () => {
   const flyEnv = {
