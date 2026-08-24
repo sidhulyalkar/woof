@@ -377,7 +377,7 @@ jobs:
             docker logs woof-api-runtime-ci || true
             exit 1
           fi
-          grep -Eiq '^x-request-id: ci-request-12345678\r?$' /tmp/ready-headers || {
+          tr -d '\r' < /tmp/ready-headers | grep -Fxi 'X-Request-ID: ci-request-12345678' || {
             echo 'Readiness response did not preserve X-Request-ID.'
             cat /tmp/ready-headers
             exit 1
