@@ -187,14 +187,27 @@ jobs:
           typing_handler = source[private_typing:user_rooms]
 
           room_checks = [
-              ('conversation join', join_handler, 'client.join(`conversation:${data.conversationId}`)'),
-              ('conversation leave', leave_handler, 'client.leave(`conversation:${data.conversationId}`)'),
+              (
+                  'conversation join',
+                  join_handler,
+                  'parseConversationPayload(data)',
+                  'client.join(`conversation:${payload.conversationId}`)',
+              ),
+              (
+                  'conversation leave',
+                  leave_handler,
+                  'parseConversationPayload(data)',
+                  'client.leave(`conversation:${payload.conversationId}`)',
+              ),
           ]
-          for label, handler, room_operation in room_checks:
+          for label, handler, parser, room_operation in room_checks:
+              validation = handler.find(parser)
               authorization = handler.find('chatSecurity.assertConversationAccess')
               operation = handler.find(room_operation)
-              if authorization < 0 or operation < 0 or authorization > operation:
-                  raise SystemExit(f'{label} must authorize conversation access before its room operation')
+              if min(validation, authorization, operation) < 0 or not validation < authorization < operation:
+                  raise SystemExit(
+                      f'{label} must validate payload, authorize conversation access, then mutate its room'
+                  )
 
           typing_required = [
               'chatSecurity.withAuthorizedRealtimeRecipients',
@@ -215,6 +228,8 @@ jobs:
           forbidden_typing = [
               'client.to(`conversation:${conversationId}`)',
               'this.server.to(`conversation:${conversationId}`)',
+              'client.to(`conversation:${payload.conversationId}`)',
+              'this.server.to(`conversation:${payload.conversationId}`)',
           ]
           present = [token for token in forbidden_typing if token in typing_handler]
           if present:
