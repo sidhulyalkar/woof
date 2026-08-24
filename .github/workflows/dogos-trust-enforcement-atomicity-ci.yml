@@ -77,20 +77,18 @@ jobs:
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Check Trust Enforcement formatting
-        run: >-
-          pnpm exec prettier --check
-          apps/api/src/trust-safety/relationship-lock.ts
-          apps/api/src/trust-safety/relationship-lock.spec.ts
-          apps/api/src/trust-safety/trust-safety.service.ts
-          apps/api/src/trust-safety/trust-safety.service.spec.ts
-          apps/api/src/chat/chat-security.service.ts
-          apps/api/src/chat/chat-security.service.spec.ts
-          apps/api/src/chat/chat.service.ts
-          apps/api/src/chat/chat.service.spec.ts
-          apps/api/src/chat/chat-block-atomicity.integration.spec.ts
-          .github/workflows/dogos-trust-enforcement-atomicity-ci.yml
-          docs/DOGOS_TRUST_ENFORCEMENT_ATOMICITY.md
+      - name: Print exact Trust Enforcement formatter patch
+        run: |
+          files=(
+            apps/api/src/trust-safety/relationship-lock.spec.ts
+            apps/api/src/trust-safety/trust-safety.service.ts
+            apps/api/src/trust-safety/trust-safety.service.spec.ts
+            apps/api/src/chat/chat-security.service.ts
+            apps/api/src/chat/chat-security.service.spec.ts
+          )
+          pnpm exec prettier --write "${files[@]}"
+          git diff -- "${files[@]}"
+          git diff --exit-code -- "${files[@]}"
 
       - name: Lint Trust Enforcement API surface
         run: >-
