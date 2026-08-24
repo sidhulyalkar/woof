@@ -219,7 +219,9 @@ jobs:
           required_docker = [
               'ARG NODE_VERSION=20.20.2',
               'ARG PNPM_VERSION=8.15.1',
-              'corepack prepare pnpm@${PNPM_VERSION}',
+              'apk add --no-cache openssl libc6-compat',
+              'npm install --global pnpm@${PNPM_VERSION}',
+              'COPY --chown=node:node',
               '/api/v1/ops/health/live',
               'USER node',
               'CMD ["node", "apps/api/dist/main"]',
@@ -227,8 +229,14 @@ jobs:
           missing = [token for token in required_docker if token not in dockerfile]
           if missing:
               raise SystemExit(f'missing production image invariant: {missing}')
-          if 'npm install -g pnpm' in dockerfile:
-              raise SystemExit('production image must not install an unpinned global pnpm')
+          forbidden_docker = [
+              'npm install -g pnpm\n',
+              'npm install --global pnpm\n',
+              'pnpm@latest',
+          ]
+          present = [token for token in forbidden_docker if token in dockerfile]
+          if present:
+              raise SystemExit(f'production image contains unpinned package-manager install: {present}')
 
           for workflow_path in [
               '.github/workflows/deploy-production.yml',
