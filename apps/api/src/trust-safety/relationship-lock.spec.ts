@@ -2,9 +2,7 @@ import { relationshipLockKey, relationshipLockKeys } from './relationship-lock';
 
 describe('relationship lock keys', () => {
   it('is symmetric for the same unordered user pair', () => {
-    expect(relationshipLockKey('user-b', 'user-a')).toBe(
-      relationshipLockKey('user-a', 'user-b')
-    );
+    expect(relationshipLockKey('user-b', 'user-a')).toBe(relationshipLockKey('user-a', 'user-b'));
   });
 
   it('deduplicates and sorts multi-party relationship locks deterministically', () => {
