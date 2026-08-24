@@ -1,0 +1,110 @@
+name: CI Action Runtime Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'docs/CI_ACTION_RUNTIME.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-action-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Maintained action runtime + project toolchain qualification
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Verify project runtime stays pinned
+        run: |
+          test "$(node --version)" = "v${NODE_VERSION}"
+          test "$(pnpm --version)" = "${PNPM_VERSION}"
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce maintained action majors across every workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          allowed = {
+              'actions/checkout': 'v7',
+              'actions/setup-node': 'v7',
+              'pnpm/action-setup': 'v6',
+              'actions/upload-artifact': 'v7',
+          }
+
+          workflows = sorted(Path('.github/workflows').glob('*.yml'))
+          if not workflows:
+              raise SystemExit('no GitHub Actions workflows found')
+
+          seen = {action: 0 for action in allowed}
+          violations = []
+          for workflow in workflows:
+              for line_number, line in enumerate(workflow.read_text().splitlines(), start=1):
+                  stripped = line.strip()
+                  if not stripped.startswith('- uses:') and not stripped.startswith('uses:'):
+                      continue
+                  for action, expected_version in allowed.items():
+                      marker = f'{action}@'
+                      if marker not in stripped:
+                          continue
+                      seen[action] += 1
+                      actual_version = stripped.split(marker, 1)[1].split()[0].strip("'\"")
+                      if actual_version != expected_version:
+                          violations.append(
+                              f'{workflow}:{line_number}: {action}@{actual_version} '
+                              f'must be {action}@{expected_version}'
+                          )
+
+          if violations:
+              raise SystemExit('\n'.join(violations))
+
+          required = ['actions/checkout', 'actions/setup-node', 'pnpm/action-setup']
+          missing = [action for action in required if seen[action] == 0]
+          if missing:
+              raise SystemExit(f'missing required maintained action families: {missing}')
+          PY
+
+      - name: Parse and format-check the complete workflow inventory
+        run: pnpm exec prettier --check .github/workflows docs/CI_ACTION_RUNTIME.md
+
+      - name: Record qualification proof
+        run: |
+          {
+            echo "node=$(node --version)"
+            echo "pnpm=$(pnpm --version)"
+            echo "workflows=$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l | tr -d ' ')"
+          } > /tmp/ci-action-runtime-proof.txt
+          cat /tmp/ci-action-runtime-proof.txt
+
+      - name: Exercise maintained artifact upload runtime
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-action-runtime-${{ github.run_id }}
+          path: /tmp/ci-action-runtime-proof.txt
+          if-no-files-found: error
+          retention-days: 1

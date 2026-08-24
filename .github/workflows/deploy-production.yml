@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pinned Fly.io CLI
         uses: superfly/flyctl-actions/setup-flyctl@v1.5
@@ -48,7 +48,7 @@ jobs:
     environment: production
     needs: deploy-api-production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@58.4.4
