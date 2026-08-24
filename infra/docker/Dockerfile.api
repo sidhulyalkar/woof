@@ -5,7 +5,8 @@ ARG PNPM_VERSION=8.15.1
 FROM node:${NODE_VERSION}-alpine AS builder
 ARG PNPM_VERSION
 
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+RUN apk add --no-cache openssl libc6-compat \
+  && npm install --global pnpm@${PNPM_VERSION}
 
 WORKDIR /app
 
@@ -20,17 +21,21 @@ RUN pnpm --filter @woof/api build
 FROM node:${NODE_VERSION}-alpine AS runner
 ARG PNPM_VERSION
 
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+RUN apk add --no-cache openssl libc6-compat \
+  && npm install --global pnpm@${PNPM_VERSION}
 
 WORKDIR /app
 
 # Keep the workspace metadata and database package available so Fly's release
 # command can apply committed Prisma migrations before new Machines receive traffic.
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
+# The runtime workspace belongs to the unprivileged node user because Prisma's
+# migration engine may need writable package-local runtime state while resolving
+# its native engine. The container never needs to become root after image build.
+COPY --chown=node:node package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY --chown=node:node --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --chown=node:node --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/packages ./packages
 
 ENV NODE_ENV=production
 ENV PORT=4000
