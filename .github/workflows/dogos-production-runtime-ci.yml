@@ -11,6 +11,9 @@ on:
       - 'apps/api/src/common/http/**'
       - 'apps/api/.env.example'
       - 'apps/api/fly.toml'
+      - 'packages/database/package.json'
+      - 'packages/database/src/index.js'
+      - 'packages/database/src/index.d.ts'
       - 'infra/docker/Dockerfile.api'
       - '.dockerignore'
       - '.github/workflows/deploy-production.yml'
@@ -96,6 +99,9 @@ jobs:
           apps/api/src/common/filters/all-exceptions.filter.spec.ts
           apps/api/src/common/http/request-context.ts
           apps/api/src/common/http/request-context.spec.ts
+          packages/database/package.json
+          packages/database/src/index.js
+          packages/database/src/index.d.ts
           .github/workflows/deploy-production.yml
           .github/workflows/deploy-staging.yml
           .github/workflows/dogos-production-runtime-ci.yml
@@ -111,6 +117,30 @@ jobs:
           src/common/filters/all-exceptions.filter.spec.ts
           src/common/http/request-context.ts
           src/common/http/request-context.spec.ts
+
+      - name: Validate database runtime entry
+        run: |
+          node --check packages/database/src/index.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = json.loads(Path('packages/database/package.json').read_text())
+          runtime_entry = package.get('main')
+          type_entry = package.get('types')
+          exports = package.get('exports', {}).get('.', {})
+
+          if runtime_entry != './src/index.js':
+              raise SystemExit('database runtime main must be executable JavaScript')
+          if runtime_entry.endswith(('.ts', '.tsx')):
+              raise SystemExit('database runtime main must never expose raw TypeScript')
+          if type_entry != './src/index.d.ts':
+              raise SystemExit('database package must keep an explicit declaration surface')
+          if exports.get('require') != runtime_entry or exports.get('default') != runtime_entry:
+              raise SystemExit('database package exports must resolve Node runtime to executable JavaScript')
+          if exports.get('types') != type_entry:
+              raise SystemExit('database package exports must resolve TypeScript to declarations')
+          PY
 
       - name: Enforce privacy-safe error telemetry
         run: |
@@ -285,6 +315,8 @@ jobs:
           docker inspect -f '{{json .Config.Healthcheck.Test}}' woof-api-runtime:ci | grep -F '/api/v1/ops/health/live'
           docker run --rm woof-api-runtime:ci \
             node -e "require.resolve('@nestjs/common', { paths: ['/app/apps/api'] })"
+          docker run --rm woof-api-runtime:ci \
+            node -e "const p=require.resolve('@woof/database',{paths:['/app/apps/api']}); if (/\.(ts|tsx)$/.test(p)) throw new Error('raw TypeScript database runtime'); const db=require(p); if (!db.prisma || !db.PrismaClient) throw new Error('incomplete database runtime exports')"
           docker run --rm --network host \
             -e DATABASE_URL="$DATABASE_URL" \
             -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
