@@ -49,11 +49,7 @@ export function initSentry() {
       ],
       tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
       profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-      ignoreErrors: [
-        'UnauthorizedException',
-        'NotFoundException',
-        'BadRequestException',
-      ],
+      ignoreErrors: ['UnauthorizedException', 'NotFoundException', 'BadRequestException'],
       beforeSend(event, hint) {
         const error = hint.originalException;
         if (error && typeof error === 'object' && 'status' in error) {
