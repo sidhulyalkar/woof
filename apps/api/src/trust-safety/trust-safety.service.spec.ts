@@ -30,12 +30,14 @@ describe('TrustSafetyService relationship serialization', () => {
         findUnique: jest.fn().mockResolvedValue({ id: 'user-b' }),
         findMany: jest.fn(),
       },
-      $transaction: jest.fn().mockImplementation(async (callback: (client: typeof tx) => unknown) => {
-        events.push('transaction:start');
-        const result = await callback(tx);
-        events.push('transaction:commit');
-        return result;
-      }),
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (callback: (client: typeof tx) => unknown) => {
+          events.push('transaction:start');
+          const result = await callback(tx);
+          events.push('transaction:commit');
+          return result;
+        }),
       meetupProposal: {
         updateMany: jest.fn().mockImplementation(async () => {
           events.push('meetup-cleanup');
@@ -69,10 +71,7 @@ describe('TrustSafetyService relationship serialization', () => {
     const { events, prisma, tx, service } = build();
 
     await expect(
-      service.blockUser(
-        'user-a',
-        { blockedUserId: 'user-b', reason: 'safety boundary' } as never
-      )
+      service.blockUser('user-a', { blockedUserId: 'user-b', reason: 'safety boundary' } as never)
     ).resolves.toEqual({
       id: 'block-1',
       blockedUserId: 'user-b',
