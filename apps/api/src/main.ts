@@ -32,7 +32,7 @@ async function bootstrap() {
         },
       },
       crossOriginEmbedderPolicy: false,
-    }),
+    })
   );
 
   app.useGlobalFilters(new AllExceptionsFilter());
@@ -68,7 +68,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-    }),
+    })
   );
 
   const docsEnabled = configService.get<string>('API_DOCS_ENABLED') === 'true';
