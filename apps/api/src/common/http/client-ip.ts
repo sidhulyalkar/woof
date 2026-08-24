@@ -29,7 +29,8 @@ export async function clientIpTracker(
   request: ThrottlerRequestLike,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
-  const directIp = normalizeIp(request.ip) ?? normalizeIp(request.socket?.remoteAddress) ?? 'unknown';
+  const directIp =
+    normalizeIp(request.ip) ?? normalizeIp(request.socket?.remoteAddress) ?? 'unknown';
 
   if (!isTrustedFlyRuntime(env)) {
     return `direct:${directIp}`;
