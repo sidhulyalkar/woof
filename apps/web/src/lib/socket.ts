@@ -14,6 +14,9 @@ export function getSocket(): Socket {
       auth: { token },
       autoConnect: false,
     });
+    socket.on('session:expired', () => {
+      useAuthStore.getState().logout();
+    });
   }
 
   return socket;

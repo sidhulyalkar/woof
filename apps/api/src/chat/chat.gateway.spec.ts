@@ -5,7 +5,10 @@ import { ChatGateway } from './chat.gateway';
 describe('ChatGateway realtime authorization', () => {
   function build() {
     const jwtService = {
-      verifyAsync: jest.fn().mockResolvedValue({ sub: 'user-1' }),
+      verifyAsync: jest.fn().mockResolvedValue({
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1_000) + 300,
+      }),
     };
     const chatSecurity = {
       persistMessage: jest.fn(),
@@ -34,6 +37,7 @@ describe('ChatGateway realtime authorization', () => {
       handshake: { auth: { token: 'token-1' } },
       join: jest.fn().mockResolvedValue(undefined),
       leave: jest.fn().mockResolvedValue(undefined),
+      emit: jest.fn(),
       disconnect: jest.fn(),
     };
 
@@ -49,6 +53,103 @@ describe('ChatGateway realtime authorization', () => {
       to,
     };
   }
+
+  it('requires a finite JWT expiry before granting realtime membership', async () => {
+    const { gateway, client, jwtService } = build();
+    jwtService.verifyAsync.mockResolvedValueOnce({ sub: 'user-1' });
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.join).not.toHaveBeenCalled();
+    expect(client.emit).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('actively expires the socket lease and removes event authority at token expiry', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T20:30:00.000Z'));
+
+    try {
+      const { gateway, client, jwtService, chatSecurity, realtimeAdmission } = build();
+      jwtService.verifyAsync.mockResolvedValueOnce({
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1_000) + 2,
+      });
+
+      await gateway.handleConnection(client as never);
+      expect(client.join).toHaveBeenCalledWith('user:user-1');
+      expect(client.disconnect).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(1_999);
+      expect(client.disconnect).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(1);
+      expect(client.emit).toHaveBeenCalledWith('session:expired', { reason: 'token_expired' });
+      expect(client.disconnect).toHaveBeenCalledTimes(1);
+
+      await expect(
+        gateway.handleMessage(client as never, {
+          conversationId: 'conversation-1',
+          clientMessageId: 'client-message-after-expiry',
+          text: 'hello',
+        })
+      ).resolves.toEqual({ success: false, error: 'unauthorized' });
+
+      expect(realtimeAdmission.consume).not.toHaveBeenCalled();
+      expect(chatSecurity.persistMessage).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('rechecks expiry at event ingress even before the disconnect timer gets a turn', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T20:35:00.000Z'));
+
+    try {
+      const { gateway, client, jwtService, chatSecurity, realtimeAdmission } = build();
+      jwtService.verifyAsync.mockResolvedValueOnce({
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1_000) + 2,
+      });
+      await gateway.handleConnection(client as never);
+
+      jest.setSystemTime(new Date('2026-08-24T20:35:03.000Z'));
+
+      await expect(
+        gateway.handleTypingStart(client as never, { conversationId: 'conversation-1' })
+      ).resolves.toEqual({ success: false, error: 'unauthorized' });
+
+      expect(client.emit).toHaveBeenCalledWith('session:expired', { reason: 'token_expired' });
+      expect(client.disconnect).toHaveBeenCalledTimes(1);
+      expect(realtimeAdmission.consume).not.toHaveBeenCalled();
+      expect(chatSecurity.withAuthorizedRealtimeRecipients).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('cancels the token-expiry timer when a socket disconnects normally', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T20:40:00.000Z'));
+
+    try {
+      const { gateway, client, jwtService } = build();
+      jwtService.verifyAsync.mockResolvedValueOnce({
+        sub: 'user-1',
+        exp: Math.floor(Date.now() / 1_000) + 2,
+      });
+      await gateway.handleConnection(client as never);
+
+      gateway.handleDisconnect(client as never);
+      jest.advanceTimersByTime(3_000);
+
+      expect(client.emit).not.toHaveBeenCalledWith('session:expired', expect.anything());
+      expect(client.disconnect).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
   it('delivers persisted messages only through authorized private user rooms', async () => {
     const { gateway, client, chatSecurity, realtimeAdmission, to, emit } = build();
