@@ -338,37 +338,59 @@ jobs:
             -e CORS_ORIGIN=http://localhost:3000 \
             woof-api-runtime:ci
 
-          ready=0
+          live=0
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:4000/api/v1/ops/health/live >/tmp/live.json; then
-              ready=1
+            live_status=$(curl --silent --show-error --output /tmp/live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$live_status" = '200' ]; then
+              live=1
               break
             fi
             if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-runtime-ci; then
-              echo 'Production image exited before liveness.'
+              echo "Production image exited before liveness; last_status=$live_status"
+              cat /tmp/live.json 2>/dev/null || true
               docker logs woof-api-runtime-ci || true
               docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
               exit 1
             fi
             sleep 1
           done
-          if [ "$ready" -ne 1 ]; then
+          if [ "$live" -ne 1 ]; then
             echo 'Production image never reached liveness.'
+            cat /tmp/live.json 2>/dev/null || true
             docker logs woof-api-runtime-ci || true
             docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
             exit 1
           fi
 
-          sleep 1
-          curl --fail --silent --show-error http://127.0.0.1:4000/api/v1/ops/health/ready >/tmp/ready.json
+          # Let the short global throttle window expire. Keep the remaining
+          # verification to two requests so production abuse controls stay active.
+          sleep 2
 
-          docs_status=$(curl --silent --output /tmp/docs-response --write-out '%{http_code}' http://127.0.0.1:4000/docs)
-          test "$docs_status" = '404'
-
-          curl --fail --silent --show-error --dump-header /tmp/request-headers \
+          ready_status=$(curl --silent --show-error --dump-header /tmp/ready-headers \
+            --output /tmp/ready.json --write-out '%{http_code}' \
             --header 'X-Request-ID: ci-request-12345678' \
-            http://127.0.0.1:4000/api/v1/ops/health/live >/tmp/correlated-live.json
-          grep -Eiq '^x-request-id: ci-request-12345678\r?$' /tmp/request-headers
+            http://127.0.0.1:4000/api/v1/ops/health/ready || true)
+          if [ "$ready_status" != '200' ]; then
+            echo "Production image failed readiness; status=$ready_status"
+            cat /tmp/ready.json 2>/dev/null || true
+            docker logs woof-api-runtime-ci || true
+            exit 1
+          fi
+          grep -Eiq '^x-request-id: ci-request-12345678\r?$' /tmp/ready-headers || {
+            echo 'Readiness response did not preserve X-Request-ID.'
+            cat /tmp/ready-headers
+            exit 1
+          }
+
+          docs_status=$(curl --silent --show-error --output /tmp/docs-response --write-out '%{http_code}' \
+            http://127.0.0.1:4000/docs || true)
+          if [ "$docs_status" != '404' ]; then
+            echo "Swagger must remain unmounted by default; status=$docs_status"
+            cat /tmp/docs-response 2>/dev/null || true
+            docker logs woof-api-runtime-ci || true
+            exit 1
+          fi
 
       - name: Stop production image
         if: always()
