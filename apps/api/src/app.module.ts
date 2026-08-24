@@ -15,6 +15,7 @@ import { BehaviorVisionModule } from './behavior-vision/behavior-vision.module';
 import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
+import { clientIpTracker } from './common/http/client-ip';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { ConciergeModule } from './concierge/concierge.module';
 import { validateEnvironment } from './config/env.validation';
@@ -47,6 +48,7 @@ import { VerificationModule } from './verification/verification.module';
 
 export const throttlerOptions: ThrottlerModuleOptions = {
   skipIf: () => process.env.NODE_ENV === 'test',
+  getTracker: clientIpTracker,
   throttlers: [
     { name: 'short', ttl: 1000, limit: 3 },
     { name: 'medium', ttl: 10000, limit: 20 },

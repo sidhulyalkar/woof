@@ -1,0 +1,210 @@
+name: dogOS Proxy-Safe Throttling CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/common/http/client-ip.ts'
+      - 'apps/api/src/common/http/client-ip.spec.ts'
+      - '.github/workflows/dogos-proxy-safe-throttling-ci.yml'
+      - 'docs/DOGOS_PROXY_SAFE_THROTTLING.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-proxy-safe-throttling-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-proxy-safe-throttle-secret-1234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Fly client isolation + production image qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Proxy-Safe Throttling v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Proxy-Safe Throttling formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/app.module.ts
+          apps/api/src/common/http/client-ip.ts
+          apps/api/src/common/http/client-ip.spec.ts
+          .github/workflows/dogos-proxy-safe-throttling-ci.yml
+          docs/DOGOS_PROXY_SAFE_THROTTLING.md
+
+      - name: Lint Proxy-Safe Throttling API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app.module.ts
+          src/common/http/client-ip.ts
+          src/common/http/client-ip.spec.ts
+
+      - name: Enforce narrow proxy trust boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app = Path('apps/api/src/app.module.ts').read_text()
+          tracker = Path('apps/api/src/common/http/client-ip.ts').read_text()
+          main = Path('apps/api/src/main.ts').read_text()
+
+          required_tracker = [
+              "request.headers?.['fly-client-ip']",
+              'isTrustedFlyRuntime(env)',
+              'env.FLY_APP_NAME',
+              'env.FLY_MACHINE_ID',
+              'isIP(candidate)',
+              '`fly:${proxyIp}`',
+              '`fly-fallback:${directIp}`',
+              '`direct:${directIp}`',
+          ]
+          missing = [token for token in required_tracker if token not in tracker]
+          if missing:
+              raise SystemExit(f'missing proxy-safe tracker invariant: {missing}')
+
+          if 'getTracker: clientIpTracker' not in app:
+              raise SystemExit('global throttler must use clientIpTracker')
+          if 'trust proxy' in main.lower() or 'trust proxy' in app.lower():
+              raise SystemExit('broad Express trust proxy is forbidden for throttle identity')
+          if 'x-forwarded-for' in tracker.lower():
+              raise SystemExit('throttle tracker must not parse spoofable X-Forwarded-For chains')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run proxy tracker contracts
+        run: pnpm --filter @woof/api exec jest --runInBand src/common/http/client-ip.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-proxy-throttle:ci .
+
+      - name: Boot production image in Fly runtime mode
+        run: |
+          docker rm -f woof-api-proxy-throttle-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-proxy-throttle-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            -e FLY_APP_NAME=woof-api-ci \
+            -e FLY_MACHINE_ID=machine-ci \
+            woof-api-proxy-throttle:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/proxy-live.json --write-out '%{http_code}' \
+              --header 'Fly-Client-IP: 198.51.100.250' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-proxy-throttle-ci; then
+              echo "Production image exited before liveness; status=$status"
+              cat /tmp/proxy-live.json 2>/dev/null || true
+              docker logs woof-api-proxy-throttle-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-proxy-throttle-ci || true
+            exit 1
+          fi
+
+      - name: Prove distinct Fly clients have isolated short buckets
+        run: |
+          sleep 2
+          endpoint=http://127.0.0.1:4000/api/v1/ops/health/live
+
+          for attempt in 1 2 3; do
+            status=$(curl --silent --show-error --output "/tmp/client-a-$attempt.json" --write-out '%{http_code}' \
+              --header 'Fly-Client-IP: 203.0.113.10' "$endpoint")
+            test "$status" = '200' || {
+              echo "Fly client A request $attempt expected 200, got $status"
+              cat "/tmp/client-a-$attempt.json" || true
+              exit 1
+            }
+          done
+
+          status=$(curl --silent --show-error --output /tmp/client-a-throttled.json --write-out '%{http_code}' \
+            --header 'Fly-Client-IP: 203.0.113.10' "$endpoint")
+          test "$status" = '429' || {
+            echo "Fly client A fourth request expected 429, got $status"
+            cat /tmp/client-a-throttled.json || true
+            exit 1
+          }
+
+          status=$(curl --silent --show-error --output /tmp/client-b.json --write-out '%{http_code}' \
+            --header 'Fly-Client-IP: 203.0.113.11' "$endpoint")
+          test "$status" = '200' || {
+            echo "Distinct Fly client B must have an independent bucket; got $status"
+            cat /tmp/client-b.json || true
+            exit 1
+          }
+
+      - name: Stop production image
+        if: always()
+        run: docker rm -f woof-api-proxy-throttle-ci >/dev/null 2>&1 || true
