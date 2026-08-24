@@ -221,7 +221,7 @@ jobs:
               'ARG PNPM_VERSION=8.15.1',
               'apk add --no-cache openssl libc6-compat',
               'npm install --global pnpm@${PNPM_VERSION}',
-              'COPY --chown=node:node',
+              'COPY --chown=node:node --from=builder /app/apps/api/node_modules ./apps/api/node_modules',
               '/api/v1/ops/health/live',
               'USER node',
               'CMD ["node", "apps/api/dist/main"]',
@@ -283,6 +283,8 @@ jobs:
         run: |
           test "$(docker inspect -f '{{.Config.User}}' woof-api-runtime:ci)" = 'node'
           docker inspect -f '{{json .Config.Healthcheck.Test}}' woof-api-runtime:ci | grep -F '/api/v1/ops/health/live'
+          docker run --rm woof-api-runtime:ci \
+            node -e "require.resolve('@nestjs/common', { paths: ['/app/apps/api'] })"
           docker run --rm --network host \
             -e DATABASE_URL="$DATABASE_URL" \
             -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
