@@ -34,14 +34,18 @@ Swagger is fail-closed. `API_DOCS_ENABLED=false` is the default and `/docs` is n
 The image:
 
 - pins Node `20.20.2` and pnpm `8.15.1`;
-- installs pnpm through Corepack rather than an unpinned global package install;
+- installs that exact pnpm version during image construction so release commands do not download package-manager code at runtime;
+- installs OpenSSL and Alpine compatibility libraries required by the Prisma native runtime;
 - builds from the committed lockfile;
 - generates the committed Prisma client before the API build;
-- runs the final application as the unprivileged `node` user;
+- runs the final application and migration release command as the unprivileged `node` user;
+- gives that runtime user ownership of the copied workspace needed by the Prisma migration engine, rather than escalating the container back to root;
 - enables Node source maps for actionable stack traces;
 - uses `/api/v1/ops/health/live` for container liveness.
 
 The runtime image intentionally keeps the database workspace and installed Prisma CLI for this release so the deployment release command can apply committed migrations. Image-size optimization is a separate concern and must not remove migration capability accidentally.
+
+The non-root migration contract is tested because Prisma may need package-local native-engine runtime state while resolving its migration binary. A production image that builds successfully but cannot execute `prisma migrate deploy` as its configured user is considered invalid.
 
 `.dockerignore` excludes local dependencies, build outputs, reports, logs, Git metadata, and environment files from the remote Docker build context.
 
@@ -85,7 +89,7 @@ The dedicated Production Runtime CI lane must remain read-only and prove one exa
 5. run focused runtime privacy and observability tests;
 6. build the API;
 7. build the production Dockerfile from the sanitized repository context;
-8. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image;
+8. execute `pnpm --filter @woof/database db:migrate:deploy` inside the built production image as its configured non-root user and without a runtime package-manager fetch;
 9. boot that image against PostgreSQL as the configured runtime user;
 10. verify liveness, readiness, default-disabled Swagger, and `X-Request-ID` over real HTTP.
 
