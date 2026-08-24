@@ -31,9 +31,12 @@ WORKDIR /app
 # The runtime workspace belongs to the unprivileged node user because Prisma's
 # migration engine may need writable package-local runtime state while resolving
 # its native engine. The container never needs to become root after image build.
+# pnpm also installs each workspace package's direct dependency links under that
+# package's node_modules, so preserve the API link graph alongside the root store.
 COPY --chown=node:node package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --chown=node:node --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --chown=node:node --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --chown=node:node --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /app/packages ./packages
 
