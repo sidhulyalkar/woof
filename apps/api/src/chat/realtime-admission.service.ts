@@ -3,8 +3,7 @@ import { Injectable } from '@nestjs/common';
 export type RealtimeAction = 'message' | 'typing' | 'membership';
 
 export type RealtimeAdmissionDecision =
-  | { allowed: true }
-  | { allowed: false; retryAfterMs: number };
+  { allowed: true } | { allowed: false; retryAfterMs: number };
 
 type WindowPolicy = {
   limit: number;
