@@ -25,9 +25,9 @@ export function flyClientIp(request: ThrottlerRequestLike) {
   return normalizeIp(header);
 }
 
-export async function clientIpTracker(
+export async function clientIpTrackerForEnv(
   request: ThrottlerRequestLike,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv
 ): Promise<string> {
   const directIp =
     normalizeIp(request.ip) ?? normalizeIp(request.socket?.remoteAddress) ?? 'unknown';
@@ -38,4 +38,8 @@ export async function clientIpTracker(
 
   const proxyIp = flyClientIp(request);
   return proxyIp ? `fly:${proxyIp}` : `fly-fallback:${directIp}`;
+}
+
+export async function clientIpTracker(request: ThrottlerRequestLike): Promise<string> {
+  return clientIpTrackerForEnv(request, process.env);
 }
