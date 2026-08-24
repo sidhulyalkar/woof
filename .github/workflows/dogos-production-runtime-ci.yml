@@ -294,7 +294,8 @@ jobs:
 
       - name: Boot production image and verify HTTP contracts
         run: |
-          docker run -d --rm --name woof-api-runtime-ci --network host \
+          docker rm -f woof-api-runtime-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-runtime-ci --network host \
             -e DATABASE_URL="$DATABASE_URL" \
             -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
             -e JWT_SECRET="$JWT_SECRET" \
@@ -310,13 +311,17 @@ jobs:
               break
             fi
             if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-runtime-ci; then
+              echo 'Production image exited before liveness.'
               docker logs woof-api-runtime-ci || true
+              docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
               exit 1
             fi
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
             docker logs woof-api-runtime-ci || true
+            docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
             exit 1
           fi
 
@@ -333,4 +338,4 @@ jobs:
 
       - name: Stop production image
         if: always()
-        run: docker stop woof-api-runtime-ci >/dev/null 2>&1 || true
+        run: docker rm -f woof-api-runtime-ci >/dev/null 2>&1 || true
