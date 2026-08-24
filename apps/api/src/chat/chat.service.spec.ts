@@ -108,7 +108,7 @@ describe('ChatService', () => {
       expect(prisma.conversation.create).not.toHaveBeenCalled();
     });
 
-    it('serializes pair lookup and creation behind a transaction-scoped advisory lock', async () => {
+    it('serializes pair lookup and block policy behind transaction-scoped advisory locks', async () => {
       const { prisma, service } = build();
       prisma.user.findUnique.mockResolvedValue({ id: 'user-2', visibility: 'PUBLIC' });
       prisma.blockedUser.findFirst.mockResolvedValue(null);
@@ -122,9 +122,12 @@ describe('ChatService', () => {
       });
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
       expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
         prisma.conversation.findMany.mock.invocationCallOrder[0]!
+      );
+      expect(prisma.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        prisma.blockedUser.findFirst.mock.invocationCallOrder[0]!
       );
       expect(prisma.conversation.create).toHaveBeenCalledTimes(1);
       expect(prisma.telemetry.create).toHaveBeenCalledTimes(1);

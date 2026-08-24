@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { acquireRelationshipLocks } from '../trust-safety/relationship-lock';
 import { ChatSecurityService } from './chat-security.service';
 
 const MAX_CONVERSATIONS = 50;
@@ -153,6 +154,7 @@ export class ChatService {
           SELECT pg_advisory_xact_lock(hashtextextended(${pairKey}, 0))
         ) AS pair_lock
       `);
+      await acquireRelationshipLocks(tx, userId, [participantId]);
 
       const [target, blocked, candidates] = await Promise.all([
         tx.user.findUnique({
