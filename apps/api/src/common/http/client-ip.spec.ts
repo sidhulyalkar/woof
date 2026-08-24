@@ -1,4 +1,8 @@
-import { clientIpTracker, flyClientIp, isTrustedFlyRuntime } from './client-ip';
+import {
+  clientIpTrackerForEnv,
+  flyClientIp,
+  isTrustedFlyRuntime,
+} from './client-ip';
 
 describe('clientIpTracker', () => {
   const flyEnv = {
@@ -8,7 +12,7 @@ describe('clientIpTracker', () => {
 
   it('trusts a single valid Fly-Client-IP only inside a proven Fly runtime', async () => {
     await expect(
-      clientIpTracker(
+      clientIpTrackerForEnv(
         {
           headers: { 'fly-client-ip': '203.0.113.10' },
           ip: '172.16.0.10',
@@ -20,8 +24,14 @@ describe('clientIpTracker', () => {
 
   it('keeps distinct Fly clients in distinct throttle identities', async () => {
     const [clientA, clientB] = await Promise.all([
-      clientIpTracker({ headers: { 'fly-client-ip': '203.0.113.10' }, ip: '172.16.0.10' }, flyEnv),
-      clientIpTracker({ headers: { 'fly-client-ip': '203.0.113.11' }, ip: '172.16.0.10' }, flyEnv),
+      clientIpTrackerForEnv(
+        { headers: { 'fly-client-ip': '203.0.113.10' }, ip: '172.16.0.10' },
+        flyEnv
+      ),
+      clientIpTrackerForEnv(
+        { headers: { 'fly-client-ip': '203.0.113.11' }, ip: '172.16.0.10' },
+        flyEnv
+      ),
     ]);
 
     expect(clientA).toBe('fly:203.0.113.10');
@@ -30,7 +40,7 @@ describe('clientIpTracker', () => {
 
   it('ignores a spoofed Fly-Client-IP outside a Fly runtime', async () => {
     await expect(
-      clientIpTracker(
+      clientIpTrackerForEnv(
         {
           headers: { 'fly-client-ip': '203.0.113.99' },
           ip: '198.51.100.20',
@@ -42,7 +52,7 @@ describe('clientIpTracker', () => {
 
   it('requires both Fly runtime identity variables before trusting the proxy header', async () => {
     await expect(
-      clientIpTracker(
+      clientIpTrackerForEnv(
         {
           headers: { 'fly-client-ip': '203.0.113.99' },
           ip: '198.51.100.20',
@@ -54,7 +64,7 @@ describe('clientIpTracker', () => {
 
   it('fails safe to the direct peer when the Fly header is missing or malformed', async () => {
     await expect(
-      clientIpTracker(
+      clientIpTrackerForEnv(
         {
           headers: { 'fly-client-ip': '203.0.113.10, 198.51.100.7' },
           ip: '172.16.0.10',
@@ -64,7 +74,7 @@ describe('clientIpTracker', () => {
     ).resolves.toBe('fly-fallback:172.16.0.10');
 
     await expect(
-      clientIpTracker(
+      clientIpTrackerForEnv(
         {
           headers: { 'fly-client-ip': ['203.0.113.10', '203.0.113.11'] },
           socket: { remoteAddress: '172.16.0.11' },
