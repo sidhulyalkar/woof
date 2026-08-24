@@ -1,51 +1,54 @@
-# Multi-stage Dockerfile for Woof API
+# Multi-stage production image for the Woof API.
+ARG NODE_VERSION=20.20.2
+ARG PNPM_VERSION=8.15.1
 
-# Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:${NODE_VERSION}-alpine AS builder
+ARG PNPM_VERSION
 
-# Install pnpm
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl libc6-compat \
+  && npm install --global pnpm@${PNPM_VERSION}
 
 WORKDIR /app
 
-# Copy workspace files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 
-# Install dependencies
 RUN pnpm install --frozen-lockfile
-
-# Generate Prisma client
 RUN pnpm --filter @woof/database db:generate
-
-# Build API
 RUN pnpm --filter @woof/api build
 
-# Stage 2: Production
-FROM node:20-alpine AS runner
+FROM node:${NODE_VERSION}-alpine AS runner
+ARG PNPM_VERSION
 
-# Install pnpm
-RUN npm install -g pnpm
+RUN apk add --no-cache openssl libc6-compat \
+  && npm install --global pnpm@${PNPM_VERSION}
 
 WORKDIR /app
 
-# Copy built application
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
+# Keep the workspace metadata and database package available so Fly's release
+# command can apply committed Prisma migrations before new Machines receive traffic.
+# The runtime workspace belongs to the unprivileged node user because Prisma's
+# migration engine may need writable package-local runtime state while resolving
+# its native engine. The container never needs to become root after image build.
+# pnpm also installs each workspace package's direct dependency links under that
+# package's node_modules, so preserve the API link graph alongside the root store.
+COPY --chown=node:node package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY --chown=node:node --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --chown=node:node --from=builder /app/apps/api/package.json ./apps/api/package.json
+COPY --chown=node:node --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/packages ./packages
 
-# Set environment
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV NODE_OPTIONS=--enable-source-maps
 
-# Expose port
 EXPOSE 4000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:4000/api/v1/ops/health/live', (r) => { r.resume(); process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1))"
 
-# Start application
-CMD ["node", "dist/main"]
+USER node
+
+CMD ["node", "apps/api/dist/main"]

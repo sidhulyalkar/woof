@@ -1,0 +1,397 @@
+name: dogOS Production Runtime CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/main.ts'
+      - 'apps/api/src/sentry.ts'
+      - 'apps/api/src/sentry.spec.ts'
+      - 'apps/api/src/common/filters/**'
+      - 'apps/api/src/common/http/**'
+      - 'apps/api/.env.example'
+      - 'apps/api/fly.toml'
+      - 'packages/database/package.json'
+      - 'packages/database/src/index.js'
+      - 'packages/database/src/index.d.ts'
+      - 'infra/docker/Dockerfile.api'
+      - '.dockerignore'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/deploy-staging.yml'
+      - '.github/workflows/dogos-production-runtime-ci.yml'
+      - 'docs/DOGOS_PRODUCTION_RUNTIME_HARDENING.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-production-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-production-runtime-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Production runtime + deploy qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject schema and migration ownership changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
+          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
+            echo 'Production Runtime Hardening v1 does not own database schema or migration changes.'
+            exit 1
+          fi
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check runtime formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/main.ts
+          apps/api/src/sentry.ts
+          apps/api/src/sentry.spec.ts
+          apps/api/src/common/filters/all-exceptions.filter.ts
+          apps/api/src/common/filters/all-exceptions.filter.spec.ts
+          apps/api/src/common/http/request-context.ts
+          apps/api/src/common/http/request-context.spec.ts
+          packages/database/package.json
+          packages/database/src/index.js
+          packages/database/src/index.d.ts
+          .github/workflows/deploy-production.yml
+          .github/workflows/deploy-staging.yml
+          .github/workflows/dogos-production-runtime-ci.yml
+          docs/DOGOS_PRODUCTION_RUNTIME_HARDENING.md
+
+      - name: Lint runtime API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/main.ts
+          src/sentry.ts
+          src/sentry.spec.ts
+          src/common/filters/all-exceptions.filter.ts
+          src/common/filters/all-exceptions.filter.spec.ts
+          src/common/http/request-context.ts
+          src/common/http/request-context.spec.ts
+
+      - name: Validate database runtime entry
+        run: |
+          node --check packages/database/src/index.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = json.loads(Path('packages/database/package.json').read_text())
+          runtime_entry = package.get('main')
+          type_entry = package.get('types')
+          exports = package.get('exports', {}).get('.', {})
+
+          if runtime_entry != './src/index.js':
+              raise SystemExit('database runtime main must be executable JavaScript')
+          if runtime_entry.endswith(('.ts', '.tsx')):
+              raise SystemExit('database runtime main must never expose raw TypeScript')
+          if type_entry != './src/index.d.ts':
+              raise SystemExit('database package must keep an explicit declaration surface')
+          if exports.get('require') != runtime_entry or exports.get('default') != runtime_entry:
+              raise SystemExit('database package exports must resolve Node runtime to executable JavaScript')
+          if exports.get('types') != type_entry:
+              raise SystemExit('database package exports must resolve TypeScript to declarations')
+          PY
+
+      - name: Enforce privacy-safe error telemetry
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          error_filter = Path('apps/api/src/common/filters/all-exceptions.filter.ts').read_text()
+          sentry = Path('apps/api/src/sentry.ts').read_text()
+
+          forbidden_filter = [
+              'request.headers',
+              'request.user',
+              'url: request.url',
+              'headers: request.headers',
+          ]
+          present = [token for token in forbidden_filter if token in error_filter]
+          if present:
+              raise SystemExit(f'identifier-bearing exception telemetry is forbidden: {present}')
+
+          required_filter = [
+              'requestRouteTemplate(request)',
+              'requestPathname(request)',
+              'requestId',
+              'status >= HttpStatus.INTERNAL_SERVER_ERROR',
+          ]
+          missing = [token for token in required_filter if token not in error_filter]
+          if missing:
+              raise SystemExit(f'missing privacy-safe exception invariant: {missing}')
+
+          required_sentry = [
+              'sendDefaultPii: false',
+              'beforeSendTransaction',
+              'delete event.request',
+              'delete event.user',
+              'delete event.extra',
+              'delete event.breadcrumbs',
+              'delete span.data',
+          ]
+          missing = [token for token in required_sentry if token not in sentry]
+          if missing:
+              raise SystemExit(f'missing Sentry privacy invariant: {missing}')
+          PY
+
+      - name: Enforce lifecycle, docs and correlation contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path('apps/api/src/main.ts').read_text()
+          request_context = Path('apps/api/src/common/http/request-context.ts').read_text()
+
+          required_main = [
+              'enableShutdownHooks',
+              'ShutdownSignal.SIGTERM',
+              'ShutdownSignal.SIGINT',
+              'requestContextMiddleware',
+              "configService.get<string>('API_DOCS_ENABLED') === 'true'",
+              'if (docsEnabled)',
+              'SwaggerModule.setup',
+              'bootstrap().catch',
+          ]
+          missing = [token for token in required_main if token not in main]
+          if missing:
+              raise SystemExit(f'missing runtime lifecycle invariant: {missing}')
+          if main.index('SwaggerModule.setup') < main.index('if (docsEnabled)'):
+              raise SystemExit('Swagger must only be mounted behind API_DOCS_ENABLED')
+
+          required_context = [
+              "REQUEST_ID_HEADER = 'x-request-id'",
+              'randomUUID()',
+              "response.setHeader('X-Request-ID', requestId)",
+              "rawUrl.indexOf('?')",
+              "return 'unmatched'",
+          ]
+          missing = [token for token in required_context if token not in request_context]
+          if missing:
+              raise SystemExit(f'missing request-correlation invariant: {missing}')
+          PY
+
+      - name: Validate Fly, Docker and deployment contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tomllib
+
+          fly_path = Path('apps/api/fly.toml')
+          if not fly_path.exists():
+              raise SystemExit('apps/api/fly.toml must be committed')
+          fly = tomllib.loads(fly_path.read_text())
+          deploy = fly.get('deploy', {})
+          http = fly.get('http_service', {})
+          checks = http.get('checks', [])
+
+          if deploy.get('release_command') != 'pnpm --filter @woof/database db:migrate:deploy':
+              raise SystemExit('Fly release command must deploy committed Prisma migrations')
+          if http.get('force_https') is not True:
+              raise SystemExit('Fly API must force HTTPS')
+          if http.get('auto_stop_machines') != 'off':
+              raise SystemExit('production-style API Machines must not auto-stop to zero')
+          if http.get('min_machines_running') != 1:
+              raise SystemExit('at least one API Machine must remain warm')
+          if not checks or checks[0].get('path') != '/api/v1/ops/health/ready':
+              raise SystemExit('Fly traffic routing must use the dedicated readiness endpoint')
+
+          dockerfile = Path('infra/docker/Dockerfile.api').read_text()
+          required_docker = [
+              'ARG NODE_VERSION=20.20.2',
+              'ARG PNPM_VERSION=8.15.1',
+              'apk add --no-cache openssl libc6-compat',
+              'npm install --global pnpm@${PNPM_VERSION}',
+              'COPY --chown=node:node --from=builder /app/apps/api/node_modules ./apps/api/node_modules',
+              '/api/v1/ops/health/live',
+              'USER node',
+              'CMD ["node", "apps/api/dist/main"]',
+          ]
+          missing = [token for token in required_docker if token not in dockerfile]
+          if missing:
+              raise SystemExit(f'missing production image invariant: {missing}')
+          forbidden_docker = [
+              'npm install -g pnpm\n',
+              'npm install --global pnpm\n',
+              'pnpm@latest',
+          ]
+          present = [token for token in forbidden_docker if token in dockerfile]
+          if present:
+              raise SystemExit(f'production image contains unpinned package-manager install: {present}')
+
+          for workflow_path in [
+              '.github/workflows/deploy-production.yml',
+              '.github/workflows/deploy-staging.yml',
+          ]:
+              workflow = Path(workflow_path).read_text()
+              required = [
+                  'setup-flyctl@v1.5',
+                  'version: 0.4.76',
+                  'apps/api/fly.toml',
+                  '/api/v1/ops/health/live',
+                  '/api/v1/ops/health/ready',
+                  'vercel@58.4.4',
+              ]
+              missing = [token for token in required if token not in workflow]
+              if missing:
+                  raise SystemExit(f'{workflow_path} missing deterministic deploy invariant: {missing}')
+              for forbidden in ['setup-flyctl@master', 'vercel@latest', 'sleep 10']:
+                  if forbidden in workflow:
+                      raise SystemExit(f'{workflow_path} contains forbidden deploy pattern: {forbidden}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run runtime privacy and readiness contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/common/http/request-context.spec.ts
+          src/common/filters/all-exceptions.filter.spec.ts
+          src/sentry.spec.ts
+          src/config/env.validation.spec.ts
+          src/observability/observability.service.spec.ts
+          src/observability/operational-metrics.service.spec.ts
+          src/observability/ops-token.guard.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-runtime:ci .
+
+      - name: Verify production image contract
+        run: |
+          test "$(docker inspect -f '{{.Config.User}}' woof-api-runtime:ci)" = 'node'
+          docker inspect -f '{{json .Config.Healthcheck.Test}}' woof-api-runtime:ci | grep -F '/api/v1/ops/health/live'
+          docker run --rm woof-api-runtime:ci \
+            node -e "require.resolve('@nestjs/common', { paths: ['/app/apps/api'] })"
+          docker run --rm woof-api-runtime:ci \
+            node -e "const p=require.resolve('@woof/database',{paths:['/app/apps/api']}); if (/\.(ts|tsx)$/.test(p)) throw new Error('raw TypeScript database runtime'); const db=require(p); if (!db.prisma || !db.PrismaClient) throw new Error('incomplete database runtime exports')"
+          docker run --rm --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            woof-api-runtime:ci \
+            pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Boot production image and verify HTTP contracts
+        run: |
+          docker rm -f woof-api-runtime-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-runtime-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            woof-api-runtime:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            live_status=$(curl --silent --show-error --output /tmp/live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$live_status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-runtime-ci; then
+              echo "Production image exited before liveness; last_status=$live_status"
+              cat /tmp/live.json 2>/dev/null || true
+              docker logs woof-api-runtime-ci || true
+              docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            cat /tmp/live.json 2>/dev/null || true
+            docker logs woof-api-runtime-ci || true
+            docker inspect -f 'exit_code={{.State.ExitCode}} error={{.State.Error}}' woof-api-runtime-ci || true
+            exit 1
+          fi
+
+          # Let the short global throttle window expire. Keep the remaining
+          # verification to two requests so production abuse controls stay active.
+          sleep 2
+
+          ready_status=$(curl --silent --show-error --dump-header /tmp/ready-headers \
+            --output /tmp/ready.json --write-out '%{http_code}' \
+            --header 'X-Request-ID: ci-request-12345678' \
+            http://127.0.0.1:4000/api/v1/ops/health/ready || true)
+          if [ "$ready_status" != '200' ]; then
+            echo "Production image failed readiness; status=$ready_status"
+            cat /tmp/ready.json 2>/dev/null || true
+            docker logs woof-api-runtime-ci || true
+            exit 1
+          fi
+          tr -d '\r' < /tmp/ready-headers | grep -Fxi 'X-Request-ID: ci-request-12345678' || {
+            echo 'Readiness response did not preserve X-Request-ID.'
+            cat /tmp/ready-headers
+            exit 1
+          }
+
+          docs_status=$(curl --silent --show-error --output /tmp/docs-response --write-out '%{http_code}' \
+            http://127.0.0.1:4000/docs || true)
+          if [ "$docs_status" != '404' ]; then
+            echo "Swagger must remain unmounted by default; status=$docs_status"
+            cat /tmp/docs-response 2>/dev/null || true
+            docker logs woof-api-runtime-ci || true
+            exit 1
+          fi
+
+      - name: Stop production image
+        if: always()
+        run: docker rm -f woof-api-runtime-ci >/dev/null 2>&1 || true

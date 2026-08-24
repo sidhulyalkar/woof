@@ -13,18 +13,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Fly.io CLI
-        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install pinned Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@v1.5
+        with:
+          version: 0.4.76
 
-      - name: Deploy to Fly.io Production
-        run: flyctl deploy --app woof-api-prod --config apps/api/fly.toml
+      - name: Deploy API with migration and readiness gates
+        run: >-
+          flyctl deploy .
+          --remote-only
+          --app woof-api-prod
+          --config apps/api/fly.toml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Run smoke tests
+      - name: Verify API liveness and readiness
         run: |
-          sleep 10
-          curl -f https://woof-api-prod.fly.dev/api/v1/health || exit 1
+          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
+            https://woof-api-prod.fly.dev/api/v1/ops/health/live
+          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
+            https://woof-api-prod.fly.dev/api/v1/ops/health/ready
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3
@@ -42,8 +50,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@58.4.4
 
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
