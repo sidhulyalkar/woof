@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { AuthModule } from '../auth/auth.module';
 import { NudgesModule } from '../nudges/nudges.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ChatController } from './chat.controller';
@@ -18,6 +19,7 @@ import { RealtimeAdmissionService } from './realtime-admission.service';
         signOptions: { expiresIn: config.get('JWT_EXPIRES_IN') || '7d' },
       }),
     }),
+    AuthModule,
     NudgesModule,
     PrismaModule,
   ],

@@ -51,15 +51,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Enforce database ownership boundary
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Chat Delivery Integrity v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
 
       - name: Check Chat Delivery formatting
         run: >-
@@ -124,10 +121,54 @@ jobs:
 
       - name: Enforce canonical server receipt boundary
         run: |
-          grep -q 'dogos_chat.message_receipts' apps/api/src/chat/chat-security.service.ts
-          grep -q 'ON CONFLICT (user_id, client_message_id) DO NOTHING' apps/api/src/chat/chat-security.service.ts
-          grep -q 'if (!result.duplicate)' apps/api/src/chat/chat.gateway.ts
-          grep -q 'chatSecurity.persistMessage' apps/api/src/chat/chat.gateway.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          security = Path('apps/api/src/chat/chat-security.service.ts').read_text()
+
+          receipt_required = [
+              'dogos_chat.message_receipts',
+              'ON CONFLICT (user_id, client_message_id) DO NOTHING',
+              'pg_advisory_xact_lock',
+              'woof:chat-receipt:',
+          ]
+          missing = [token for token in receipt_required if token not in security]
+          if missing:
+              raise SystemExit(f'missing canonical receipt invariant: {missing}')
+
+          message = gateway[
+              gateway.index("@SubscribeMessage('message:send')"):
+              gateway.index("@SubscribeMessage('conversation:join')")
+          ]
+          authority = message.index('this.withAuthoritativeSession(client, userId, async (tx) =>')
+          persistence = message.index('chatSecurity.persistMessageInTransaction(tx')
+          postcommit = message.index('if (response?.success && !response.duplicate)')
+          fanout = message.index('chatSecurity.withAuthorizedRealtimeRecipients', postcommit)
+          if not authority < persistence < postcommit < fanout:
+              raise SystemExit(
+                  'message delivery must persist with the authority transaction before post-commit fanout'
+              )
+
+          tx_start = security.index('async persistMessageInTransaction')
+          tx_end = security.index('private normalizePersistMessageInput', tx_start)
+          tx_path = security[tx_start:tx_end]
+          tx_required = [
+              'this.normalizePersistMessageInput(input)',
+              'this.acquireReceiptIdentityLock(tx',
+              'this.assertConversationAccessWithClient(tx',
+              'this.getReceiptWithClient(tx',
+              'tx.message.create',
+              'this.insertReceipt(tx',
+          ]
+          missing = [token for token in tx_required if token not in tx_path]
+          if missing:
+              raise SystemExit(f'transaction-bound persistence is incomplete: {missing}')
+          if 'this.prisma.' in tx_path or '$transaction' in tx_path:
+              raise SystemExit(
+                  'transaction-bound persistence must reuse the authority transaction, never acquire Prisma again'
+              )
+          PY
 
       - name: Type-check web
         run: pnpm --filter @woof/web type-check

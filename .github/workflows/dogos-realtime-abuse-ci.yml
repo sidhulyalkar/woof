@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/api/src/chat/chat.gateway.ts'
       - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-session-ready.spec.ts'
       - 'apps/api/src/chat/chat.module.ts'
       - 'apps/api/src/chat/realtime-admission.service.ts'
       - 'apps/api/src/chat/realtime-admission.service.spec.ts'
@@ -67,15 +68,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Enforce database ownership boundary
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Realtime Abuse Control v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
@@ -85,6 +83,7 @@ jobs:
           pnpm exec prettier --check
           apps/api/src/chat/chat.gateway.ts
           apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-session-ready.spec.ts
           apps/api/src/chat/chat.module.ts
           apps/api/src/chat/realtime-admission.service.ts
           apps/api/src/chat/realtime-admission.service.spec.ts
@@ -96,6 +95,7 @@ jobs:
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           src/chat/chat.gateway.ts
           src/chat/chat.gateway.spec.ts
+          src/chat/chat-session-ready.spec.ts
           src/chat/chat.module.ts
           src/chat/realtime-admission.service.ts
           src/chat/realtime-admission.service.spec.ts
@@ -163,11 +163,12 @@ jobs:
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
 
-      - name: Run realtime admission and gateway contracts
+      - name: Run realtime admission, readiness and gateway contracts
         run: >-
           pnpm --filter @woof/api exec jest --runInBand
           src/chat/realtime-admission.service.spec.ts
           src/chat/chat.gateway.spec.ts
+          src/chat/chat-session-ready.spec.ts
           src/chat/chat-security.service.spec.ts
 
       - name: Run existing PostgreSQL authorization race regressions
@@ -219,32 +220,58 @@ jobs:
       - name: Prove authenticated Socket.IO flood admission and reconnect retention
         run: |
           pnpm --filter @woof/web exec node <<'NODE'
-          const crypto = require('node:crypto');
           const { io } = require('socket.io-client');
+          const baseUrl = 'http://127.0.0.1:4000/api/v1';
 
-          const secret = process.env.JWT_SECRET;
-          if (!secret) throw new Error('JWT_SECRET is required');
-
-          function jwt(sub) {
-            const now = Math.floor(Date.now() / 1000);
-            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-            const header = encode({ alg: 'HS256', typ: 'JWT' });
-            const payload = encode({ sub, iat: now, exp: now + 300 });
-            const unsigned = `${header}.${payload}`;
-            const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
-            return `${unsigned}.${signature}`;
+          async function register(label) {
+            const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const response = await fetch(`${baseUrl}/auth/register`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                handle: `ci-abuse-${label}-${suffix}`.slice(0, 30),
+                email: `ci-abuse-${label}-${suffix}@example.test`,
+                password: 'SessionPass123!',
+              }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.status !== 201 || !payload?.access_token) {
+              throw new Error(`register ${label} failed: ${response.status} ${JSON.stringify(payload)}`);
+            }
+            return payload.access_token;
           }
 
-          function connect(sub) {
+          function connect(token) {
             return new Promise((resolve, reject) => {
               const socket = io('http://127.0.0.1:4000', {
-                auth: { token: jwt(sub) },
+                auth: { token },
                 transports: ['websocket'],
                 reconnection: false,
                 timeout: 4_000,
               });
-              socket.once('connect', () => resolve(socket));
-              socket.once('connect_error', reject);
+              const timer = setTimeout(() => {
+                socket.disconnect();
+                reject(new Error('socket transport connected but session:ready did not arrive'));
+              }, 5_000);
+              socket.once('session:ready', (payload) => {
+                if (!payload || payload.socketId !== socket.id) {
+                  clearTimeout(timer);
+                  socket.disconnect();
+                  reject(new Error(`session:ready socket mismatch: ${JSON.stringify(payload)}`));
+                  return;
+                }
+                clearTimeout(timer);
+                resolve(socket);
+              });
+              socket.once('connect_error', (error) => {
+                clearTimeout(timer);
+                reject(error);
+              });
+              socket.once('disconnect', (reason) => {
+                if (reason === 'io client disconnect') return;
+                clearTimeout(timer);
+                reject(new Error(`socket disconnected before session:ready: ${reason}`));
+              });
             });
           }
 
@@ -257,6 +284,12 @@ jobs:
             });
           }
 
+          function expectAdmitted(response, label) {
+            if (!response || response.error === 'rate_limited' || response.error === 'unauthorized') {
+              throw new Error(`${label} should reach canonical work: ${JSON.stringify(response)}`);
+            }
+          }
+
           function expectRateLimited(response, label) {
             if (!response || response.success !== false || response.error !== 'rate_limited') {
               throw new Error(`${label} expected rate_limited, got ${JSON.stringify(response)}`);
@@ -266,16 +299,28 @@ jobs:
             }
           }
 
-          (async () => {
-            const userOne = await connect('socket-abuse-user-1');
+          async function consumeBurst(socket, action, count, payloadForIndex, label) {
+            const responses = await Promise.all(
+              Array.from({ length: count }, (_, index) => ack(socket, action, payloadForIndex(index)))
+            );
+            responses.forEach((response, index) => expectAdmitted(response, `${label} ${index}`));
+          }
 
-            for (let index = 0; index < 5; index += 1) {
-              userOne.emit('message:send', {
+          (async () => {
+            const tokenOne = await register('one');
+            const userOne = await connect(tokenOne);
+
+            await consumeBurst(
+              userOne,
+              'message:send',
+              5,
+              (index) => ({
                 conversationId: 'missing-conversation',
                 clientMessageId: `flood-message-${index}`,
                 text: 'flood probe',
-              });
-            }
+              }),
+              'message burst'
+            );
             const messageDenied = await ack(userOne, 'message:send', {
               conversationId: 'missing-conversation',
               clientMessageId: 'flood-message-denied',
@@ -284,7 +329,7 @@ jobs:
             expectRateLimited(messageDenied, 'message flood');
 
             userOne.disconnect();
-            const reconnected = await connect('socket-abuse-user-1');
+            const reconnected = await connect(tokenOne);
             const reconnectDenied = await ack(reconnected, 'message:send', {
               conversationId: 'missing-conversation',
               clientMessageId: 'reconnect-message-denied',
@@ -292,40 +337,51 @@ jobs:
             });
             expectRateLimited(reconnectDenied, 'reconnect flood');
 
-            for (let index = 0; index < 8; index += 1) {
-              reconnected.emit('typing:start', { conversationId: 'missing-conversation' });
-            }
+            await consumeBurst(
+              reconnected,
+              'typing:start',
+              8,
+              () => ({ conversationId: 'missing-conversation' }),
+              'typing burst'
+            );
             const typingDenied = await ack(reconnected, 'typing:start', {
               conversationId: 'missing-conversation',
             });
             expectRateLimited(typingDenied, 'typing flood');
 
-            for (let index = 0; index < 10; index += 1) {
-              reconnected.emit('conversation:join', { conversationId: 'missing-conversation' });
-            }
+            await consumeBurst(
+              reconnected,
+              'conversation:join',
+              10,
+              () => ({ conversationId: 'missing-conversation' }),
+              'membership burst'
+            );
             const membershipDenied = await ack(reconnected, 'conversation:join', {
               conversationId: 'missing-conversation',
             });
             expectRateLimited(membershipDenied, 'membership flood');
 
-            const userTwo = await connect('socket-abuse-user-2');
+            const tokenTwo = await register('two');
+            const userTwo = await connect(tokenTwo);
             const independent = await ack(userTwo, 'message:send', {
               conversationId: 'missing-conversation',
               clientMessageId: 'independent-user-message',
               text: 'independent probe',
             });
-            if (!independent || independent.error === 'rate_limited') {
-              throw new Error(`distinct user must have an independent bucket: ${JSON.stringify(independent)}`);
-            }
+            expectAdmitted(independent, 'distinct user independent bucket');
 
             userTwo.disconnect();
             reconnected.disconnect();
-          })().catch((error) => {
-            console.error(error);
-            process.exitCode = 1;
-          });
+          })()
+            .then(() => process.exit(0))
+            .catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
           NODE
 
       - name: Stop production image
         if: always()
-        run: docker rm -f woof-api-realtime-abuse-ci >/dev/null 2>&1 || true
+        run: |
+          docker logs woof-api-realtime-abuse-ci || true
+          docker rm -f woof-api-realtime-abuse-ci >/dev/null 2>&1 || true

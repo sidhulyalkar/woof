@@ -1,0 +1,578 @@
+name: dogOS Session Authority CI
+
+on:
+  pull_request:
+    branches: [main, agent/dogos-realtime-session-lifetime-v1]
+    paths:
+      - 'apps/api/src/auth/**'
+      - 'apps/api/src/chat/chat.gateway.ts'
+      - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-session-ready.spec.ts'
+      - 'apps/api/src/chat/chat-security.service.ts'
+      - 'apps/api/src/chat/chat-security.service.spec.ts'
+      - 'apps/api/src/chat/chat.module.ts'
+      - 'apps/web/src/lib/api.ts'
+      - 'apps/web/src/lib/socket.ts'
+      - 'apps/web/src/lib/socket.spec.ts'
+      - 'apps/mobile/src/api/auth.ts'
+      - 'packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/**'
+      - '.github/scripts/assert-database-ownership.py'
+      - '.github/workflows/dogos-session-authority-ci.yml'
+      - 'docs/DOGOS_SESSION_AUTHORITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-session-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-session-authority-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Persisted session revocation + realtime delivery qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Enforce exact add-only database ownership
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check touched-file formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/auth/auth.controller.ts
+          apps/api/src/auth/auth.module.ts
+          apps/api/src/auth/auth.service.ts
+          apps/api/src/auth/auth.service.spec.ts
+          apps/api/src/auth/authenticated-request.ts
+          apps/api/src/auth/session-authority.service.ts
+          apps/api/src/auth/session-authority.integration.spec.ts
+          apps/api/src/auth/strategies/jwt.strategy.ts
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-session-ready.spec.ts
+          apps/api/src/chat/chat-security.service.ts
+          apps/api/src/chat/chat-security.service.spec.ts
+          apps/api/src/chat/chat.module.ts
+          apps/web/src/lib/api.ts
+          apps/web/src/lib/socket.ts
+          apps/web/src/lib/socket.spec.ts
+          apps/mobile/src/api/auth.ts
+          .github/workflows/dogos-session-authority-ci.yml
+          docs/DOGOS_SESSION_AUTHORITY.md
+
+      - name: Reject whitespace errors
+        run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
+
+      - name: Lint Session Authority surfaces
+        run: |
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish \
+            src/auth/auth.controller.ts \
+            src/auth/auth.module.ts \
+            src/auth/auth.service.ts \
+            src/auth/auth.service.spec.ts \
+            src/auth/authenticated-request.ts \
+            src/auth/session-authority.service.ts \
+            src/auth/session-authority.integration.spec.ts \
+            src/auth/strategies/jwt.strategy.ts \
+            src/chat/chat.gateway.ts \
+            src/chat/chat.gateway.spec.ts \
+            src/chat/chat-session-ready.spec.ts \
+            src/chat/chat-security.service.ts \
+            src/chat/chat-security.service.spec.ts \
+            src/chat/chat.module.ts
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/lib/api.ts src/lib/socket.ts src/lib/socket.spec.ts
+          pnpm --filter @woof/mobile exec eslint --max-warnings=0 src/api/auth.ts
+
+      - name: Enforce persisted authority and transaction-bound realtime invariants
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          migration = Path('packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql').read_text()
+          service = Path('apps/api/src/auth/session-authority.service.ts').read_text()
+          auth = Path('apps/api/src/auth/auth.service.ts').read_text()
+          strategy = Path('apps/api/src/auth/strategies/jwt.strategy.ts').read_text()
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          security = Path('apps/api/src/chat/chat-security.service.ts').read_text()
+          web_api = Path('apps/web/src/lib/api.ts').read_text()
+          web_socket = Path('apps/web/src/lib/socket.ts').read_text()
+          mobile = Path('apps/mobile/src/api/auth.ts').read_text()
+
+          migration_required = [
+              'CREATE SCHEMA IF NOT EXISTS dogos_auth',
+              'CREATE TABLE IF NOT EXISTS dogos_auth.sessions',
+              'id TEXT PRIMARY KEY',
+              'user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE',
+              'expires_at TIMESTAMPTZ NOT NULL',
+              'revoked_at TIMESTAMPTZ',
+              'revocation_reason TEXT',
+          ]
+          missing = [token for token in migration_required if token not in migration]
+          if missing:
+              raise SystemExit(f'missing persisted session schema invariant: {missing}')
+
+          privacy_forbidden = [
+              'ip_address', 'user_agent', 'fingerprint', 'latitude', 'longitude',
+              'raw_token', 'access_token', 'refresh_token'
+          ]
+          present = [token for token in privacy_forbidden if token in migration.lower()]
+          if present:
+              raise SystemExit(f'session authority must remain privacy-thin: {present}')
+
+          service_required = [
+              'INSERT INTO dogos_auth.sessions',
+              'type ActiveSessionWork<T> = (tx: Prisma.TransactionClient)',
+              'async withActiveSession',
+              'async revokeSession',
+              'async revokeAllSessions',
+              'async withActiveSessions',
+              'async withActiveSessionsInTransaction',
+              'ORDER BY id',
+              'FOR UPDATE',
+              'FOR SHARE',
+              'await work(tx)',
+              'await deliver(activeSessionIds)',
+          ]
+          missing = [token for token in service_required if token not in service]
+          if missing:
+              raise SystemExit(f'missing lock-bound session authority invariant: {missing}')
+          if 'await work()' in service:
+              raise SystemExit('session authority must pass its transaction client into admitted work')
+
+          active_start = service.index('async withActiveSession')
+          revoke_start = service.index('async revokeSession', active_start)
+          active_path = service[active_start:revoke_start]
+          if active_path.count('this.prisma.$transaction') != 1 or 'await work(tx)' not in active_path:
+              raise SystemExit('withActiveSession must own exactly one transaction and hand tx to canonical work')
+
+          auth_required = [
+              'const sessionId = randomUUID()',
+              'sid: sessionId',
+              'jwtService.decode(token)',
+              'sessionAuthority.createSession',
+              'sessionAuthority.revokeSession',
+              'sessionAuthority.revokeAllSessions',
+          ]
+          missing = [token for token in auth_required if token not in auth]
+          if missing:
+              raise SystemExit(f'missing auth issuance/revocation invariant: {missing}')
+          if auth.index('sessionAuthority.createSession') > auth.index('return token'):
+              raise SystemExit('server session must persist before the access token is returned')
+
+          if 'sessionAuthority.assertActive(payload.sid, payload.sub)' not in strategy:
+              raise SystemExit('protected HTTP requests must require persisted session authority')
+          if "typeof payload.sid !== 'string'" not in strategy:
+              raise SystemExit('HTTP JWT validation must fail closed without sid')
+
+          connection = gateway[gateway.index('async handleConnection'):gateway.index('handleDisconnect')]
+          ready_emit = "client.emit('session:ready', { socketId: client.id })"
+          connect_authority = connection.index('sessionAuthority.withActiveSession')
+          private_room = connection.index('await client.join(`user:${userId}`)')
+          ready = connection.index(ready_emit)
+          if not connect_authority < private_room < ready:
+              raise SystemExit(
+                  'realtime readiness must be persisted authority -> private room -> socket-bound session:ready'
+              )
+          if connection.count('this.isSocketDisconnected(client)') < 2:
+              raise SystemExit('connection admission must recheck disconnect state across async work')
+
+          message = gateway[
+              gateway.index("@SubscribeMessage('message:send')"):
+              gateway.index("@SubscribeMessage('conversation:join')")
+          ]
+          ordering = [
+              'connectedUsers.get(client.id)',
+              'this.hasActiveSession(client, userId)',
+              'parseSendChatMessagePayload(data)',
+              "realtimeAdmission.consume(userId, 'message')",
+              'this.withAuthoritativeSession(client, userId, async (tx) =>',
+              'chatSecurity.persistMessageInTransaction(tx',
+          ]
+          positions = [message.index(token) for token in ordering]
+          if positions != sorted(positions):
+              raise SystemExit(
+                  'message order must be identity -> lease -> validation -> admission -> persisted authority tx -> persistence'
+              )
+          if 'chatSecurity.persistMessage(' in message:
+              raise SystemExit('realtime messages must not reacquire Prisma through standalone persistence')
+
+          for label, start_marker, end_marker, required_call in [
+              (
+                  'join',
+                  "@SubscribeMessage('conversation:join')",
+                  "@SubscribeMessage('conversation:leave')",
+                  'chatSecurity.assertConversationAccessInTransaction',
+              ),
+              (
+                  'leave',
+                  "@SubscribeMessage('conversation:leave')",
+                  "@SubscribeMessage('typing:start')",
+                  'chatSecurity.assertConversationAccessInTransaction',
+              ),
+          ]:
+              handler = gateway[gateway.index(start_marker):gateway.index(end_marker)]
+              if 'this.withAuthoritativeSession(client, userId, async (tx) =>' not in handler:
+                  raise SystemExit(f'{label} must run under persisted session authority')
+              tx_calls = re.findall(rf'{required_call}\s*\(\s*tx\s*,', handler)
+              if len(tx_calls) != 1:
+                  raise SystemExit(f'{label} must reuse the authority transaction for relationship checks')
+
+          typing_start = gateway.index('private async emitTyping')
+          typing_end = gateway.index('private async withAuthoritativeSession', typing_start)
+          typing = gateway[typing_start:typing_end]
+          typing_required = [
+              'this.withAuthoritativeSession(client, userId, async (tx) =>',
+              'chatSecurity.withAuthorizedRealtimeRecipientsInTransaction',
+              'sessionAuthority.withActiveSessionsInTransaction',
+          ]
+          missing = [token for token in typing_required if token not in typing]
+          if missing:
+              raise SystemExit(f'typing must remain fully transaction-bound: {missing}')
+          typing_tx_calls = re.findall(r'InTransaction\s*\(\s*tx\s*,', typing)
+          if len(typing_tx_calls) < 2:
+              raise SystemExit('typing relationship and recipient-session checks must reuse the same authority tx')
+
+          tx_start = security.index('async persistMessageInTransaction')
+          tx_end = security.index('private normalizePersistMessageInput', tx_start)
+          tx_persistence = security[tx_start:tx_end]
+          tx_required = [
+              'this.normalizePersistMessageInput(input)',
+              'this.acquireReceiptIdentityLock(tx',
+              'this.assertConversationAccessWithClient(tx',
+              'this.getReceiptWithClient(tx',
+              'tx.message.create',
+              'this.insertReceipt(tx',
+          ]
+          missing = [token for token in tx_required if token not in tx_persistence]
+          if missing:
+              raise SystemExit(f'transaction-bound message persistence is incomplete: {missing}')
+          if 'this.prisma.' in tx_persistence or '$transaction' in tx_persistence:
+              raise SystemExit(
+                  'lock-bound realtime persistence must never acquire a second Prisma connection'
+              )
+
+          postcommit = message.index('if (response?.success && !response.duplicate)')
+          fanout = message.index('chatSecurity.withAuthorizedRealtimeRecipients', postcommit)
+          if fanout < postcommit:
+              raise SystemExit('message fanout must happen after canonical persistence commits')
+
+          emit_start = gateway.index('private async emitToActiveSessions')
+          emit_end = gateway.index('private sessionCandidates', emit_start)
+          postcommit_delivery = gateway[emit_start:emit_end]
+          fanout_required = [
+              'sessionAuthority.withActiveSessions(',
+              'this.server.to(this.userRooms(authorizedUserIds))',
+              'inactiveSocketIds',
+              '.except(inactiveSocketIds)',
+              "client.emit('session:revoked', { reason: 'session_revoked' })",
+          ]
+          missing = [token for token in fanout_required if token not in gateway]
+          if missing:
+              raise SystemExit(f'missing realtime session-dominance invariant: {missing}')
+          if 'sessionAuthority.withActiveSessions(' not in postcommit_delivery:
+              raise SystemExit('post-commit message fanout must still filter revoked recipient sessions')
+
+          helper_start = gateway.index('private async withAuthoritativeSession')
+          helper_end = gateway.index('private async emitToActiveSessions', helper_start)
+          helper = gateway[helper_start:helper_end]
+          helper_required = [
+              'work: (tx: Prisma.TransactionClient) => Promise<T>',
+              'sessionAuthority.withActiveSession(sessionId, userId, work)',
+          ]
+          missing = [token for token in helper_required if token not in helper]
+          if missing:
+              raise SystemExit(f'gateway authority helper must preserve tx identity: {missing}')
+
+          web_required = [
+              "activeSocket.on('session:ready', (payload: SessionReadyPayload) =>",
+              'payload?.socketId !== activeSocket.id',
+              "activeSocket.on('session:expired'",
+              "activeSocket.on('session:revoked'",
+              'SESSION_READY_TIMEOUT_MS = 8_000',
+              'function waitForSessionReady(): Promise<Socket>',
+              'waitForSessionReady().then(',
+              'desiredConversations.clear()',
+          ]
+          missing = [token for token in web_required if token not in web_socket]
+          if missing:
+              raise SystemExit(f'web session-readiness contract is incomplete: {missing}')
+
+          for label, source in [('web', web_api), ('mobile', mobile)]:
+              for endpoint in ["'/auth/logout'", "'/auth/logout-all'"]:
+                  if endpoint not in source:
+                      raise SystemExit(f'{label} client must invoke server revocation endpoint {endpoint}')
+              if 'Authorization: `Bearer ${token}`' not in source:
+                  raise SystemExit(f'{label} logout must preserve the captured token for server revocation')
+          PY
+
+      - name: Type-check API, web and mobile
+        run: |
+          pnpm --filter @woof/api type-check
+          pnpm --filter @woof/web type-check
+          pnpm --filter @woof/mobile type-check
+
+      - name: Run Session Authority unit contracts
+        run: |
+          pnpm --filter @woof/api exec jest --runInBand \
+            src/auth/auth.service.spec.ts \
+            src/chat/chat.gateway.spec.ts \
+            src/chat/chat-session-ready.spec.ts \
+            src/chat/chat-input-contract.spec.ts \
+            src/chat/realtime-admission.service.spec.ts \
+            src/chat/chat-security.service.spec.ts
+          pnpm --filter @woof/web exec vitest run src/lib/socket.spec.ts
+
+      - name: Run real PostgreSQL authority and relationship contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/auth/session-authority.integration.spec.ts
+          src/chat/chat-live-authorization.integration.spec.ts
+          src/chat/chat-block-atomicity.integration.spec.ts
+          src/chat/chat.service.integration.spec.ts
+
+      - name: Build API and web
+        run: |
+          pnpm --filter @woof/api build
+          pnpm --filter @woof/web build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-session-authority:ci .
+
+      - name: Boot production image
+        run: |
+          docker rm -f woof-api-session-authority-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-session-authority-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            woof-api-session-authority:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/session-authority-live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-session-authority-ci; then
+              echo "Production image exited before liveness; status=$status"
+              cat /tmp/session-authority-live.json 2>/dev/null || true
+              docker logs woof-api-session-authority-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-session-authority-ci || true
+            exit 1
+          fi
+
+      - name: Prove current logout, realtime revocation and logout-all on production image
+        run: |
+          pnpm --filter @woof/web exec node <<'NODE'
+          const { io } = require('socket.io-client');
+          const baseUrl = 'http://127.0.0.1:4000/api/v1';
+          const HTTP_PACE_MS = 450;
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function request(path, { token, body } = {}) {
+            await sleep(HTTP_PACE_MS);
+            const response = await fetch(`${baseUrl}${path}`, {
+              method: body === undefined ? 'GET' : 'POST',
+              headers: {
+                ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+                ...(token ? { authorization: `Bearer ${token}` } : {}),
+              },
+              ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+            });
+            let payload = null;
+            try {
+              payload = await response.json();
+            } catch {}
+            return { status: response.status, payload };
+          }
+
+          async function register(label) {
+            const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const credentials = {
+              handle: `ci-${label}-${suffix}`.slice(0, 30),
+              email: `ci-${label}-${suffix}@example.test`,
+              password: 'SessionPass123!',
+            };
+            const result = await request('/auth/register', { body: credentials });
+            if (result.status !== 201 || !result.payload?.access_token) {
+              throw new Error(`register ${label} failed: ${result.status} ${JSON.stringify(result.payload)}`);
+            }
+            return { credentials, token: result.payload.access_token };
+          }
+
+          async function login(credentials) {
+            const result = await request('/auth/login', {
+              body: { email: credentials.email, password: credentials.password },
+            });
+            if (result.status !== 200 || !result.payload?.access_token) {
+              throw new Error(`login failed: ${result.status} ${JSON.stringify(result.payload)}`);
+            }
+            return result.payload.access_token;
+          }
+
+          async function expectMe(token, expectedStatus, label) {
+            const result = await request('/auth/me', { token });
+            if (result.status !== expectedStatus) {
+              throw new Error(`${label}: expected /auth/me ${expectedStatus}, got ${result.status}`);
+            }
+          }
+
+          function connect(token) {
+            return new Promise((resolve, reject) => {
+              const socket = io('http://127.0.0.1:4000', {
+                auth: { token },
+                transports: ['websocket'],
+                reconnection: false,
+                timeout: 4_000,
+              });
+              const timer = setTimeout(() => {
+                socket.disconnect();
+                reject(new Error('socket transport connected but session:ready did not arrive'));
+              }, 5_000);
+              socket.once('session:ready', (payload) => {
+                if (!payload || payload.socketId !== socket.id) {
+                  clearTimeout(timer);
+                  socket.disconnect();
+                  reject(new Error(`session:ready socket mismatch: ${JSON.stringify(payload)}`));
+                  return;
+                }
+                clearTimeout(timer);
+                resolve(socket);
+              });
+              socket.once('connect_error', (error) => {
+                clearTimeout(timer);
+                reject(error);
+              });
+              socket.once('disconnect', (reason) => {
+                if (reason === 'io client disconnect') return;
+                clearTimeout(timer);
+                reject(new Error(`socket disconnected before session:ready: ${reason}`));
+              });
+            });
+          }
+
+          async function expectRealtimeRevocation(socket) {
+            const revoked = new Promise((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error('socket did not emit session:revoked')), 5_000);
+              let sawRevoked = false;
+              socket.once('session:revoked', (payload) => {
+                if (payload?.reason !== 'session_revoked') {
+                  clearTimeout(timer);
+                  reject(new Error(`unexpected revocation payload: ${JSON.stringify(payload)}`));
+                  return;
+                }
+                sawRevoked = true;
+              });
+              socket.once('disconnect', (reason) => {
+                clearTimeout(timer);
+                if (!sawRevoked || reason !== 'io server disconnect') {
+                  reject(new Error(`expected revoked server disconnect, saw=${sawRevoked}, reason=${reason}`));
+                  return;
+                }
+                resolve();
+              });
+            });
+            socket.emit('typing:start', { conversationId: 'missing-conversation' });
+            await revoked;
+          }
+
+          (async () => {
+            const primary = await register('primary');
+            await expectMe(primary.token, 200, 'fresh token');
+            const socket = await connect(primary.token);
+
+            const logout = await request('/auth/logout', { token: primary.token, body: {} });
+            if (logout.status !== 200 || logout.payload?.success !== true) {
+              throw new Error(`logout failed: ${logout.status} ${JSON.stringify(logout.payload)}`);
+            }
+            await expectMe(primary.token, 401, 'revoked current token');
+            await expectRealtimeRevocation(socket);
+
+            const tokenA = await login(primary.credentials);
+            const tokenB = await login(primary.credentials);
+            await expectMe(tokenA, 200, 'login A before logout-all');
+            await expectMe(tokenB, 200, 'login B before logout-all');
+
+            const unrelated = await register('unrelated');
+            const logoutAll = await request('/auth/logout-all', { token: tokenA, body: {} });
+            if (logoutAll.status !== 200 || logoutAll.payload?.success !== true) {
+              throw new Error(`logout-all failed: ${logoutAll.status} ${JSON.stringify(logoutAll.payload)}`);
+            }
+
+            await expectMe(tokenA, 401, 'login A after logout-all');
+            await expectMe(tokenB, 401, 'login B after logout-all');
+            await expectMe(unrelated.token, 200, 'unrelated user after logout-all');
+          })()
+            .then(() => process.exit(0))
+            .catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
+          NODE
+
+      - name: Cleanup production image
+        if: always()
+        run: |
+          docker logs woof-api-session-authority-ci || true
+          docker rm -f woof-api-session-authority-ci >/dev/null 2>&1 || true

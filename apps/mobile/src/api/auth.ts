@@ -31,6 +31,10 @@ async function persist(response: AuthResponse) {
   return response;
 }
 
+function authHeader(token: string) {
+  return { headers: { Authorization: `Bearer ${token}` } };
+}
+
 export const authApi = {
   async register(data: RegisterDto): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/register', data);
@@ -43,7 +47,23 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
+    const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
     await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    if (!token) return;
+
+    try {
+      await apiClient.post('/auth/logout', {}, authHeader(token));
+    } catch {
+      // Local logout remains available when the server is unreachable or already
+      // considers the captured session invalid.
+    }
+  },
+
+  async logoutAll(): Promise<void> {
+    const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    if (!token) return;
+    await apiClient.post('/auth/logout-all', {}, authHeader(token));
   },
 
   async getProfile() {

@@ -1,0 +1,35 @@
+name: dogOS Session Migration Immutability CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql'
+      - '.github/scripts/assert-database-ownership.py'
+      - '.github/workflows/dogos-session-migration-immutability-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-session-migration-immutability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Add-only session migration ownership
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compile ownership helper
+        run: python -m py_compile .github/scripts/assert-database-ownership.py
+
+      - name: Require add-only Session Authority migration
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql

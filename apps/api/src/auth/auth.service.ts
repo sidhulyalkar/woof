@@ -2,11 +2,20 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { User } from '@woof/database';
 import { compare, hash } from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { SessionAuthorityService } from './session-authority.service';
 
 type SafeUser = Omit<User, 'passwordHash'>;
+
+type AccessTokenClaims = {
+  sub: string;
+  email: string;
+  handle: string;
+  sid: string;
+};
 
 function withoutPassword(user: User): SafeUser {
   const { passwordHash, ...safeUser } = user;
@@ -17,8 +26,9 @@ function withoutPassword(user: User): SafeUser {
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService,
+    private readonly sessionAuthority: SessionAuthorityService
   ) {}
 
   async validateUser(email: string, password: string): Promise<SafeUser> {
@@ -39,10 +49,10 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     const user = await this.validateUser(loginDto.email, loginDto.password);
-    const payload = { sub: user.id, email: user.email, handle: user.handle };
+    const accessToken = await this.issueAccessToken(user);
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -66,12 +76,22 @@ export class AuthService {
     });
 
     const userWithoutPassword = withoutPassword(user);
-    const payload = { sub: user.id, email: user.email, handle: user.handle };
+    const accessToken = await this.issueAccessToken(userWithoutPassword);
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: accessToken,
       user: userWithoutPassword,
     };
+  }
+
+  async logout(userId: string, sessionId: string) {
+    await this.sessionAuthority.revokeSession(userId, sessionId, 'LOGOUT');
+    return { success: true };
+  }
+
+  async logoutAll(userId: string) {
+    const result = await this.sessionAuthority.revokeAllSessions(userId, 'LOGOUT_ALL');
+    return { success: true, revokedCount: result.revokedCount };
   }
 
   async getProfile(userId: string) {
@@ -80,5 +100,35 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('User not found');
     }
+  }
+
+  private async issueAccessToken(user: SafeUser) {
+    const sessionId = randomUUID();
+    const payload: AccessTokenClaims = {
+      sub: user.id,
+      email: user.email,
+      handle: user.handle,
+      sid: sessionId,
+    };
+    const token = this.jwtService.sign(payload);
+    const decoded = this.jwtService.decode(token) as { exp?: unknown } | null;
+    const exp = decoded?.exp;
+
+    if (typeof exp !== 'number' || !Number.isSafeInteger(exp) || exp <= 0) {
+      throw new UnauthorizedException('Session is unavailable');
+    }
+
+    const expiresAt = new Date(exp * 1_000);
+    if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Session is unavailable');
+    }
+
+    await this.sessionAuthority.createSession({
+      id: sessionId,
+      userId: user.id,
+      expiresAt,
+    });
+
+    return token;
   }
 }

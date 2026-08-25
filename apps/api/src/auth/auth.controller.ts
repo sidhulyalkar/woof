@@ -37,6 +37,24 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke the current login session' })
+  async logout(@Request() req: AuthenticatedRequest) {
+    return this.authService.logout(req.user.sub, req.user.sid);
+  }
+
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke every active login session for the current user' })
+  async logoutAll(@Request() req: AuthenticatedRequest) {
+    return this.authService.logoutAll(req.user.sub);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

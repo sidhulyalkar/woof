@@ -1,4 +1,5 @@
 import { apiClient } from './api/client';
+import { disconnectSocket } from './socket';
 import { useAuthStore, type AuthPet, type AuthUser } from './stores/auth-store';
 import type { Event, Match, ServiceProvider } from './types';
 
@@ -27,6 +28,15 @@ export type Nudge = {
   dismissed: boolean;
 };
 
+function clearLocalAuth() {
+  disconnectSocket();
+  useAuthStore.getState().logout();
+}
+
+function authHeader(token: string) {
+  return { headers: { Authorization: `Bearer ${token}` } };
+}
+
 export const authApi = {
   register: async (data: { handle: string; email: string; password: string; bio?: string }) => {
     const response = await apiClient.post<AuthResponse>('/auth/register', data);
@@ -44,8 +54,24 @@ export const authApi = {
     return response;
   },
 
-  logout: () => {
-    useAuthStore.getState().logout();
+  logout: async () => {
+    const token = useAuthStore.getState().token;
+    clearLocalAuth();
+    if (!token) return;
+
+    try {
+      await apiClient.post('/auth/logout', {}, authHeader(token));
+    } catch {
+      // Local logout is authoritative for this device when the server is unreachable
+      // or already considers the captured session invalid.
+    }
+  },
+
+  logoutAll: async () => {
+    const token = useAuthStore.getState().token;
+    clearLocalAuth();
+    if (!token) return;
+    await apiClient.post('/auth/logout-all', {}, authHeader(token));
   },
 
   me: () => apiClient.get<AuthUser>('/auth/me'),

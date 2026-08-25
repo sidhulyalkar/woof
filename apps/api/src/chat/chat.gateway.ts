@@ -9,7 +9,9 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import type { Prisma } from '@woof/database';
 import { Server, Socket } from 'socket.io';
+import { SessionAuthorityService } from '../auth/session-authority.service';
 import { NudgesService } from '../nudges/nudges.service';
 import {
   MAX_REALTIME_PACKET_BYTES,
@@ -24,6 +26,7 @@ const MAX_SESSION_TIMER_DELAY_MS = 2_147_483_647;
 type RealtimeJwtPayload = {
   sub?: unknown;
   exp?: unknown;
+  sid?: unknown;
 };
 
 @WebSocketGateway({
@@ -39,11 +42,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(ChatGateway.name);
   private readonly connectedUsers = new Map<string, string>();
+  private readonly connectedSessions = new Map<string, string>();
   private readonly sessionExpiries = new Map<string, number>();
   private readonly sessionExpiryTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly jwtService: JwtService,
+    private readonly sessionAuthority: SessionAuthorityService,
     private readonly chatSecurity: ChatSecurityService,
     private readonly realtimeAdmission: RealtimeAdmissionService,
     private readonly nudgesService: NudgesService
@@ -58,18 +63,47 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       const payload = await this.jwtService.verifyAsync<RealtimeJwtPayload>(token);
-      const userId = this.userIdFromPayload(payload.sub);
+      const userId = this.stringClaim(payload.sub);
+      const sessionId = this.stringClaim(payload.sid);
       const expiresAtMs = this.expiryFromPayload(payload.exp);
-      if (!userId || !expiresAtMs) {
+      if (!userId || !sessionId || !expiresAtMs) {
         client.disconnect();
         return;
       }
 
-      this.connectedUsers.set(client.id, userId);
-      this.sessionExpiries.set(client.id, expiresAtMs);
-      this.scheduleSessionExpiry(client, expiresAtMs);
-      if (!this.hasActiveSession(client, userId)) return;
-      await client.join(`user:${userId}`);
+      const admission = await this.sessionAuthority.withActiveSession(
+        sessionId,
+        userId,
+        async () => {
+          if (this.isSocketDisconnected(client)) return false;
+
+          this.connectedUsers.set(client.id, userId);
+          this.connectedSessions.set(client.id, sessionId);
+          this.sessionExpiries.set(client.id, expiresAtMs);
+          this.scheduleSessionExpiry(client, expiresAtMs);
+          if (!this.hasActiveSession(client, userId)) return false;
+
+          await client.join(`user:${userId}`);
+          if (this.isSocketDisconnected(client)) {
+            this.clearSession(client.id);
+            return false;
+          }
+
+          return true;
+        }
+      );
+
+      if (!admission.authorized) {
+        this.revokeSocket(client);
+        return;
+      }
+
+      if (!admission.result || this.isSocketDisconnected(client)) {
+        this.clearSession(client.id);
+        return;
+      }
+
+      client.emit('session:ready', { socketId: client.id });
     } catch (error) {
       this.clearSession(client.id);
       this.logger.warn(`Rejected socket connection: ${this.errorName(error)}`);
@@ -96,37 +130,53 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
     }
 
-    try {
-      const result = await this.chatSecurity.persistMessage({ userId, ...payload });
+    const response = await this.withAuthoritativeSession(client, userId, async (tx) => {
+      try {
+        const result = await this.chatSecurity.persistMessageInTransaction(tx, {
+          userId,
+          ...payload,
+        });
 
-      const message = {
-        id: result.message.id,
-        conversationId: result.message.conversationId,
-        senderId: result.message.senderId,
-        text: result.message.text,
-        mediaUrls: result.message.mediaUrls,
-        timestamp: result.message.createdAt,
-      };
+        const message = {
+          id: result.message.id,
+          conversationId: result.message.conversationId,
+          senderId: result.message.senderId,
+          text: result.message.text,
+          mediaUrls: result.message.mediaUrls,
+          timestamp: result.message.createdAt,
+        };
 
-      if (!result.duplicate) {
+        return { success: true, duplicate: result.duplicate, message };
+      } catch (error) {
+        this.logger.warn(`Rejected chat message: ${this.errorName(error)}`);
+        return { success: false, error: 'message_rejected' };
+      }
+    });
+
+    if (response?.success && !response.duplicate) {
+      try {
         await this.chatSecurity.withAuthorizedRealtimeRecipients(
           payload.conversationId,
-          (authorizedUserIds) => {
-            this.server.to(this.userRooms(authorizedUserIds)).emit('message:received', message);
+          async (authorizedUserIds) => {
+            await this.emitToActiveSessions(
+              authorizedUserIds,
+              'message:received',
+              response.message
+            );
           }
         );
-        void this.nudgesService
-          .checkChatActivityNudges(payload.conversationId, userId)
-          .catch((error) => {
-            this.logger.warn(`Chat nudge check failed: ${this.errorName(error)}`);
-          });
+      } catch (error) {
+        this.logger.warn(`Chat realtime delivery failed: ${this.errorName(error)}`);
       }
 
-      return { success: true, duplicate: result.duplicate, message };
-    } catch (error) {
-      this.logger.warn(`Rejected chat message: ${this.errorName(error)}`);
-      return { success: false, error: 'message_rejected' };
+      void this.nudgesService
+        .checkChatActivityNudges(payload.conversationId, userId)
+        .catch((error) => {
+          this.logger.warn(`Chat nudge check failed: ${this.errorName(error)}`);
+        });
     }
+
+    return response ?? { success: false, error: 'unauthorized' };
   }
 
   @SubscribeMessage('conversation:join')
@@ -144,13 +194,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
     }
 
-    try {
-      await this.chatSecurity.assertConversationAccess(userId, payload.conversationId);
-      await client.join(`conversation:${payload.conversationId}`);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'conversation_unavailable' };
-    }
+    const response = await this.withAuthoritativeSession(client, userId, async (tx) => {
+      try {
+        await this.chatSecurity.assertConversationAccessInTransaction(
+          tx,
+          userId,
+          payload.conversationId
+        );
+        await client.join(`conversation:${payload.conversationId}`);
+        return { success: true };
+      } catch {
+        return { success: false, error: 'conversation_unavailable' };
+      }
+    });
+
+    return response ?? { success: false, error: 'unauthorized' };
   }
 
   @SubscribeMessage('conversation:leave')
@@ -168,13 +226,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
     }
 
-    try {
-      await this.chatSecurity.assertConversationAccess(userId, payload.conversationId);
-      await client.leave(`conversation:${payload.conversationId}`);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'conversation_unavailable' };
-    }
+    const response = await this.withAuthoritativeSession(client, userId, async (tx) => {
+      try {
+        await this.chatSecurity.assertConversationAccessInTransaction(
+          tx,
+          userId,
+          payload.conversationId
+        );
+        await client.leave(`conversation:${payload.conversationId}`);
+        return { success: true };
+      } catch {
+        return { success: false, error: 'conversation_unavailable' };
+      }
+    });
+
+    return response ?? { success: false, error: 'unauthorized' };
   }
 
   @SubscribeMessage('typing:start')
@@ -201,21 +267,87 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { success: false, error: 'rate_limited', retryAfterMs: admission.retryAfterMs };
     }
 
-    try {
-      await this.chatSecurity.withAuthorizedRealtimeRecipients(
-        payload.conversationId,
-        (authorizedUserIds) => {
-          this.server
-            .to(this.userRooms(authorizedUserIds))
-            .except(client.id)
-            .emit(event, { userId });
-        },
-        userId
-      );
-      return { success: true };
-    } catch {
-      return { success: false, error: 'conversation_unavailable' };
+    const response = await this.withAuthoritativeSession(client, userId, async (tx) => {
+      try {
+        await this.chatSecurity.withAuthorizedRealtimeRecipientsInTransaction(
+          tx,
+          payload.conversationId,
+          async (authorizedUserIds) => {
+            const candidates = this.sessionCandidates(authorizedUserIds);
+            await this.sessionAuthority.withActiveSessionsInTransaction(
+              tx,
+              candidates.map((candidate) => candidate.sessionId),
+              (activeSessionIds) => {
+                const inactiveSocketIds = candidates
+                  .filter((candidate) => !activeSessionIds.has(candidate.sessionId))
+                  .map((candidate) => candidate.socketId);
+                const authorizedRooms = this.server
+                  .to(this.userRooms(authorizedUserIds))
+                  .except(client.id);
+                if (inactiveSocketIds.length > 0) {
+                  authorizedRooms.except(inactiveSocketIds).emit(event, { userId });
+                } else {
+                  authorizedRooms.emit(event, { userId });
+                }
+              }
+            );
+          },
+          userId
+        );
+        return { success: true };
+      } catch {
+        return { success: false, error: 'conversation_unavailable' };
+      }
+    });
+
+    return response ?? { success: false, error: 'unauthorized' };
+  }
+
+  private async withAuthoritativeSession<T>(
+    client: Socket,
+    userId: string,
+    work: (tx: Prisma.TransactionClient) => Promise<T>
+  ) {
+    const sessionId = this.connectedSessions.get(client.id);
+    if (!sessionId) return null;
+
+    const authority = await this.sessionAuthority.withActiveSession(sessionId, userId, work);
+    if (!authority.authorized) {
+      this.revokeSocket(client);
+      return null;
     }
+    return authority.result;
+  }
+
+  private async emitToActiveSessions(authorizedUserIds: string[], event: string, payload: unknown) {
+    const candidates = this.sessionCandidates(authorizedUserIds);
+    await this.sessionAuthority.withActiveSessions(
+      candidates.map((candidate) => candidate.sessionId),
+      (activeSessionIds) => {
+        const inactiveSocketIds = candidates
+          .filter((candidate) => !activeSessionIds.has(candidate.sessionId))
+          .map((candidate) => candidate.socketId);
+        const authorizedRooms = this.server.to(this.userRooms(authorizedUserIds));
+        if (inactiveSocketIds.length > 0) {
+          authorizedRooms.except(inactiveSocketIds).emit(event, payload);
+        } else {
+          authorizedRooms.emit(event, payload);
+        }
+      }
+    );
+  }
+
+  private sessionCandidates(userIds: string[]) {
+    const authorizedUsers = new Set(userIds);
+    const candidates: Array<{ socketId: string; sessionId: string }> = [];
+
+    for (const [socketId, userId] of this.connectedUsers.entries()) {
+      if (!authorizedUsers.has(userId)) continue;
+      const sessionId = this.connectedSessions.get(socketId);
+      if (sessionId) candidates.push({ socketId, sessionId });
+    }
+
+    return candidates;
   }
 
   private hasActiveSession(client: Socket, userId: string) {
@@ -264,8 +396,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.disconnect();
   }
 
+  private revokeSocket(client: Socket) {
+    this.clearSession(client.id);
+    client.emit('session:revoked', { reason: 'session_revoked' });
+    client.disconnect();
+  }
+
   private clearSession(socketId: string) {
     this.connectedUsers.delete(socketId);
+    this.connectedSessions.delete(socketId);
     this.sessionExpiries.delete(socketId);
     this.clearSessionTimer(socketId);
   }
@@ -278,7 +417,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.sessionExpiryTimers.delete(socketId);
   }
 
-  private userIdFromPayload(value: unknown) {
+  private isSocketDisconnected(client: Socket) {
+    return client.connected === false;
+  }
+
+  private stringClaim(value: unknown) {
     return typeof value === 'string' && value.length > 0 ? value : null;
   }
 
