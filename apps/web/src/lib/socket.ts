@@ -2,7 +2,49 @@ import { io, Socket } from 'socket.io-client';
 import type { ChatMessage } from './api/chat';
 import { useAuthStore } from './stores/auth-store';
 
+const SESSION_READY_TIMEOUT_MS = 8_000;
+
 let socket: Socket | null = null;
+let sessionReady = false;
+let activeToken: string | null = null;
+const desiredConversations = new Set<string>();
+
+type PendingReadiness = {
+  promise: Promise<Socket>;
+  resolve: (socket: Socket) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+type SessionReadyPayload = {
+  socketId?: unknown;
+};
+
+let pendingReadiness: PendingReadiness | null = null;
+
+function settleReadiness(error?: Error) {
+  const pending = pendingReadiness;
+  if (!pending) return;
+
+  pendingReadiness = null;
+  clearTimeout(pending.timer);
+  if (error) pending.reject(error);
+  else if (socket) pending.resolve(socket);
+}
+
+function replayDesiredConversations(activeSocket: Socket) {
+  for (const conversationId of desiredConversations) {
+    activeSocket.emit('conversation:join', { conversationId });
+  }
+}
+
+function clearRevokedAuth() {
+  sessionReady = false;
+  activeToken = null;
+  desiredConversations.clear();
+  settleReadiness(new Error('Realtime session is no longer authorized'));
+  useAuthStore.getState().logout();
+}
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -10,13 +52,32 @@ export function getSocket(): Socket {
     const apiUrl =
       process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:4000';
 
-    socket = io(apiUrl, {
+    activeToken = token;
+    const activeSocket = io(apiUrl, {
       auth: { token },
       autoConnect: false,
     });
-    socket.on('session:expired', () => {
-      useAuthStore.getState().logout();
+    socket = activeSocket;
+
+    activeSocket.on('connect', () => {
+      sessionReady = false;
     });
+    activeSocket.on('session:ready', (payload: SessionReadyPayload) => {
+      if (sessionReady || payload?.socketId !== activeSocket.id) return;
+      sessionReady = true;
+      replayDesiredConversations(activeSocket);
+      settleReadiness();
+    });
+    activeSocket.on('disconnect', () => {
+      sessionReady = false;
+      settleReadiness(new Error('Realtime session disconnected before authorization'));
+    });
+    activeSocket.on('connect_error', (error: Error) => {
+      sessionReady = false;
+      settleReadiness(error);
+    });
+    activeSocket.on('session:expired', clearRevokedAuth);
+    activeSocket.on('session:revoked', clearRevokedAuth);
   }
 
   return socket;
@@ -24,13 +85,58 @@ export function getSocket(): Socket {
 
 export function connectSocket() {
   const activeSocket = getSocket();
-  activeSocket.auth = { token: useAuthStore.getState().token };
-  if (!activeSocket.connected) activeSocket.connect();
+  const token = useAuthStore.getState().token;
+  const tokenChanged = activeToken !== token;
+
+  if (tokenChanged) {
+    sessionReady = false;
+    desiredConversations.clear();
+    settleReadiness(new Error('Realtime credentials changed before authorization'));
+    activeSocket.disconnect();
+  }
+
+  activeToken = token;
+  activeSocket.auth = { token };
+  if (!activeSocket.connected) {
+    sessionReady = false;
+    activeSocket.connect();
+  }
   return activeSocket;
 }
 
 export function disconnectSocket() {
-  if (socket?.connected) socket.disconnect();
+  sessionReady = false;
+  activeToken = null;
+  desiredConversations.clear();
+  settleReadiness(new Error('Realtime session disconnected'));
+  socket?.disconnect();
+}
+
+function waitForSessionReady(): Promise<Socket> {
+  const activeSocket = connectSocket();
+  if (activeSocket.connected && sessionReady) return Promise.resolve(activeSocket);
+  if (pendingReadiness) return pendingReadiness.promise;
+
+  let resolveReadiness!: (socket: Socket) => void;
+  let rejectReadiness!: (error: Error) => void;
+  const promise = new Promise<Socket>((resolve, reject) => {
+    resolveReadiness = resolve;
+    rejectReadiness = reject;
+  });
+  const timer = setTimeout(() => {
+    if (pendingReadiness?.promise !== promise) return;
+    settleReadiness(new Error('Realtime session authorization timed out'));
+  }, SESSION_READY_TIMEOUT_MS);
+
+  pendingReadiness = {
+    promise,
+    resolve: resolveReadiness,
+    reject: rejectReadiness,
+    timer,
+  };
+
+  if (activeSocket.connected && sessionReady) settleReadiness();
+  return promise;
 }
 
 type SendAck = {
@@ -49,35 +155,46 @@ type SendAck = {
 
 export const chatSocket = {
   joinConversation: (conversationId: string) => {
-    getSocket().emit('conversation:join', { conversationId });
+    desiredConversations.add(conversationId);
+    const activeSocket = connectSocket();
+    if (activeSocket.connected && sessionReady) {
+      activeSocket.emit('conversation:join', { conversationId });
+    }
   },
   leaveConversation: (conversationId: string) => {
-    getSocket().emit('conversation:leave', { conversationId });
+    desiredConversations.delete(conversationId);
+    const activeSocket = getSocket();
+    if (activeSocket.connected && sessionReady) {
+      activeSocket.emit('conversation:leave', { conversationId });
+    }
   },
   sendMessage: (conversationId: string, text: string, clientMessageId: string) =>
-    new Promise<ChatMessage>((resolve, reject) => {
-      getSocket()
-        .timeout(8_000)
-        .emit(
-          'message:send',
-          { conversationId, clientMessageId, text },
-          (timeoutError: Error | null, ack?: SendAck) => {
-            if (timeoutError || !ack?.success || !ack.message) {
-              reject(timeoutError ?? new Error(ack?.error ?? 'Message was not accepted'));
-              return;
-            }
-            resolve({
-              id: ack.message.id,
-              conversationId: ack.message.conversationId,
-              senderId: ack.message.senderId,
-              content: ack.message.text,
-              type: ack.message.mediaUrls.length > 0 ? 'image' : 'text',
-              mediaUrl: ack.message.mediaUrls[0] ?? null,
-              createdAt: ack.message.timestamp,
-            });
-          }
-        );
-    }),
+    waitForSessionReady().then(
+      (activeSocket) =>
+        new Promise<ChatMessage>((resolve, reject) => {
+          activeSocket
+            .timeout(8_000)
+            .emit(
+              'message:send',
+              { conversationId, clientMessageId, text },
+              (timeoutError: Error | null, ack?: SendAck) => {
+                if (timeoutError || !ack?.success || !ack.message) {
+                  reject(timeoutError ?? new Error(ack?.error ?? 'Message was not accepted'));
+                  return;
+                }
+                resolve({
+                  id: ack.message.id,
+                  conversationId: ack.message.conversationId,
+                  senderId: ack.message.senderId,
+                  content: ack.message.text,
+                  type: ack.message.mediaUrls.length > 0 ? 'image' : 'text',
+                  mediaUrl: ack.message.mediaUrls[0] ?? null,
+                  createdAt: ack.message.timestamp,
+                });
+              }
+            );
+        })
+    ),
   onMessage: (callback: (message: ChatMessage) => void) => {
     const handler = (message: {
       id: string;
@@ -100,10 +217,16 @@ export const chatSocket = {
     return () => getSocket().off('message:received', handler);
   },
   startTyping: (conversationId: string) => {
-    getSocket().emit('typing:start', { conversationId });
+    const activeSocket = connectSocket();
+    if (activeSocket.connected && sessionReady) {
+      activeSocket.emit('typing:start', { conversationId });
+    }
   },
   stopTyping: (conversationId: string) => {
-    getSocket().emit('typing:stop', { conversationId });
+    const activeSocket = getSocket();
+    if (activeSocket.connected && sessionReady) {
+      activeSocket.emit('typing:stop', { conversationId });
+    }
   },
   onTyping: (callback: (data: { userId: string }) => void) => {
     getSocket().on('typing:start', callback);

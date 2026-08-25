@@ -173,6 +173,7 @@ jobs:
             exit 1
           fi
           python - <<'PY'
+          import re
           from pathlib import Path
 
           source = Path('apps/api/src/chat/chat.gateway.ts').read_text()
@@ -211,19 +212,28 @@ jobs:
 
           typing_required = [
               'chatSecurity.withAuthorizedRealtimeRecipients',
+              'sessionAuthority.withActiveSessions',
+              'inactiveSocketIds',
               'this.server',
               'this.userRooms(authorizedUserIds)',
               '.except(client.id)',
-              ',\n        userId\n      );',
+              '.except(inactiveSocketIds)',
           ]
           missing = [token for token in typing_required if token not in typing_handler]
           if missing:
               raise SystemExit(f'typing must use lock-bound authorized private user-room fanout: {missing}')
 
           authorization = typing_handler.find('chatSecurity.withAuthorizedRealtimeRecipients')
-          operation = typing_handler.find('this.userRooms(authorizedUserIds)')
-          if authorization > operation:
-              raise SystemExit('typing must authorize realtime recipients before private-room fanout')
+          session_filter = typing_handler.find('sessionAuthority.withActiveSessions', authorization)
+          operation = typing_handler.find('this.userRooms(authorizedUserIds)', session_filter)
+          if min(authorization, session_filter, operation) < 0 or not authorization < session_filter < operation:
+              raise SystemExit(
+                  'typing must resolve relationship authorization, filter active sessions, then fan out'
+              )
+
+          authorized_call = typing_handler[authorization:]
+          if not re.search(r',\s*userId\s*\);', authorized_call):
+              raise SystemExit('typing must require the actor userId in authorized recipient resolution')
 
           forbidden_typing = [
               'client.to(`conversation:${conversationId}`)',

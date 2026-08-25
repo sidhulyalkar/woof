@@ -8,6 +8,7 @@ on:
       - 'apps/api/src/chat/chat-input-contract.spec.ts'
       - 'apps/api/src/chat/chat.gateway.ts'
       - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-session-ready.spec.ts'
       - 'apps/api/src/chat/chat-security.service.ts'
       - 'apps/api/src/chat/chat-security.service.spec.ts'
       - '.github/workflows/dogos-realtime-payload-integrity-ci.yml'
@@ -68,15 +69,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Enforce database ownership boundary
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Realtime Payload Integrity v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
@@ -88,6 +86,7 @@ jobs:
           apps/api/src/chat/chat-input-contract.spec.ts
           apps/api/src/chat/chat.gateway.ts
           apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-session-ready.spec.ts
           apps/api/src/chat/chat-security.service.ts
           apps/api/src/chat/chat-security.service.spec.ts
           .github/workflows/dogos-realtime-payload-integrity-ci.yml
@@ -100,6 +99,7 @@ jobs:
           src/chat/chat-input-contract.spec.ts
           src/chat/chat.gateway.ts
           src/chat/chat.gateway.spec.ts
+          src/chat/chat-session-ready.spec.ts
           src/chat/chat-security.service.ts
           src/chat/chat-security.service.spec.ts
 
@@ -147,28 +147,28 @@ jobs:
                   message,
                   'parseSendChatMessagePayload(data)',
                   "realtimeAdmission.consume(userId, 'message')",
-                  'chatSecurity.persistMessage',
+                  'chatSecurity.persistMessageInTransaction(tx',
               ),
               (
                   'join',
                   join,
                   'parseConversationPayload(data)',
                   "realtimeAdmission.consume(userId, 'membership')",
-                  'chatSecurity.assertConversationAccess',
+                  'chatSecurity.assertConversationAccessInTransaction(',
               ),
               (
                   'leave',
                   leave,
                   'parseConversationPayload(data)',
                   "realtimeAdmission.consume(userId, 'membership')",
-                  'chatSecurity.assertConversationAccess',
+                  'chatSecurity.assertConversationAccessInTransaction(',
               ),
               (
                   'typing',
                   typing,
                   'parseConversationPayload(data)',
                   "realtimeAdmission.consume(userId, 'typing')",
-                  'chatSecurity.withAuthorizedRealtimeRecipients',
+                  'chatSecurity.withAuthorizedRealtimeRecipientsInTransaction(',
               ),
           ]
           for label, handler, parser, admission_call, expensive_call in checks:
@@ -184,8 +184,9 @@ jobs:
                       f'{label} must authenticate, validate, reject invalid input, admit, then perform chat work'
                   )
 
-          persist_start = security.index('async persistMessage')
-          access = security.index('await this.assertConversationAccess', persist_start)
+          normalize_start = security.index('private normalizePersistMessageInput')
+          normalize_end = security.index('private async assertConversationAccessWithClient', normalize_start)
+          normalize = security[normalize_start:normalize_end]
           validation_tokens = [
               'isChatIdentifier(input.conversationId)',
               'isClientMessageId(input.clientMessageId)',
@@ -193,20 +194,52 @@ jobs:
               "input.text.includes('\\u0000')",
               'normalizeChatMessageText(input.text)',
           ]
-          for token in validation_tokens:
-              location = security.find(token, persist_start, access)
-              if location < 0:
-                  raise SystemExit(f'persistMessage must validate before its first database read: {token}')
+          missing = [token for token in validation_tokens if token not in normalize]
+          if missing:
+              raise SystemExit(f'server persistence validation is incomplete: {missing}')
+
+          for method, end_marker in [
+              ('async persistMessage(', 'async persistMessageInTransaction'),
+              ('async persistMessageInTransaction(', 'private normalizePersistMessageInput'),
+          ]:
+              start = security.index(method)
+              end = security.index(end_marker, start + len(method))
+              body = security[start:end]
+              normalize_call = body.find('this.normalizePersistMessageInput(input)')
+              if normalize_call < 0:
+                  raise SystemExit(f'{method} must validate before database work')
+
+              db_markers = [
+                  'this.assertConversationAccess',
+                  'this.getReceipt(',
+                  'this.prisma.',
+                  'this.acquireReceiptIdentityLock(tx',
+                  'this.assertConversationAccessWithClient(tx',
+                  'this.getReceiptWithClient(tx',
+                  'tx.message.',
+              ]
+              db_positions = [body.find(marker) for marker in db_markers if body.find(marker) >= 0]
+              if db_positions and normalize_call > min(db_positions):
+                  raise SystemExit(f'{method} must validate before its first database operation')
+
+          tx_start = security.index('async persistMessageInTransaction')
+          tx_end = security.index('private normalizePersistMessageInput', tx_start)
+          tx_path = security[tx_start:tx_end]
+          if 'this.prisma.' in tx_path or '$transaction' in tx_path:
+              raise SystemExit(
+                  'transaction-bound persistence must not reacquire Prisma while session authority holds a connection'
+              )
           PY
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
 
-      - name: Run payload, gateway, persistence, and admission contracts
+      - name: Run payload, readiness, gateway, persistence, and admission contracts
         run: >-
           pnpm --filter @woof/api exec jest --runInBand
           src/chat/chat-input-contract.spec.ts
           src/chat/chat.gateway.spec.ts
+          src/chat/chat-session-ready.spec.ts
           src/chat/chat-security.service.spec.ts
           src/chat/realtime-admission.service.spec.ts
 
@@ -260,32 +293,58 @@ jobs:
       - name: Prove malformed payload rejection and transport ceiling
         run: |
           pnpm --filter @woof/web exec node <<'NODE'
-          const crypto = require('node:crypto');
           const { io } = require('socket.io-client');
+          const baseUrl = 'http://127.0.0.1:4000/api/v1';
 
-          const secret = process.env.JWT_SECRET;
-          if (!secret) throw new Error('JWT_SECRET is required');
-
-          function jwt(sub) {
-            const now = Math.floor(Date.now() / 1000);
-            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-            const header = encode({ alg: 'HS256', typ: 'JWT' });
-            const payload = encode({ sub, iat: now, exp: now + 300 });
-            const unsigned = `${header}.${payload}`;
-            const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
-            return `${unsigned}.${signature}`;
+          async function register(label) {
+            const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const response = await fetch(`${baseUrl}/auth/register`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                handle: `ci-payload-${label}-${suffix}`.slice(0, 30),
+                email: `ci-payload-${label}-${suffix}@example.test`,
+                password: 'SessionPass123!',
+              }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.status !== 201 || !payload?.access_token) {
+              throw new Error(`register ${label} failed: ${response.status} ${JSON.stringify(payload)}`);
+            }
+            return payload.access_token;
           }
 
-          function connect(sub) {
+          function connect(token) {
             return new Promise((resolve, reject) => {
               const socket = io('http://127.0.0.1:4000', {
-                auth: { token: jwt(sub) },
+                auth: { token },
                 transports: ['websocket'],
                 reconnection: false,
                 timeout: 4_000,
               });
-              socket.once('connect', () => resolve(socket));
-              socket.once('connect_error', reject);
+              const timer = setTimeout(() => {
+                socket.disconnect();
+                reject(new Error('socket transport connected but session:ready did not arrive'));
+              }, 5_000);
+              socket.once('session:ready', (payload) => {
+                if (!payload || payload.socketId !== socket.id) {
+                  clearTimeout(timer);
+                  socket.disconnect();
+                  reject(new Error(`session:ready socket mismatch: ${JSON.stringify(payload)}`));
+                  return;
+                }
+                clearTimeout(timer);
+                resolve(socket);
+              });
+              socket.once('connect_error', (error) => {
+                clearTimeout(timer);
+                reject(error);
+              });
+              socket.once('disconnect', (reason) => {
+                if (reason === 'io client disconnect') return;
+                clearTimeout(timer);
+                reject(new Error(`socket disconnected before session:ready: ${reason}`));
+              });
             });
           }
 
@@ -305,7 +364,8 @@ jobs:
           }
 
           (async () => {
-            const socket = await connect('socket-payload-user-1');
+            const tokenOne = await register('one');
+            const socket = await connect(tokenOne);
 
             expectInvalid(await ack(socket, 'message:send', null), 'null message');
             expectInvalid(
@@ -346,7 +406,8 @@ jobs:
             }
             socket.disconnect();
 
-            const oversized = await connect('socket-payload-user-2');
+            const tokenTwo = await register('two');
+            const oversized = await connect(tokenTwo);
             const disconnected = new Promise((resolve, reject) => {
               const timer = setTimeout(
                 () => reject(new Error('over-ceiling Socket.IO frame did not disconnect')),
@@ -363,10 +424,12 @@ jobs:
             if (oversized.connected) {
               throw new Error('over-ceiling Socket.IO frame must leave the socket disconnected');
             }
-          })().catch((error) => {
-            console.error(error);
-            process.exitCode = 1;
-          });
+          })()
+            .then(() => process.exit(0))
+            .catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
           NODE
 
       - name: Stop production image

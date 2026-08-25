@@ -6,7 +6,9 @@ on:
     paths:
       - 'apps/api/src/chat/chat.gateway.ts'
       - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-session-ready.spec.ts'
       - 'apps/web/src/lib/socket.ts'
+      - 'apps/web/src/lib/socket.spec.ts'
       - '.github/workflows/dogos-realtime-session-lifetime-ci.yml'
       - 'docs/DOGOS_REALTIME_SESSION_LIFETIME.md'
 
@@ -65,15 +67,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Enforce database ownership boundary
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Realtime Session Lifetime v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
@@ -83,29 +82,35 @@ jobs:
           pnpm exec prettier --check
           apps/api/src/chat/chat.gateway.ts
           apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-session-ready.spec.ts
           apps/web/src/lib/socket.ts
+          apps/web/src/lib/socket.spec.ts
           .github/workflows/dogos-realtime-session-lifetime-ci.yml
           docs/DOGOS_REALTIME_SESSION_LIFETIME.md
 
       - name: Lint realtime session surfaces
         run: |
-          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/chat/chat.gateway.ts src/chat/chat.gateway.spec.ts
-          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/lib/socket.ts
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/chat/chat.gateway.ts src/chat/chat.gateway.spec.ts src/chat/chat-session-ready.spec.ts
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/lib/socket.ts src/lib/socket.spec.ts
 
-      - name: Enforce finite session lifetime before realtime work
+      - name: Enforce finite lifetime and socket-bound authorization readiness before realtime work
         run: |
           python - <<'PY'
           from pathlib import Path
 
           gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
           web = Path('apps/web/src/lib/socket.ts').read_text()
+          ready_emit = "client.emit('session:ready', { socketId: client.id })"
 
           required_gateway = [
               'exp?: unknown',
               'sessionExpiries = new Map<string, number>()',
               'sessionExpiryTimers = new Map<string, NodeJS.Timeout>()',
               'expiryFromPayload(payload.exp)',
+              'sessionAuthority.withActiveSession',
               'scheduleSessionExpiry(client, expiresAtMs)',
+              'await client.join(`user:${userId}`)',
+              ready_emit,
               'this.clearSession(client.id)',
               "client.emit('session:expired', { reason: 'token_expired' })",
               'client.disconnect()',
@@ -113,7 +118,14 @@ jobs:
           ]
           missing = [token for token in required_gateway if token not in gateway]
           if missing:
-              raise SystemExit(f'missing realtime lifetime contract: {missing}')
+              raise SystemExit(f'missing realtime lifetime/readiness contract: {missing}')
+
+          connection = gateway[gateway.index('async handleConnection'):gateway.index('handleDisconnect')]
+          authority = connection.index('sessionAuthority.withActiveSession')
+          room_join = connection.index('await client.join(`user:${userId}`)')
+          ready = connection.index(ready_emit)
+          if not authority < room_join < ready:
+              raise SystemExit('socket-bound session:ready must follow persisted authority and private room join')
 
           if "logger.warn(`Rejected socket connection: ${this.errorName(error)}`)" not in gateway:
               raise SystemExit('socket rejection logging must remain identifier-free')
@@ -175,10 +187,20 @@ jobs:
                       f'{label} must resolve identity, verify lifetime, validate, admit, then perform chat work'
                   )
 
-          if "socket.on('session:expired'" not in web:
-              raise SystemExit('web socket transport must observe explicit session expiry')
-          if 'useAuthStore.getState().logout()' not in web:
-              raise SystemExit('web session expiry must clear persisted auth state through the auth store')
+          web_required = [
+              "activeSocket.on('session:ready', (payload: SessionReadyPayload) =>",
+              'payload?.socketId !== activeSocket.id',
+              "activeSocket.on('session:expired'",
+              "activeSocket.on('session:revoked'",
+              'SESSION_READY_TIMEOUT_MS = 8_000',
+              'function waitForSessionReady(): Promise<Socket>',
+              'waitForSessionReady().then(',
+              'sessionReady = false',
+              'useAuthStore.getState().logout()',
+          ]
+          missing = [token for token in web_required if token not in web]
+          if missing:
+              raise SystemExit(f'web realtime readiness contract is incomplete: {missing}')
           PY
 
       - name: Type-check API and web
@@ -186,12 +208,14 @@ jobs:
           pnpm --filter @woof/api type-check
           pnpm --filter @woof/web type-check
 
-      - name: Run realtime lifetime and inherited chat contracts
-        run: >-
-          pnpm --filter @woof/api exec jest --runInBand
-          src/chat/chat.gateway.spec.ts
-          src/chat/chat-input-contract.spec.ts
-          src/chat/realtime-admission.service.spec.ts
+      - name: Run realtime lifetime, readiness and inherited chat contracts
+        run: |
+          pnpm --filter @woof/api exec jest --runInBand \
+            src/chat/chat.gateway.spec.ts \
+            src/chat/chat-session-ready.spec.ts \
+            src/chat/chat-input-contract.spec.ts \
+            src/chat/realtime-admission.service.spec.ts
+          pnpm --filter @woof/web exec vitest run src/lib/socket.spec.ts
 
       - name: Build API and web
         run: |
@@ -208,6 +232,7 @@ jobs:
             -e DATABASE_URL="$DATABASE_URL" \
             -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
             -e JWT_SECRET="$JWT_SECRET" \
+            -e JWT_EXPIRES_IN=5s \
             -e NODE_ENV=production \
             -e API_DOCS_ENABLED=false \
             -e CORS_ORIGIN=http://localhost:3000 \
@@ -235,28 +260,34 @@ jobs:
             exit 1
           fi
 
-      - name: Prove JWT expiry ejects a real production Socket.IO session
+      - name: Prove server-issued JWT expiry ejects an authorized production Socket.IO session
         run: |
           pnpm --filter @woof/web exec node <<'NODE'
-          const crypto = require('node:crypto');
           const { io } = require('socket.io-client');
+          const baseUrl = 'http://127.0.0.1:4000/api/v1';
 
-          const secret = process.env.JWT_SECRET;
-          if (!secret) throw new Error('JWT_SECRET is required');
-
-          function jwt(sub, expiresInSeconds) {
-            const now = Math.floor(Date.now() / 1000);
-            const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-            const header = encode({ alg: 'HS256', typ: 'JWT' });
-            const payload = encode({ sub, iat: now, exp: now + expiresInSeconds });
-            const unsigned = `${header}.${payload}`;
-            const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
-            return `${unsigned}.${signature}`;
+          async function register() {
+            const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const response = await fetch(`${baseUrl}/auth/register`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                handle: `ci-lifetime-${suffix}`.slice(0, 30),
+                email: `ci-lifetime-${suffix}@example.test`,
+                password: 'SessionPass123!',
+              }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.status !== 201 || !payload?.access_token) {
+              throw new Error(`register failed: ${response.status} ${JSON.stringify(payload)}`);
+            }
+            return payload.access_token;
           }
 
           (async () => {
+            const token = await register();
             const socket = io('http://127.0.0.1:4000', {
-              auth: { token: jwt('socket-session-user-1', 5) },
+              auth: { token },
               transports: ['websocket'],
               reconnection: false,
               autoConnect: false,
@@ -264,15 +295,28 @@ jobs:
             });
 
             let sawExpiry = false;
-            const connected = new Promise((resolve, reject) => {
-              const timer = setTimeout(() => reject(new Error('socket did not connect')), 4_000);
-              socket.once('connect', () => {
+            const ready = new Promise((resolve, reject) => {
+              const timer = setTimeout(
+                () => reject(new Error('socket transport connected but session:ready did not arrive')),
+                4_000
+              );
+              socket.once('session:ready', (payload) => {
+                if (!payload || payload.socketId !== socket.id) {
+                  clearTimeout(timer);
+                  reject(new Error(`session:ready socket mismatch: ${JSON.stringify(payload)}`));
+                  return;
+                }
                 clearTimeout(timer);
                 resolve();
               });
               socket.once('connect_error', (error) => {
                 clearTimeout(timer);
                 reject(error);
+              });
+              socket.once('disconnect', (reason) => {
+                if (sawExpiry) return;
+                clearTimeout(timer);
+                reject(new Error(`socket disconnected before session:ready; reason=${reason}`));
               });
             });
 
@@ -290,25 +334,24 @@ jobs:
                 sawExpiry = true;
               });
               socket.once('disconnect', (reason) => {
+                if (!sawExpiry) return;
                 clearTimeout(timer);
-                if (!sawExpiry) {
-                  reject(new Error(`socket disconnected before session:expired; reason=${reason}`));
-                  return;
-                }
                 resolve(reason);
               });
             });
 
             socket.connect();
-            await connected;
+            await ready;
             const reason = await expired;
             if (reason !== 'io server disconnect') {
               throw new Error(`expected server-driven disconnect, got ${reason}`);
             }
-          })().catch((error) => {
-            console.error(error);
-            process.exit(1);
-          });
+          })()
+            .then(() => process.exit(0))
+            .catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
           NODE
 
       - name: Cleanup production image

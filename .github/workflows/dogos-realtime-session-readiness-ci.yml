@@ -1,0 +1,321 @@
+name: dogOS Realtime Session Readiness CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/auth/session-authority.service.ts'
+      - 'apps/api/src/chat/chat.gateway.ts'
+      - 'apps/api/src/chat/chat.gateway.spec.ts'
+      - 'apps/api/src/chat/chat-session-ready.spec.ts'
+      - 'apps/web/src/lib/socket.ts'
+      - 'apps/web/src/lib/socket.spec.ts'
+      - 'packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/**'
+      - '.github/scripts/assert-database-ownership.py'
+      - '.github/workflows/dogos-realtime-session-readiness-ci.yml'
+      - 'docs/DOGOS_SESSION_AUTHORITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-realtime-session-readiness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-session-readiness-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Authorized-ready boundary + production transport qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Enforce database ownership boundary
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check readiness formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/chat/chat.gateway.ts
+          apps/api/src/chat/chat.gateway.spec.ts
+          apps/api/src/chat/chat-session-ready.spec.ts
+          apps/web/src/lib/socket.ts
+          apps/web/src/lib/socket.spec.ts
+          .github/workflows/dogos-realtime-session-readiness-ci.yml
+
+      - name: Lint readiness surfaces
+        run: |
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/chat/chat.gateway.ts src/chat/chat.gateway.spec.ts src/chat/chat-session-ready.spec.ts
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish src/lib/socket.ts src/lib/socket.spec.ts
+
+      - name: Enforce authorization-ready ordering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          gateway = Path('apps/api/src/chat/chat.gateway.ts').read_text()
+          web = Path('apps/web/src/lib/socket.ts').read_text()
+
+          connection = gateway[gateway.index('async handleConnection'):gateway.index('handleDisconnect')]
+          ready_emit = "client.emit('session:ready', { socketId: client.id })"
+          required_connection = [
+              'sessionAuthority.withActiveSession',
+              'this.connectedUsers.set(client.id, userId)',
+              'this.connectedSessions.set(client.id, sessionId)',
+              'this.sessionExpiries.set(client.id, expiresAtMs)',
+              'await client.join(`user:${userId}`)',
+              ready_emit,
+              'this.isSocketDisconnected(client)',
+          ]
+          missing = [token for token in required_connection if token not in connection]
+          if missing:
+              raise SystemExit(f'missing server readiness invariant: {missing}')
+
+          authority = connection.index('sessionAuthority.withActiveSession')
+          user_map = connection.index('this.connectedUsers.set(client.id, userId)')
+          session_map = connection.index('this.connectedSessions.set(client.id, sessionId)')
+          expiry_map = connection.index('this.sessionExpiries.set(client.id, expiresAtMs)')
+          room_join = connection.index('await client.join(`user:${userId}`)')
+          ready = connection.index(ready_emit)
+          if not authority < user_map < session_map < expiry_map < room_join < ready:
+              raise SystemExit(
+                  'server readiness order must be authority -> socket maps -> private room -> socket-bound session:ready'
+              )
+
+          if connection.count('this.isSocketDisconnected(client)') < 2:
+              raise SystemExit('server must recheck disconnect state across asynchronous admission')
+
+          required_web = [
+              'SESSION_READY_TIMEOUT_MS = 8_000',
+              'let sessionReady = false',
+              'let activeToken: string | null = null',
+              'const desiredConversations = new Set<string>()',
+              'type SessionReadyPayload',
+              'let pendingReadiness: PendingReadiness | null = null',
+              'function settleReadiness(error?: Error)',
+              'function replayDesiredConversations(activeSocket: Socket)',
+              'const activeSocket = io(apiUrl',
+              "activeSocket.on('connect', () =>",
+              "activeSocket.on('session:ready', (payload: SessionReadyPayload) =>",
+              'payload?.socketId !== activeSocket.id',
+              'replayDesiredConversations(activeSocket)',
+              "activeSocket.on('disconnect', () =>",
+              "activeSocket.on('connect_error', (error: Error) =>",
+              'const tokenChanged = activeToken !== token',
+              'desiredConversations.clear()',
+              'function waitForSessionReady(): Promise<Socket>',
+              'if (pendingReadiness) return pendingReadiness.promise',
+              "settleReadiness(new Error('Realtime session authorization timed out'))",
+              'desiredConversations.add(conversationId)',
+              'desiredConversations.delete(conversationId)',
+              'waitForSessionReady().then(',
+          ]
+          missing = [token for token in required_web if token not in web]
+          if missing:
+              raise SystemExit(f'missing web readiness invariant: {missing}')
+
+          start_typing = web[web.index('startTyping:'):web.index('stopTyping:')]
+          if 'waitForSessionReady' in start_typing:
+              raise SystemExit('ephemeral typing must be dropped while unready, never queued for replay')
+          if 'activeSocket.connected && sessionReady' not in start_typing:
+              raise SystemExit('typing may emit only from an authorized-ready transport')
+          PY
+
+      - name: Type-check API and web
+        run: |
+          pnpm --filter @woof/api type-check
+          pnpm --filter @woof/web type-check
+
+      - name: Run readiness unit contracts
+        run: |
+          pnpm --filter @woof/api exec jest --runInBand src/chat/chat-session-ready.spec.ts src/chat/chat.gateway.spec.ts
+          pnpm --filter @woof/web exec vitest run src/lib/socket.spec.ts
+
+      - name: Build API and web
+        run: |
+          pnpm --filter @woof/api build
+          pnpm --filter @woof/web build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-session-readiness:ci .
+
+      - name: Boot production image
+        run: |
+          docker rm -f woof-api-session-readiness-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-session-readiness-ci --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            woof-api-session-readiness:ci
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/session-readiness-live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-session-readiness-ci; then
+              echo "Production image exited before liveness; status=$status"
+              cat /tmp/session-readiness-live.json 2>/dev/null || true
+              docker logs woof-api-session-readiness-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-session-readiness-ci || true
+            exit 1
+          fi
+
+      - name: Prove first action after session ready reaches canonical authorization
+        run: |
+          pnpm --filter @woof/web exec node <<'NODE'
+          const { io } = require('socket.io-client');
+          const baseUrl = 'http://127.0.0.1:4000/api/v1';
+
+          async function register() {
+            const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const response = await fetch(`${baseUrl}/auth/register`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                handle: `ci-ready-${suffix}`.slice(0, 30),
+                email: `ci-ready-${suffix}@example.test`,
+                password: 'SessionPass123!',
+              }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.status !== 201 || !payload?.access_token) {
+              throw new Error(`register failed: ${response.status} ${JSON.stringify(payload)}`);
+            }
+            return payload.access_token;
+          }
+
+          function connectReady(token) {
+            return new Promise((resolve, reject) => {
+              const socket = io('http://127.0.0.1:4000', {
+                auth: { token },
+                transports: ['websocket'],
+                reconnection: false,
+                timeout: 4_000,
+              });
+              const timer = setTimeout(() => {
+                socket.disconnect();
+                reject(new Error('session:ready did not arrive'));
+              }, 5_000);
+              socket.once('session:ready', (payload) => {
+                if (!payload || payload.socketId !== socket.id) {
+                  clearTimeout(timer);
+                  socket.disconnect();
+                  reject(
+                    new Error(
+                      `session:ready must bind to current socket: ${JSON.stringify(payload)} current=${socket.id}`
+                    )
+                  );
+                  return;
+                }
+                clearTimeout(timer);
+                resolve(socket);
+              });
+              socket.once('connect_error', (error) => {
+                clearTimeout(timer);
+                reject(error);
+              });
+              socket.once('disconnect', (reason) => {
+                if (reason === 'io client disconnect') return;
+                clearTimeout(timer);
+                reject(new Error(`socket disconnected before session:ready: ${reason}`));
+              });
+            });
+          }
+
+          function ack(socket, event, payload) {
+            return new Promise((resolve, reject) => {
+              socket.timeout(4_000).emit(event, payload, (error, response) => {
+                if (error) reject(error);
+                else resolve(response);
+              });
+            });
+          }
+
+          (async () => {
+            const token = await register();
+            const socket = await connectReady(token);
+            const firstAction = await ack(socket, 'conversation:join', {
+              conversationId: 'missing-conversation',
+            });
+            if (!firstAction || firstAction.error !== 'conversation_unavailable') {
+              throw new Error(
+                `first action after session:ready must reach canonical authorization, got ${JSON.stringify(firstAction)}`
+              );
+            }
+            if (firstAction.error === 'unauthorized') {
+              throw new Error('session:ready must never precede realtime application authority');
+            }
+            socket.disconnect();
+          })()
+            .then(() => process.exit(0))
+            .catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
+          NODE
+
+      - name: Cleanup production image
+        if: always()
+        run: |
+          docker logs woof-api-session-readiness-ci || true
+          docker rm -f woof-api-session-readiness-ci >/dev/null 2>&1 || true

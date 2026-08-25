@@ -64,15 +64,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Enforce database ownership boundary
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Network Integrity + Scale v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/migration.sql
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
