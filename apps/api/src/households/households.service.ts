@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { Prisma } from '@woof/database';
+import { canonicalIanaTimeZone } from '../common/time/iana-timezone';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateHouseholdDto } from './dto/household.dto';
 
@@ -73,7 +74,7 @@ export class HouseholdsService {
     // A dogOS account always owns one deterministic personal household. Do not
     // use the user's first active membership here: once household invitations
     // exist, that could attach a newly created pet to somebody else's household.
-    const householdId = this.deterministicUuid(`dogos-household:${userId}`);
+    const householdId = this.personalHouseholdId(userId);
     const existing = await this.prisma.householdMember.findUnique({
       where: {
         householdId_userId: {
@@ -89,6 +90,17 @@ export class HouseholdsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // Prisma's read-then-write upsert path can race when the deterministic
+      // household does not exist yet. Serialize bootstrap across API workers so
+      // only one transaction can create/repair this user's personal household.
+      const bootstrapIdentity = `dogos-personal-household:${userId}`;
+      await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
+        WITH lock_row AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(hashtextextended(${bootstrapIdentity}, 0))
+        )
+        SELECT 1::int AS acquired FROM lock_row
+      `);
+
       await tx.household.upsert({
         where: { id: householdId },
         update: {},
@@ -143,11 +155,20 @@ export class HouseholdsService {
   async update(userId: string, householdId: string, dto: UpdateHouseholdDto) {
     await this.assertCanManage(userId, householdId);
 
+    let timezone: string | undefined;
+    if (dto.timezone !== undefined) {
+      try {
+        timezone = canonicalIanaTimeZone(dto.timezone);
+      } catch {
+        throw new BadRequestException('Household timezone must be a valid IANA timezone');
+      }
+    }
+
     return this.prisma.household.update({
       where: { id: householdId },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.timezone !== undefined ? { timezone: dto.timezone.trim() } : {}),
+        ...(timezone !== undefined ? { timezone } : {}),
       },
     });
   }
@@ -257,6 +278,46 @@ export class HouseholdsService {
     return pet;
   }
 
+  async assertHouseholdPetAccessible(userId: string, householdId: string, petId: string) {
+    // Legacy owner/pet rows need repair only when the caller explicitly targets
+    // that user's deterministic personal household. Checking a shared household
+    // must not create or mutate the member's unrelated personal household.
+    if (householdId === this.personalHouseholdId(userId)) {
+      await this.ensurePersonalHousehold(userId);
+    }
+
+    const membership = await this.prisma.householdMember.findFirst({
+      where: {
+        userId,
+        householdId,
+        status: 'ACTIVE',
+        household: {
+          pets: {
+            some: {
+              petId,
+              status: 'ACTIVE',
+            },
+          },
+        },
+      },
+      select: {
+        household: {
+          select: {
+            id: true,
+            timezone: true,
+          },
+        },
+      },
+    });
+
+    if (!membership) throw new NotFoundException('Pet not found');
+    return {
+      householdId: membership.household.id,
+      petId,
+      timezone: membership.household.timezone,
+    };
+  }
+
   async resolveActivityHousehold(
     userId: string,
     petIds: string[],
@@ -341,6 +402,10 @@ export class HouseholdsService {
     if (!['OWNER', 'ADMIN'].includes(membership.role)) {
       throw new ForbiddenException('Household manager access required');
     }
+  }
+
+  private personalHouseholdId(userId: string) {
+    return this.deterministicUuid(`dogos-household:${userId}`);
   }
 
   private deterministicUuid(input: string) {

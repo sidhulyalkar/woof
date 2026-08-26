@@ -27,6 +27,7 @@ import { GoalsModule } from './goals/goals.module';
 import { HealthLensModule } from './health-lens/health-lens.module';
 import { HouseholdsModule } from './households/households.module';
 import { InsightsModule } from './insights/insights.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
 import { MediaLibraryModule } from './media-library/media-library.module';
 import { MeetupProposalsModule } from './meetup-proposals/meetup-proposals.module';
 import { MeetupsModule } from './meetups/meetups.module';
@@ -73,6 +74,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     UsersModule,
     PetsModule,
     HouseholdsModule,
+    IntelligenceModule,
     ActivitiesModule,
     AdventureModule,
     AutopilotModule,

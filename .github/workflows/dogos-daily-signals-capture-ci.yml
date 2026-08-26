@@ -1,0 +1,421 @@
+name: dogOS Daily Signals Capture CI
+
+on:
+  pull_request:
+    branches: [main, agent/dogos-intelligence-evidence-projection-v1]
+    paths:
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/care-events/**'
+      - 'apps/api/src/common/time/**'
+      - 'apps/api/src/households/**'
+      - 'apps/api/src/intelligence/**'
+      - '.github/workflows/dogos-daily-signals-capture-ci.yml'
+      - 'docs/DOGOS_DAILY_SIGNALS_CAPTURE_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-daily-signals-capture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-daily-signals-secret-12345678901234567890
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Canonical local-day capture + replay qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject database ownership in capture slice
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check capture release formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/app.module.ts
+          apps/api/src/care-events/care-event.types.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/common/time/iana-timezone.ts
+          apps/api/src/common/time/iana-timezone.spec.ts
+          apps/api/src/households/households.service.ts
+          apps/api/src/intelligence/daily-signals-local-day-policy-v1.ts
+          apps/api/src/intelligence/daily-signals-local-day-policy-v1.spec.ts
+          apps/api/src/intelligence/daily-signals.types.ts
+          apps/api/src/intelligence/dto/daily-signals.dto.ts
+          apps/api/src/intelligence/daily-signals.service.ts
+          apps/api/src/intelligence/daily-signals.integration.spec.ts
+          apps/api/src/intelligence/intelligence.controller.ts
+          apps/api/src/intelligence/intelligence.module.ts
+          docs/DOGOS_DAILY_SIGNALS_CAPTURE_V1.md
+          .github/workflows/dogos-daily-signals-capture-ci.yml
+
+      - name: Reject whitespace errors
+        run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
+
+      - name: Lint capture surfaces with zero warnings
+        run: |
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish \
+            src/app.module.ts \
+            src/care-events/care-event.types.ts \
+            src/care-events/care-events.service.ts \
+            src/common/time/iana-timezone.ts \
+            src/common/time/iana-timezone.spec.ts \
+            src/households/households.service.ts \
+            src/intelligence/daily-signals-local-day-policy-v1.ts \
+            src/intelligence/daily-signals-local-day-policy-v1.spec.ts \
+            src/intelligence/daily-signals.types.ts \
+            src/intelligence/dto/daily-signals.dto.ts \
+            src/intelligence/daily-signals.service.ts \
+            src/intelligence/daily-signals.integration.spec.ts \
+            src/intelligence/intelligence.controller.ts \
+            src/intelligence/intelligence.module.ts
+
+      - name: Enforce capture authority, privacy and local-day invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          controller = Path('apps/api/src/intelligence/intelligence.controller.ts').read_text()
+          dto = Path('apps/api/src/intelligence/dto/daily-signals.dto.ts').read_text()
+          service = Path('apps/api/src/intelligence/daily-signals.service.ts').read_text()
+          local_day = Path('apps/api/src/intelligence/daily-signals-local-day-policy-v1.ts').read_text()
+          care_types = Path('apps/api/src/care-events/care-event.types.ts').read_text()
+          care_service = Path('apps/api/src/care-events/care-events.service.ts').read_text()
+          household = Path('apps/api/src/households/households.service.ts').read_text()
+          timezone = Path('apps/api/src/common/time/iana-timezone.ts').read_text()
+          spec = Path('apps/api/src/intelligence/daily-signals.integration.spec.ts').read_text()
+
+          required_controller = [
+              "@Controller('intelligence')",
+              "@Post('daily-signals')",
+              '@UseGuards(JwtAuthGuard)',
+              'dailySignals.capture(req.user.sub, dto)',
+          ]
+          missing = [token for token in required_controller if token not in controller]
+          if missing:
+              raise SystemExit(f'missing Daily Signals HTTP authority invariant: {missing}')
+
+          if 'localDate' in dto or 'timezone' in dto:
+              raise SystemExit('client DTO must never accept authoritative localDate/timezone')
+          dto_required = ['householdId', 'petId', 'observedAt', '@MaxLength(500)', 'signals']
+          missing = [token for token in dto_required if token not in dto]
+          if missing:
+              raise SystemExit(f'Daily Signals DTO contract drifted: {missing}')
+
+          local_day_required = [
+              "version: 'daily-signals-local-day-v1'",
+              "futureTimestampPolicy: 'CLAMP_TO_SERVER_NOW'",
+              "timezoneAuthority: 'HOUSEHOLD_IANA'",
+              'canonicalIanaTimeZone(input.householdTimezone)',
+              'requestedMs > nowMs',
+              'localDateInTimeZone(observedAt, timezone)',
+              'householdId',
+              'petId',
+              'localDate',
+          ]
+          missing = [token for token in local_day_required if token not in local_day]
+          if missing:
+              raise SystemExit(f'local-day authority contract drifted: {missing}')
+
+          timezone_required = ['Intl.DateTimeFormat', 'timeZone', 'formatToParts']
+          missing = [token for token in timezone_required if token not in timezone]
+          if missing:
+              raise SystemExit(f'IANA timezone utility drifted: {missing}')
+
+          if "export type CareEventDedupeScope = 'USER' | 'PET'" not in care_types:
+              raise SystemExit('CareEvent PET dedupe scope is missing')
+          care_required = [
+              "dedupeScope === 'PET'",
+              'pg_advisory_xact_lock',
+              'petDedupeIdentity',
+              'pet_id = ${input.petId}',
+              'event_type = ${input.eventType}',
+              'dedupe_key = ${input.dedupeKey}',
+              'getAuthorizedEvent',
+          ]
+          missing = [token for token in care_required if token not in care_service]
+          if missing:
+              raise SystemExit(f'cross-member canonical CareEvent dedupe is incomplete: {missing}')
+
+          household_required = [
+              'assertHouseholdPetAccessible',
+              'canonicalIanaTimeZone(dto.timezone)',
+              "throw new NotFoundException('Pet not found')",
+              'dogos-personal-household:',
+              'pg_advisory_xact_lock',
+              'householdId === this.personalHouseholdId(userId)',
+          ]
+          missing = [token for token in household_required if token not in household]
+          if missing:
+              raise SystemExit(f'household/timezone/bootstrap authority drifted: {missing}')
+
+          capture_required = [
+              "version: 'daily-signals-capture-v1'",
+              "eventType: 'DAILY_SIGNALS_CHECKIN'",
+              "visibility: 'PRIVATE'",
+              "dedupeScope: 'PET'",
+              'canonicalPayloadHash',
+              'payloadHash',
+              "safetyEligible: false",
+              "evidenceType: 'SELF_REPORT'",
+              'replayCanonicalDailySignalsEvent',
+              'normalizeOwnerCheckinObservation',
+              "choice === 'UNSURE'",
+          ]
+          missing = [token for token in capture_required if token not in service]
+          if missing:
+              raise SystemExit(f'canonical capture/replay contract drifted: {missing}')
+
+          if 'note,' in service[service.index('normalizeOwnerCheckinObservation'):]:
+              raise SystemExit('private free-form note must not enter normalized projection candidates')
+
+          regression_required = [
+              '20 simultaneous cross-member retries',
+              'conflicts on different answers',
+              'repairs a partially missing projection',
+              "!('note' in row.context)",
+              'keeps two pets isolated',
+              'removed household members',
+              'clamps future timestamps',
+          ]
+          missing = [token for token in regression_required if token not in spec]
+          if missing:
+              raise SystemExit(f'missing capture concurrency/privacy regression: {missing}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run local-day, capture, projection and CareEvent contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/common/time/iana-timezone.spec.ts
+          src/intelligence/daily-signals-local-day-policy-v1.spec.ts
+          src/intelligence/daily-signals.integration.spec.ts
+          src/intelligence/evidence-normalization-v1.spec.ts
+          src/intelligence/intelligence-projection.integration.spec.ts
+          src/care-events/care-events.integration.spec.ts
+
+      - name: Build production API
+        run: pnpm --filter @woof/api build
+
+      - name: Build production API image
+        run: docker build --pull -f infra/docker/Dockerfile.api -t woof-api-daily-signals:ci .
+
+      - name: Boot production API image
+        run: |
+          docker rm -f woof-api-daily-signals-ci >/dev/null 2>&1 || true
+          docker run -d \
+            --name woof-api-daily-signals-ci \
+            --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e ML_SERVICE_ENABLED=false \
+            woof-api-daily-signals:ci
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:4000/api/v1/ops/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs woof-api-daily-signals-ci
+          exit 1
+
+      - name: Prove production HTTP retry identity and conflict semantics
+        run: |
+          node <<'NODE'
+          const base = 'http://127.0.0.1:4000/api/v1';
+          const paceMs = 450;
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function request(path, { token, ...options } = {}) {
+            await sleep(paceMs);
+            const response = await fetch(`${base}${path}`, {
+              ...options,
+              headers: {
+                'content-type': 'application/json',
+                ...(token ? { authorization: `Bearer ${token}` } : {}),
+                ...(options.headers ?? {}),
+              },
+            });
+            const text = await response.text();
+            let body = null;
+            if (text) {
+              try {
+                body = JSON.parse(text);
+              } catch {
+                body = text;
+              }
+            }
+            return { status: response.status, body };
+          }
+
+          function requireStatus(result, accepted, label) {
+            if (!accepted.includes(result.status)) {
+              throw new Error(`${label} expected ${accepted.join('/')} but got ${result.status}: ${JSON.stringify(result.body)}`);
+            }
+          }
+
+          const suffix = Date.now().toString(36);
+          const registered = await request('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({
+              handle: `dailyci${suffix}`.slice(0, 30),
+              email: `daily-ci-${suffix}@example.test`,
+              password: 'DailySignalsCI123!',
+            }),
+          });
+          requireStatus(registered, [200, 201], 'register');
+          const token = registered.body?.access_token;
+          if (!token) throw new Error('register did not return access_token');
+
+          const petResult = await request('/pets', {
+            token,
+            method: 'POST',
+            body: JSON.stringify({ name: 'Daily Signals CI Dog', species: 'DOG' }),
+          });
+          requireStatus(petResult, [200, 201], 'create pet');
+          const petId = petResult.body?.id;
+          if (!petId) throw new Error('create pet did not return pet id');
+
+          const householdResult = await request('/households/me', { token });
+          requireStatus(householdResult, [200], 'get households');
+          if (!Array.isArray(householdResult.body)) {
+            throw new Error('households/me did not return an array');
+          }
+          const household =
+            householdResult.body.find((candidate) =>
+              candidate?.pets?.some((link) => link?.pet?.id === petId)
+            ) ?? householdResult.body[0];
+          const householdId = household?.id;
+          if (!householdId) throw new Error('could not resolve personal household');
+
+          const timezoneResult = await request(`/households/${householdId}`, {
+            token,
+            method: 'PATCH',
+            body: JSON.stringify({ timezone: 'America/Los_Angeles' }),
+          });
+          requireStatus(timezoneResult, [200], 'set household timezone');
+          if (timezoneResult.body?.timezone !== 'America/Los_Angeles') {
+            throw new Error(`household timezone was not canonical: ${JSON.stringify(timezoneResult.body)}`);
+          }
+
+          const captureBody = {
+            householdId,
+            petId,
+            observedAt: '2026-08-25T18:00:00.000Z',
+            signals: {
+              appetite: 'USUAL',
+              energy: 'MORE',
+              mobilityComfort: 'USUAL',
+              sleepRest: 'UNSURE',
+            },
+            note: 'production retry proof',
+          };
+
+          const first = await request('/intelligence/daily-signals', {
+            token,
+            method: 'POST',
+            body: JSON.stringify(captureBody),
+          });
+          requireStatus(first, [200, 201], 'first Daily Signals capture');
+          if (first.body?.duplicate !== false) {
+            throw new Error(`first capture must be canonical: ${JSON.stringify(first.body)}`);
+          }
+          if (first.body?.localDate !== '2026-08-25') {
+            throw new Error(`server-derived local date drifted: ${JSON.stringify(first.body)}`);
+          }
+          if (first.body?.timezone !== 'America/Los_Angeles') {
+            throw new Error(`capture timezone drifted: ${JSON.stringify(first.body)}`);
+          }
+
+          const retry = await request('/intelligence/daily-signals', {
+            token,
+            method: 'POST',
+            body: JSON.stringify(captureBody),
+          });
+          requireStatus(retry, [200, 201], 'Daily Signals retry');
+          if (retry.body?.duplicate !== true || retry.body?.careEventId !== first.body?.careEventId) {
+            throw new Error(`retry did not converge on canonical CareEvent: ${JSON.stringify({ first: first.body, retry: retry.body })}`);
+          }
+
+          const divergent = await request('/intelligence/daily-signals', {
+            token,
+            method: 'POST',
+            body: JSON.stringify({
+              ...captureBody,
+              signals: { ...captureBody.signals, appetite: 'MORE' },
+            }),
+          });
+          requireStatus(divergent, [409], 'divergent same-day capture');
+
+          console.log(
+            JSON.stringify({
+              event: 'daily_signals_production_http_proof',
+              careEventId: first.body.careEventId,
+              retryDuplicate: retry.body.duplicate,
+              localDate: first.body.localDate,
+              divergentStatus: divergent.status,
+            })
+          );
+          NODE
+
+      - name: Show production API logs on failure
+        if: failure()
+        run: docker logs woof-api-daily-signals-ci || true
+
+      - name: Remove production API container
+        if: always()
+        run: docker rm -f woof-api-daily-signals-ci >/dev/null 2>&1 || true

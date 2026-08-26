@@ -1,12 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { randomUUID } from 'node:crypto';
 import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   WELLBEING_PATHWAYS,
+  type CanonicalCareEventRecord,
   type CareEventInput,
   type CareSummary,
+  type EvidenceType,
   type RewardReceipt,
   type WellbeingPathway,
 } from './care-event.types';
@@ -18,6 +20,22 @@ type EventRow = {
   pathway: WellbeingPathway;
   occurred_at: Date;
   outcome: Record<string, unknown> | null;
+};
+
+type CanonicalEventRow = {
+  id: string;
+  user_id: string;
+  pet_id: string | null;
+  event_type: string;
+  pathway: WellbeingPathway;
+  occurred_at: Date;
+  source: string;
+  evidence_type: EvidenceType | null;
+  evidence_confidence: number;
+  context: Record<string, unknown> | null;
+  outcome: Record<string, unknown> | null;
+  dedupe_key: string;
+  visibility: 'PRIVATE' | 'HOUSEHOLD' | 'FRIENDS';
 };
 
 type LedgerRow = {
@@ -69,6 +87,11 @@ export class CareEventsService {
   async record(input: CareEventInput): Promise<RewardReceipt> {
     if (input.petId) await this.households.assertPetAccessible(input.userId, input.petId);
 
+    const dedupeScope = input.dedupeScope ?? 'USER';
+    if (dedupeScope === 'PET' && !input.petId) {
+      throw new BadRequestException('Pet-scoped CareEvent dedupe requires a pet');
+    }
+
     const now = new Date();
     const requestedOccurrenceMs = input.occurredAt?.getTime();
     const occurrenceTimestampNormalized =
@@ -82,8 +105,23 @@ export class CareEventsService {
     const visibility = input.visibility ?? 'PRIVATE';
 
     const receipt = await this.prisma.$transaction(async (tx) => {
+      if (dedupeScope === 'PET') {
+        // Cross-member Daily Signals retries can arrive under different user IDs and
+        // even on different API processes. Serialize the logical pet-scoped identity
+        // in PostgreSQL before looking for an existing event. This lock is acquired
+        // before the per-user reward lock everywhere PET scope is used, avoiding a
+        // reverse lock ordering cycle.
+        const petDedupeIdentity = `care-event:pet:${input.petId}:${input.eventType}:${input.dedupeKey}`;
+        await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
+          WITH lock_row AS MATERIALIZED (
+            SELECT pg_advisory_xact_lock(hashtextextended(${petDedupeIdentity}, 0))
+          )
+          SELECT 1::int AS acquired FROM lock_row
+        `);
+      }
+
       // Serialize reward issuance for one user so concurrent legitimate requests cannot
-      // race daily/pathway caps or a shared dedupe key. pg_advisory_xact_lock returns
+      // race daily/pathway caps or a user-scoped dedupe key. pg_advisory_xact_lock returns
       // PostgreSQL's `void` pseudo-type, which Prisma cannot deserialize directly, so
       // materialize the lock call and expose only a supported integer scalar.
       await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
@@ -93,10 +131,14 @@ export class CareEventsService {
         SELECT 1::int AS acquired FROM lock_row
       `);
 
+      const existingPredicate =
+        dedupeScope === 'PET'
+          ? Prisma.sql`pet_id = ${input.petId} AND event_type = ${input.eventType} AND dedupe_key = ${input.dedupeKey}`
+          : Prisma.sql`user_id = ${input.userId} AND dedupe_key = ${input.dedupeKey}`;
       const existing = await tx.$queryRaw<EventRow[]>(Prisma.sql`
         SELECT id, event_type, pathway, occurred_at, outcome
         FROM care_events
-        WHERE user_id = ${input.userId} AND dedupe_key = ${input.dedupeKey}
+        WHERE ${existingPredicate}
         LIMIT 1
       `);
 
@@ -208,12 +250,59 @@ export class CareEventsService {
         pathway: receipt.pathway,
         bondXp: receipt.bondXp,
         duplicate: receipt.duplicate,
+        dedupeScope,
         policyVersion: receipt.policyVersion,
         occurrenceTimestampNormalized,
       })
     );
 
     return receipt;
+  }
+
+  async getAuthorizedEvent(userId: string, eventId: string): Promise<CanonicalCareEventRecord> {
+    const rows = await this.prisma.$queryRaw<CanonicalEventRow[]>(Prisma.sql`
+      SELECT
+        id,
+        user_id,
+        pet_id,
+        event_type,
+        pathway,
+        occurred_at,
+        source,
+        evidence_type,
+        evidence_confidence,
+        context,
+        outcome,
+        dedupe_key,
+        visibility
+      FROM care_events
+      WHERE id = ${eventId}
+      LIMIT 1
+    `);
+    const row = rows[0];
+    if (!row) throw new NotFoundException('CareEvent not found');
+
+    if (row.pet_id) {
+      await this.households.assertPetAccessible(userId, row.pet_id);
+    } else if (row.user_id !== userId) {
+      throw new NotFoundException('CareEvent not found');
+    }
+
+    return {
+      id: row.id,
+      userId: row.user_id,
+      petId: row.pet_id,
+      eventType: row.event_type,
+      pathway: row.pathway,
+      occurredAt: row.occurred_at.toISOString(),
+      source: row.source,
+      evidenceType: row.evidence_type,
+      evidenceConfidence: row.evidence_confidence,
+      context: row.context ?? {},
+      outcome: row.outcome ?? {},
+      dedupeKey: row.dedupe_key,
+      visibility: row.visibility,
+    };
   }
 
   async recordQuestInteraction(input: {
