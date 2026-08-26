@@ -32,6 +32,8 @@ export type EvidenceType =
   | 'CLINIC'
   | 'WEARABLE';
 
+export type CareEventDedupeScope = 'USER' | 'PET';
+
 export type CareEventInput = {
   userId: string;
   petId?: string | null;
@@ -44,8 +46,25 @@ export type CareEventInput = {
   context?: Record<string, unknown>;
   outcome?: Record<string, unknown>;
   dedupeKey: string;
+  dedupeScope?: CareEventDedupeScope;
   visibility?: 'PRIVATE' | 'HOUSEHOLD' | 'FRIENDS';
   safetyEligible?: boolean;
+};
+
+export type CanonicalCareEventRecord = {
+  id: string;
+  userId: string;
+  petId: string | null;
+  eventType: string;
+  pathway: WellbeingPathway;
+  occurredAt: string;
+  source: string;
+  evidenceType: EvidenceType | null;
+  evidenceConfidence: number;
+  context: Record<string, unknown>;
+  outcome: Record<string, unknown>;
+  dedupeKey: string;
+  visibility: 'PRIVATE' | 'HOUSEHOLD' | 'FRIENDS';
 };
 
 export type RewardReceipt = {

@@ -15,6 +15,7 @@ describe('HouseholdsService', () => {
 
   function createHarness() {
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ acquired: 1 }]),
       household: {
         upsert: jest.fn().mockResolvedValue({}),
       },
@@ -76,7 +77,7 @@ describe('HouseholdsService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('bootstraps the owner and all existing owned pets into a missing personal household', async () => {
+  it('serializes bootstrap before creating the owner and existing pets', async () => {
     const { prisma, service, tx } = createHarness();
     const expectedId = deterministicHouseholdId(userId);
     prisma.householdMember.findUnique.mockResolvedValue(null);
@@ -84,6 +85,10 @@ describe('HouseholdsService', () => {
 
     await expect(service.ensurePersonalHousehold(userId)).resolves.toBe(expectedId);
 
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.household.upsert.mock.invocationCallOrder[0]!
+    );
     expect(tx.household.upsert).toHaveBeenCalledWith({
       where: { id: expectedId },
       update: {},
