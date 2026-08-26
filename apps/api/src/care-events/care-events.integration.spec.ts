@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@woof/database';
+import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CareEventsService } from './care-events.service';
 import { rewardCareEvent } from './reward-policy';
@@ -18,7 +19,8 @@ type Fixture = {
 
 describe('CareEventsService integration', () => {
   const prisma = new PrismaService();
-  const service = new CareEventsService(prisma);
+  const households = new HouseholdsService(prisma);
+  const service = new CareEventsService(prisma, households);
   const usersToDelete: string[] = [];
 
   beforeAll(async () => {
@@ -32,7 +34,7 @@ describe('CareEventsService integration', () => {
     await prisma.$disconnect();
   });
 
-  async function fixture(label: string): Promise<Fixture> {
+  async function createUser(label: string) {
     const suffix = randomUUID().slice(0, 8);
     const user = await prisma.user.create({
       data: {
@@ -42,7 +44,11 @@ describe('CareEventsService integration', () => {
       select: { id: true },
     });
     usersToDelete.push(user.id);
+    return user;
+  }
 
+  async function fixture(label: string): Promise<Fixture> {
+    const user = await createUser(label);
     const pet = await prisma.pet.create({
       data: {
         ownerId: user.id,
@@ -216,5 +222,75 @@ describe('CareEventsService integration', () => {
     );
 
     expect(legitimate.bondXp).toBe(baseline.bondXp);
+  });
+
+  it('uses household pet authority for canonical zero-reward Daily Signals evidence', async () => {
+    const { userId: ownerId, petId } = await fixture('household-owner');
+    const member = await createUser('household-member');
+    const outsider = await createUser('household-outsider');
+    const householdId = await households.ensurePersonalHousehold(ownerId);
+
+    await prisma.householdMember.upsert({
+      where: {
+        householdId_userId: {
+          householdId,
+          userId: member.id,
+        },
+      },
+      update: { status: 'ACTIVE', role: 'MEMBER' },
+      create: {
+        householdId,
+        userId: member.id,
+        status: 'ACTIVE',
+        role: 'MEMBER',
+      },
+    });
+
+    const dedupeKey = `daily-signals:${petId}:2026-08-25:${randomUUID()}`;
+    const receipt = await service.record({
+      userId: member.id,
+      petId,
+      eventType: 'DAILY_SIGNALS_CHECKIN',
+      pathway: 'CARE',
+      occurredAt: new Date('2026-08-25T18:00:00.000Z'),
+      source: 'INTELLIGENCE',
+      evidenceType: 'SELF_REPORT',
+      evidenceConfidence: 0.8,
+      dedupeKey,
+      visibility: 'PRIVATE',
+      safetyEligible: false,
+      context: { localDate: '2026-08-25', timezone: 'America/Los_Angeles' },
+      outcome: { APPETITE: 'USUAL' },
+    });
+
+    expect(receipt.bondXp).toBe(0);
+    expect(receipt.duplicate).toBe(false);
+
+    const stored = await prisma.$queryRaw<
+      Array<{ user_id: string; pet_id: string; visibility: string; evidence_type: string }>
+    >(Prisma.sql`
+      SELECT user_id, pet_id, visibility, evidence_type
+      FROM care_events
+      WHERE id = ${receipt.careEventId}
+    `);
+    expect(stored[0]).toEqual({
+      user_id: member.id,
+      pet_id: petId,
+      visibility: 'PRIVATE',
+      evidence_type: 'SELF_REPORT',
+    });
+
+    await expect(
+      service.record({
+        userId: outsider.id,
+        petId,
+        eventType: 'DAILY_SIGNALS_CHECKIN',
+        pathway: 'CARE',
+        source: 'INTELLIGENCE',
+        evidenceType: 'SELF_REPORT',
+        dedupeKey: `outsider:${randomUUID()}`,
+        safetyEligible: false,
+      })
+    ).rejects.toThrow('Pet not found');
   });
 });
