@@ -1,8 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { User } from '@woof/database';
 import { compare, hash } from 'bcrypt';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -15,6 +15,13 @@ type AccessTokenClaims = {
   email: string;
   handle: string;
   sid: string;
+};
+
+type CanonicalRegistration = {
+  email: string;
+  handle: string;
+  password: string;
+  bio: string | null;
 };
 
 function withoutPassword(user: User): SafeUser {
@@ -32,7 +39,7 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<SafeUser> {
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(email.trim().toLowerCase());
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
@@ -65,23 +72,41 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const hashedPassword = await hash(registerDto.password, 10);
+    const canonical = this.canonicalRegistration(registerDto);
+    const replaySafeId = registerDto.registrationKey
+      ? this.replaySafeRegistrationId(canonical.email, registerDto.registrationKey)
+      : null;
 
-    const user = await this.usersService.create({
-      email: registerDto.email,
-      handle: registerDto.handle,
-      passwordHash: hashedPassword,
-      bio: registerDto.bio,
-      authProvider: 'EMAIL',
-    });
+    if (replaySafeId) {
+      const existing = await this.usersService.findByEmail(canonical.email);
+      if (existing) {
+        return this.resumeRegistrationReplay(existing, replaySafeId, canonical);
+      }
+    }
 
-    const userWithoutPassword = withoutPassword(user);
-    const accessToken = await this.issueAccessToken(userWithoutPassword);
+    const hashedPassword = await hash(canonical.password, 10);
 
-    return {
-      access_token: accessToken,
-      user: userWithoutPassword,
-    };
+    try {
+      const user = await this.usersService.create({
+        ...(replaySafeId ? { id: replaySafeId } : {}),
+        email: canonical.email,
+        handle: canonical.handle,
+        passwordHash: hashedPassword,
+        bio: canonical.bio,
+        authProvider: 'EMAIL',
+      });
+
+      return this.finishRegistration(user);
+    } catch (error) {
+      if (!replaySafeId) throw error;
+
+      // A concurrent/exact retry can race the initial unique insert. Re-read the
+      // canonical email and only recover if the deterministic transaction identity
+      // and every supplied account field prove this is the same registration.
+      const existing = await this.usersService.findByEmail(canonical.email);
+      if (!existing) throw error;
+      return this.resumeRegistrationReplay(existing, replaySafeId, canonical);
+    }
   }
 
   async logout(userId: string, sessionId: string) {
@@ -100,6 +125,65 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('User not found');
     }
+  }
+
+  private canonicalRegistration(registerDto: RegisterDto): CanonicalRegistration {
+    return {
+      email: registerDto.email.trim().toLowerCase(),
+      handle: registerDto.handle.trim().toLowerCase(),
+      password: registerDto.password,
+      bio: registerDto.bio?.trim() || null,
+    };
+  }
+
+  private async resumeRegistrationReplay(
+    existing: User,
+    replaySafeId: string,
+    canonical: CanonicalRegistration
+  ) {
+    if (existing.id !== replaySafeId) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    const passwordMatches =
+      existing.authProvider === 'EMAIL' &&
+      Boolean(existing.passwordHash) &&
+      (await compare(canonical.password, existing.passwordHash as string));
+    const fieldsMatch =
+      existing.email.trim().toLowerCase() === canonical.email &&
+      existing.handle === canonical.handle &&
+      (existing.bio?.trim() || null) === canonical.bio;
+
+    if (!passwordMatches || !fieldsMatch) {
+      throw new ConflictException(
+        'Registration key was replayed with divergent account fields'
+      );
+    }
+
+    return this.finishRegistration(existing);
+  }
+
+  private replaySafeRegistrationId(email: string, registrationKey: string): string {
+    const digest = createHash('sha256')
+      .update(`woof-email-registration-v1:${email}:${registrationKey.trim()}`)
+      .digest('hex');
+    const uuid = digest.slice(0, 32).split('');
+
+    // UUIDv8 reserves the version nibble for application-defined deterministic IDs.
+    uuid[12] = '8';
+    uuid[16] = ((Number.parseInt(uuid[16] ?? '0', 16) & 0x3) | 0x8).toString(16);
+    const value = uuid.join('');
+    return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20, 32)}`;
+  }
+
+  private async finishRegistration(user: User) {
+    const userWithoutPassword = withoutPassword(user);
+    const accessToken = await this.issueAccessToken(userWithoutPassword);
+
+    return {
+      access_token: accessToken,
+      user: userWithoutPassword,
+    };
   }
 
   private async issueAccessToken(user: SafeUser) {
