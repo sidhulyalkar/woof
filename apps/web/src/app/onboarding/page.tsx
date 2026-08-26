@@ -219,7 +219,7 @@ export default function OnboardingPage() {
         await petsApi.updatePet(pair.petId, {
           name: data.name,
           species: data.species,
-          breed: data.breed || undefined,
+          breed: data.breed,
           birthdate: data.birthdate,
         });
         pair = { ...pair, petName: data.name };
