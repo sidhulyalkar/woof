@@ -32,11 +32,16 @@ Every field may be skipped. `Not sure` is explicit uncertainty, not dislike. The
 
 ## Retry and trust rules
 
+- Canonical email registration carries a client-generated UUID `registrationKey`.
+- The server canonicalizes the new email/handle and derives a deterministic user UUID from `(canonical email, registrationKey)`.
+- An exact registration retry must prove the deterministic account identity, original account fields, and original password hash before it can recover. A successful recovery issues a fresh server-owned session; it never resurrects a lost token.
+- Replaying a registration key with divergent fields, or presenting the same email under a different key, fails closed as a conflict.
+- Older registration clients that do not send a replay key retain ordinary one-shot uniqueness behavior.
 - Minimal onboarding pet creation may carry a replay-safe `creationKey`.
 - The API derives one deterministic pet identity from `(owner, creationKey)`.
-- Exact retries converge on the existing pet.
-- Replaying the key with different identity fields fails closed.
-- Media and mutable JSON are not accepted in replay-safe creation. Pet photos attach only after the pet exists and are best effort.
+- Exact pet retries converge on the existing pet.
+- Replaying the pet key with different identity fields fails closed.
+- Media and mutable JSON are not accepted in replay-safe pet creation. Pet photos attach only after the pet exists and are best effort.
 - A browser-stored `(household, pet)` pair is only a recovery hint. The server must authorize it again before First Adventure resumes.
 - Editing pet details from First Adventure updates the durable pet; it does not create another pet.
 - Adaptive Profile write failures are non-blocking. The pair still enters Today and Woof can learn optional context later.
@@ -58,13 +63,14 @@ First Adventure should feel calm rather than evaluative:
 The release is qualified with:
 
 - a dedicated First Adventure CI lane,
+- a dedicated registration-replay CI lane,
 - zero-warning targeted Web and API lint,
 - Web and API TypeScript,
-- focused First Adventure, Adaptive Profile, pet transport, and replay-safe service contracts,
-- desktop and mobile Playwright onboarding journeys,
+- focused First Adventure, Adaptive Profile, authentication replay, pet transport, and replay-safe service contracts,
+- desktop and mobile Playwright onboarding journeys, including a simulated lost registration response,
 - root browser/accessibility/visual contracts,
 - API and Web production builds.
 
-## Known next hardening boundary
+## Transaction boundary
 
-Email registration itself predates the replay-safe pet contract. If the server commits a new account but its success response is lost before the browser receives the session token, an exact registration retry currently encounters the existing-email conflict. This should be fixed as a separate auth-authority slice so registration retries converge server-side without turning the client into an ambiguous auto-login flow.
+Account and pet creation now use separate replay identities because they are separate durable transactions. The browser keeps each key only as long as that transaction may need recovery. A successful registration response clears the account replay key; completing onboarding clears any remaining recovery hints. This keeps retries recoverable without turning browser storage into account authority.
