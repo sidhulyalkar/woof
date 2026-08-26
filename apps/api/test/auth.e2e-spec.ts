@@ -54,6 +54,89 @@ describe('Auth (e2e)', () => {
         });
     });
 
+    it('canonicalizes new email and handle identity', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'Canonical.User@Example.COM',
+          handle: 'TrailPaws',
+          password: 'password123',
+        })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.user.email).toBe('canonical.user@example.com');
+          expect(res.body.user.handle).toBe('trailpaws');
+        });
+    });
+
+    it('recovers an exact replay as the same account with a fresh session', async () => {
+      const payload = {
+        email: 'replay@example.com',
+        handle: 'replayuser',
+        password: 'password123',
+        bio: 'weekend hikes',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+
+      const first = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send(payload)
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send(payload)
+        .expect(201);
+
+      expect(second.body.user.id).toBe(first.body.user.id);
+      expect(second.body.access_token).not.toBe(first.body.access_token);
+      await expect(prisma.user.count({ where: { email: payload.email } })).resolves.toBe(1);
+    });
+
+    it('fails closed when the original replay key is reused with changed account fields', async () => {
+      const payload = {
+        email: 'divergent@example.com',
+        handle: 'originaluser',
+        password: 'password123',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(payload).expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({ ...payload, handle: 'changeduser' })
+        .expect(409);
+      await expect(prisma.user.count({ where: { email: payload.email } })).resolves.toBe(1);
+    });
+
+    it('does not authorize replay recovery for the same email under a different key', async () => {
+      const payload = {
+        email: 'wrong-key@example.com',
+        handle: 'originaluser',
+        password: 'password123',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(payload).expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({ ...payload, registrationKey: 'a4fddf1f-1a06-4ea7-b9f1-54ca772ef5dc' })
+        .expect(409);
+    });
+
+    it('rejects malformed registration replay keys at validation', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'bad-key@example.com',
+          handle: 'badkeyuser',
+          password: 'password123',
+          registrationKey: 'not-a-uuid',
+        })
+        .expect(400);
+    });
+
     it('should fail with invalid email', () => {
       return request(app.getHttpServer())
         .post('/api/v1/auth/register')
