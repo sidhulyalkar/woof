@@ -14,6 +14,7 @@ on:
       - 'apps/web/src/lib/api/households.spec.ts'
       - 'apps/web/src/lib/api/pets.ts'
       - 'apps/web/src/lib/api/pets.spec.ts'
+      - 'apps/web/e2e/first-adventure-onboarding.spec.ts'
       - 'apps/api/src/pets/dto/create-pet.dto.ts'
       - 'apps/api/src/pets/pets.service.ts'
       - 'apps/api/src/pets/pets.service.spec.ts'
@@ -36,7 +37,7 @@ jobs:
   qualify:
     name: Relationship-first onboarding qualification
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -89,6 +90,7 @@ jobs:
             apps/web/src/lib/api/households.spec.ts \
             apps/web/src/lib/api/pets.ts \
             apps/web/src/lib/api/pets.spec.ts \
+            apps/web/e2e/first-adventure-onboarding.spec.ts \
             apps/api/src/pets/dto/create-pet.dto.ts \
             apps/api/src/pets/pets.service.ts \
             apps/api/src/pets/pets.service.spec.ts \
@@ -104,6 +106,7 @@ jobs:
             apps/web/src/lib/api/households.spec.ts \
             apps/web/src/lib/api/pets.ts \
             apps/web/src/lib/api/pets.spec.ts \
+            apps/web/e2e/first-adventure-onboarding.spec.ts \
             apps/api/src/pets/dto/create-pet.dto.ts \
             apps/api/src/pets/pets.service.ts \
             apps/api/src/pets/pets.service.spec.ts \
@@ -122,6 +125,7 @@ jobs:
           src/lib/api/households.spec.ts
           src/lib/api/pets.ts
           src/lib/api/pets.spec.ts
+          e2e/first-adventure-onboarding.spec.ts
 
       - name: Lint replay-safe pet boundary
         run: >-
@@ -146,6 +150,17 @@ jobs:
 
       - name: Run replay-safe pet contracts
         run: pnpm --filter @woof/api exec jest src/pets/pets.service.spec.ts --runInBand
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run First Adventure browser journey on desktop and mobile
+        env:
+          NODE_ENV: development
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/first-adventure-onboarding.spec.ts
 
       - name: Build API
         run: pnpm --filter @woof/api build
