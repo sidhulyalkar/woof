@@ -1,0 +1,159 @@
+name: dogOS Intelligence Baseline Policy CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/intelligence/baseline-policy-v1.ts'
+      - 'apps/api/src/intelligence/baseline-policy-v1.types.ts'
+      - 'apps/api/src/intelligence/baseline-policy-v1.receipt.ts'
+      - 'apps/api/src/intelligence/baseline-policy-v1.fixtures.ts'
+      - 'apps/api/src/intelligence/baseline-policy-v1.spec.ts'
+      - 'docs/DOGOS_INTELLIGENCE_BASELINE_POLICY_V1.md'
+      - '.github/workflows/dogos-intelligence-baseline-policy-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-intelligence-baseline-policy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Deterministic baseline oracle qualification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client for monorepo type-check
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject database ownership
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+
+      - name: Check baseline policy formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/intelligence/baseline-policy-v1.ts
+          apps/api/src/intelligence/baseline-policy-v1.types.ts
+          apps/api/src/intelligence/baseline-policy-v1.receipt.ts
+          apps/api/src/intelligence/baseline-policy-v1.fixtures.ts
+          apps/api/src/intelligence/baseline-policy-v1.spec.ts
+          docs/DOGOS_INTELLIGENCE_BASELINE_POLICY_V1.md
+          .github/workflows/dogos-intelligence-baseline-policy-ci.yml
+
+      - name: Lint baseline policy with zero warnings
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/intelligence/baseline-policy-v1.ts
+          src/intelligence/baseline-policy-v1.types.ts
+          src/intelligence/baseline-policy-v1.receipt.ts
+          src/intelligence/baseline-policy-v1.fixtures.ts
+          src/intelligence/baseline-policy-v1.spec.ts
+
+      - name: Enforce pure policy boundary and v1 mutation receipt
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          production_paths = [
+              Path('apps/api/src/intelligence/baseline-policy-v1.ts'),
+              Path('apps/api/src/intelligence/baseline-policy-v1.types.ts'),
+              Path('apps/api/src/intelligence/baseline-policy-v1.receipt.ts'),
+          ]
+          production = '\n'.join(path.read_text() for path in production_paths)
+          lower = production.lower()
+
+          prohibited = [
+              '@nestjs',
+              '@prisma',
+              'PrismaService',
+              'process.env',
+              'Date.now(',
+              'Math.random(',
+              'fetch(',
+              'axios',
+              'openai',
+              'healthScore',
+              'wellnessScore',
+          ]
+          present = [token for token in prohibited if token.lower() in lower]
+          if present:
+              raise SystemExit(f'baseline policy must remain infrastructure-free and score-free: {present}')
+
+          for path in production_paths:
+              text = path.read_text()
+              specifiers = re.findall(r"\bfrom\s+['\"]([^'\"]+)['\"]", text)
+              specifiers += re.findall(r"^\s*import\s+['\"]([^'\"]+)['\"]", text, flags=re.MULTILINE)
+              non_local = [specifier for specifier in specifiers if not specifier.startswith('./baseline-policy-v1')]
+              if non_local:
+                  raise SystemExit(f'non-local production policy imports in {path}: {non_local}')
+
+          receipt = Path('apps/api/src/intelligence/baseline-policy-v1.receipt.ts').read_text()
+          spec = Path('apps/api/src/intelligence/baseline-policy-v1.spec.ts').read_text()
+          fixtures = Path('apps/api/src/intelligence/baseline-policy-v1.fixtures.ts').read_text()
+
+          required_receipt = [
+              "version: 'baseline-policy-v1'",
+              'retentionWindowDays: 31',
+              'baselineWindowDays: 28',
+              'recentWindowDays: 3',
+              'learningMinDistinctDays: 2',
+              'establishedMinDistinctDays: 7',
+              'staleAfterDays: 7',
+              'minimumDirectionalSamples: 2',
+              'directionThreshold: 0.35',
+              'moderate: 0.8',
+              'large: 1.35',
+              'conflictRatio: 0.35',
+              'confidenceAgreementBonusPerSample: 1',
+              'mediumBaselineWeight: 5',
+              'mediumRecentEvidenceScore: 3',
+              'highBaselineWeight: 9',
+              'highRecentEvidenceScore: 6',
+          ]
+          missing = [token for token in required_receipt if token not in receipt]
+          if missing:
+              raise SystemExit(f'baseline-policy-v1 receipt changed without a version decision: {missing}')
+
+          fingerprint = '1d8b9432f3ac3bb18afdbea7b7defe3032daecebd0bf6eac84d3c2e2190ac4c3'
+          if fingerprint not in spec:
+              raise SystemExit('baseline-policy-v1 SHA-256 receipt pin is missing')
+
+          fixture_count = len(re.findall(r"^    name: '[^']+',?$", fixtures, flags=re.MULTILINE))
+          if fixture_count != 20:
+              raise SystemExit(f'expected exactly 20 named baseline fixtures, found {fixture_count}')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run fixture, metamorphic, mutation and performance contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/intelligence/baseline-policy-v1.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
