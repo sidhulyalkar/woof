@@ -1,0 +1,105 @@
+name: dogOS Adaptive Profile Persistence CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/adventure/adaptive-profile*.ts'
+      - 'apps/api/src/adventure/dto/adaptive-profile.dto.ts'
+      - 'apps/api/src/adventure/adventure.module.ts'
+      - 'packages/database/prisma/schema.prisma'
+      - 'packages/database/prisma/migrations/20260826055200_add_adaptive_profile_persistence/**'
+      - 'docs/DOGOS_ADAPTIVE_PROFILE_PERSISTENCE_V1.md'
+      - '.github/workflows/dogos-adaptive-profile-persistence-ci.yml'
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_profile_ci
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_profile_shadow
+
+jobs:
+  profile-persistence:
+    name: Pair-scoped profile persistence qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Restrict database ownership to the profile schema slice
+        shell: bash
+        run: |
+          unexpected="$({
+            git diff --name-only '${{ github.event.pull_request.base.sha }}'...HEAD -- packages/database || true
+          } | grep -Ev '^(packages/database/prisma/schema\.prisma|packages/database/prisma/migrations/20260826055200_add_adaptive_profile_persistence/migration\.sql)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo 'Adaptive Profile persistence changed unrelated database files:'
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+      - name: Reject game-currency authority in profile runtime
+        shell: bash
+        run: |
+          if grep -En 'bondXp|RewardLedger|rewardLedger|totalPoints|pathwayXp' \
+            apps/api/src/adventure/adaptive-profile*.ts \
+            apps/api/src/adventure/dto/adaptive-profile.dto.ts; then
+            echo 'Adaptive Profile may not read or write the game reward economy.'
+            exit 1
+          fi
+
+      - name: Validate and canonically format Prisma schema
+        shell: bash
+        run: |
+          pnpm --filter @woof/database exec prisma validate --schema prisma/schema.prisma
+          pnpm --filter @woof/database exec prisma format --schema prisma/schema.prisma
+          git diff --exit-code -- packages/database/prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Check canonical source formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/adventure/adaptive-profile-v1.ts
+          apps/api/src/adventure/adaptive-profile-v1.spec.ts
+          apps/api/src/adventure/adaptive-profile.service.ts
+          apps/api/src/adventure/adaptive-profile.service.spec.ts
+          apps/api/src/adventure/adaptive-profile.controller.ts
+          apps/api/src/adventure/dto/adaptive-profile.dto.ts
+          apps/api/src/adventure/adventure.module.ts
+          docs/DOGOS_ADAPTIVE_PROFILE_PERSISTENCE_V1.md
+
+      - name: Lint profile runtime and contracts with zero warnings
+        run: >-
+          pnpm --filter @woof/api exec eslint
+          'src/adventure/adaptive-profile*.ts'
+          'src/adventure/dto/adaptive-profile.dto.ts'
+          --max-warnings=0
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api exec tsc --noEmit
+
+      - name: Run Adaptive Profile contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/adventure/adaptive-profile-v1.spec.ts
+          src/adventure/adaptive-profile.service.spec.ts
+          --runInBand
