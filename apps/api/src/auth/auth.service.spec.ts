@@ -244,9 +244,7 @@ describe('AuthService', () => {
       await service.register(registration);
 
       usersService.findByEmail.mockResolvedValue(storedUser);
-      await expect(
-        service.register({ ...registration, handle: 'differentuser' })
-      ).rejects.toThrow(
+      await expect(service.register({ ...registration, handle: 'differentuser' })).rejects.toThrow(
         new ConflictException('Registration key was replayed with divergent account fields')
       );
       expect(sessionAuthority.createSession).toHaveBeenCalledTimes(1);
