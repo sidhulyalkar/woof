@@ -163,9 +163,7 @@ export class AuthService {
       (existing.bio?.trim() || null) === canonical.bio;
 
     if (!passwordMatches || !fieldsMatch) {
-      throw new ConflictException(
-        'Registration key was replayed with divergent account fields'
-      );
+      throw new ConflictException('Registration key was replayed with divergent account fields');
     }
 
     return this.finishRegistration(existing);
