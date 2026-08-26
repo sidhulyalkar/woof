@@ -278,7 +278,8 @@ export default function HomePage() {
                 />
 
                 <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                  Woof recommends, you choose. Changing your mind, making it easier, or stopping when
+                  Woof recommends, you choose. Changing your mind, making it easier, or stopping
+                  when
                   {` ${data.pet.name}`} is done can all be the right outcome.
                 </p>
               </section>
@@ -287,8 +288,8 @@ export default function HomePage() {
                 <PawPrint className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
                 <h1 className="mt-3 text-xl font-bold">Nothing needs pushing today</h1>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Woof does not have a useful quest to recommend right now. Rest or your usual routine
-                  is a valid choice.
+                  Woof does not have a useful quest to recommend right now. Rest or your usual
+                  routine is a valid choice.
                 </p>
               </section>
             )}
@@ -315,8 +316,8 @@ export default function HomePage() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                              {quest.variant === 'wildcard' ? 'Something different' : 'Alternative'} ·{' '}
-                              {quest.primaryPathway.toLowerCase()}
+                              {quest.variant === 'wildcard' ? 'Something different' : 'Alternative'}{' '}
+                              · {quest.primaryPathway.toLowerCase()}
                             </p>
                             <h2 className="mt-1 font-bold tracking-tight">{quest.title}</h2>
                             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -426,7 +427,9 @@ export default function HomePage() {
                               <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
                               {item.label}
                             </span>
-                            <span className="text-xs font-bold text-primary">{item.recentDays}d</span>
+                            <span className="text-xs font-bold text-primary">
+                              {item.recentDays}d
+                            </span>
                           </div>
                           <Progress className="mt-3 h-1.5" value={item.coverage} />
                           <p className="mt-2 text-[11px] text-muted-foreground">
@@ -478,7 +481,9 @@ export default function HomePage() {
                   </div>
                   <div className="min-w-0">
                     <p className="eyebrow">What Woof learned</p>
-                    <p className="mt-1 font-semibold leading-relaxed">{completionReceipt.message}</p>
+                    <p className="mt-1 font-semibold leading-relaxed">
+                      {completionReceipt.message}
+                    </p>
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                       {completionReceipt.duplicate
                         ? 'This outcome was already in your shared history, so Woof did not count it twice.'
