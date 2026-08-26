@@ -1,4 +1,7 @@
-import { deriveAdventureLearningSignals, type AdventureLearningEvent } from './adventure-learning-policy';
+import {
+  deriveAdventureLearningSignals,
+  type AdventureLearningEvent,
+} from './adventure-learning-policy';
 
 const NOW = new Date('2026-08-26T12:00:00.000Z');
 

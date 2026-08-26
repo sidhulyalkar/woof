@@ -19,6 +19,7 @@ type EventRow = {
   event_type: string;
   pathway: WellbeingPathway;
   occurred_at: Date;
+  context: Record<string, unknown> | null;
   outcome: Record<string, unknown> | null;
 };
 
@@ -371,7 +372,7 @@ export class CareEventsService {
         GROUP BY ce.pathway
       `),
       this.prisma.$queryRaw<Array<EventRow & { bond_xp: number }>>(Prisma.sql`
-        SELECT ce.id, ce.event_type, ce.pathway, ce.occurred_at, ce.outcome,
+        SELECT ce.id, ce.event_type, ce.pathway, ce.occurred_at, ce.context, ce.outcome,
                COALESCE(rl.bond_xp, 0)::int AS bond_xp
         FROM care_events ce
         LEFT JOIN reward_ledger rl ON rl.care_event_id = ce.id
@@ -422,6 +423,7 @@ export class CareEventsService {
         eventType: row.event_type,
         pathway: row.pathway,
         occurredAt: row.occurred_at.toISOString(),
+        context: row.context,
         outcome: row.outcome,
         bondXp: row.bond_xp,
       })),
