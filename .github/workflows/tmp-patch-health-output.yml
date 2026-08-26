@@ -1,0 +1,62 @@
+name: Temporary Health output hardening patch
+
+on:
+  push:
+    branches: [agent/tmp-health-output-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/health-lens-model-authority-v1
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Harden all instructional model text
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service = Path('apps/api/src/health-lens/health-ai.service.ts')
+          text = service.read_text()
+          old = '''  const normalizedTriage = triage as HealthTriageLevel;\n  const ownerActions = boundedStrings(result.ownerActions, 6, 500);\n  if (ownerActions.some(containsUnsafeOwnerDirective)) {\n    throw new ServiceUnavailableException(\n      'Health screening model returned an unsafe owner-action directive'\n    );\n  }\n\n  const requiredHandoff = minimumHandoff(normalizedTriage);'''
+          new = '''  const normalizedTriage = triage as HealthTriageLevel;\n  const summary = boundedText(result.summary, 1200);\n  const photoReason = boundedText(photoFeedback.reason, 500);\n  const betterPhotoInstructions = boundedStrings(photoFeedback.betterPhotoInstructions, 5, 320);\n  const questions = boundedStrings(result.questions, 6, 360);\n  const ownerActions = boundedStrings(result.ownerActions, 6, 500);\n  const vetHandoffSummary = boundedText(vetHandoff.summary, 1200);\n  const handoffBring = boundedStrings(vetHandoff.bring, 6, 320);\n  const instructionalText = [\n    summary,\n    photoReason,\n    ...betterPhotoInstructions,\n    ...questions,\n    ...ownerActions,\n    vetHandoffSummary,\n    ...handoffBring,\n  ];\n  if (instructionalText.some(containsUnsafeOwnerDirective)) {\n    throw new ServiceUnavailableException(\n      'Health screening model returned an unsafe treatment directive'\n    );\n  }\n\n  const requiredHandoff = minimumHandoff(normalizedTriage);'''
+          if old not in text:
+              raise SystemExit('service safety block anchor not found')
+          text = text.replace(old, new, 1)
+          old_return = '''    summary: boundedText(result.summary, 1200),\n    visibleFindings: boundedStrings(result.visibleFindings, 8, 360),\n    possibleCategories: boundedStrings(result.possibleCategories, 6, 160),\n    photoFeedback: {\n      usable: normalizedTriage === 'better_image' ? false : Boolean(photoFeedback.usable),\n      reason: boundedText(photoFeedback.reason, 500),\n      betterPhotoInstructions: boundedStrings(photoFeedback.betterPhotoInstructions, 5, 320),\n    },\n    questions: boundedStrings(result.questions, 6, 360),\n    ownerActions,\n    avoid: boundedStrings(result.avoid, 6, 500),\n    vetHandoff: {\n      recommended,\n      timing: normalizedTiming,\n      summary: boundedText(vetHandoff.summary, 1200),\n      bring: boundedStrings(vetHandoff.bring, 6, 320),\n    },'''
+          new_return = '''    summary,\n    visibleFindings: boundedStrings(result.visibleFindings, 8, 360),\n    possibleCategories: boundedStrings(result.possibleCategories, 6, 160),\n    photoFeedback: {\n      usable: normalizedTriage === 'better_image' ? false : Boolean(photoFeedback.usable),\n      reason: photoReason,\n      betterPhotoInstructions,\n    },\n    questions,\n    ownerActions,\n    avoid: boundedStrings(result.avoid, 6, 500),\n    vetHandoff: {\n      recommended,\n      timing: normalizedTiming,\n      summary: vetHandoffSummary,\n      bring: handoffBring,\n    },'''
+          if old_return not in text:
+              raise SystemExit('service return anchor not found')
+          service.write_text(text.replace(old_return, new_return, 1))
+
+          spec = Path('apps/api/src/health-lens/health-ai.service.spec.ts')
+          tests = spec.read_text()
+          anchor = '''  it('allows explicit avoid/negated safety language while bounding generated arrays', () => {'''
+          inserted = '''  it('fails closed when unsafe treatment instructions migrate into other visible fields', () => {\n    const unsafeCases: Array<Partial<PetHealthModelResult>> = [\n      { summary: 'Give 25 mg of aspirin now.' },\n      { questions: ['Could you administer the medication now?'] },\n      {\n        photoFeedback: {\n          usable: false,\n          reason: 'Apply ibuprofen before taking the next photo.',\n          betterPhotoInstructions: [],\n        },\n      },\n      {\n        vetHandoff: {\n          recommended: true,\n          timing: 'today',\n          summary: 'Give aspirin while waiting for the appointment.',\n          bring: [],\n        },\n      },\n      {\n        vetHandoff: {\n          recommended: true,\n          timing: 'today',\n          summary: 'Arrange veterinary assessment today.',\n          bring: ['Administer the medication before travel.'],\n        },\n      },\n    ];\n\n    for (const overrides of unsafeCases) {\n      expect(() => normalizeHealthModelResult(assessment(overrides))).toThrow(\n        ServiceUnavailableException\n      );\n    }\n  });\n\n'''
+          if anchor not in tests:
+              raise SystemExit('spec insertion anchor not found')
+          spec.write_text(tests.replace(anchor, inserted + anchor, 1))
+          PY
+      - run: >-
+          pnpm exec prettier --write
+          apps/api/src/health-lens/health-ai.service.ts
+          apps/api/src/health-lens/health-ai.service.spec.ts
+      - name: Commit hardened output boundary
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/health-lens/health-ai.service.ts apps/api/src/health-lens/health-ai.service.spec.ts
+          git commit -m "Harden Health Lens instructional output boundary"
+          git push origin HEAD:agent/health-lens-model-authority-v1
