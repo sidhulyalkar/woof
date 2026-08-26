@@ -1,0 +1,147 @@
+name: dogOS Registration Replay CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/auth/auth.service.ts'
+      - 'apps/api/src/auth/auth.service.spec.ts'
+      - 'apps/api/src/auth/dto/register.dto.ts'
+      - 'apps/api/test/auth.e2e-spec.ts'
+      - 'apps/web/src/app/onboarding/page.tsx'
+      - 'apps/web/e2e/first-adventure-onboarding.spec.ts'
+      - 'docs/FIRST_ADVENTURE_RELEASE.md'
+      - '.github/workflows/dogos-registration-replay-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-registration-replay-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  ENABLE_ADVENTURE_SYSTEM: 'true'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-registration-replay-secret
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Replay-safe registration qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Reject client-only registration recovery
+        shell: bash
+        run: |
+          grep -q 'registrationKey: getRegistrationKey()' apps/web/src/app/onboarding/page.tsx
+          grep -q 'resumeRegistrationReplay' apps/api/src/auth/auth.service.ts
+          grep -q 'replaySafeRegistrationId' apps/api/src/auth/auth.service.ts
+
+      - name: Check replay surface formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/auth/auth.service.ts \
+            apps/api/src/auth/auth.service.spec.ts \
+            apps/api/src/auth/dto/register.dto.ts \
+            apps/api/test/auth.e2e-spec.ts \
+            apps/web/src/app/onboarding/page.tsx \
+            apps/web/e2e/first-adventure-onboarding.spec.ts \
+            docs/FIRST_ADVENTURE_RELEASE.md \
+            .github/workflows/dogos-registration-replay-ci.yml
+          git diff --exit-code -- \
+            apps/api/src/auth/auth.service.ts \
+            apps/api/src/auth/auth.service.spec.ts \
+            apps/api/src/auth/dto/register.dto.ts \
+            apps/api/test/auth.e2e-spec.ts \
+            apps/web/src/app/onboarding/page.tsx \
+            apps/web/e2e/first-adventure-onboarding.spec.ts \
+            docs/FIRST_ADVENTURE_RELEASE.md \
+            .github/workflows/dogos-registration-replay-ci.yml
+
+      - name: Lint auth replay boundary
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0
+          src/auth/auth.service.ts
+          src/auth/auth.service.spec.ts
+          src/auth/dto/register.dto.ts
+          test/auth.e2e-spec.ts
+
+      - name: Lint onboarding replay surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives
+          src/app/onboarding/page.tsx
+          e2e/first-adventure-onboarding.spec.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api exec tsc --noEmit
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run auth replay unit contracts
+        run: pnpm --filter @woof/api exec jest src/auth/auth.service.spec.ts --runInBand
+
+      - name: Run auth replay API contracts
+        run: pnpm --filter @woof/api exec jest --config ./test/jest-e2e.json test/auth.e2e-spec.ts --runInBand
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run lost-response onboarding journey on desktop and mobile
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/first-adventure-onboarding.spec.ts
+          --project=chromium
+          --project='Mobile Chrome'
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build Web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build

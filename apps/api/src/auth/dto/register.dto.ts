@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'petlover2024' })
@@ -22,4 +22,14 @@ export class RegisterDto {
   @IsString()
   @MaxLength(500)
   bio?: string;
+
+  @ApiProperty({
+    example: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+    required: false,
+    description:
+      'Client-generated transaction key. Exact retries recover the same email registration; divergent replays fail closed.',
+  })
+  @IsOptional()
+  @IsUUID()
+  registrationKey?: string;
 }

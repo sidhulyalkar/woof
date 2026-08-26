@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { hash } from 'bcrypt';
@@ -140,7 +140,7 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('delegates uniqueness and persists a server-owned session', async () => {
+    it('delegates uniqueness and persists a server-owned session for legacy one-shot registration', async () => {
       usersService.create.mockResolvedValue({
         id: '456',
         email: 'new@example.com',
@@ -174,7 +174,138 @@ describe('AuthService', () => {
       expect(result.user).not.toHaveProperty('passwordHash');
     });
 
-    it('propagates user-creation conflicts', async () => {
+    it('canonicalizes new email and handle identity at the auth boundary', async () => {
+      usersService.create.mockImplementation(async (input) => ({
+        ...input,
+        id: 'canonical-user',
+      }));
+
+      await service.register({
+        email: '  New.User@Example.COM ',
+        handle: ' TrailPaws ',
+        password: 'password123',
+        bio: '  weekend hikes  ',
+      });
+
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'new.user@example.com',
+          handle: 'trailpaws',
+          bio: 'weekend hikes',
+        })
+      );
+    });
+
+    it('recovers an exact registration replay and issues a fresh server session', async () => {
+      const registration = {
+        email: 'new@example.com',
+        handle: 'newuser',
+        password: 'password123',
+        bio: 'hikes together',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+      let storedUser: Record<string, unknown> | null = null;
+
+      usersService.findByEmail.mockResolvedValueOnce(null);
+      usersService.create.mockImplementationOnce(async (input) => {
+        storedUser = { ...input };
+        return input;
+      });
+
+      const first = await service.register(registration);
+      expect(first.user.id).toEqual(expect.any(String));
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+
+      usersService.findByEmail.mockResolvedValue(storedUser);
+      const second = await service.register(registration);
+
+      expect(second.user.id).toBe(first.user.id);
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+      expect(sessionAuthority.createSession).toHaveBeenCalledTimes(2);
+      const firstSession = sessionAuthority.createSession.mock.calls[0][0].id as string;
+      const secondSession = sessionAuthority.createSession.mock.calls[1][0].id as string;
+      expect(secondSession).not.toBe(firstSession);
+    });
+
+    it('fails closed when the same registration key is replayed with divergent fields', async () => {
+      const registration = {
+        email: 'new@example.com',
+        handle: 'newuser',
+        password: 'password123',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+      let storedUser: Record<string, unknown> | null = null;
+
+      usersService.findByEmail.mockResolvedValueOnce(null);
+      usersService.create.mockImplementationOnce(async (input) => {
+        storedUser = { ...input };
+        return input;
+      });
+      await service.register(registration);
+
+      usersService.findByEmail.mockResolvedValue(storedUser);
+      await expect(service.register({ ...registration, handle: 'differentuser' })).rejects.toThrow(
+        new ConflictException('Registration key was replayed with divergent account fields')
+      );
+      expect(sessionAuthority.createSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not treat the same email under a different key as an authorized replay', async () => {
+      const original = {
+        email: 'new@example.com',
+        handle: 'newuser',
+        password: 'password123',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+      let storedUser: Record<string, unknown> | null = null;
+
+      usersService.findByEmail.mockResolvedValueOnce(null);
+      usersService.create.mockImplementationOnce(async (input) => {
+        storedUser = { ...input };
+        return input;
+      });
+      await service.register(original);
+
+      usersService.findByEmail.mockResolvedValue(storedUser);
+      await expect(
+        service.register({
+          ...original,
+          registrationKey: 'a4fddf1f-1a06-4ea7-b9f1-54ca772ef5dc',
+        })
+      ).rejects.toThrow(new ConflictException('User with this email already exists'));
+      expect(usersService.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('recovers an exact replay after a unique-insert race', async () => {
+      const registration = {
+        email: 'new@example.com',
+        handle: 'newuser',
+        password: 'password123',
+        registrationKey: '7efc01f2-0f7e-45e1-b923-748d6f727ef0',
+      };
+      const passwordHash = await hash(registration.password, 4);
+      let deterministicId = '';
+
+      usersService.findByEmail.mockResolvedValueOnce(null).mockImplementationOnce(async () => ({
+        id: deterministicId,
+        email: registration.email,
+        handle: registration.handle,
+        passwordHash,
+        bio: null,
+        authProvider: 'EMAIL',
+      }));
+      usersService.create.mockImplementationOnce(async (input) => {
+        deterministicId = input.id as string;
+        throw new Error('simulated unique race');
+      });
+
+      const result = await service.register(registration);
+
+      expect(result.user.id).toBe(deterministicId);
+      expect(sessionAuthority.createSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates ordinary user-creation conflicts when no replay key exists', async () => {
       usersService.create.mockRejectedValue(new Error('duplicate account'));
 
       await expect(
