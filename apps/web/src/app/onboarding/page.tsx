@@ -30,6 +30,7 @@ type DurablePair = {
   petName: string;
 };
 
+const REGISTRATION_KEY_STORAGE = 'woof:first-adventure:registration-key';
 const CREATION_KEY_STORAGE = 'woof:first-adventure:pet-creation-key';
 const PAIR_STORAGE = 'woof:first-adventure:durable-pair';
 
@@ -70,6 +71,7 @@ export default function OnboardingPage() {
   const [durablePair, setDurablePair] = useState<DurablePair | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const registrationKeyRef = useRef<string | null>(null);
   const creationKeyRef = useRef<string | null>(null);
   const recoveryCheckRef = useRef(false);
   const authUser = useAuthStore((state) => state.user);
@@ -129,6 +131,21 @@ export default function OnboardingPage() {
     };
   }, [authUser, currentStep, isAuthenticated, ownerData]);
 
+  const getRegistrationKey = () => {
+    if (registrationKeyRef.current) return registrationKeyRef.current;
+
+    const stored = window.sessionStorage.getItem(REGISTRATION_KEY_STORAGE);
+    if (stored) {
+      registrationKeyRef.current = stored;
+      return stored;
+    }
+
+    const next = crypto.randomUUID();
+    window.sessionStorage.setItem(REGISTRATION_KEY_STORAGE, next);
+    registrationKeyRef.current = next;
+    return next;
+  };
+
   const getCreationKey = () => {
     if (creationKeyRef.current) return creationKeyRef.current;
 
@@ -144,12 +161,18 @@ export default function OnboardingPage() {
     return next;
   };
 
+  const clearRegistrationReplayKey = () => {
+    window.sessionStorage.removeItem(REGISTRATION_KEY_STORAGE);
+    registrationKeyRef.current = null;
+  };
+
   const rememberPair = (pair: DurablePair) => {
     setDurablePair(pair);
     window.sessionStorage.setItem(PAIR_STORAGE, JSON.stringify(pair));
   };
 
   const clearRecoveryHints = () => {
+    clearRegistrationReplayKey();
     window.sessionStorage.removeItem(CREATION_KEY_STORAGE);
     window.sessionStorage.removeItem(PAIR_STORAGE);
     creationKeyRef.current = null;
@@ -203,12 +226,15 @@ export default function OnboardingPage() {
             'Your account password is missing. Return to the first step and try again.'
           );
         }
-        await authApi.register({
+        const registrationRequest = {
           handle: ownerData.handle,
           email: ownerData.email,
           password: ownerData.password,
           bio: ownerData.bio || undefined,
-        });
+          registrationKey: getRegistrationKey(),
+        };
+        await authApi.register(registrationRequest);
+        clearRegistrationReplayKey();
 
         // The credential has done its job. Do not retain plaintext password for the rest of onboarding.
         setOwnerData((current) => (current ? { ...current, password: '' } : current));
@@ -248,7 +274,7 @@ export default function OnboardingPage() {
       console.error('Durable onboarding setup failed', err);
       const message = apiErrorMessage(
         err,
-        'We could not finish creating the pair. Your completed account step is preserved, and this retry will not create a duplicate pet.'
+        'We could not finish creating the pair. Your completed details are preserved, and exact retries reuse transaction keys instead of creating duplicate accounts or pets.'
       );
       setError(message);
       toast.error(message);
