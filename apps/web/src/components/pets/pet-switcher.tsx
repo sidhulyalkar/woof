@@ -10,10 +10,12 @@ export function PetSwitcher({
   currentPetId,
   label = 'Today is for',
   onChange,
+  withDivider = true,
 }: {
   currentPetId: string;
   label?: string;
   onChange?: (petId: string) => void;
+  withDivider?: boolean;
 }) {
   const queryClient = useQueryClient();
   const pets = useQuery({
@@ -41,7 +43,7 @@ export function PetSwitcher({
   };
 
   return (
-    <div className="mt-4 border-t border-border/60 pt-3">
+    <div className={withDivider ? 'mt-4 border-t border-border/60 pt-3' : ''}>
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </p>
