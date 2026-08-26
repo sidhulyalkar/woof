@@ -1,0 +1,156 @@
+name: dogOS First Adventure CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/app/onboarding/page.tsx'
+      - 'apps/web/src/components/onboarding/first-adventure-step.tsx'
+      - 'apps/web/src/components/onboarding/pet-info-step.tsx'
+      - 'apps/web/src/lib/onboarding/first-adventure.ts'
+      - 'apps/web/src/lib/onboarding/first-adventure.spec.ts'
+      - 'apps/web/src/lib/api/adaptive-profile.ts'
+      - 'apps/web/src/lib/api/adaptive-profile.spec.ts'
+      - 'apps/web/src/lib/api/households.spec.ts'
+      - 'apps/web/src/lib/api/pets.ts'
+      - 'apps/web/src/lib/api/pets.spec.ts'
+      - 'apps/api/src/pets/dto/create-pet.dto.ts'
+      - 'apps/api/src/pets/pets.service.ts'
+      - 'apps/api/src/pets/pets.service.spec.ts'
+      - '.github/workflows/dogos-first-adventure-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-first-adventure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  ENABLE_ADVENTURE_SYSTEM: 'true'
+
+jobs:
+  qualify:
+    name: Relationship-first onboarding qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Reject legacy quiz authority in canonical onboarding
+        shell: bash
+        run: |
+          if grep -En 'QuizStep|quizApi|quiz/responses|matching preferences' apps/web/src/app/onboarding/page.tsx; then
+            echo 'Canonical onboarding must hand off to First Adventure, not the legacy preference questionnaire.'
+            exit 1
+          fi
+
+      - name: Reject reward authority in First Adventure
+        shell: bash
+        run: |
+          if grep -En 'bondXp|RewardLedger|rewardLedger|totalPoints|pathwayXp|streak' \
+            apps/web/src/components/onboarding/first-adventure-step.tsx \
+            apps/web/src/lib/onboarding/first-adventure.ts \
+            apps/web/src/app/onboarding/page.tsx; then
+            echo 'First Adventure personalization may not own progression or reward authority.'
+            exit 1
+          fi
+
+      - name: Check First Adventure formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/web/src/app/onboarding/page.tsx \
+            apps/web/src/components/onboarding/first-adventure-step.tsx \
+            apps/web/src/components/onboarding/pet-info-step.tsx \
+            apps/web/src/lib/onboarding/first-adventure.ts \
+            apps/web/src/lib/onboarding/first-adventure.spec.ts \
+            apps/web/src/lib/api/adaptive-profile.ts \
+            apps/web/src/lib/api/adaptive-profile.spec.ts \
+            apps/web/src/lib/api/households.spec.ts \
+            apps/web/src/lib/api/pets.ts \
+            apps/web/src/lib/api/pets.spec.ts \
+            apps/api/src/pets/dto/create-pet.dto.ts \
+            apps/api/src/pets/pets.service.ts \
+            apps/api/src/pets/pets.service.spec.ts \
+            .github/workflows/dogos-first-adventure-ci.yml
+          git diff --exit-code -- \
+            apps/web/src/app/onboarding/page.tsx \
+            apps/web/src/components/onboarding/first-adventure-step.tsx \
+            apps/web/src/components/onboarding/pet-info-step.tsx \
+            apps/web/src/lib/onboarding/first-adventure.ts \
+            apps/web/src/lib/onboarding/first-adventure.spec.ts \
+            apps/web/src/lib/api/adaptive-profile.ts \
+            apps/web/src/lib/api/adaptive-profile.spec.ts \
+            apps/web/src/lib/api/households.spec.ts \
+            apps/web/src/lib/api/pets.ts \
+            apps/web/src/lib/api/pets.spec.ts \
+            apps/api/src/pets/dto/create-pet.dto.ts \
+            apps/api/src/pets/pets.service.ts \
+            apps/api/src/pets/pets.service.spec.ts \
+            .github/workflows/dogos-first-adventure-ci.yml
+
+      - name: Lint First Adventure web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/onboarding/page.tsx
+          src/components/onboarding/first-adventure-step.tsx
+          src/components/onboarding/pet-info-step.tsx
+          src/lib/onboarding/first-adventure.ts
+          src/lib/onboarding/first-adventure.spec.ts
+          src/lib/api/adaptive-profile.ts
+          src/lib/api/adaptive-profile.spec.ts
+          src/lib/api/households.spec.ts
+          src/lib/api/pets.ts
+          src/lib/api/pets.spec.ts
+
+      - name: Lint replay-safe pet boundary
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0
+          src/pets/dto/create-pet.dto.ts
+          src/pets/pets.service.ts
+          src/pets/pets.service.spec.ts
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api exec tsc --noEmit
+
+      - name: Run First Adventure web contracts
+        run: >-
+          pnpm --filter @woof/web exec vitest run
+          src/lib/onboarding/first-adventure.spec.ts
+          src/lib/api/adaptive-profile.spec.ts
+          src/lib/api/households.spec.ts
+          src/lib/api/pets.spec.ts
+
+      - name: Run replay-safe pet contracts
+        run: pnpm --filter @woof/api exec jest src/pets/pets.service.spec.ts --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
