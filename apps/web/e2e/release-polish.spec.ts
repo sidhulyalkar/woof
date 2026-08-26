@@ -139,7 +139,7 @@ function concierge(petId: string) {
 }
 
 test.describe('dogOS release polish', () => {
-  test('Today keeps Concierge and Adventure on the same explicitly selected dog', async ({
+  test('Today leads with one recommendation while keeping Concierge and the selected dog aligned', async ({
     page,
   }) => {
     await authenticate(page);
@@ -156,18 +156,39 @@ test.describe('dogOS release polish', () => {
     });
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toBeVisible();
+
+    const primaryQuest = page.locator('[data-today-primary-quest]');
+    const conciergeDetails = page.locator('[data-today-concierge]');
+    const progress = page.locator('[data-today-progress]');
+
+    await expect(primaryQuest).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /Nova has 1 adventures available/i })
+      page.getByRole('heading', { name: 'Neighborhood sniff walk', level: 1 })
     ).toBeVisible();
+    await expect(primaryQuest.getByText(/Why this one today/i)).toBeVisible();
+    await expect(primaryQuest.getByRole('button', { name: 'Open activity' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toHaveCount(0);
+    expect(await conciergeDetails.getAttribute('open')).toBeNull();
+
+    const primaryBox = await primaryQuest.boundingBox();
+    const conciergeBox = await conciergeDetails.boundingBox();
+    const progressBox = await progress.boundingBox();
+    expect(primaryBox).not.toBeNull();
+    expect(conciergeBox).not.toBeNull();
+    expect(progressBox).not.toBeNull();
+    expect(primaryBox!.y).toBeLessThan(conciergeBox!.y);
+    expect(primaryBox!.y).toBeLessThan(progressBox!.y);
+
+    await page.getByText(/More context for today/i).click();
+    await expect(page.getByRole('heading', { name: /Nova's day at a glance/i })).toBeVisible();
 
     await page.getByRole('button', { name: 'Miso' }).click();
 
     await expect(page).toHaveURL(/pet=pet-2/);
-    await expect(page.getByRole('heading', { name: /Miso's day at a glance/i })).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /Miso has 1 adventures available/i })
+      page.getByRole('heading', { name: 'Easy porch decompression', level: 1 })
     ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Miso's day at a glance/i })).toBeVisible();
   });
 
   test('Activity reads canonical history, switches dogs, and quick-logs without fake route data', async ({
@@ -271,7 +292,9 @@ test.describe('dogOS release polish', () => {
     await page.getByRole('button', { name: /Meet Pixel/i }).click();
 
     await expect(page).toHaveURL(/\/?pet=pet-new/);
-    await expect(page.getByRole('heading', { name: /Pixel's day at a glance/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Neighborhood sniff walk', level: 1 })
+    ).toBeVisible();
     expect(createdBody).toMatchObject({ name: 'Pixel', species: 'DOG', breed: 'Mix' });
     expect(createdBody).not.toHaveProperty('temperament');
     expect(createdBody).not.toHaveProperty('vaccinations');

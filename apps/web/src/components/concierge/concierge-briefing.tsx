@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { adventureApi } from '@/lib/api/adventure';
 import { conciergeApi } from '@/lib/api/concierge';
 
-export function ConciergeBriefing() {
+export function ConciergeBriefing({ showPetSwitcher = true }: { showPetSwitcher?: boolean }) {
   const adventure = useQuery({
     queryKey: ['adventure', 'me'],
     queryFn: () => adventureApi.getMine(),
@@ -69,7 +69,7 @@ export function ConciergeBriefing() {
           </div>
         </div>
 
-        <PetSwitcher currentPetId={petId} />
+        {showPetSwitcher && <PetSwitcher currentPetId={petId} />}
 
         {data.briefing.topQuest && (
           <div className="mt-4 rounded-2xl border border-border/70 bg-background/55 p-4">
