@@ -17,6 +17,8 @@ const FOLLOW_UP_EVENT = 'HEALTH_FOLLOW_UP';
 const ASSESSMENT_VERSION = 'pet-health-lens-v1';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type HealthModelProvenance = ReturnType<HealthAiService['provenance']>;
+
 @Injectable()
 export class HealthLensService {
   constructor(
@@ -46,7 +48,10 @@ export class HealthLensService {
 
     let result: PetHealthModelResult;
     let provenance:
-      'deterministic-emergency-screen' | 'multimodal-model' | 'rules-only-unavailable';
+      | 'deterministic-emergency-screen'
+      | 'multimodal-model'
+      | 'rules-only-unavailable';
+    let modelProvenance: HealthModelProvenance | null = null;
 
     if (deterministic) {
       result = {
@@ -130,6 +135,7 @@ export class HealthLensService {
         image: image ? { mimeType: image.mimetype, bytes: image.buffer } : undefined,
       });
       provenance = 'multimodal-model';
+      modelProvenance = this.ai.provenance();
     }
 
     const shouldSave = dto.saveToTimeline !== false;
@@ -140,6 +146,7 @@ export class HealthLensService {
           dto,
           result,
           provenance,
+          modelProvenance,
           imageFingerprint,
           hadImage: Boolean(image),
         })
@@ -153,6 +160,7 @@ export class HealthLensService {
       provenance: {
         version: ASSESSMENT_VERSION,
         pathway: provenance,
+        model: modelProvenance,
         imageAnalyzed: Boolean(image) && provenance === 'multimodal-model',
         modelConfigured: this.ai.isConfigured(),
         savedToTimeline: Boolean(saved),
@@ -198,6 +206,7 @@ export class HealthLensService {
     const emergency = screenEmergencyText(dto.message);
     let result: PetHealthModelResult;
     let pathway: string;
+    let modelProvenance: HealthModelProvenance | null = null;
 
     if (emergency) {
       result = {
@@ -240,6 +249,7 @@ export class HealthLensService {
         priorHealthObservations: [],
       });
       pathway = 'multimodal-model-follow-up';
+      modelProvenance = this.ai.provenance();
     }
 
     const saved = await this.prisma.telemetry.create({
@@ -253,6 +263,7 @@ export class HealthLensService {
           assessmentId: previous.id,
           ownerMessage: dto.message,
           pathway,
+          model: modelProvenance,
           result,
         } as Prisma.InputJsonValue,
       },
@@ -264,7 +275,12 @@ export class HealthLensService {
       assessmentId: previous.id,
       generatedAt: saved.createdAt.toISOString(),
       assessment: result,
-      provenance: { version: ASSESSMENT_VERSION, pathway, imageReused: false },
+      provenance: {
+        version: ASSESSMENT_VERSION,
+        pathway,
+        model: modelProvenance,
+        imageReused: false,
+      },
       safety:
         'A follow-up chat can use the prior structured findings, but Woof does not retain the original image. Upload a new image when a visual change needs reassessment.',
     };
@@ -321,6 +337,7 @@ export class HealthLensService {
     dto: AnalyzePetHealthDto;
     result: PetHealthModelResult;
     provenance: string;
+    modelProvenance: HealthModelProvenance | null;
     imageFingerprint: string | null;
     hadImage: boolean;
   }) {
@@ -340,6 +357,7 @@ export class HealthLensService {
           breathing: input.dto.breathing ?? null,
           bathroom: input.dto.bathroom ?? null,
           pathway: input.provenance,
+          model: input.modelProvenance,
           hadImage: input.hadImage,
           imageSha256: input.imageFingerprint,
           result: input.result,
