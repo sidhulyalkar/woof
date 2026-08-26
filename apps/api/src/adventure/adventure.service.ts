@@ -374,7 +374,10 @@ export class AdventureService {
         actionLabel: 'Log an easy session',
         safeStopEligible: false,
         personalRelevance: this.pathwayRelevance(learning, 'RECOVER'),
-        score: 0.48 + (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24,
+        score:
+          0.48 +
+          (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +
+          (learning.temporaryPace === 'easy' ? 0.06 : 0),
       },
       {
         key: 'favorite-ritual',

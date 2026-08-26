@@ -43,6 +43,26 @@ describe('Adventure learning v2', () => {
     expect(result.temporaryPace).toBe('easy');
   });
 
+  it('recognizes legacy SAFE_OPT_OUT event identity even when the boolean flag is absent', () => {
+    const result = deriveAdventureLearningSignals(
+      [
+        event({
+          id: 'legacy-safe-stop',
+          eventType: 'SAFE_OPT_OUT',
+          pathway: 'BOND',
+          context: { originalPathway: 'CONNECT' },
+          outcome: { dogExperience: 'not_their_thing', ownerExperience: 'fine' },
+        }),
+      ],
+      NOW
+    );
+
+    expect(result.durablePathwayPreference).toEqual({});
+    expect(result.temporaryPathwayModifier.CONNECT).toBeLessThan(0);
+    expect(result.temporaryPathwayModifier.RECOVER).toBeGreaterThan(0);
+    expect(result.temporaryPace).toBe('easy');
+  });
+
   it('targets non-safe dog mismatch at the original pathway, never the BOND reward pathway', () => {
     const result = deriveAdventureLearningSignals(
       [
