@@ -57,7 +57,7 @@ test.describe('relationship-first First Adventure onboarding', () => {
   test('creates the durable pair before optional personalization and never revives the legacy quiz', async ({
     page,
   }) => {
-    let petCreateBody: Record<string, unknown> | null = null;
+    const petCreateBodies: Array<Record<string, unknown>> = [];
     const profileWrites: Array<Record<string, unknown>> = [];
 
     await page.route('**/pets', async (route) => {
@@ -65,7 +65,7 @@ test.describe('relationship-first First Adventure onboarding', () => {
         await route.fallback();
         return;
       }
-      petCreateBody = route.request().postDataJSON() as Record<string, unknown>;
+      petCreateBodies.push(route.request().postDataJSON() as Record<string, unknown>);
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -88,9 +88,9 @@ test.describe('relationship-first First Adventure onboarding', () => {
 
     await expect(page.getByRole('heading', { name: /make the first suggestion/i })).toBeVisible();
     await expect(page.getByText(/matching preferences/i)).toHaveCount(0);
-    expect(petCreateBody).not.toBeNull();
+    expect(petCreateBodies).toHaveLength(1);
 
-    const createBody = petCreateBody as Record<string, unknown>;
+    const createBody = petCreateBodies[0]!;
     expect(createBody).toMatchObject({
       name: 'Mochi',
       species: 'DOG',
