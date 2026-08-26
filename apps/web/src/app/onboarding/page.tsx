@@ -1,127 +1,327 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { isAxiosError } from "axios"
-import { ChevronLeft, PawPrint } from "lucide-react"
-import { toast } from "sonner"
-import { OwnerInfoStep, type OwnerInfoData } from "@/components/onboarding/owner-info-step"
-import { PetInfoStep, type PetInfoData } from "@/components/onboarding/pet-info-step"
-import { QuizStep } from "@/components/onboarding/quiz-step"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { authApi, petsApi, storageApi } from "@/lib/api"
-import { quizApi, type QuizAnswers } from "@/lib/api/quiz"
-import { useAuthStore } from "@/lib/stores/auth-store"
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { isAxiosError } from 'axios';
+import { ChevronLeft, PawPrint } from 'lucide-react';
+import { toast } from 'sonner';
+import { FirstAdventureStep } from '@/components/onboarding/first-adventure-step';
+import { OwnerInfoStep, type OwnerInfoData } from '@/components/onboarding/owner-info-step';
+import { PetInfoStep, type PetInfoData } from '@/components/onboarding/pet-info-step';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { authApi, storageApi } from '@/lib/api';
+import { adaptiveProfileApi } from '@/lib/api/adaptive-profile';
+import { petsApi } from '@/lib/api/pets';
+import {
+  buildFirstAdventureResponses,
+  emptyFirstAdventureSelections,
+  type FirstAdventureSelections,
+} from '@/lib/onboarding/first-adventure';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 type ApiErrorBody = {
-  message?: string | string[]
+  message?: string | string[];
+};
+
+type DurablePair = {
+  petId: string;
+  householdId: string;
+  petName: string;
+};
+
+const CREATION_KEY_STORAGE = 'woof:first-adventure:pet-creation-key';
+const PAIR_STORAGE = 'woof:first-adventure:durable-pair';
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  const responseMessage = isAxiosError<ApiErrorBody>(error)
+    ? error.response?.data?.message
+    : undefined;
+  if (Array.isArray(responseMessage)) return responseMessage.join(' ');
+  return responseMessage || fallback;
+}
+
+function readStoredPair(): DurablePair | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.sessionStorage.getItem(PAIR_STORAGE);
+  if (!raw) return null;
+
+  try {
+    const value = JSON.parse(raw) as Partial<DurablePair>;
+    if (value.petId && value.householdId && value.petName) {
+      return {
+        petId: value.petId,
+        householdId: value.householdId,
+        petName: value.petName,
+      };
+    }
+  } catch {
+    // A malformed browser-only recovery hint is safe to discard. The server remains canonical.
+  }
+  window.sessionStorage.removeItem(PAIR_STORAGE);
+  return null;
 }
 
 export default function OnboardingPage() {
-  const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(1)
-  const [ownerData, setOwnerData] = useState<OwnerInfoData | null>(null)
-  const [petData, setPetData] = useState<PetInfoData | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [ownerData, setOwnerData] = useState<OwnerInfoData | null>(null);
+  const [petData, setPetData] = useState<PetInfoData | null>(null);
+  const [durablePair, setDurablePair] = useState<DurablePair | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const creationKeyRef = useRef<string | null>(null);
+  const recoveryCheckRef = useRef(false);
+  const authUser = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const totalSteps = 3
-  const progress = (currentStep / totalSteps) * 100
+  const totalSteps = 3;
+  const progress = (currentStep / totalSteps) * 100;
 
-  const handleOwnerComplete = (data: OwnerInfoData) => {
-    setOwnerData(data)
-    setCurrentStep(2)
-  }
+  useEffect(() => {
+    let cancelled = false;
 
-  const handlePetComplete = (data: PetInfoData) => {
-    setPetData(data)
-    setCurrentStep(3)
-  }
+    const recover = async () => {
+      const storedPair = readStoredPair();
+      if (storedPair && isAuthenticated && !recoveryCheckRef.current) {
+        recoveryCheckRef.current = true;
+        try {
+          const profile = await adaptiveProfileApi.getState(
+            storedPair.householdId,
+            storedPair.petId
+          );
+          if (cancelled) return;
 
-  const handleQuizComplete = async (answers: QuizAnswers) => {
-    if (!ownerData || !petData) {
-      setError("Your onboarding details are incomplete. Go back and review the earlier steps.")
-      return
+          if (
+            profile.householdId === storedPair.householdId &&
+            profile.petId === storedPair.petId
+          ) {
+            setDurablePair(storedPair);
+            setError('');
+            setCurrentStep(3);
+            return;
+          }
+        } catch (recoveryError) {
+          if (cancelled) return;
+          console.warn('Saved onboarding pair could not be re-authorized yet', recoveryError);
+          setError(
+            'We could not verify the saved pet pair yet. Review the pet details and retry; Woof will reuse the same creation key rather than creating a twin.'
+          );
+        }
+      }
+
+      // Registration may have completed before a refresh or transient pet-create failure.
+      // Reuse the authenticated account instead of asking for the password again.
+      if (isAuthenticated && authUser && currentStep === 1 && !ownerData && !cancelled) {
+        setOwnerData({
+          handle: authUser.handle,
+          email: authUser.email,
+          password: '',
+          bio: authUser.bio || '',
+        });
+        setCurrentStep(2);
+      }
+    };
+
+    void recover();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser, currentStep, isAuthenticated, ownerData]);
+
+  const getCreationKey = () => {
+    if (creationKeyRef.current) return creationKeyRef.current;
+
+    const stored = window.sessionStorage.getItem(CREATION_KEY_STORAGE);
+    if (stored) {
+      creationKeyRef.current = stored;
+      return stored;
     }
 
-    setIsLoading(true)
-    setError("")
+    const next = `first-adventure:${crypto.randomUUID()}`;
+    window.sessionStorage.setItem(CREATION_KEY_STORAGE, next);
+    creationKeyRef.current = next;
+    return next;
+  };
+
+  const rememberPair = (pair: DurablePair) => {
+    setDurablePair(pair);
+    window.sessionStorage.setItem(PAIR_STORAGE, JSON.stringify(pair));
+  };
+
+  const clearRecoveryHints = () => {
+    window.sessionStorage.removeItem(CREATION_KEY_STORAGE);
+    window.sessionStorage.removeItem(PAIR_STORAGE);
+    creationKeyRef.current = null;
+  };
+
+  const refreshAuthProfile = async () => {
+    try {
+      const profile = await authApi.me();
+      const token = useAuthStore.getState().token;
+      if (token) useAuthStore.getState().setAuth(profile, token);
+    } catch (refreshError) {
+      console.warn('Onboarding profile refresh failed', refreshError);
+      toast.warning('Your setup is saved. Woof will refresh the profile again on the next screen.');
+    }
+  };
+
+  const attachPhoto = async (pair: DurablePair, photoFile: File | null) => {
+    if (!photoFile) return;
 
     try {
-      const authState = useAuthStore.getState()
+      const upload = await storageApi.uploadFile(photoFile, 'pets');
+      await petsApi.updatePet(pair.petId, { avatarUrl: upload.url });
+    } catch (uploadError) {
+      console.warn('Pet photo attachment failed during onboarding', uploadError);
+      toast.warning(
+        'Your pet is ready, but the photo could not be attached. You can add it later.'
+      );
+    }
+  };
 
-      // Registration may already have succeeded during an earlier retry.
-      if (!authState.isAuthenticated || !authState.token) {
+  const handleOwnerComplete = (data: OwnerInfoData) => {
+    setOwnerData(data);
+    setError('');
+    setCurrentStep(2);
+  };
+
+  const handlePetComplete = async (data: PetInfoData) => {
+    if (!ownerData && !isAuthenticated) {
+      setError('Your account details are missing. Return to the first step and try again.');
+      return;
+    }
+
+    setPetData(data);
+    setIsLoading(true);
+    setError('');
+
+    try {
+      if (!useAuthStore.getState().isAuthenticated) {
+        if (!ownerData?.password) {
+          throw new Error(
+            'Your account password is missing. Return to the first step and try again.'
+          );
+        }
         await authApi.register({
           handle: ownerData.handle,
           email: ownerData.email,
           password: ownerData.password,
           bio: ownerData.bio || undefined,
-        })
+        });
+
+        // The credential has done its job. Do not retain plaintext password for the rest of onboarding.
+        setOwnerData((current) => (current ? { ...current, password: '' } : current));
       }
 
-      let avatarUrl: string | undefined
-      if (petData.photoFile) {
-        try {
-          const upload = await storageApi.uploadFile(petData.photoFile, "pets")
-          avatarUrl = upload.url
-        } catch (uploadError) {
-          console.warn("Pet photo upload failed during onboarding", uploadError)
-          toast.warning("Your account is safe, but the pet photo could not be uploaded. You can add it later.")
+      let pair = durablePair;
+      if (pair) {
+        await petsApi.updatePet(pair.petId, {
+          name: data.name,
+          species: data.species,
+          breed: data.breed,
+          birthdate: data.birthdate,
+        });
+        pair = { ...pair, petName: data.name };
+        rememberPair(pair);
+      } else {
+        const pet = await petsApi.createPet({
+          name: data.name,
+          species: data.species,
+          breed: data.breed || undefined,
+          birthdate: data.birthdate,
+          creationKey: getCreationKey(),
+        });
+        const householdId = pet.householdMemberships[0]?.householdId;
+        if (!householdId) {
+          throw new Error('Woof created the pet but could not resolve its household pair.');
         }
+
+        pair = { petId: pet.id, householdId, petName: pet.name };
+        rememberPair(pair);
       }
 
-      const pet = await petsApi.createPet({
-        name: petData.name,
-        species: petData.species,
-        breed: petData.breed,
-        birthdate: petData.birthdate,
-        temperament: petData.temperament,
-        avatarUrl,
-      })
-
-      try {
-        await quizApi.saveResponses({
-          sessionId: `onboarding-${Date.now()}`,
-          petId: pet.id,
-          responses: answers,
-        })
-      } catch (quizError) {
-        console.warn("Preference persistence failed during onboarding", quizError)
-        toast.warning("Your profile was created, but matching preferences could not be saved. You can retake them later.")
-      }
-
-      // Refresh the canonical persisted auth profile so pet-aware screens are immediately correct.
-      const profile = await authApi.me()
-      const token = useAuthStore.getState().token
-      if (token) {
-        useAuthStore.getState().setAuth(profile, token)
-      }
-
-      toast.success("Welcome to Woof 🐾")
-      router.replace("/")
+      await attachPhoto(pair, data.photoFile);
+      await refreshAuthProfile();
+      setCurrentStep(3);
     } catch (err: unknown) {
-      console.error("Onboarding failed", err)
-      const responseMessage = isAxiosError<ApiErrorBody>(err) ? err.response?.data?.message : undefined
-      const message =
-        responseMessage ||
-        "We could not finish the profile. Your completed account step is preserved, so you can safely try again."
-      setError(Array.isArray(message) ? message.join(" ") : message)
-      toast.error(Array.isArray(message) ? message[0] : message)
+      console.error('Durable onboarding setup failed', err);
+      const message = apiErrorMessage(
+        err,
+        'We could not finish creating the pair. Your completed account step is preserved, and this retry will not create a duplicate pet.'
+      );
+      setError(message);
+      toast.error(message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const finishFirstAdventure = async (selections: FirstAdventureSelections, skipAll = false) => {
+    if (!durablePair) {
+      setError('Your pet pair is missing. Return to the pet step so Woof can restore it safely.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    const responses = buildFirstAdventureResponses(durablePair.petId, selections, skipAll);
+    const results = await Promise.allSettled(
+      responses.map((response) =>
+        adaptiveProfileApi.recordQuestionResponse(
+          durablePair.householdId,
+          durablePair.petId,
+          response
+        )
+      )
+    );
+
+    const failedWrites = results.filter((result) => result.status === 'rejected');
+    if (failedWrites.length > 0) {
+      console.warn('Some First Adventure profile signals were not saved', failedWrites);
+      toast.warning(
+        'Your pair is ready. A few optional preferences did not save, so Woof will simply learn them later.'
+      );
+    } else if (skipAll) {
+      toast.success(`You and ${durablePair.petName} are ready. We can learn as we go. 🐾`);
+    } else {
+      toast.success(`You and ${durablePair.petName} are ready for something real. 🐾`);
+    }
+
+    await refreshAuthProfile();
+    clearRecoveryHints();
+    router.replace('/');
+  };
 
   const handleBack = () => {
-    if (isLoading) return
-    if (currentStep > 1) {
-      setCurrentStep((step) => step - 1)
-    } else {
-      router.push("/login")
+    if (isLoading) return;
+
+    if (currentStep === 3) {
+      setCurrentStep(2);
+      return;
     }
-  }
+
+    if (currentStep === 2 && useAuthStore.getState().isAuthenticated) {
+      router.push('/');
+      return;
+    }
+
+    if (currentStep > 1) {
+      setCurrentStep((step) => step - 1);
+    } else {
+      router.push('/login');
+    }
+  };
+
+  const backLabel =
+    currentStep === 3
+      ? 'Review pet details'
+      : currentStep === 2 && isAuthenticated
+        ? 'Leave setup'
+        : currentStep > 1
+          ? 'Go to previous onboarding step'
+          : 'Return to sign in';
 
   return (
     <div className="min-h-screen">
@@ -133,34 +333,62 @@ export default function OnboardingPage() {
             onClick={handleBack}
             disabled={isLoading}
             className="shrink-0 rounded-xl"
-            aria-label={currentStep > 1 ? "Go to previous onboarding step" : "Return to sign in"}
+            aria-label={backLabel}
           >
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
           <div className="flex-1">
             <div className="mb-2 flex items-center justify-between gap-4">
-              <span className="text-sm font-semibold">Step {currentStep} of {totalSteps}</span>
+              <span className="text-sm font-semibold">
+                {currentStep === 3 ? 'First Adventure' : `Step ${currentStep} of ${totalSteps}`}
+              </span>
               <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
             </div>
-            <Progress value={progress} className="h-2" aria-label={`Onboarding ${Math.round(progress)}% complete`} />
+            <Progress
+              value={progress}
+              className="h-2"
+              aria-label={`Onboarding ${Math.round(progress)}% complete`}
+            />
           </div>
-          <span className="brand-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" title="Woof">
+          <span
+            className="brand-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            title="Woof"
+          >
             <PawPrint className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
           </span>
         </div>
       </header>
 
       <main id="main-content" className="mx-auto max-w-lg px-4 py-8">
-        {currentStep === 1 && <OwnerInfoStep onComplete={handleOwnerComplete} initialData={ownerData} />}
-        {currentStep === 2 && <PetInfoStep onComplete={handlePetComplete} initialData={petData} />}
-        {currentStep === 3 && <QuizStep onComplete={handleQuizComplete} isLoading={isLoading} />}
+        {currentStep === 1 && (
+          <OwnerInfoStep onComplete={handleOwnerComplete} initialData={ownerData} />
+        )}
+        {currentStep === 2 && (
+          <PetInfoStep
+            onComplete={(data) => void handlePetComplete(data)}
+            initialData={petData}
+            isLoading={isLoading}
+          />
+        )}
+        {currentStep === 3 && durablePair && (
+          <FirstAdventureStep
+            petName={durablePair.petName}
+            isLoading={isLoading}
+            onComplete={(selections) => void finishFirstAdventure(selections)}
+            onSkipAll={() => void finishFirstAdventure(emptyFirstAdventureSelections(), true)}
+          />
+        )}
 
-        {error && currentStep === 3 && (
-          <div role="alert" aria-live="polite" className="mt-5 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm leading-relaxed text-destructive">
+        {error && currentStep >= 2 && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mt-5 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm leading-relaxed text-destructive"
+          >
             {error}
           </div>
         )}
       </main>
     </div>
-  )
+  );
 }

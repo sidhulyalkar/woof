@@ -1,5 +1,14 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsArray, IsISO8601, IsIn, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsISO8601,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+} from 'class-validator';
 
 export class CreatePetDto {
   @ApiProperty({ example: 'Shasta' })
@@ -28,7 +37,18 @@ export class CreatePetDto {
   birthdate?: string;
 
   @ApiPropertyOptional({
-    description: 'Current descriptive temperament traits. Scored questionnaires belong in separate feature/preference records.',
+    description:
+      'Optional replay-safe key for a minimal onboarding create. Exact retries return the same pet. Media and mutable profile JSON should be attached after creation.',
+    example: 'first-adventure:01J8Y6N8WJY5DR1PSE2K1XQ4QS',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  creationKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Current descriptive temperament traits. Scored questionnaires belong in separate feature/preference records.',
     example: ['Friendly', 'Energetic', 'Social'],
     type: [String],
   })
@@ -51,4 +71,4 @@ export class CreatePetDto {
   avatarUrl?: string;
 }
 
-export class UpdatePetDto extends PartialType(CreatePetDto) {}
+export class UpdatePetDto extends PartialType(OmitType(CreatePetDto, ['creationKey'] as const)) {}
