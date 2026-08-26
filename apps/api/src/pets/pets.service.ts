@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { createHash } from 'crypto';
 import { Prisma } from '@woof/database';
 import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,32 +19,60 @@ export class PetsService {
 
   async create(ownerId: string, data: CreatePetDto) {
     const householdId = await this.households.ensurePersonalHousehold(ownerId);
+    const replaySafeId = data.creationKey ? this.replaySafePetId(ownerId, data.creationKey) : null;
 
-    return this.prisma.pet.create({
-      data: {
-        ...this.toCreateInput(ownerId, data),
-        householdMemberships: {
-          create: {
-            householdId,
-            status: 'ACTIVE',
+    if (data.creationKey && (data.temperament || data.vaccinations || data.avatarUrl)) {
+      throw new BadRequestException(
+        'Replay-safe pet creation accepts durable identity fields only; attach media and mutable profile data after creation'
+      );
+    }
+
+    if (replaySafeId) {
+      const existing = await this.readReplayPet(replaySafeId);
+      if (existing) {
+        this.assertCreationReplayMatches(existing, ownerId, data);
+        return existing;
+      }
+    }
+
+    const create = () =>
+      this.prisma.pet.create({
+        data: {
+          ...(replaySafeId ? { id: replaySafeId } : {}),
+          ...this.toCreateInput(ownerId, data),
+          householdMemberships: {
+            create: {
+              householdId,
+              status: 'ACTIVE',
+            },
           },
         },
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            handle: true,
-            avatarUrl: true,
-            isVerified: true,
+        include: {
+          owner: {
+            select: {
+              id: true,
+              handle: true,
+              avatarUrl: true,
+              isVerified: true,
+            },
+          },
+          householdMemberships: {
+            where: { status: 'ACTIVE' },
+            select: { householdId: true },
           },
         },
-        householdMemberships: {
-          where: { status: 'ACTIVE' },
-          select: { householdId: true },
-        },
-      },
-    });
+      });
+
+    try {
+      return await create();
+    } catch (error) {
+      if (!replaySafeId || !this.isUniqueViolation(error)) throw error;
+
+      const existing = await this.readReplayPet(replaySafeId);
+      if (!existing) throw error;
+      this.assertCreationReplayMatches(existing, ownerId, data);
+      return existing;
+    }
   }
 
   async findAll(skip = 0, take = 20, ownerId?: string) {
@@ -153,6 +187,64 @@ export class PetsService {
     if (!pet) {
       throw new NotFoundException(`Pet with ID ${id} not found`);
     }
+  }
+
+  private async readReplayPet(id: string) {
+    return this.prisma.pet.findUnique({
+      where: { id },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            handle: true,
+            avatarUrl: true,
+            isVerified: true,
+          },
+        },
+        householdMemberships: {
+          where: { status: 'ACTIVE' },
+          select: { householdId: true },
+        },
+      },
+    });
+  }
+
+  private assertCreationReplayMatches(
+    existing: {
+      ownerId: string;
+      name: string;
+      species: string;
+      breed: string | null;
+      sex: string | null;
+      birthdate: Date | null;
+    },
+    ownerId: string,
+    data: CreatePetDto
+  ) {
+    const expectedBirthdate = data.birthdate ? new Date(data.birthdate).getTime() : null;
+    const existingBirthdate = existing.birthdate?.getTime() ?? null;
+    const matches =
+      existing.ownerId === ownerId &&
+      existing.name === data.name.trim() &&
+      existing.species === data.species.trim().toUpperCase() &&
+      (existing.breed ?? null) === (data.breed?.trim() || null) &&
+      (existing.sex ?? null) === (data.sex ?? null) &&
+      existingBirthdate === expectedBirthdate;
+
+    if (!matches) {
+      throw new ConflictException('Pet creation key was replayed with divergent identity fields');
+    }
+  }
+
+  private replaySafePetId(ownerId: string, creationKey: string): string {
+    const digest = createHash('sha256')
+      .update(`woof-pet-create-v1:${ownerId}:${creationKey.trim()}`)
+      .digest('hex');
+    return `pet_${digest.slice(0, 32)}`;
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 
   private toCreateInput(ownerId: string, data: CreatePetDto): Prisma.PetCreateInput {
