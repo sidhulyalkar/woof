@@ -2,6 +2,8 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import type { HealthTriageLevel } from './health-triage';
 
+export const HEALTH_MODEL_POLICY_VERSION = 'woof-health-model-policy-v2';
+
 export type PetHealthModelResult = {
   triage: HealthTriageLevel;
   confidence: number;
@@ -46,6 +48,46 @@ export type PetHealthModelInput = {
     bytes: Buffer;
   };
 };
+
+type VetHandoffTiming = PetHealthModelResult['vetHandoff']['timing'];
+
+type ModelRecord = Record<string, unknown>;
+
+const TRIAGE_LEVELS = new Set<HealthTriageLevel>([
+  'emergency_now',
+  'vet_today',
+  'vet_soon',
+  'monitor',
+  'better_image',
+  'insufficient_information',
+]);
+
+const HANDOFF_TIMINGS = new Set<VetHandoffTiming>([
+  'now',
+  'today',
+  'within-2-days',
+  'routine',
+  'not-yet',
+]);
+
+const HANDOFF_URGENCY: Record<VetHandoffTiming, number> = {
+  now: 5,
+  today: 4,
+  'within-2-days': 3,
+  routine: 2,
+  'not-yet': 1,
+};
+
+const UNSAFE_OWNER_ACTION_PATTERNS = [
+  /\binduce vomiting\b/i,
+  /\b(?:lance|drain|puncture|incise)\b/i,
+  /\b(?:start|stop|change|adjust)\b.{0,60}\bprescription/i,
+  /\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml)\b/i,
+  /\b(?:give|administer|dose|apply)\b.{0,80}\b(?:medication|medicine|drug|antibiotic|steroid|painkiller|aspirin|ibuprofen|acetaminophen|paracetamol|benadryl|diphenhydramine)\b/i,
+] as const;
+
+const NEGATED_TREATMENT_DIRECTIVE =
+  /\b(?:do not|don't|avoid|never)\b.{0,30}\b(?:give|administer|dose|apply|start|stop|change|adjust|induce|lance|drain|puncture|incise)\b/i;
 
 const HEALTH_RESULT_SCHEMA = {
   type: 'object',
@@ -131,6 +173,130 @@ Safety rules:
 
 Return only the requested structured JSON.`;
 
+function asRecord(value: unknown): ModelRecord | null {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+  return value as ModelRecord;
+}
+
+function boundedText(value: unknown, maxChars: number) {
+  return typeof value === 'string' ? value.trim().slice(0, maxChars) : '';
+}
+
+function boundedStrings(value: unknown, maxItems: number, maxChars: number) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().slice(0, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function clamp01(value: unknown) {
+  const number = Number(value);
+  return Math.max(0, Math.min(1, Number.isFinite(number) ? number : 0));
+}
+
+function minimumHandoff(
+  triage: HealthTriageLevel
+): { recommended: boolean; timing: VetHandoffTiming; action: string } | null {
+  if (triage === 'emergency_now') {
+    return {
+      recommended: true,
+      timing: 'now',
+      action: 'Contact an emergency veterinarian now and follow their transport instructions.',
+    };
+  }
+  if (triage === 'vet_today') {
+    return {
+      recommended: true,
+      timing: 'today',
+      action: 'Arrange veterinary assessment today, especially if the change is worsening.',
+    };
+  }
+  if (triage === 'vet_soon') {
+    return {
+      recommended: true,
+      timing: 'within-2-days',
+      action: 'Arrange a veterinary appointment soon and keep documenting any change.',
+    };
+  }
+  return null;
+}
+
+function containsUnsafeOwnerDirective(action: string) {
+  if (NEGATED_TREATMENT_DIRECTIVE.test(action)) return false;
+  return UNSAFE_OWNER_ACTION_PATTERNS.some((pattern) => pattern.test(action));
+}
+
+export function normalizeHealthModelResult(value: unknown): PetHealthModelResult {
+  const result = asRecord(value);
+  const photoFeedback = asRecord(result?.photoFeedback);
+  const vetHandoff = asRecord(result?.vetHandoff);
+  const triage = result?.triage;
+  const timing = vetHandoff?.timing;
+
+  if (
+    !result ||
+    typeof triage !== 'string' ||
+    !TRIAGE_LEVELS.has(triage as HealthTriageLevel) ||
+    typeof result.summary !== 'string' ||
+    !photoFeedback ||
+    typeof photoFeedback.usable !== 'boolean' ||
+    typeof photoFeedback.reason !== 'string' ||
+    !vetHandoff ||
+    typeof vetHandoff.recommended !== 'boolean' ||
+    typeof timing !== 'string' ||
+    !HANDOFF_TIMINGS.has(timing as VetHandoffTiming) ||
+    typeof vetHandoff.summary !== 'string'
+  ) {
+    throw new ServiceUnavailableException('Health screening model returned an invalid assessment');
+  }
+
+  const normalizedTriage = triage as HealthTriageLevel;
+  const ownerActions = boundedStrings(result.ownerActions, 6, 500);
+  if (ownerActions.some(containsUnsafeOwnerDirective)) {
+    throw new ServiceUnavailableException(
+      'Health screening model returned an unsafe owner-action directive'
+    );
+  }
+
+  const requiredHandoff = minimumHandoff(normalizedTriage);
+  let normalizedTiming = timing as VetHandoffTiming;
+  let recommended = Boolean(vetHandoff.recommended);
+  if (requiredHandoff) {
+    recommended = true;
+    if (HANDOFF_URGENCY[normalizedTiming] < HANDOFF_URGENCY[requiredHandoff.timing]) {
+      normalizedTiming = requiredHandoff.timing;
+    }
+    if (!ownerActions.some((action) => /veterinar/i.test(action))) {
+      ownerActions.unshift(requiredHandoff.action);
+      ownerActions.splice(6);
+    }
+  }
+
+  return {
+    triage: normalizedTriage,
+    confidence: clamp01(result.confidence),
+    summary: boundedText(result.summary, 1200),
+    visibleFindings: boundedStrings(result.visibleFindings, 8, 360),
+    possibleCategories: boundedStrings(result.possibleCategories, 6, 160),
+    photoFeedback: {
+      usable: normalizedTriage === 'better_image' ? false : Boolean(photoFeedback.usable),
+      reason: boundedText(photoFeedback.reason, 500),
+      betterPhotoInstructions: boundedStrings(photoFeedback.betterPhotoInstructions, 5, 320),
+    },
+    questions: boundedStrings(result.questions, 6, 360),
+    ownerActions,
+    avoid: boundedStrings(result.avoid, 6, 500),
+    vetHandoff: {
+      recommended,
+      timing: normalizedTiming,
+      summary: boundedText(vetHandoff.summary, 1200),
+      bring: boundedStrings(vetHandoff.bring, 6, 320),
+    },
+  };
+}
+
 @Injectable()
 export class HealthAiService {
   private readonly logger = new Logger(HealthAiService.name);
@@ -149,6 +315,15 @@ export class HealthAiService {
 
   isConfigured() {
     return Boolean(this.apiKey);
+  }
+
+  provenance() {
+    return {
+      provider: 'openai' as const,
+      model: this.model,
+      policyVersion: HEALTH_MODEL_POLICY_VERSION,
+      responseContract: 'woof-pet-health-lens-json-schema-v1' as const,
+    };
   }
 
   async analyze(input: PetHealthModelInput): Promise<PetHealthModelResult> {
@@ -234,7 +409,7 @@ export class HealthAiService {
         );
       }
 
-      return this.validateResult(JSON.parse(text) as PetHealthModelResult);
+      return normalizeHealthModelResult(JSON.parse(text) as unknown);
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
@@ -266,35 +441,5 @@ export class HealthAiService {
       recentContext: [],
       priorHealthObservations: [],
     });
-  }
-
-  private validateResult(result: PetHealthModelResult): PetHealthModelResult {
-    const allowed = new Set<HealthTriageLevel>([
-      'emergency_now',
-      'vet_today',
-      'vet_soon',
-      'monitor',
-      'better_image',
-      'insufficient_information',
-    ]);
-    if (!result || !allowed.has(result.triage) || typeof result.summary !== 'string') {
-      throw new ServiceUnavailableException(
-        'Health screening model returned an invalid assessment'
-      );
-    }
-
-    return {
-      ...result,
-      confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0)),
-      visibleFindings: Array.isArray(result.visibleFindings)
-        ? result.visibleFindings.slice(0, 8)
-        : [],
-      possibleCategories: Array.isArray(result.possibleCategories)
-        ? result.possibleCategories.slice(0, 6)
-        : [],
-      questions: Array.isArray(result.questions) ? result.questions.slice(0, 6) : [],
-      ownerActions: Array.isArray(result.ownerActions) ? result.ownerActions.slice(0, 6) : [],
-      avoid: Array.isArray(result.avoid) ? result.avoid.slice(0, 6) : [],
-    };
   }
 }
