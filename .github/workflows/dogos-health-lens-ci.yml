@@ -1,0 +1,90 @@
+name: dogOS Health Lens Model Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/health-lens/**'
+      - '.github/workflows/dogos-health-lens-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health-lens-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  authority:
+    name: Deterministic triage + bounded model authority
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Enforce Health Lens authority invariants
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lens = fs.readFileSync('apps/api/src/health-lens/health-lens.service.ts', 'utf8');
+          const model = fs.readFileSync('apps/api/src/health-lens/health-ai.service.ts', 'utf8');
+          const requiredLens = ['screenEmergencyText', 'deterministic-emergency-screen', 'modelProvenance'];
+          const requiredModel = [
+            'store: false',
+            'normalizeHealthModelResult',
+            'UNSAFE_OWNER_ACTION_PATTERNS',
+            'HEALTH_MODEL_POLICY_VERSION',
+          ];
+          for (const token of requiredLens) {
+            if (!lens.includes(token)) throw new Error(`Missing Health Lens authority invariant: ${token}`);
+          }
+          for (const token of requiredModel) {
+            if (!model.includes(token)) throw new Error(`Missing Health model authority invariant: ${token}`);
+          }
+          NODE
+
+      - name: Check Health Lens formatting
+        run: >-
+          pnpm exec prettier --check
+          .github/workflows/dogos-health-lens-ci.yml
+          apps/api/src/health-lens/health-ai.service.ts
+          apps/api/src/health-lens/health-ai.service.spec.ts
+          apps/api/src/health-lens/health-lens.service.ts
+          apps/api/src/health-lens/health-lens.service.spec.ts
+          apps/api/src/health-lens/health-triage.ts
+          apps/api/src/health-lens/health-triage.spec.ts
+
+      - name: Lint Health Lens boundary
+        run: pnpm --filter @woof/api exec eslint src/health-lens --max-warnings=0
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run Health Lens safety contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/health-lens/health-ai.service.spec.ts
+          src/health-lens/health-lens.service.spec.ts
+          src/health-lens/health-triage.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
