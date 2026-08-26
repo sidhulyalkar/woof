@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { randomUUID } from 'node:crypto';
+import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   WELLBEING_PATHWAYS,
@@ -60,10 +61,13 @@ const PATHWAY_LABELS: Record<WellbeingPathway, string> = {
 export class CareEventsService {
   private readonly logger = new Logger(CareEventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly households: HouseholdsService
+  ) {}
 
   async record(input: CareEventInput): Promise<RewardReceipt> {
-    if (input.petId) await this.assertOwnedPet(input.userId, input.petId);
+    if (input.petId) await this.households.assertPetAccessible(input.userId, input.petId);
 
     const now = new Date();
     const requestedOccurrenceMs = input.occurredAt?.getTime();
@@ -220,7 +224,7 @@ export class CareEventsService {
     pathway: WellbeingPathway;
     context?: Record<string, unknown>;
   }) {
-    await this.assertOwnedPet(input.userId, input.petId);
+    await this.households.assertPetAccessible(input.userId, input.petId);
     const id = randomUUID();
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       INSERT INTO quest_interactions (
@@ -240,7 +244,7 @@ export class CareEventsService {
   }
 
   async getRecentSelectedQuestContext(userId: string, petId: string, questId: string) {
-    await this.assertOwnedPet(userId, petId);
+    await this.households.assertPetAccessible(userId, petId);
     const rows = await this.prisma.$queryRaw<SelectedQuestContextRow[]>(Prisma.sql`
       SELECT context, created_at
       FROM quest_interactions
@@ -256,7 +260,7 @@ export class CareEventsService {
   }
 
   async getSummary(userId: string, petId?: string): Promise<CareSummary> {
-    if (petId) await this.assertOwnedPet(userId, petId);
+    if (petId) await this.households.assertPetAccessible(userId, petId);
 
     const petFilter = petId ? Prisma.sql`AND ce.pet_id = ${petId}` : Prisma.empty;
     const [totalRows, pathwayRows, recentRows, rhythmRows] = await Promise.all([
@@ -333,14 +337,5 @@ export class CareEventsService {
         bondXp: row.bond_xp,
       })),
     };
-  }
-
-  private async assertOwnedPet(userId: string, petId: string) {
-    const pet = await this.prisma.pet.findFirst({
-      where: { id: petId, ownerId: userId },
-      select: { id: true },
-    });
-    if (!pet) throw new NotFoundException('Pet not found');
-    return pet;
   }
 }

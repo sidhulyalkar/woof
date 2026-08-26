@@ -1,0 +1,255 @@
+name: dogOS Intelligence Evidence Projection CI
+
+on:
+  pull_request:
+    branches: [main, agent/dogos-intelligence-baseline-policy-v1]
+    paths:
+      - 'apps/api/src/intelligence/**'
+      - 'apps/api/src/care-events/care-events.service.ts'
+      - 'apps/api/src/care-events/care-events.module.ts'
+      - 'apps/api/src/care-events/care-events.integration.spec.ts'
+      - 'packages/database/prisma/migrations/20260826013000_add_dogos_intelligence_observations/**'
+      - '.github/workflows/dogos-intelligence-evidence-projection-ci.yml'
+      - 'docs/DOGOS_INTELLIGENCE_EVIDENCE_PROJECTION_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-intelligence-evidence-projection-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Replayable evidence projection + household authority qualification
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Enforce exact add-only database ownership
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+          packages/database/prisma/migrations/20260826013000_add_dogos_intelligence_observations/migration.sql
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check touched-file formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/intelligence/baseline-policy-v1.ts
+          apps/api/src/intelligence/baseline-policy-v1.types.ts
+          apps/api/src/intelligence/baseline-policy-v1.receipt.ts
+          apps/api/src/intelligence/baseline-policy-v1.fixtures.ts
+          apps/api/src/intelligence/baseline-policy-v1.spec.ts
+          apps/api/src/intelligence/evidence-projection-v1.types.ts
+          apps/api/src/intelligence/evidence-normalization-v1.receipt.ts
+          apps/api/src/intelligence/evidence-normalization-v1.ts
+          apps/api/src/intelligence/evidence-normalization-v1.spec.ts
+          apps/api/src/intelligence/intelligence-projection.service.ts
+          apps/api/src/intelligence/intelligence-projection.integration.spec.ts
+          apps/api/src/intelligence/intelligence.module.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/care-events/care-events.module.ts
+          apps/api/src/care-events/care-events.integration.spec.ts
+          docs/DOGOS_INTELLIGENCE_BASELINE_POLICY_V1.md
+          docs/DOGOS_INTELLIGENCE_EVIDENCE_PROJECTION_V1.md
+          .github/workflows/dogos-intelligence-evidence-projection-ci.yml
+
+      - name: Reject whitespace errors
+        run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
+
+      - name: Lint intelligence and CareEvent surfaces with zero warnings
+        run: |
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish \
+            src/intelligence/baseline-policy-v1.ts \
+            src/intelligence/baseline-policy-v1.types.ts \
+            src/intelligence/baseline-policy-v1.receipt.ts \
+            src/intelligence/baseline-policy-v1.fixtures.ts \
+            src/intelligence/baseline-policy-v1.spec.ts \
+            src/intelligence/evidence-projection-v1.types.ts \
+            src/intelligence/evidence-normalization-v1.receipt.ts \
+            src/intelligence/evidence-normalization-v1.ts \
+            src/intelligence/evidence-normalization-v1.spec.ts \
+            src/intelligence/intelligence-projection.service.ts \
+            src/intelligence/intelligence-projection.integration.spec.ts \
+            src/intelligence/intelligence.module.ts \
+            src/care-events/care-events.service.ts \
+            src/care-events/care-events.module.ts \
+            src/care-events/care-events.integration.spec.ts
+
+      - name: Enforce projection, privacy and authority invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          migration = Path(
+              'packages/database/prisma/migrations/20260826013000_add_dogos_intelligence_observations/migration.sql'
+          ).read_text()
+          service = Path('apps/api/src/intelligence/intelligence-projection.service.ts').read_text()
+          normalization = Path('apps/api/src/intelligence/evidence-normalization-v1.ts').read_text()
+          receipt = Path('apps/api/src/intelligence/evidence-normalization-v1.receipt.ts').read_text()
+          spec = Path('apps/api/src/intelligence/evidence-normalization-v1.spec.ts').read_text()
+          integration_spec = Path(
+              'apps/api/src/intelligence/intelligence-projection.integration.spec.ts'
+          ).read_text()
+          care_events = Path('apps/api/src/care-events/care-events.service.ts').read_text()
+
+          migration_required = [
+              'CREATE SCHEMA IF NOT EXISTS dogos_intelligence',
+              'CREATE TABLE IF NOT EXISTS dogos_intelligence.observations',
+              'user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE',
+              'pet_id TEXT NOT NULL REFERENCES public.pets(id) ON DELETE CASCADE',
+              "CHECK (source_type IN ('OWNER_CHECKIN', 'ACTIVITY', 'COACHING'))",
+              "CHECK (authority IN ('BASELINE_ELIGIBLE', 'CONTEXT_ONLY'))",
+              'CHECK (delta_bucket IS NULL OR delta_bucket BETWEEN -2 AND 2)',
+              "'NaN'::float8",
+              'payload_hash',
+              'octet_length(context::text) <= 4096',
+              'supersedes_observation_id',
+              'retracted_at',
+              'retraction_reason',
+              'UNIQUE (pet_id, dimension, source_type, source_identity, normalization_version)',
+              'CREATE UNIQUE INDEX IF NOT EXISTS intelligence_observations_one_active_superseder_idx',
+              'WHERE supersedes_observation_id IS NOT NULL AND retracted_at IS NULL',
+          ]
+          missing = [token for token in migration_required if token not in migration]
+          if missing:
+              raise SystemExit(f'missing intelligence projection schema invariant: {missing}')
+
+          privacy_forbidden = [
+              'raw_token',
+              'access_token',
+              'refresh_token',
+              'ip_address',
+              'user_agent',
+              'device_fingerprint',
+              'latitude',
+              'longitude',
+              'raw_image',
+              'raw_video',
+              'model_trace',
+          ]
+          present = [token for token in privacy_forbidden if token in migration.lower()]
+          if present:
+              raise SystemExit(f'intelligence projection must remain privacy-thin: {present}')
+
+          service_required = [
+              'await this.households.assertPetAccessible(candidate.userId, candidate.petId)',
+              'payloadHash(candidate)',
+              'Projection source identity was replayed with different semantics',
+              'FOR UPDATE',
+              'ON CONFLICT (',
+              'supersedes_observation_id',
+              'WHERE successor.supersedes_observation_id = o.id',
+              'LIMIT 512',
+              "candidate.sourceType === 'OWNER_CHECKIN'",
+              "candidate.authority !== 'BASELINE_ELIGIBLE'",
+              "candidate.sourceType === 'ACTIVITY'",
+              "candidate.sourceType === 'COACHING'",
+          ]
+          missing = [token for token in service_required if token not in service]
+          if missing:
+              raise SystemExit(f'missing replay/authority service invariant: {missing}')
+          if 'AND successor.retracted_at IS NULL' in service:
+              raise SystemExit(
+                  'effective evidence must not resurrect a superseded predecessor when a successor is retracted'
+              )
+          lifecycle_required = [
+              'retraction never resurrects superseded evidence without an explicit replacement',
+              'expect(afterRetraction).toEqual([])',
+              'explicitReplacement',
+          ]
+          missing = [token for token in lifecycle_required if token not in integration_spec]
+          if missing:
+              raise SystemExit(f'missing explicit reversion lifecycle regression: {missing}')
+
+          if 'assertOwnedPet' in care_events:
+              raise SystemExit('CareEvents must not reintroduce an owner-only pet authority helper')
+          if care_events.count('households.assertPetAccessible') < 4:
+              raise SystemExit('CareEvents pet-scoped write/read paths must use household authority')
+
+          normalization_required = [
+              "choice === 'UNSURE'",
+              "authority: 'BASELINE_ELIGIBLE'",
+              "sourceType: 'OWNER_CHECKIN'",
+              "sourceType: 'ACTIVITY'",
+              "authority: 'CONTEXT_ONLY'",
+              "sourceType: 'COACHING'",
+              'no health-like relative bucket is inferred',
+          ]
+          missing = [token for token in normalization_required if token not in normalization]
+          if missing:
+              raise SystemExit(f'missing conservative normalization invariant: {missing}')
+
+          receipt_required = [
+              "version: 'evidence-normalization-v1'",
+              "SELF_REPORT: { sourceType: 'OWNER_CHECKIN', authority: 'BASELINE_ELIGIBLE' }",
+              "ACTIVITY: { sourceType: 'ACTIVITY', authority: 'CONTEXT_ONLY' }",
+              "COACH: { sourceType: 'COACHING', authority: 'CONTEXT_ONLY' }",
+              'maxContextBytes: 4096',
+          ]
+          missing = [token for token in receipt_required if token not in receipt]
+          if missing:
+              raise SystemExit(f'evidence-normalization-v1 receipt drifted: {missing}')
+
+          fingerprint = '5c4262303923f9499bd08e6f34d5b2a7890c1d1839aa1933da5a6e8f4a8825f0'
+          if fingerprint not in spec:
+              raise SystemExit('evidence-normalization-v1 SHA-256 receipt pin is missing')
+          PY
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run baseline, normalization, replay and CareEvent contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/intelligence/baseline-policy-v1.spec.ts
+          src/intelligence/evidence-normalization-v1.spec.ts
+          src/intelligence/intelligence-projection.integration.spec.ts
+          src/care-events/care-events.integration.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
