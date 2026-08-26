@@ -39,7 +39,15 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<SafeUser> {
-    const user = await this.usersService.findByEmail(email.trim().toLowerCase());
+    const submittedEmail = email.trim();
+    const canonicalEmail = submittedEmail.toLowerCase();
+    let user = await this.usersService.findByEmail(canonicalEmail);
+
+    // New email registrations are canonicalized. Preserve sign-in compatibility
+    // for any older account that was stored with mixed-case email before that rule.
+    if (!user && submittedEmail !== canonicalEmail) {
+      user = await this.usersService.findByEmail(submittedEmail);
+    }
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
