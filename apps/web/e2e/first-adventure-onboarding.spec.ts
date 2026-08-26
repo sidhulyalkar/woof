@@ -108,6 +108,60 @@ test.describe('relationship-first First Adventure onboarding', () => {
     expect(profileWrites.every((write) => write.outcome === 'SKIPPED')).toBe(true);
   });
 
+  test('reuses the registration transaction key after a lost response before pet creation', async ({
+    page,
+  }) => {
+    await page.unroute('**/auth/register');
+    const registrationBodies: Array<Record<string, unknown>> = [];
+    let petCreateCount = 0;
+
+    await page.route('**/auth/register', async (route) => {
+      registrationBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      if (registrationBodies.length === 1) {
+        await route.abort('failed');
+        return;
+      }
+
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ access_token: 'recovered-registration-token', user: apiUser }),
+      });
+    });
+
+    await page.route('**/pets', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+      petCreateCount += 1;
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(createdPet),
+      });
+    });
+
+    await page.goto('/onboarding');
+    await fillOwner(page);
+    await fillPet(page);
+
+    await expect(page.getByRole('alert')).toContainText(/transaction keys/i);
+    expect(registrationBodies).toHaveLength(1);
+    expect(petCreateCount).toBe(0);
+
+    await page.getByRole('button', { name: /continue to first adventure/i }).click();
+    await expect(page.getByRole('heading', { name: /make the first suggestion/i })).toBeVisible();
+
+    expect(registrationBodies).toHaveLength(2);
+    expect(petCreateCount).toBe(1);
+    const firstKey = registrationBodies[0]!.registrationKey;
+    const secondKey = registrationBodies[1]!.registrationKey;
+    expect(firstKey).toEqual(expect.any(String));
+    expect(firstKey).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(secondKey).toBe(firstKey);
+  });
+
   test('editing from First Adventure updates the same pet instead of creating another one', async ({
     page,
   }) => {
