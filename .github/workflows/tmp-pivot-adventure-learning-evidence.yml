@@ -1,0 +1,140 @@
+name: Temporary pivot Adventure learning evidence
+
+on:
+  push:
+    branches: [agent/tmp-pivot-adventure-learning-evidence]
+
+permissions:
+  contents: write
+
+jobs:
+  pivot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/adventure-learning-signals-v2
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Isolate Adventure learning evidence from reward summaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          types = Path('apps/api/src/care-events/care-event.types.ts')
+          text = types.read_text()
+          old = '''export type PathwayProgress = {\n  pathway: WellbeingPathway;\n  label: string;\n  recentDays: number;\n  coverage: number;\n  xp: number;\n  lastEventAt: string | null;\n};\n\nexport type CareSummary = {'''
+          new = '''export type PathwayProgress = {\n  pathway: WellbeingPathway;\n  label: string;\n  recentDays: number;\n  coverage: number;\n  xp: number;\n  lastEventAt: string | null;\n};\n\nexport type AdventureLearningCareEvent = {\n  id: string;\n  eventType: string;\n  pathway: WellbeingPathway;\n  occurredAt: string;\n  context: Record<string, unknown> | null;\n  outcome: Record<string, unknown> | null;\n};\n\nexport type CareSummary = {'''
+          if old not in text:
+              raise SystemExit('care-event type insertion anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''    occurredAt: string;\n    context: Record<string, unknown> | null;\n    outcome: Record<string, unknown> | null;\n    bondXp: number;'''
+          new = '''    occurredAt: string;\n    outcome: Record<string, unknown> | null;\n    bondXp: number;'''
+          if old not in text:
+              raise SystemExit('CareSummary context removal anchor not found')
+          types.write_text(text.replace(old, new, 1))
+
+          care = Path('apps/api/src/care-events/care-events.service.ts')
+          text = care.read_text()
+          old = '''  type CanonicalCareEventRecord,\n  type CareEventInput,\n  type CareSummary,'''
+          new = '''  type AdventureLearningCareEvent,\n  type CanonicalCareEventRecord,\n  type CareEventInput,\n  type CareSummary,'''
+          if old not in text:
+              raise SystemExit('care service import anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''type EventRow = {\n  id: string;\n  event_type: string;\n  pathway: WellbeingPathway;\n  occurred_at: Date;\n  context: Record<string, unknown> | null;\n  outcome: Record<string, unknown> | null;\n};'''
+          new = '''type EventRow = {\n  id: string;\n  event_type: string;\n  pathway: WellbeingPathway;\n  occurred_at: Date;\n  outcome: Record<string, unknown> | null;\n};\n\ntype AdventureLearningEventRow = EventRow & {\n  context: Record<string, unknown> | null;\n};'''
+          if old not in text:
+              raise SystemExit('EventRow pivot anchor not found')
+          text = text.replace(old, new, 1)
+          summary_select = '''        SELECT ce.id, ce.event_type, ce.pathway, ce.occurred_at, ce.context, ce.outcome,\n               COALESCE(rl.bond_xp, 0)::int AS bond_xp'''
+          summary_select_new = '''        SELECT ce.id, ce.event_type, ce.pathway, ce.occurred_at, ce.outcome,\n               COALESCE(rl.bond_xp, 0)::int AS bond_xp'''
+          if summary_select not in text:
+              raise SystemExit('summary select context anchor not found')
+          text = text.replace(summary_select, summary_select_new, 1)
+          summary_map = '''        occurredAt: row.occurred_at.toISOString(),\n        context: row.context,\n        outcome: row.outcome,'''
+          summary_map_new = '''        occurredAt: row.occurred_at.toISOString(),\n        outcome: row.outcome,'''
+          if summary_map not in text:
+              raise SystemExit('summary map context anchor not found')
+          text = text.replace(summary_map, summary_map_new, 1)
+
+          anchor = '''  async getSummary(userId: string, petId?: string): Promise<CareSummary> {'''
+          inserted = '''  async getAdventureLearningEvents(\n    userId: string,\n    petId: string,\n    limit = 24\n  ): Promise<AdventureLearningCareEvent[]> {\n    await this.households.assertPetAccessible(userId, petId);\n    const boundedLimit = Math.max(1, Math.min(24, Math.round(limit)));\n    const rows = await this.prisma.$queryRaw<AdventureLearningEventRow[]>(Prisma.sql`\n      SELECT id, event_type, pathway, occurred_at, context, outcome\n      FROM care_events\n      WHERE user_id = ${userId}\n        AND pet_id = ${petId}\n        AND source = 'QUEST_ENGINE'\n        AND (event_type = 'SAFE_OPT_OUT' OR LEFT(event_type, 6) = 'QUEST_')\n        AND occurred_at >= NOW() - INTERVAL '28 days'\n      ORDER BY occurred_at DESC, id ASC\n      LIMIT ${boundedLimit}\n    `);\n\n    return rows.map((row) => ({\n      id: row.id,\n      eventType: row.event_type,\n      pathway: row.pathway,\n      occurredAt: row.occurred_at.toISOString(),\n      context: row.context,\n      outcome: row.outcome,\n    }));\n  }\n\n'''
+          if anchor not in text:
+              raise SystemExit('learning evidence method insertion anchor not found')
+          care.write_text(text.replace(anchor, inserted + anchor, 1))
+
+          policy = Path('apps/api/src/adventure/adventure-learning-policy.ts')
+          text = policy.read_text()
+          old = '''import { WELLBEING_PATHWAYS, type WellbeingPathway } from '../care-events/care-event.types';'''
+          new = '''import {\n  WELLBEING_PATHWAYS,\n  type AdventureLearningCareEvent,\n  type WellbeingPathway,\n} from '../care-events/care-event.types';'''
+          if old not in text:
+              raise SystemExit('policy type import anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''export type AdventureLearningEvent = {\n  id: string;\n  eventType: string;\n  pathway: WellbeingPathway;\n  occurredAt: string;\n  context: Record<string, unknown> | null;\n  outcome: Record<string, unknown> | null;\n};'''
+          new = '''export type AdventureLearningEvent = AdventureLearningCareEvent;'''
+          if old not in text:
+              raise SystemExit('policy event type anchor not found')
+          policy.write_text(text.replace(old, new, 1))
+
+          adventure = Path('apps/api/src/adventure/adventure.service.ts')
+          text = adventure.read_text()
+          old = '''  type CareSummary,\n  type WellbeingPathway,'''
+          new = '''  type AdventureLearningCareEvent,\n  type CareSummary,\n  type WellbeingPathway,'''
+          if old not in text:
+              raise SystemExit('Adventure CareEvent type import anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''    const insights = await this.insights.getForUser(userId, requestedPetId);\n    const summary = await this.careEvents.getSummary(userId, insights.pet.id);\n    const quests = this.buildQuests(userId, insights, summary);'''
+          new = '''    const insights = await this.insights.getForUser(userId, requestedPetId);\n    const [summary, learningEvents] = await Promise.all([\n      this.careEvents.getSummary(userId, insights.pet.id),\n      this.careEvents.getAdventureLearningEvents(userId, insights.pet.id),\n    ]);\n    const quests = this.buildQuests(userId, insights, summary, learningEvents);'''
+          if old not in text:
+              raise SystemExit('Adventure dashboard learning query anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''    insights: Awaited<ReturnType<InsightsService['getForUser']>>,\n    summary: CareSummary\n  ): Quest[] {'''
+          new = '''    insights: Awaited<ReturnType<InsightsService['getForUser']>>,\n    summary: CareSummary,\n    learningEvents: AdventureLearningCareEvent[]\n  ): Quest[] {'''
+          if old not in text:
+              raise SystemExit('buildQuests signature anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''    const learning = deriveAdventureLearningSignals(summary.recentEvents);'''
+          new = '''    const learning = deriveAdventureLearningSignals(learningEvents);'''
+          if old not in text:
+              raise SystemExit('derive learning input anchor not found')
+          adventure.write_text(text.replace(old, new, 1))
+
+          integration = Path('apps/api/src/care-events/care-events.integration.spec.ts')
+          text = integration.read_text()
+          old = '''    const summary = await service.getSummary(userId, petId);\n    const stored = summary.recentEvents.find((entry) => entry.id === receipt.careEventId);\n\n    expect(stored).toEqual(\n      expect.objectContaining({\n        pathway: 'BOND',\n        context: expect.objectContaining({\n          originalPathway: 'LEARN',\n          learningPolicyVersion: 'adventure-learning-v2',\n        }),\n        outcome: expect.objectContaining({ dogExperience: 'not_their_thing' }),\n      })\n    );'''
+          new = '''    for (let index = 0; index < 14; index += 1) {\n      await service.record({\n        userId,\n        petId,\n        eventType: 'DAILY_SIGNALS_CHECKIN',\n        pathway: 'CARE',\n        source: 'INTELLIGENCE',\n        evidenceType: 'SELF_REPORT',\n        dedupeKey: `learning-crowd:${index}:${randomUUID()}`,\n        safetyEligible: false,\n      });\n    }\n\n    const learningEvents = await service.getAdventureLearningEvents(userId, petId);\n    const stored = learningEvents.find((entry) => entry.id === receipt.careEventId);\n\n    expect(stored).toEqual(\n      expect.objectContaining({\n        pathway: 'BOND',\n        context: expect.objectContaining({\n          originalPathway: 'LEARN',\n          learningPolicyVersion: 'adventure-learning-v2',\n        }),\n        outcome: expect.objectContaining({ dogExperience: 'not_their_thing' }),\n      })\n    );\n    expect(stored).not.toHaveProperty('bondXp');\n    expect(learningEvents.every((entry) => entry.eventType.startsWith('QUEST_') || entry.eventType === 'SAFE_OPT_OUT')).toBe(true);'''
+          if old not in text:
+              raise SystemExit('integration projection pivot anchor not found')
+          integration.write_text(text.replace(old, new, 1))
+          PY
+      - name: Format pivoted TypeScript
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/care-events/care-event.types.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/care-events/care-events.integration.spec.ts
+          apps/api/src/adventure/adventure-learning-policy.ts
+          apps/api/src/adventure/adventure-learning-policy.spec.ts
+          apps/api/src/adventure/adventure.service.ts
+          apps/api/src/adventure/adventure.service.spec.ts
+      - name: Commit isolated learning evidence projection
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/care-events/care-event.types.ts \
+            apps/api/src/care-events/care-events.service.ts \
+            apps/api/src/care-events/care-events.integration.spec.ts \
+            apps/api/src/adventure/adventure-learning-policy.ts \
+            apps/api/src/adventure/adventure-learning-policy.spec.ts \
+            apps/api/src/adventure/adventure.service.ts \
+            apps/api/src/adventure/adventure.service.spec.ts
+          git commit -m "Isolate Adventure learning evidence from rewards"
+          git push origin HEAD:agent/adventure-learning-signals-v2
