@@ -62,6 +62,9 @@ model User {
   rewardLedgerEntries       RewardLedger[]
   questInteractions         QuestInteraction[]
 
+  adaptiveProfileEvidenceSources   AdaptiveProfileEvidence[]         @relation("AdaptiveProfileEvidenceSource")
+  adaptiveProfileQuestionResponses AdaptiveProfileQuestionResponse[] @relation("AdaptiveProfileQuestionResponder")
+
   @@map("users")
 }
 
@@ -160,6 +163,9 @@ model HouseholdPet {
 
   household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
   pet       Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  adaptiveProfileEvidence          AdaptiveProfileEvidence[]
+  adaptiveProfileQuestionResponses AdaptiveProfileQuestionResponse[]
 
   @@unique([householdId, petId])
   @@index([petId, status])
@@ -1147,4 +1153,52 @@ model QuestInteraction {
   @@index([userId, petId, createdAt(sort: Desc)], map: "quest_interactions_user_pet_created_at_idx")
   @@index([questId], map: "quest_interactions_quest_id_idx")
   @@map("quest_interactions")
+}
+
+// ============================================
+// ADAPTIVE ADVENTURE PROFILE
+// ============================================
+
+model AdaptiveProfileEvidence {
+  id            String   @id
+  householdId   String   @map("household_id")
+  petId         String   @map("pet_id")
+  dimension     String
+  subject       String
+  state         String
+  value         Json?
+  confidence    Float
+  provenance    String
+  schemaVersion String   @default("adaptive-profile-v1") @map("schema_version")
+  sourceUserId  String?  @map("source_user_id")
+  occurredAt    DateTime @map("occurred_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  householdPet HouseholdPet @relation(fields: [householdId, petId], references: [householdId, petId], onDelete: Cascade)
+  sourceUser   User?        @relation("AdaptiveProfileEvidenceSource", fields: [sourceUserId], references: [id], onDelete: SetNull)
+
+  @@index([householdId, petId, dimension, occurredAt(sort: Desc)], map: "adaptive_profile_evidence_pair_dimension_occurred_at_idx")
+  @@index([sourceUserId, occurredAt(sort: Desc)], map: "adaptive_profile_evidence_source_user_occurred_at_idx")
+  @@map("adaptive_profile_evidence")
+}
+
+model AdaptiveProfileQuestionResponse {
+  id            String   @id
+  householdId   String   @map("household_id")
+  petId         String   @map("pet_id")
+  userId        String   @map("user_id")
+  questionId    String   @map("question_id")
+  policyVersion String   @map("policy_version")
+  outcome       String
+  answer        Json?
+  askedAt       DateTime @map("asked_at")
+  respondedAt   DateTime @map("responded_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  householdPet HouseholdPet @relation(fields: [householdId, petId], references: [householdId, petId], onDelete: Cascade)
+  user         User         @relation("AdaptiveProfileQuestionResponder", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([householdId, petId, askedAt(sort: Desc)], map: "adaptive_profile_question_pair_asked_at_idx")
+  @@index([userId, respondedAt(sort: Desc)], map: "adaptive_profile_question_user_responded_at_idx")
+  @@map("adaptive_profile_question_responses")
 }
