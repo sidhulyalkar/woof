@@ -48,9 +48,7 @@ describe('First Adventure profile responses', () => {
 
   it('canonicalizes goals independently of click order or duplicate clicks', () => {
     const responses = buildFirstAdventureResponses('pet-1', completeSelections);
-    const goals = responses.find(
-      (response) => response.questionId === 'profile-owner-goals-v1'
-    );
+    const goals = responses.find((response) => response.questionId === 'profile-owner-goals-v1');
 
     expect(goals?.answers).toEqual(['MORE_ADVENTURES', 'TRAINING']);
   });
