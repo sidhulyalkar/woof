@@ -1,0 +1,62 @@
+name: Temporary refine Adventure learning v2
+
+on:
+  push:
+    branches: [agent/tmp-refine-adventure-learning-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/adventure-learning-signals-v2
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Make temporary pace operational and lock legacy opt-outs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service = Path('apps/api/src/adventure/adventure.service.ts')
+          text = service.read_text()
+          old = '''        score: 0.48 + (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24,'''
+          new = '''        score:\n          0.48 +\n          (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +\n          (learning.temporaryPace === 'easy' ? 0.06 : 0),'''
+          if old not in text:
+              raise SystemExit('easy-day score anchor not found')
+          service.write_text(text.replace(old, new, 1))
+
+          spec = Path('apps/api/src/adventure/adventure-learning-policy.spec.ts')
+          text = spec.read_text()
+          anchor = '''  it('targets non-safe dog mismatch at the original pathway, never the BOND reward pathway', () => {'''
+          inserted = '''  it('recognizes legacy SAFE_OPT_OUT event identity even when the boolean flag is absent', () => {\n    const result = deriveAdventureLearningSignals(\n      [\n        event({\n          id: 'legacy-safe-stop',\n          eventType: 'SAFE_OPT_OUT',\n          pathway: 'BOND',\n          context: { originalPathway: 'CONNECT' },\n          outcome: { dogExperience: 'not_their_thing', ownerExperience: 'fine' },\n        }),\n      ],\n      NOW\n    );\n\n    expect(result.durablePathwayPreference).toEqual({});\n    expect(result.temporaryPathwayModifier.CONNECT).toBeLessThan(0);\n    expect(result.temporaryPathwayModifier.RECOVER).toBeGreaterThan(0);\n    expect(result.temporaryPace).toBe('easy');\n  });\n\n'''
+          if anchor not in text:
+              raise SystemExit('learning spec insertion anchor not found')
+          spec.write_text(text.replace(anchor, inserted + anchor, 1))
+          PY
+      - name: Format refinements
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/adventure/adventure-learning-policy.ts
+          apps/api/src/adventure/adventure-learning-policy.spec.ts
+          apps/api/src/adventure/adventure.service.ts
+      - name: Commit refinements
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/adventure/adventure-learning-policy.ts \
+            apps/api/src/adventure/adventure-learning-policy.spec.ts \
+            apps/api/src/adventure/adventure.service.ts
+          git commit -m "Refine temporary Adventure learning context"
+          git push origin HEAD:agent/adventure-learning-signals-v2
