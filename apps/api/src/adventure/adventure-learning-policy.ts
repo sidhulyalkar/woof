@@ -40,6 +40,8 @@ export function deriveAdventureLearningSignals(
     .slice(0, 24);
 
   for (const event of canonical) {
+    if (!isAdventureOutcomeEvent(event.eventType)) continue;
+
     const ageDays = Math.max(0, (now.getTime() - new Date(event.occurredAt).getTime()) / DAY_MS);
     const outcome = event.outcome ?? {};
     const dogExperience = stringValue(outcome.dogExperience);
@@ -88,6 +90,10 @@ export function deriveAdventureLearningSignals(
     temporaryPathwayModifier: stableRecord(temporary),
     temporaryPace,
   };
+}
+
+function isAdventureOutcomeEvent(eventType: string) {
+  return eventType === 'SAFE_OPT_OUT' || eventType.startsWith('QUEST_');
 }
 
 function learningPathway(event: AdventureLearningEvent): WellbeingPathway | null {

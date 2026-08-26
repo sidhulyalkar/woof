@@ -252,6 +252,29 @@ describe('Adventure learning v2', () => {
     );
   });
 
+  it('ignores non-Adventure CareEvents even when their JSON reuses outcome-like keys', () => {
+    const result = deriveAdventureLearningSignals(
+      [
+        event({
+          id: 'unrelated-care-event',
+          eventType: 'DAILY_SIGNALS_CHECKIN',
+          pathway: 'CARE',
+          context: { originalPathway: 'LEARN' },
+          outcome: {
+            dogExperience: 'not_their_thing',
+            ownerExperience: 'a_lot_today',
+            safeOptOut: false,
+          },
+        }),
+      ],
+      NOW
+    );
+
+    expect(result.durablePathwayPreference).toEqual({});
+    expect(result.temporaryPathwayModifier).toEqual({});
+    expect(result.temporaryPace).toBe('normal');
+  });
+
   it('does not use reward XP as a learning input', () => {
     const lowReward = event({
       id: 'xp-invariant',

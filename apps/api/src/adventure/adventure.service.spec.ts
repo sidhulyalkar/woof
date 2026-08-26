@@ -97,6 +97,7 @@ describe('AdventureService', () => {
         interaction: 'SELECTED',
         pathway: 'LEARN',
         context: expect.objectContaining({
+          learningPolicyVersion: 'adventure-learning-v2',
           questSnapshot: {
             id: quest.id,
             key: quest.key,
@@ -137,7 +138,11 @@ describe('AdventureService', () => {
       expect.objectContaining({
         interaction: 'COMPLETED',
         pathway: 'BOND',
-        context: expect.objectContaining({ originalPathway: 'LEARN', rewardPathway: 'BOND' }),
+        context: expect.objectContaining({
+          originalPathway: 'LEARN',
+          rewardPathway: 'BOND',
+          learningPolicyVersion: 'adventure-learning-v2',
+        }),
       })
     );
     expect(prismaHarness.telemetry.create).toHaveBeenCalledWith(
@@ -147,6 +152,7 @@ describe('AdventureService', () => {
             pathway: 'BOND',
             originalPathway: 'LEARN',
             rewardPathway: 'BOND',
+            learningPolicyVersion: 'adventure-learning-v2',
           }),
         }),
       })
@@ -173,7 +179,11 @@ describe('AdventureService', () => {
       expect.objectContaining({
         interaction: 'COMPLETED',
         pathway: 'BOND',
-        context: expect.objectContaining({ originalPathway: 'LEARN', rewardPathway: 'BOND' }),
+        context: expect.objectContaining({
+          originalPathway: 'LEARN',
+          rewardPathway: 'BOND',
+          learningPolicyVersion: 'adventure-learning-v2',
+        }),
       })
     );
   });

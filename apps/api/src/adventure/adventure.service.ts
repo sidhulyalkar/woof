@@ -10,6 +10,7 @@ import {
 import { baseXpForEvent } from '../care-events/reward-policy';
 import { InsightsService } from '../insights/insights.service';
 import {
+  ADVENTURE_LEARNING_POLICY_VERSION,
   deriveAdventureLearningSignals,
   type AdventureLearningSignals,
 } from './adventure-learning-policy';
@@ -108,6 +109,7 @@ export class AdventureService {
       context: {
         questKey: quest.key,
         confidence: quest.confidence,
+        learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
         ...(interaction === 'SELECTED' ? { questSnapshot: this.questSnapshot(quest) } : {}),
       },
     });
@@ -164,6 +166,7 @@ export class AdventureService {
         questKey: quest.key,
         questTitle: quest.title,
         originalPathway: quest.primaryPathway,
+        learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
         personalRelevance: quest.personalRelevance,
         memoryAdded: Boolean(verifiedMemory),
         memoryAssetId: verifiedMemory?.id ?? null,
@@ -191,6 +194,7 @@ export class AdventureService {
           questKey: quest.key,
           originalPathway: quest.primaryPathway,
           rewardPathway,
+          learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
           dogExperience: dto.dogExperience,
           ownerExperience: dto.ownerExperience,
           safeOptOut,
@@ -221,6 +225,7 @@ export class AdventureService {
             pathway: rewardPathway,
             originalPathway: quest.primaryPathway,
             rewardPathway,
+            learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
             bondXp: receipt.bondXp,
             duplicate: receipt.duplicate,
             dogExperience: dto.dogExperience,
