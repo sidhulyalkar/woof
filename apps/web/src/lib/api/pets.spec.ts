@@ -38,6 +38,7 @@ describe('petsApi', () => {
       species: 'DOG',
       breed: 'Mix',
       sex: 'UNKNOWN',
+      creationKey: 'first-adventure:abc',
     });
 
     expect(transport.post).toHaveBeenCalledWith('/pets', {
@@ -45,10 +46,12 @@ describe('petsApi', () => {
       species: 'DOG',
       breed: 'Mix',
       sex: 'UNKNOWN',
+      creationKey: 'first-adventure:abc',
     });
     const payload = transport.post.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(payload).not.toHaveProperty('temperament');
     expect(payload).not.toHaveProperty('vaccinations');
+    expect(payload).not.toHaveProperty('avatarUrl');
   });
 
   it('creates a generic pet and preserves the pair household returned by the server', async () => {
@@ -63,12 +66,14 @@ describe('petsApi', () => {
       name: 'Pip',
       species: 'OTHER',
       birthdate: '2023-05-01',
+      creationKey: 'first-adventure:def',
     });
 
     expect(transport.post).toHaveBeenCalledWith('/pets', {
       name: 'Pip',
       species: 'OTHER',
       birthdate: '2023-05-01',
+      creationKey: 'first-adventure:def',
     });
     expect(pet.householdMemberships[0]?.householdId).toBe('house-2');
   });
@@ -78,7 +83,6 @@ describe('petsApi', () => {
       id: 'pet/one',
       name: 'Mochi',
       species: 'DOG',
-      householdMemberships: [{ householdId: 'house-1' }],
     });
 
     await petsApi.updatePet('pet/one', { avatarUrl: 'https://cdn.example.test/mochi.jpg' });
