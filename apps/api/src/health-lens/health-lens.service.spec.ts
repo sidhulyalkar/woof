@@ -30,6 +30,13 @@ const safeModelResult: PetHealthModelResult = {
   },
 };
 
+const modelProvenance = {
+  provider: 'openai' as const,
+  model: 'health-model-snapshot',
+  policyVersion: 'woof-health-model-policy-v2',
+  responseContract: 'woof-pet-health-lens-json-schema-v1' as const,
+};
+
 type PrismaMock = {
   pet: { findFirst: jest.Mock };
   activity: { findMany: jest.Mock };
@@ -44,6 +51,7 @@ type PrismaMock = {
 type AiMock = {
   isConfigured: jest.Mock;
   analyze: jest.Mock;
+  provenance: jest.Mock;
 };
 
 function createHarness() {
@@ -60,6 +68,7 @@ function createHarness() {
   const ai: AiMock = {
     isConfigured: jest.fn().mockReturnValue(true),
     analyze: jest.fn().mockResolvedValue(safeModelResult),
+    provenance: jest.fn().mockReturnValue(modelProvenance),
   };
   const service = new HealthLensService(
     prisma as unknown as PrismaService,
@@ -80,7 +89,9 @@ describe('HealthLensService safety boundary', () => {
 
     expect(result.assessment.triage).toBe('emergency_now');
     expect(result.provenance.pathway).toBe('deterministic-emergency-screen');
+    expect(result.provenance.model).toBeNull();
     expect(ai.analyze).not.toHaveBeenCalled();
+    expect(ai.provenance).not.toHaveBeenCalled();
   });
 
   it('treats a structured major breathing change as an emergency without model arbitration', async () => {
@@ -94,6 +105,7 @@ describe('HealthLensService safety boundary', () => {
     });
 
     expect(result.assessment.triage).toBe('emergency_now');
+    expect(result.provenance.model).toBeNull();
     expect(ai.analyze).not.toHaveBeenCalled();
   });
 
@@ -114,7 +126,25 @@ describe('HealthLensService safety boundary', () => {
     expect(result.assessment.triage).toBe('insufficient_information');
     expect(result.assessment.confidence).toBe(0);
     expect(result.provenance.imageAnalyzed).toBe(false);
+    expect(result.provenance.model).toBeNull();
     expect(ai.analyze).not.toHaveBeenCalled();
+  });
+
+  it('records the exact model-policy identity for a model-backed assessment', async () => {
+    const { service, prisma, ai } = createHarness();
+
+    const result = await service.analyze('user-1', {
+      petId: 'pet-1',
+      concern: 'A small red patch appeared on the paw this morning',
+      saveToTimeline: true,
+    });
+
+    expect(result.provenance.model).toEqual(modelProvenance);
+    expect(ai.provenance).toHaveBeenCalledTimes(1);
+    const call = prisma.telemetry.create.mock.calls[0][0] as {
+      data: { data: Record<string, unknown> };
+    };
+    expect(call.data.data.model).toEqual(modelProvenance);
   });
 
   it('stores only derived assessment data and an irreversible image fingerprint', async () => {
@@ -139,6 +169,7 @@ describe('HealthLensService safety boundary', () => {
     const stored = call.data.data;
     expect(stored.hadImage).toBe(true);
     expect(stored.imageSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored.model).toEqual(modelProvenance);
     expect(JSON.stringify(stored)).not.toContain(image.buffer.toString('base64'));
     expect(stored).not.toHaveProperty('image');
     expect(stored).not.toHaveProperty('imageUrl');
