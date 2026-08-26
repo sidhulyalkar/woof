@@ -7,6 +7,7 @@ on:
       - 'apps/api/src/auth/auth.service.ts'
       - 'apps/api/src/auth/auth.service.spec.ts'
       - 'apps/api/src/auth/dto/register.dto.ts'
+      - 'apps/api/test/auth.e2e-spec.ts'
       - 'apps/web/src/app/onboarding/page.tsx'
       - 'apps/web/e2e/first-adventure-onboarding.spec.ts'
       - 'docs/FIRST_ADVENTURE_RELEASE.md'
@@ -24,12 +25,30 @@ env:
   PNPM_VERSION: '8.15.1'
   NODE_ENV: test
   ENABLE_ADVENTURE_SYSTEM: 'true'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-registration-replay-secret
+  ML_SERVICE_ENABLED: 'false'
 
 jobs:
   qualify:
     name: Replay-safe registration qualification
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v7
         with:
@@ -50,6 +69,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
+      - name: Apply database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
       - name: Reject client-only registration recovery
         shell: bash
         run: |
@@ -63,6 +85,7 @@ jobs:
             apps/api/src/auth/auth.service.ts \
             apps/api/src/auth/auth.service.spec.ts \
             apps/api/src/auth/dto/register.dto.ts \
+            apps/api/test/auth.e2e-spec.ts \
             apps/web/src/app/onboarding/page.tsx \
             apps/web/e2e/first-adventure-onboarding.spec.ts \
             docs/FIRST_ADVENTURE_RELEASE.md \
@@ -71,6 +94,7 @@ jobs:
             apps/api/src/auth/auth.service.ts \
             apps/api/src/auth/auth.service.spec.ts \
             apps/api/src/auth/dto/register.dto.ts \
+            apps/api/test/auth.e2e-spec.ts \
             apps/web/src/app/onboarding/page.tsx \
             apps/web/e2e/first-adventure-onboarding.spec.ts \
             docs/FIRST_ADVENTURE_RELEASE.md \
@@ -82,6 +106,7 @@ jobs:
           src/auth/auth.service.ts
           src/auth/auth.service.spec.ts
           src/auth/dto/register.dto.ts
+          test/auth.e2e-spec.ts
 
       - name: Lint onboarding replay surface
         run: >-
@@ -95,8 +120,11 @@ jobs:
       - name: Type-check Web
         run: pnpm --filter @woof/web type-check
 
-      - name: Run auth replay contracts
+      - name: Run auth replay unit contracts
         run: pnpm --filter @woof/api exec jest src/auth/auth.service.spec.ts --runInBand
+
+      - name: Run auth replay API contracts
+        run: pnpm --filter @woof/api exec jest --config ./test/jest-e2e.json test/auth.e2e-spec.ts --runInBand
 
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
