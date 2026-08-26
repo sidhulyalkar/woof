@@ -44,7 +44,7 @@ export function deriveAdventureLearningSignals(
     const outcome = event.outcome ?? {};
     const dogExperience = stringValue(outcome.dogExperience);
     const ownerExperience = stringValue(outcome.ownerExperience);
-    const safeOptOut = outcome.safeOptOut === true;
+    const safeOptOut = outcome.safeOptOut === true || event.eventType === 'SAFE_OPT_OUT';
     const originalPathway = learningPathway(event);
 
     // Durable preference is dog-level evidence only. Owner load and welfare-respecting
