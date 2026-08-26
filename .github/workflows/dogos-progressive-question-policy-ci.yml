@@ -1,0 +1,102 @@
+name: dogOS Progressive Question Policy CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/adventure/profile-question-policy-v1*.ts'
+      - 'docs/DOGOS_PROGRESSIVE_QUESTION_POLICY_V1.md'
+      - '.github/workflows/dogos-progressive-question-policy-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Deterministic progressive-question policy qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Reject database ownership
+        shell: bash
+        run: |
+          changed="$(git diff --name-only '${{ github.event.pull_request.base.sha }}'...HEAD)"
+          if printf '%s\n' "$changed" | grep -E '^packages/database/'; then
+            echo 'profile-question-policy-v1 must not own database changes'
+            exit 1
+          fi
+
+      - name: Check canonical formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/adventure/profile-question-policy-v1.ts
+          apps/api/src/adventure/profile-question-policy-v1.types.ts
+          apps/api/src/adventure/profile-question-policy-v1.receipt.ts
+          apps/api/src/adventure/profile-question-policy-v1.spec.ts
+          docs/DOGOS_PROGRESSIVE_QUESTION_POLICY_V1.md
+
+      - name: Reject infrastructure and implicit authority
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path('apps/api/src/adventure/profile-question-policy-v1.ts'),
+              Path('apps/api/src/adventure/profile-question-policy-v1.types.ts'),
+              Path('apps/api/src/adventure/profile-question-policy-v1.receipt.ts'),
+          ]
+          forbidden = {
+              '@nestjs/': 'Nest dependency',
+              '../prisma': 'Prisma dependency',
+              '@woof/database': 'database dependency',
+              'process.env': 'environment dependency',
+              'Date.now(': 'implicit clock',
+              'new Date()': 'implicit clock',
+              'Math.random(': 'randomness',
+              'fetch(': 'network dependency',
+              'bondXp': 'game currency as policy authority',
+              'RewardLedger': 'game reward ledger as policy authority',
+          }
+          for path in files:
+              text = path.read_text()
+              for needle, label in forbidden.items():
+                  if needle in text:
+                      raise SystemExit(f'{path}: forbidden {label}: {needle}')
+          PY
+
+      - name: Lint policy with zero warnings
+        run: >-
+          pnpm --filter @woof/api exec eslint
+          'src/adventure/profile-question-policy-v1*.ts'
+          --max-warnings=0
+
+      - name: Generate Prisma client for API qualification
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api exec tsc --noEmit
+
+      - name: Run policy oracle contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/adventure/profile-question-policy-v1.spec.ts
+          --runInBand
