@@ -22,10 +22,28 @@ const createdPet = {
 };
 
 async function fillOwner(page: Page) {
-  await page.getByLabel(/public handle/i).fill('trailpaws');
-  await page.getByLabel(/^email$/i).fill('trailpaws@example.com');
-  await page.getByLabel(/^password$/i).fill('relationship123');
-  await page.getByRole('button', { name: /continue to pet profile/i }).click();
+  const handle = page.getByLabel(/public handle/i);
+  const email = page.getByLabel(/^email$/i);
+  const password = page.getByLabel(/^password$/i);
+  const continueButton = page.getByRole('button', { name: /continue to pet profile/i });
+
+  // The onboarding page is server-rendered. On a hot retry, Playwright can reach
+  // the inputs before React has attached controlled-input handlers. Prove the
+  // client state owns the values before continuing rather than relying on timing.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await handle.fill('trailpaws');
+    await email.fill('trailpaws@example.com');
+    await password.fill('relationship123');
+
+    try {
+      await expect(continueButton).toBeEnabled({ timeout: 1_500 });
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
+
+  await continueButton.click();
 }
 
 async function fillPet(page: Page) {
@@ -146,7 +164,7 @@ test.describe('relationship-first First Adventure onboarding', () => {
     await fillOwner(page);
     await fillPet(page);
 
-    await expect(page.getByRole('alert')).toContainText(/transaction keys/i);
+    await expect(page.locator('#main-content [role="alert"]')).toContainText(/transaction keys/i);
     expect(registrationBodies).toHaveLength(1);
     expect(petCreateCount).toBe(0);
 
