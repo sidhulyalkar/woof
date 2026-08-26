@@ -5,12 +5,19 @@ export type OwnedPet = {
   name: string;
   species: string;
   breed?: string | null;
+  birthdate?: string | null;
   avatarUrl?: string | null;
   createdAt: string;
   _count?: {
     activities: number;
     posts: number;
   };
+};
+
+export type CreatedOwnedPet = OwnedPet & {
+  householdMemberships: Array<{
+    householdId: string;
+  }>;
 };
 
 export type OwnedPetsResponse = {
@@ -20,13 +27,23 @@ export type OwnedPetsResponse = {
   take: number;
 };
 
-export type CreateDogInput = {
+export type CreatePetInput = {
   name: string;
-  species: 'DOG';
+  species: string;
   breed?: string;
   sex?: 'MALE' | 'FEMALE' | 'UNKNOWN';
   birthdate?: string;
 };
+
+export type CreateDogInput = CreatePetInput & {
+  species: 'DOG';
+};
+
+export type UpdatePetInput = Partial<
+  Pick<CreatePetInput, 'name' | 'species' | 'breed' | 'sex' | 'birthdate'> & {
+    avatarUrl: string;
+  }
+>;
 
 export const petsApi = {
   getMine: (take = 100) =>
@@ -34,5 +51,12 @@ export const petsApi = {
       params: { take },
     }),
 
-  createDog: (input: CreateDogInput) => apiClient.post<OwnedPet, CreateDogInput>('/pets', input),
+  createPet: (input: CreatePetInput) =>
+    apiClient.post<CreatedOwnedPet, CreatePetInput>('/pets', input),
+
+  createDog: (input: CreateDogInput) =>
+    apiClient.post<CreatedOwnedPet, CreateDogInput>('/pets', input),
+
+  updatePet: (petId: string, input: UpdatePetInput) =>
+    apiClient.put<CreatedOwnedPet, UpdatePetInput>(`/pets/${encodeURIComponent(petId)}`, input),
 };
