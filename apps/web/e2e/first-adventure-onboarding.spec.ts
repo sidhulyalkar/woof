@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const apiUser = {
   id: 'user-first-adventure',
@@ -57,7 +57,7 @@ test.describe('relationship-first First Adventure onboarding', () => {
   test('creates the durable pair before optional personalization and never revives the legacy quiz', async ({
     page,
   }) => {
-    let petCreateRequest: Request | null = null;
+    let petCreateBody: Record<string, unknown> | null = null;
     const profileWrites: Array<Record<string, unknown>> = [];
 
     await page.route('**/pets', async (route) => {
@@ -65,7 +65,7 @@ test.describe('relationship-first First Adventure onboarding', () => {
         await route.fallback();
         return;
       }
-      petCreateRequest = route.request();
+      petCreateBody = route.request().postDataJSON() as Record<string, unknown>;
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -88,9 +88,9 @@ test.describe('relationship-first First Adventure onboarding', () => {
 
     await expect(page.getByRole('heading', { name: /make the first suggestion/i })).toBeVisible();
     await expect(page.getByText(/matching preferences/i)).toHaveCount(0);
-    expect(petCreateRequest).not.toBeNull();
+    expect(petCreateBody).not.toBeNull();
 
-    const createBody = petCreateRequest?.postDataJSON() as Record<string, unknown>;
+    const createBody = petCreateBody as Record<string, unknown>;
     expect(createBody).toMatchObject({
       name: 'Mochi',
       species: 'DOG',
