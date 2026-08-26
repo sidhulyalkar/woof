@@ -99,6 +99,7 @@ export type CareSummary = {
     eventType: string;
     pathway: WellbeingPathway;
     occurredAt: string;
+    context: Record<string, unknown> | null;
     outcome: Record<string, unknown> | null;
     bondXp: number;
   }>;
