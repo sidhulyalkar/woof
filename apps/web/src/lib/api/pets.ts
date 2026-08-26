@@ -33,6 +33,7 @@ export type CreatePetInput = {
   breed?: string;
   sex?: 'MALE' | 'FEMALE' | 'UNKNOWN';
   birthdate?: string;
+  creationKey?: string;
 };
 
 export type CreateDogInput = CreatePetInput & {
@@ -58,5 +59,5 @@ export const petsApi = {
     apiClient.post<CreatedOwnedPet, CreateDogInput>('/pets', input),
 
   updatePet: (petId: string, input: UpdatePetInput) =>
-    apiClient.put<CreatedOwnedPet, UpdatePetInput>(`/pets/${encodeURIComponent(petId)}`, input),
+    apiClient.put<OwnedPet, UpdatePetInput>(`/pets/${encodeURIComponent(petId)}`, input),
 };
