@@ -10,6 +10,26 @@ permissions:
 jobs:
   exact-head:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      JWT_SECRET: exact-health-lens-qualification-only
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,6 +44,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @woof/database db:generate
+      - name: Apply canonical database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
       - name: Verify exact candidate
         run: test "$(git rev-parse HEAD)" = "44f7a9c6891dc72f0ae4752fadd960ab4a70b4bc"
       - name: Enforce Health Lens authority invariants
@@ -59,7 +81,7 @@ jobs:
           src/health-lens/health-ai.service.spec.ts
           src/health-lens/health-lens.service.spec.ts
           src/health-lens/health-triage.spec.ts
-      - name: Run full API unit suite
+      - name: Run full API unit and integration suite
         run: pnpm --filter @woof/api exec jest --runInBand
       - name: Build API
         run: pnpm --filter @woof/api build
