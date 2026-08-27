@@ -352,7 +352,10 @@ export class AdventureService {
         actionLabel: 'Start an exploration',
         safeStopEligible: false,
         personalRelevance: this.pathwayRelevance(learning, 'EXPLORE'),
-        score: 0.62 + (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28,
+        score:
+          0.62 +
+          (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28 +
+          this.learningScoreAdjustment(learning, 'EXPLORE'),
       },
       {
         key: 'skill-spark',
@@ -368,7 +371,10 @@ export class AdventureService {
         actionLabel: 'Open Coach',
         safeStopEligible: true,
         personalRelevance: this.pathwayRelevance(learning, 'LEARN'),
-        score: 0.58 + (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3,
+        score:
+          0.58 +
+          (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3 +
+          this.learningScoreAdjustment(learning, 'LEARN'),
       },
       {
         key: 'easy-day',
@@ -387,6 +393,7 @@ export class AdventureService {
         score:
           0.48 +
           (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +
+          this.learningScoreAdjustment(learning, 'RECOVER') +
           (learning.temporaryPace === 'easy' ? 0.06 : 0),
       },
       {
@@ -403,7 +410,10 @@ export class AdventureService {
         actionLabel: 'Log the moment',
         safeStopEligible: false,
         personalRelevance: this.pathwayRelevance(learning, 'BOND'),
-        score: 0.5 + (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22,
+        score:
+          0.5 +
+          (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22 +
+          this.learningScoreAdjustment(learning, 'BOND'),
       },
     ];
 
@@ -439,6 +449,10 @@ export class AdventureService {
     const durable = learning.durablePathwayPreference[pathway] ?? 0;
     const temporary = learning.temporaryPathwayModifier[pathway] ?? 0;
     return this.clamp(1 + durable + temporary, 0.9, 1.08);
+  }
+
+  private learningScoreAdjustment(learning: AdventureLearningSignals, pathway: WellbeingPathway) {
+    return (this.pathwayRelevance(learning, pathway) - 0.9) * 0.5;
   }
 
   private secondaryPathways(primary: WellbeingPathway): WellbeingPathway[] {
