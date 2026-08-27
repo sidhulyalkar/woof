@@ -54,7 +54,7 @@ async function seedSession(page: Page) {
   });
 }
 
-test('Shadow Lab renders reviewable evidence without requesting compatibility authority', async ({
+test('Shadow Lab renders active-release evidence without requesting compatibility authority', async ({
   page,
 }) => {
   await seedSession(page);
@@ -74,19 +74,27 @@ test('Shadow Lab renders reviewable evidence without requesting compatibility au
         canMakeSafetyDecision: false,
         promotionEnabled: false,
         promotionRequiresSeparateQualifiedRelease: true,
+        requiresQualifiedModelRelease: true,
+        learningScope: 'active-qualified-release-only',
       },
       evaluation: {
         observations: 24,
+        qualifiedObservations: 22,
+        activeReleaseObservations: 20,
+        inactiveQualifiedObservations: 2,
+        unqualifiedObservations: 2,
         usableObservations: 20,
         ownerReviewedObservations: 12,
         ownerConfirmedObservations: 11,
         ownerRejectedObservations: 1,
         ownerUnreviewedObservations: 8,
         confirmationRate: 11 / 12,
-        usableRate: 20 / 24,
+        usableRate: 1,
         contextsSeen: 4,
         pairedSessions: 6,
         personalizationConfidence: 0.72,
+        activeReleaseId: 'behavior-shadow-2026-08-27',
+        qualifiedReleaseIds: ['behavior-shadow-2026-07-01', 'behavior-shadow-2026-08-27'],
         modelVersions: ['behavior-shadow-model-1'],
         evidenceReady: true,
         readinessGates: {
@@ -117,6 +125,11 @@ test('Shadow Lab renders reviewable evidence without requesting compatibility au
 
   await expect(page.getByRole('heading', { name: 'Shadow Lab' })).toBeVisible();
   await expect(page.getByText('zero authority')).toBeVisible();
+  await expect(page.getByText('Active qualified release only')).toBeVisible();
+  await expect(
+    page.getByText(/2 older qualified and 2 legacy unqualified observations/i)
+  ).toBeVisible();
+  await expect(page.getByText(/Active release: behavior-shadow-2026-08-27/)).toBeVisible();
   await expect(page.getByText('Evidence gates met')).toBeVisible();
   await expect(page.getByText('0:04.2–0:06.8')).toBeVisible();
   await expect(page.getByText('oriented toward dog · forward movement')).toBeVisible();

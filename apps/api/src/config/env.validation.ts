@@ -54,6 +54,14 @@ const envSchema = z.object({
   BEHAVIOR_VISION_SERVICE_URL: z.string().url().optional(),
   BEHAVIOR_VISION_SERVICE_TOKEN: z.string().min(16).optional(),
   BEHAVIOR_VISION_TIMEOUT_MS: z.coerce.number().int().min(5000).max(90000).default(45000),
+  BEHAVIOR_VISION_RELEASE_ID: z.string().trim().min(1).max(128).optional(),
+  BEHAVIOR_VISION_MODEL_VERSION: z.string().trim().min(1).max(128).optional(),
+  BEHAVIOR_VISION_FEATURE_VERSION: z.string().trim().min(1).max(128).optional(),
+  BEHAVIOR_VISION_ARTIFACT_SHA256: z
+    .string()
+    .trim()
+    .regex(/^[A-Fa-f0-9]{64}$/, 'BEHAVIOR_VISION_ARTIFACT_SHA256 must be a 64-hex SHA-256')
+    .optional(),
 });
 
 function connectorKeyIsValid(encoded: string | undefined) {
@@ -79,6 +87,27 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (env.OPS_METRICS_TOKEN && env.OPS_METRICS_TOKEN.length < 32) {
     throw new Error('OPS_METRICS_TOKEN must be at least 32 characters when configured');
+  }
+
+  const behaviorReleasePin = [
+    env.BEHAVIOR_VISION_RELEASE_ID,
+    env.BEHAVIOR_VISION_MODEL_VERSION,
+    env.BEHAVIOR_VISION_FEATURE_VERSION,
+    env.BEHAVIOR_VISION_ARTIFACT_SHA256,
+  ];
+  const hasAnyBehaviorReleasePin = behaviorReleasePin.some(Boolean);
+  const hasCompleteBehaviorReleasePin = behaviorReleasePin.every(Boolean);
+
+  if (hasAnyBehaviorReleasePin && !hasCompleteBehaviorReleasePin) {
+    throw new Error(
+      'Behavior Vision release pin must include release ID, model version, feature version, and artifact SHA-256 together'
+    );
+  }
+
+  if (env.BEHAVIOR_VISION_SERVICE_URL && !hasCompleteBehaviorReleasePin) {
+    throw new Error(
+      'A complete Behavior Vision release pin is required when BEHAVIOR_VISION_SERVICE_URL is configured'
+    );
   }
 
   if (env.NODE_ENV === 'production') {

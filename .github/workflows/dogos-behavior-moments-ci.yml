@@ -5,13 +5,18 @@ on:
     branches: [main]
     paths:
       - 'apps/api/src/behavior-vision/**'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/config/env.validation.spec.ts'
+      - 'apps/api/.env.example'
       - 'apps/web/src/lib/api/behavior-vision.ts'
       - 'apps/web/src/lib/api/behavior-vision.spec.ts'
       - 'apps/web/src/app/coach/layout.tsx'
       - 'apps/web/src/app/coach/observe/shadow/**'
       - 'apps/web/e2e/behavior-moments-shadow.spec.ts'
+      - 'ml/behavior_vision/**'
       - '.github/workflows/dogos-behavior-moments-ci.yml'
       - 'docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md'
+      - 'docs/DOGOS_BEHAVIOR_VISION_RELEASE_AUTHORITY.md'
 
 permissions:
   contents: read
@@ -56,6 +61,8 @@ jobs:
         run: >-
           pnpm exec prettier --check
           apps/api/src/behavior-vision
+          apps/api/src/config/env.validation.ts
+          apps/api/src/config/env.validation.spec.ts
           apps/web/src/lib/api/behavior-vision.ts
           apps/web/src/lib/api/behavior-vision.spec.ts
           apps/web/src/app/coach/layout.tsx
@@ -63,11 +70,14 @@ jobs:
           apps/web/e2e/behavior-moments-shadow.spec.ts
           .github/workflows/dogos-behavior-moments-ci.yml
           docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
+          docs/DOGOS_BEHAVIOR_VISION_RELEASE_AUTHORITY.md
 
       - name: Lint Behavior Moments API surface
         run: >-
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           src/behavior-vision
+          src/config/env.validation.ts
+          src/config/env.validation.spec.ts
 
       - name: Lint Behavior Moments web surface
         run: >-
@@ -92,7 +102,7 @@ jobs:
             exit 1
           fi
 
-      - name: Require literal zero-authority policy
+      - name: Require literal zero-authority and release-qualification policy
         run: |
           grep -q "mode: 'shadow-evidence-only'" apps/api/src/behavior-vision/behavior-shadow.service.ts
           grep -q 'canInfluenceCompatibility: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
@@ -100,6 +110,14 @@ jobs:
           grep -q 'canMakeSafetyDecision: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
           grep -q 'promotionEnabled: false' apps/api/src/behavior-vision/behavior-shadow.service.ts
           grep -q 'promotionRequiresSeparateQualifiedRelease: true' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'requiresQualifiedModelRelease: true' apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q "learningScope: 'active-qualified-release-only'" apps/api/src/behavior-vision/behavior-shadow.service.ts
+          grep -q 'activeReleaseQualification' apps/api/src/behavior-vision/behavior-vision.service.ts
+          grep -q 'releaseQualification?.qualified !== true' apps/api/src/behavior-vision/behavior-profile.ts
+          grep -q 'expectedRelease' apps/api/src/behavior-vision/behavior-vision.model.ts
+          grep -q 'BEHAVIOR_VISION_ARTIFACT_SHA256' apps/api/src/config/env.validation.ts
+          grep -q 'require_matching_release' ml/behavior_vision/serve.py
+          grep -q 'WOOF_BEHAVIOR_ARTIFACT_SHA256' ml/behavior_vision/release.py
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
@@ -107,12 +125,20 @@ jobs:
       - name: Type-check web
         run: pnpm --filter @woof/web type-check
 
-      - name: Run Behavior Moments shadow contracts
+      - name: Run Behavior Vision release and shadow contracts
         run: >-
           pnpm --filter @woof/api exec jest --runInBand
+          src/behavior-vision/behavior-vision.model.spec.ts
           src/behavior-vision/behavior-shadow.service.spec.ts
           src/behavior-vision/behavior-vision.service.spec.ts
           src/behavior-vision/behavior-profile.spec.ts
+          src/config/env.validation.spec.ts
+
+      - name: Compile Behavior Vision worker
+        run: python -m compileall -q ml/behavior_vision
+
+      - name: Run Behavior Vision worker contracts
+        run: python -m unittest ml.behavior_vision.test_pipeline ml.behavior_vision.test_release
 
       - name: Run Behavior Moments web transport contract
         run: pnpm --filter @woof/web exec vitest run src/lib/api/behavior-vision.spec.ts

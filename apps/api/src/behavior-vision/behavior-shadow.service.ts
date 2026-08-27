@@ -4,6 +4,7 @@ import type {
   BehaviorContext,
   BehaviorEvidenceSource,
   BehaviorPhase,
+  BehaviorVisionReleaseQualification,
   StoredBehaviorObservation,
 } from './behavior-vision.types';
 
@@ -38,8 +39,20 @@ export class BehaviorShadowService {
       this.behaviorVision.timeline(userId, petId, 100),
       this.behaviorVision.profile(userId, petId),
     ]);
-
-    const modelUsable = observations.filter((entry) => entry.analysis.mediaQuality.usable);
+    const activeRelease = this.behaviorVision.activeReleaseQualification();
+    const qualified = observations.filter(
+      (entry) => entry.analysis.releaseQualification?.qualified === true
+    );
+    const active = activeRelease
+      ? qualified.filter((entry) =>
+          this.releaseMatches(entry.analysis.releaseQualification, activeRelease)
+        )
+      : [];
+    const inactiveQualified = qualified.filter((entry) => !active.includes(entry));
+    const unqualified = observations.filter(
+      (entry) => entry.analysis.releaseQualification?.qualified !== true
+    );
+    const modelUsable = active.filter((entry) => entry.analysis.mediaQuality.usable);
     const reviewed = modelUsable.filter((entry) => entry.ownerFeedback !== undefined);
     const confirmed = reviewed.filter((entry) => entry.ownerFeedback?.accurate === true);
     const rejected = reviewed.filter((entry) => entry.ownerFeedback?.accurate === false);
@@ -63,27 +76,54 @@ export class BehaviorShadowService {
         canMakeSafetyDecision: false as const,
         promotionEnabled: false as const,
         promotionRequiresSeparateQualifiedRelease: true as const,
+        requiresQualifiedModelRelease: true as const,
+        learningScope: 'active-qualified-release-only' as const,
       },
       evaluation: {
         observations: observations.length,
+        qualifiedObservations: qualified.length,
+        activeReleaseObservations: active.length,
+        inactiveQualifiedObservations: inactiveQualified.length,
+        unqualifiedObservations: unqualified.length,
         usableObservations: usable.length,
         ownerReviewedObservations: reviewed.length,
         ownerConfirmedObservations: confirmed.length,
         ownerRejectedObservations: rejected.length,
         ownerUnreviewedObservations: modelUsable.length - reviewed.length,
         confirmationRate,
-        usableRate: observations.length ? usable.length / observations.length : 0,
+        usableRate: active.length ? usable.length / active.length : 0,
         contextsSeen: profile.contextsSeen.length,
         pairedSessions,
         personalizationConfidence: profile.personalizationConfidence,
-        modelVersions: [
-          ...new Set(observations.map((entry) => entry.analysis.modelVersion)),
+        activeReleaseId: activeRelease?.releaseId ?? null,
+        qualifiedReleaseIds: [
+          ...new Set(
+            qualified
+              .map((entry) => entry.analysis.releaseQualification?.releaseId)
+              .filter((entry): entry is string => typeof entry === 'string')
+          ),
         ].sort(),
+        modelVersions: [...new Set(active.map((entry) => entry.analysis.modelVersion))].sort(),
         evidenceReady,
         readinessGates: READINESS_GATES,
       },
-      moments: observations.flatMap((observation) => this.deriveMoments(observation)),
+      moments: active.flatMap((observation) => this.deriveMoments(observation)),
     };
+  }
+
+  private releaseMatches(
+    observed: BehaviorVisionReleaseQualification | undefined,
+    active: BehaviorVisionReleaseQualification
+  ) {
+    return (
+      observed?.qualified === true &&
+      observed.qualificationVersion === active.qualificationVersion &&
+      observed.releaseId === active.releaseId &&
+      observed.modelVersion === active.modelVersion &&
+      observed.featureVersion === active.featureVersion &&
+      observed.artifactSha256 === active.artifactSha256 &&
+      observed.responseContract === active.responseContract
+    );
   }
 
   private countPairedSessions(observations: StoredBehaviorObservation[]) {

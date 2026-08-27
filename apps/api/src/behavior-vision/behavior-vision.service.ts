@@ -8,6 +8,7 @@ import {
   BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
   type BehaviorObservationContext,
   type BehaviorVisionModelAnalysis,
+  type BehaviorVisionReleaseQualification,
   type StoredBehaviorObservation,
 } from './behavior-vision.types';
 import { AnalyzeBehaviorMediaDto, BehaviorObservationFeedbackDto } from './dto/behavior-vision.dto';
@@ -38,7 +39,8 @@ export class BehaviorVisionService {
     });
     if (!pet) throw new ForbiddenException('You do not have access to this pet');
 
-    const previous = await this.loadStoredObservations(userId, pet.id, 80);
+    const previousHistory = await this.loadStoredObservations(userId, pet.id, 80);
+    const previous = this.activeReleaseObservations(previousHistory);
     const priorProfile = deriveIndividualBehaviorProfile(pet.id, previous);
     const context: BehaviorObservationContext = {
       context: dto.context,
@@ -120,7 +122,11 @@ export class BehaviorVisionService {
       context,
       analysis,
     };
-    const profile = deriveIndividualBehaviorProfile(pet.id, [current, ...previous]);
+    const profile = deriveIndividualBehaviorProfile(
+      pet.id,
+      this.activeReleaseObservations([current, ...previousHistory])
+    );
+    const activeRelease = this.model.activeReleaseQualification();
 
     return {
       observationId: saved?.id ?? null,
@@ -139,6 +145,8 @@ export class BehaviorVisionService {
         pathway,
         schemaVersion: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
         modelConfigured: this.model.isConfigured(),
+        modelReleaseQualified: analysis.releaseQualification?.qualified === true,
+        activeReleaseId: activeRelease?.releaseId ?? null,
         savedToTimeline: Boolean(saved),
       },
       privacy: {
@@ -155,7 +163,7 @@ export class BehaviorVisionService {
   async profile(userId: string, petId: string) {
     await this.requireOwnedPet(userId, petId);
     const observations = await this.loadStoredObservations(userId, petId, 100);
-    return deriveIndividualBehaviorProfile(petId, observations);
+    return deriveIndividualBehaviorProfile(petId, this.activeReleaseObservations(observations));
   }
 
   async timeline(userId: string, petId: string, limit = 30) {
@@ -166,6 +174,10 @@ export class BehaviorVisionService {
       Math.max(1, Math.min(100, limit))
     );
     return observations;
+  }
+
+  activeReleaseQualification() {
+    return this.model.activeReleaseQualification();
   }
 
   async recordFeedback(userId: string, dto: BehaviorObservationFeedbackDto) {
@@ -201,7 +213,7 @@ export class BehaviorVisionService {
       accurate: dto.accurate,
       createdAt: feedback.createdAt.toISOString(),
       learning:
-        'Owner corrections are treated as higher-value personalization evidence. Rejected observations are excluded from this dog’s behavioral baseline.',
+        'Owner corrections are treated as higher-value personalization evidence for the active qualified model release. Rejected observations are excluded from this dog’s behavioral baseline.',
     };
   }
 
@@ -310,6 +322,29 @@ export class BehaviorVisionService {
         };
       })
       .filter((entry): entry is StoredBehaviorObservation => entry !== null);
+  }
+
+  private activeReleaseObservations(observations: StoredBehaviorObservation[]) {
+    const activeRelease = this.model.activeReleaseQualification();
+    if (!activeRelease) return [];
+    return observations.filter((observation) =>
+      this.releaseMatches(observation.analysis.releaseQualification, activeRelease)
+    );
+  }
+
+  private releaseMatches(
+    observed: BehaviorVisionReleaseQualification | undefined,
+    active: BehaviorVisionReleaseQualification
+  ) {
+    return (
+      observed?.qualified === true &&
+      observed.qualificationVersion === active.qualificationVersion &&
+      observed.releaseId === active.releaseId &&
+      observed.modelVersion === active.modelVersion &&
+      observed.featureVersion === active.featureVersion &&
+      observed.artifactSha256 === active.artifactSha256 &&
+      observed.responseContract === active.responseContract
+    );
   }
 
   private coachResponse(

@@ -6,6 +6,13 @@ describe('validateEnvironment', () => {
     DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/woof_test',
     JWT_SECRET: 'test-secret-long-enough',
   };
+  const behaviorReleasePin = {
+    BEHAVIOR_VISION_RELEASE_ID: 'behavior-shadow-2026-08-27',
+    BEHAVIOR_VISION_MODEL_VERSION: 'shadow-model-1',
+    BEHAVIOR_VISION_FEATURE_VERSION: 'features-1',
+    BEHAVIOR_VISION_ARTIFACT_SHA256:
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  };
 
   it('accepts the minimal test configuration', () => {
     const config = validateEnvironment(base);
@@ -51,6 +58,40 @@ describe('validateEnvironment', () => {
     expect(config.OPS_METRICS_TOKEN).toBe('ops-8f3f89a744824fd99ee61797d67dc1023f6f7717');
   });
 
+  it('requires a complete release pin when Behavior Vision service is configured', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        BEHAVIOR_VISION_SERVICE_URL: 'https://behavior.example.com',
+        BEHAVIOR_VISION_RELEASE_ID: behaviorReleasePin.BEHAVIOR_VISION_RELEASE_ID,
+      })
+    ).toThrow(
+      /release pin must include release ID, model version, feature version, and artifact SHA-256 together/i
+    );
+  });
+
+  it('accepts a fully pinned Behavior Vision service in test environments', () => {
+    const config = validateEnvironment({
+      ...base,
+      BEHAVIOR_VISION_SERVICE_URL: 'https://behavior.example.com',
+      ...behaviorReleasePin,
+    });
+
+    expect(config.BEHAVIOR_VISION_ARTIFACT_SHA256).toBe(
+      behaviorReleasePin.BEHAVIOR_VISION_ARTIFACT_SHA256
+    );
+  });
+
+  it('rejects malformed Behavior Vision artifact hashes', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        ...behaviorReleasePin,
+        BEHAVIOR_VISION_ARTIFACT_SHA256: 'not-a-sha256',
+      })
+    ).toThrow(/SHA-256/i);
+  });
+
   it('requires stronger non-development secrets in production', () => {
     expect(() =>
       validateEnvironment({
@@ -59,6 +100,18 @@ describe('validateEnvironment', () => {
         JWT_SECRET: 'dev-this-is-long-but-still-not-production-safe',
       })
     ).toThrow(/production/i);
+  });
+
+  it('requires an authenticated model service in production', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        NODE_ENV: 'production',
+        JWT_SECRET: '8f3f89a744824fd99ee61797d67dc1023f6f7717762c4ab8',
+        BEHAVIOR_VISION_SERVICE_URL: 'https://behavior.example.com',
+        ...behaviorReleasePin,
+      })
+    ).toThrow(/BEHAVIOR_VISION_SERVICE_TOKEN/i);
   });
 
   it('accepts a sufficiently strong production secret', () => {

@@ -1,6 +1,24 @@
 import { BehaviorShadowService } from './behavior-shadow.service';
 import { BehaviorVisionService } from './behavior-vision.service';
-import type { StoredBehaviorObservation } from './behavior-vision.types';
+import {
+  BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION,
+  BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
+  type BehaviorVisionReleaseQualification,
+  type StoredBehaviorObservation,
+} from './behavior-vision.types';
+
+const ARTIFACT_SHA256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const OLD_ARTIFACT_SHA256 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+const ACTIVE_RELEASE: BehaviorVisionReleaseQualification = {
+  qualificationVersion: BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION,
+  qualified: true,
+  releaseId: 'behavior-shadow-2026-08-27',
+  modelVersion: 'shadow-model-1',
+  featureVersion: 'features-1',
+  artifactSha256: ARTIFACT_SHA256,
+  responseContract: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
+};
 
 function observation(input: {
   id: string;
@@ -9,9 +27,22 @@ function observation(input: {
   phase?: 'baseline' | 'during-intervention' | 'recovery';
   accurate?: boolean;
   usable?: boolean;
+  qualified?: boolean;
+  release?: 'active' | 'old';
   startMs?: number;
   endMs?: number;
 }): StoredBehaviorObservation {
+  const qualified = input.qualified !== false;
+  const release =
+    input.release === 'old'
+      ? {
+          ...ACTIVE_RELEASE,
+          releaseId: 'behavior-shadow-2026-07-01',
+          modelVersion: 'shadow-model-0',
+          featureVersion: 'features-0',
+          artifactSha256: OLD_ARTIFACT_SHA256,
+        }
+      : ACTIVE_RELEASE;
   return {
     id: input.id,
     petId: 'pet-1',
@@ -28,9 +59,16 @@ function observation(input: {
       audioAnalysisAllowed: false,
     },
     analysis: {
-      schemaVersion: 'woof-behavior-observation-v1',
-      modelVersion: 'shadow-model-1',
-      featureVersion: 'features-1',
+      schemaVersion: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
+      modelVersion: release.modelVersion,
+      featureVersion: release.featureVersion,
+      ...(qualified
+        ? {
+            releaseId: release.releaseId,
+            artifactSha256: release.artifactSha256,
+            releaseQualification: release,
+          }
+        : {}),
       mediaQuality: {
         usable: input.usable ?? true,
         confidence: 0.9,
@@ -62,17 +100,35 @@ function observation(input: {
   };
 }
 
+function sameRelease(
+  observation: StoredBehaviorObservation,
+  active: BehaviorVisionReleaseQualification
+) {
+  const observed = observation.analysis.releaseQualification;
+  return (
+    observed?.qualified === true &&
+    observed.qualificationVersion === active.qualificationVersion &&
+    observed.releaseId === active.releaseId &&
+    observed.modelVersion === active.modelVersion &&
+    observed.featureVersion === active.featureVersion &&
+    observed.artifactSha256 === active.artifactSha256 &&
+    observed.responseContract === active.responseContract
+  );
+}
+
 function makeVision(observations: StoredBehaviorObservation[]) {
+  const active = observations.filter((entry) => sameRelease(entry, ACTIVE_RELEASE));
   return {
     timeline: jest.fn().mockResolvedValue(observations),
+    activeReleaseQualification: jest.fn().mockReturnValue(ACTIVE_RELEASE),
     profile: jest.fn().mockResolvedValue({
       schemaVersion: 'woof-individual-behavior-profile-v1',
       petId: 'pet-1',
-      sampleCount: observations.length,
-      contextsSeen: ['home', 'park', 'street'],
+      sampleCount: active.length,
+      contextsSeen: [...new Set(active.map((entry) => entry.context.context))],
       baselines: [],
       interventionEffects: [],
-      personalizationConfidence: 0.8,
+      personalizationConfidence: active.length ? 0.8 : 0,
       recommendation: {
         headline: 'Keep testing',
         explanation: 'Evidence only',
@@ -84,13 +140,15 @@ function makeVision(observations: StoredBehaviorObservation[]) {
 }
 
 describe('BehaviorShadowService', () => {
-  it('groups nearby timestamped evidence into reviewable moments', async () => {
+  it('groups nearby timestamped evidence from the active release into reviewable moments', async () => {
     const vision = makeVision([observation({ id: 'obs-1', accurate: true })]);
     const service = new BehaviorShadowService(vision as unknown as BehaviorVisionService);
 
     const result = await service.snapshot('user-1', 'pet-1');
 
     expect(result.policy.mode).toBe('shadow-evidence-only');
+    expect(result.policy.requiresQualifiedModelRelease).toBe(true);
+    expect(result.policy.learningScope).toBe('active-qualified-release-only');
     expect(result.moments).toEqual([
       expect.objectContaining({
         observationId: 'obs-1',
@@ -122,7 +180,49 @@ describe('BehaviorShadowService', () => {
     expect(result.evaluation.evidenceReady).toBe(false);
   });
 
-  it('never grants downstream authority even when evidence readiness gates are satisfied', async () => {
+  it('separates legacy unqualified observations from active release evidence', async () => {
+    const observations = [
+      observation({ id: 'active', accurate: true }),
+      observation({ id: 'legacy', accurate: true, qualified: false }),
+    ];
+    const vision = makeVision(observations);
+    const service = new BehaviorShadowService(vision as unknown as BehaviorVisionService);
+
+    const result = await service.snapshot('user-1', 'pet-1');
+
+    expect(result.evaluation.observations).toBe(2);
+    expect(result.evaluation.qualifiedObservations).toBe(1);
+    expect(result.evaluation.activeReleaseObservations).toBe(1);
+    expect(result.evaluation.inactiveQualifiedObservations).toBe(0);
+    expect(result.evaluation.unqualifiedObservations).toBe(1);
+    expect(result.evaluation.activeReleaseId).toBe(ACTIVE_RELEASE.releaseId);
+    expect(result.evaluation.qualifiedReleaseIds).toEqual([ACTIVE_RELEASE.releaseId]);
+    expect(result.moments.map((entry) => entry.observationId)).toEqual(['active']);
+  });
+
+  it('does not mix an older qualified release into current readiness or moments', async () => {
+    const observations = [
+      observation({ id: 'active', accurate: true }),
+      observation({ id: 'old-qualified', accurate: true, release: 'old' }),
+    ];
+    const vision = makeVision(observations);
+    const service = new BehaviorShadowService(vision as unknown as BehaviorVisionService);
+
+    const result = await service.snapshot('user-1', 'pet-1');
+
+    expect(result.evaluation.qualifiedObservations).toBe(2);
+    expect(result.evaluation.activeReleaseObservations).toBe(1);
+    expect(result.evaluation.inactiveQualifiedObservations).toBe(1);
+    expect(result.evaluation.unqualifiedObservations).toBe(0);
+    expect(result.evaluation.qualifiedReleaseIds).toEqual([
+      'behavior-shadow-2026-07-01',
+      'behavior-shadow-2026-08-27',
+    ]);
+    expect(result.evaluation.ownerReviewedObservations).toBe(1);
+    expect(result.moments.map((entry) => entry.observationId)).toEqual(['active']);
+  });
+
+  it('never grants downstream authority even when active-release readiness gates are satisfied', async () => {
     const observations: StoredBehaviorObservation[] = [];
     for (let index = 0; index < 10; index += 1) {
       const sessionKey = `session-${index}`;
@@ -150,6 +250,8 @@ describe('BehaviorShadowService', () => {
     const result = await service.snapshot('user-1', 'pet-1');
 
     expect(result.evaluation.evidenceReady).toBe(true);
+    expect(result.evaluation.qualifiedObservations).toBe(20);
+    expect(result.evaluation.activeReleaseObservations).toBe(20);
     expect(result.evaluation.usableObservations).toBe(20);
     expect(result.evaluation.ownerReviewedObservations).toBe(20);
     expect(result.evaluation.confirmationRate).toBe(1);
@@ -161,6 +263,8 @@ describe('BehaviorShadowService', () => {
         canMakeSafetyDecision: false,
         promotionEnabled: false,
         promotionRequiresSeparateQualifiedRelease: true,
+        requiresQualifiedModelRelease: true,
+        learningScope: 'active-qualified-release-only',
       })
     );
   });

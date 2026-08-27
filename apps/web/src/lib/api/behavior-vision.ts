@@ -38,10 +38,23 @@ export type HandlerAction =
   | 'end-interaction'
   | 'other';
 
+export type BehaviorVisionReleaseQualification = {
+  qualificationVersion: string;
+  qualified: true;
+  releaseId: string;
+  modelVersion: string;
+  featureVersion: string;
+  artifactSha256: string;
+  responseContract: string;
+};
+
 export type BehaviorVisionAnalysis = {
   schemaVersion: string;
   modelVersion: string;
   featureVersion: string;
+  releaseId?: string;
+  artifactSha256?: string;
+  releaseQualification?: BehaviorVisionReleaseQualification;
   mediaQuality: {
     usable: boolean;
     confidence: number;
@@ -130,6 +143,8 @@ export type BehaviorVisionResult = {
     pathway: string;
     schemaVersion: string;
     modelConfigured: boolean;
+    modelReleaseQualified: boolean;
+    activeReleaseId: string | null;
     savedToTimeline: boolean;
   };
   privacy: {
@@ -149,9 +164,15 @@ export type BehaviorShadowSnapshot = {
     canMakeSafetyDecision: false;
     promotionEnabled: false;
     promotionRequiresSeparateQualifiedRelease: true;
+    requiresQualifiedModelRelease: true;
+    learningScope: 'active-qualified-release-only';
   };
   evaluation: {
     observations: number;
+    qualifiedObservations: number;
+    activeReleaseObservations: number;
+    inactiveQualifiedObservations: number;
+    unqualifiedObservations: number;
     usableObservations: number;
     ownerReviewedObservations: number;
     ownerConfirmedObservations: number;
@@ -162,6 +183,8 @@ export type BehaviorShadowSnapshot = {
     contextsSeen: number;
     pairedSessions: number;
     personalizationConfidence: number;
+    activeReleaseId: string | null;
+    qualifiedReleaseIds: string[];
     modelVersions: string[];
     evidenceReady: boolean;
     readinessGates: {
