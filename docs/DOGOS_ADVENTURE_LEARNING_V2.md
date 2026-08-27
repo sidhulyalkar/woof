@@ -101,4 +101,4 @@ The intended loop is:
 
 **Recommend → practice/play → observe the dog → report the pair's experience → preserve welfare-respecting choices → adapt tomorrow without overreacting.**
 
-The learning system should become more useful because it understands the difference between *the dog did not enjoy this*, *this was too much for me today*, and *we correctly chose to stop*. Those are different facts, and dogOS now stores and learns from them as different facts.
+The learning system should become more useful because it understands the difference between _the dog did not enjoy this_, _this was too much for me today_, and _we correctly chose to stop_. Those are different facts, and dogOS now stores and learns from them as different facts.
