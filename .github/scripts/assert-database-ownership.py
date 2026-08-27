@@ -4,6 +4,11 @@
 The guard can also be scoped to domain-owned files. That lets shared composition
 changes (for example app.module.ts) run a subsystem's regression lane without
 making that subsystem veto a database migration owned and qualified elsewhere.
+
+The comparison is deliberately a two-tree diff rather than ``base...HEAD``.
+Qualification jobs commonly use shallow pull-request merge checkouts; the base
+and checkout trees are sufficient for an ownership decision and should not
+require merge-base history to be present locally.
 """
 
 from __future__ import annotations
@@ -87,11 +92,13 @@ def main() -> None:
     if not scope_patterns:
         scope_patterns.extend(LEGACY_WORKFLOW_SCOPES.get(os.environ.get("GITHUB_WORKFLOW", ""), ()))
 
+    comparison = f"{args.base_sha}..HEAD"
+
     if scope_patterns:
         changed_files = git_output(
             "diff",
             "--name-only",
-            f"{args.base_sha}...HEAD",
+            comparison,
         ).splitlines()
         owned_changes = [
             path
@@ -115,7 +122,7 @@ def main() -> None:
         "diff",
         "--name-status",
         "--find-renames",
-        f"{args.base_sha}...HEAD",
+        comparison,
         "--",
         "packages/database/prisma/",
     )
