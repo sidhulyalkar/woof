@@ -36,7 +36,7 @@ export type SocialAdventureScore = {
   maxScore: number;
   policyVersion: string;
   components: {
-    skillcraft: {
+    humanSkill: {
       score: number;
       maxScore: number;
       completedChallenges: HumanSkillChallenge[];
@@ -49,11 +49,11 @@ export type SocialAdventureScore = {
   };
 };
 
-const SKILLCRAFT_POINTS = 50;
+const HUMAN_SKILL_BREADTH_POINTS = 50;
 const PATHWAY_POINTS = 25;
-const SKILLCRAFT_MAX = HUMAN_SKILL_CHALLENGES.length * SKILLCRAFT_POINTS;
+const HUMAN_SKILL_BREADTH_MAX = HUMAN_SKILL_CHALLENGES.length * HUMAN_SKILL_BREADTH_POINTS;
 const ADVENTURE_VARIETY_MAX = SOCIAL_ADVENTURE_PATHWAYS.length * PATHWAY_POINTS;
-const MAX_SCORE = SKILLCRAFT_MAX + ADVENTURE_VARIETY_MAX;
+const MAX_SCORE = HUMAN_SKILL_BREADTH_MAX + ADVENTURE_VARIETY_MAX;
 
 export function deriveSocialAdventureScore(input: SocialAdventureScoreInput): SocialAdventureScore {
   const allowedPathways = new Set<string>(SOCIAL_ADVENTURE_PATHWAYS);
@@ -65,17 +65,17 @@ export function deriveSocialAdventureScore(input: SocialAdventureScoreInput): So
     const practiceScore = input.humanSkillBestScores[challenge];
     return practiceScore !== undefined && Number.isFinite(practiceScore);
   });
-  const skillcraftScore = completedChallenges.length * SKILLCRAFT_POINTS;
+  const humanSkillBreadthScore = completedChallenges.length * HUMAN_SKILL_BREADTH_POINTS;
   const adventureVarietyScore = distinctPathways.length * PATHWAY_POINTS;
 
   return {
-    score: skillcraftScore + adventureVarietyScore,
+    score: humanSkillBreadthScore + adventureVarietyScore,
     maxScore: MAX_SCORE,
     policyVersion: SOCIAL_ADVENTURE_POLICY_VERSION,
     components: {
-      skillcraft: {
-        score: skillcraftScore,
-        maxScore: SKILLCRAFT_MAX,
+      humanSkill: {
+        score: humanSkillBreadthScore,
+        maxScore: HUMAN_SKILL_BREADTH_MAX,
         completedChallenges,
       },
       adventureVariety: {
