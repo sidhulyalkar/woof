@@ -15,7 +15,8 @@
       "upstream": "facebookresearch/sam2",
       "licenseReview": "Apache-2.0 code/checkpoints reported upstream; verify exact artifacts before distribution",
       "behaviorAuthority": false,
-      "notes": "Tracks the selected dog or dogs through video. It does not assign behavior or emotional meaning."
+      "notes": "Tracks the selected dog or dogs through video. It does not assign behavior or emotional meaning.",
+      "primaryRuntimeEligible": true
     },
     {
       "id": "vitposepp-ap10k",
@@ -25,7 +26,8 @@
       "trainingSources": ["AP-10K", "APT-36K"],
       "licenseReview": "required before bundling checkpoints",
       "behaviorAuthority": false,
-      "notes": "Provides body geometry and motion features. Dog-specific calibration/fine-tuning should be evaluated separately."
+      "notes": "Provides body geometry and motion features. Dog-specific calibration/fine-tuning should be evaluated separately.",
+      "primaryRuntimeEligible": true
     },
     {
       "id": "sleap-dog-adapter",
@@ -34,7 +36,8 @@
       "upstream": "talmolab/sleap",
       "licenseReview": "required before production packaging",
       "behaviorAuthority": false,
-      "notes": "Useful for active-learning and owner-consented dog-specific pose refinement when generic pose models struggle with morphology or camera viewpoint."
+      "notes": "Useful for active-learning and owner-consented dog-specific pose refinement when generic pose models struggle with morphology or camera viewpoint.",
+      "primaryRuntimeEligible": false
     },
     {
       "id": "animal-clip",
@@ -43,7 +46,8 @@
       "upstream": "PRIS-CV/Animal-CLIP",
       "licenseReview": "MIT code reported upstream; independently review pretrained weights and source datasets",
       "behaviorAuthority": false,
-      "notes": "Open implementation and pretrained model are available. Must be benchmarked on dog-specific, real-owner video before product use."
+      "notes": "Open implementation and pretrained model are available. Must be benchmarked on dog-specific, real-owner video before product use.",
+      "primaryRuntimeEligible": false
     },
     {
       "id": "ethoclip-animalband",
@@ -52,7 +56,8 @@
       "upstream": "PRIS-CV/AnimalBand",
       "licenseReview": "required",
       "behaviorAuthority": false,
-      "notes": "CVPR 2026 work reports AnimalBand with 74,671 videos and 160 visually observable behavior labels. Repository currently states EthoCLIP code/weights remain a TODO, so do not make this a runtime dependency yet."
+      "notes": "CVPR 2026 work reports AnimalBand with 74,671 videos and 160 visually observable behavior labels. Repository currently states EthoCLIP code/weights remain a TODO, so do not make this a runtime dependency yet.",
+      "primaryRuntimeEligible": false
     },
     {
       "id": "dogfacs-ontology",
@@ -61,7 +66,8 @@
       "upstream": "AnimalFACS/DogFACS",
       "licenseReview": "manual is accessible; associated training/test videos may not be reused without written permission",
       "behaviorAuthority": false,
-      "notes": "Use DogFACS terminology to describe facial movements, never as a direct emotion classifier and never train on restricted manual/test videos without permission."
+      "notes": "Use DogFACS terminology to describe facial movements, never as a direct emotion classifier and never train on restricted manual/test videos without permission.",
+      "primaryRuntimeEligible": false
     },
     {
       "id": "woof-individual-adapter",
@@ -70,7 +76,9 @@
       "upstream": "Woof first-party",
       "licenseReview": "first-party",
       "behaviorAuthority": false,
-      "notes": "Owner-corrected observations and repeated paired sessions update individual baselines. Breed is not an input to the adaptation policy."
+      "notes": "Owner-corrected observations and repeated paired sessions update individual baselines. Breed is not an input to the adaptation policy.",
+      "primaryRuntimeEligible": false
     }
-  ]
+  ],
+  "runtimePolicyVersion": "behavior-runtime-provenance-v1"
 }
