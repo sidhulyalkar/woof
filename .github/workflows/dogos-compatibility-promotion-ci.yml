@@ -1,0 +1,65 @@
+name: dogOS Compatibility Promotion CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ml/evaluation/uncertainty.py'
+      - 'ml/evaluation/test_uncertainty.py'
+      - 'ml/evaluation/promotion_gate.py'
+      - 'ml/evaluation/test_promotion_gate.py'
+      - 'ml/evaluation/attest_promotion.py'
+      - 'ml/evaluation/test_release_attestation.py'
+      - 'docs/ML_PROMOTION_UNCERTAINTY.md'
+      - '.github/workflows/dogos-compatibility-promotion-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ml/evaluation/uncertainty.py'
+      - 'ml/evaluation/test_uncertainty.py'
+      - 'ml/evaluation/promotion_gate.py'
+      - 'ml/evaluation/test_promotion_gate.py'
+      - 'ml/evaluation/attest_promotion.py'
+      - 'ml/evaluation/test_release_attestation.py'
+      - 'docs/ML_PROMOTION_UNCERTAINTY.md'
+      - '.github/workflows/dogos-compatibility-promotion-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-promotion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  promotion-authority:
+    name: Cluster uncertainty + release authority
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Report Python runtime
+        run: python --version
+
+      - name: Compile promotion authority modules
+        run: >-
+          python -m compileall -q
+          ml/common
+          ml/evaluation/uncertainty.py
+          ml/evaluation/promotion_gate.py
+          ml/evaluation/attest_promotion.py
+
+      - name: Run cluster uncertainty contracts
+        run: python -m unittest ml.evaluation.test_uncertainty
+
+      - name: Run statistical promotion authority contracts
+        run: python -m unittest ml.evaluation.test_promotion_gate
+
+      - name: Run signed release authority contracts
+        run: python -m unittest ml.evaluation.test_release_attestation
+
+      - name: Verify standard-library evaluator CLIs load
+        run: |
+          python -m ml.evaluation.uncertainty --help >/dev/null
+          python -m ml.evaluation.promotion_gate --help >/dev/null
+          python -m ml.evaluation.attest_promotion --help >/dev/null
