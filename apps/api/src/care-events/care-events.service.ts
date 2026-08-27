@@ -5,6 +5,7 @@ import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   WELLBEING_PATHWAYS,
+  type AdventureLearningCareEvent,
   type CanonicalCareEventRecord,
   type CareEventInput,
   type CareSummary,
@@ -20,6 +21,10 @@ type EventRow = {
   pathway: WellbeingPathway;
   occurred_at: Date;
   outcome: Record<string, unknown> | null;
+};
+
+type AdventureLearningEventRow = EventRow & {
+  context: Record<string, unknown> | null;
 };
 
 type CanonicalEventRow = {
@@ -346,6 +351,35 @@ export class CareEventsService {
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  async getAdventureLearningEvents(
+    userId: string,
+    petId: string,
+    limit = 24
+  ): Promise<AdventureLearningCareEvent[]> {
+    await this.households.assertPetAccessible(userId, petId);
+    const boundedLimit = Math.max(1, Math.min(24, Math.round(limit)));
+    const rows = await this.prisma.$queryRaw<AdventureLearningEventRow[]>(Prisma.sql`
+      SELECT id, event_type, pathway, occurred_at, context, outcome
+      FROM care_events
+      WHERE user_id = ${userId}
+        AND pet_id = ${petId}
+        AND source = 'QUEST_ENGINE'
+        AND (event_type = 'SAFE_OPT_OUT' OR LEFT(event_type, 6) = 'QUEST_')
+        AND occurred_at >= NOW() - INTERVAL '28 days'
+      ORDER BY occurred_at DESC, id ASC
+      LIMIT ${boundedLimit}
+    `);
+
+    return rows.map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      pathway: row.pathway,
+      occurredAt: row.occurred_at.toISOString(),
+      context: row.context,
+      outcome: row.outcome,
+    }));
   }
 
   async getSummary(userId: string, petId?: string): Promise<CareSummary> {

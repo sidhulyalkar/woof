@@ -188,6 +188,63 @@ describe('CareEventsService integration', () => {
     expect(new Date(moveSummary!.lastEventAt!).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
   });
 
+  it('preserves original quest pathway separately from the reward pathway in summaries', async () => {
+    const { userId, petId } = await fixture('learning-provenance');
+    const receipt = await service.record({
+      userId,
+      petId,
+      eventType: 'QUEST_BOND',
+      pathway: 'BOND',
+      source: 'QUEST_ENGINE',
+      evidenceType: 'SELF_REPORT',
+      evidenceConfidence: 0.68,
+      dedupeKey: `learning-provenance:${randomUUID()}`,
+      safetyEligible: true,
+      context: {
+        originalPathway: 'LEARN',
+        learningPolicyVersion: 'adventure-learning-v2',
+      },
+      outcome: {
+        dogExperience: 'not_their_thing',
+        ownerExperience: 'fine',
+        safeOptOut: false,
+      },
+    });
+
+    for (let index = 0; index < 14; index += 1) {
+      await service.record({
+        userId,
+        petId,
+        eventType: 'DAILY_SIGNALS_CHECKIN',
+        pathway: 'CARE',
+        source: 'INTELLIGENCE',
+        evidenceType: 'SELF_REPORT',
+        dedupeKey: `learning-crowd:${index}:${randomUUID()}`,
+        safetyEligible: false,
+      });
+    }
+
+    const learningEvents = await service.getAdventureLearningEvents(userId, petId);
+    const stored = learningEvents.find((entry) => entry.id === receipt.careEventId);
+
+    expect(stored).toEqual(
+      expect.objectContaining({
+        pathway: 'BOND',
+        context: expect.objectContaining({
+          originalPathway: 'LEARN',
+          learningPolicyVersion: 'adventure-learning-v2',
+        }),
+        outcome: expect.objectContaining({ dogExperience: 'not_their_thing' }),
+      })
+    );
+    expect(stored).not.toHaveProperty('bondXp');
+    expect(
+      learningEvents.every(
+        (entry) => entry.eventType.startsWith('QUEST_') || entry.eventType === 'SAFE_OPT_OUT'
+      )
+    ).toBe(true);
+  });
+
   it('does not let a zero-XP safety event decay the next legitimate reward', async () => {
     const { userId, petId } = await fixture('safety-zero');
     const common = {
