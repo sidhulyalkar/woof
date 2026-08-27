@@ -112,6 +112,17 @@ export type SocialAdventureFeed = {
   privacy: string;
 };
 
+export type SocialShareCandidate = {
+  sourceType: 'CARE_EVENT';
+  sourceId: string;
+  petId: string | null;
+  petName: string | null;
+  kind: string;
+  headline: string;
+  summary: string;
+  occurredAt: string;
+};
+
 export type SocialPack = {
   id: string;
   name: string;
@@ -133,6 +144,10 @@ export const socialAdventureApi = {
   globalLeaderboard: () =>
     apiClient.get<GlobalLeaderboard>('/social-adventure/leaderboard/global'),
   feed: () => apiClient.get<SocialAdventureFeed>('/social-adventure/feed'),
+  shareCandidates: () =>
+    apiClient.get<{ candidates: SocialShareCandidate[]; privacy: string }>(
+      '/social-adventure/share-candidates'
+    ),
   createShare: (input: {
     sourceType: 'CARE_EVENT' | 'HUMAN_SKILL_ATTEMPT';
     sourceId: string;
