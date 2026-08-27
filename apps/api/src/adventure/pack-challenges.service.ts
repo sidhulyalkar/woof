@@ -22,7 +22,7 @@ const CHALLENGES: ChallengeDefinition[] = [
     id: 'sniff-explore-week',
     title: 'Sniff & Explore Week',
     description:
-      'Together, make room for exploration and enrichment. Every useful session contributes once.',
+      'Together, make room for exploration and enrichment. Every useful Adventure contributes once.',
     pathways: ['EXPLORE', 'ENRICH'],
     target: 250,
     unit: 'shared adventures',
@@ -51,6 +51,8 @@ export class PackChallengesService {
             COUNT(*) FILTER (WHERE user_id = ${userId})::int AS mine
           FROM care_events
           WHERE occurred_at >= NOW() - INTERVAL '7 days'
+            AND source = 'QUEST_ENGINE'
+            AND event_type LIKE 'QUEST_%'
             AND pathway = ANY(${challenge.pathways}::text[])
         `);
         const aggregate = rows[0] ?? { total: 0, contributors: 0, mine: 0 };
@@ -72,6 +74,7 @@ export class PackChallengesService {
       principles: [
         'everyone-contributes',
         'nobody-loses',
+        'canonical-adventures-only',
         'no-raw-distance-ranking',
         'no-medical-competition',
       ],
