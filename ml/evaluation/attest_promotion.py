@@ -19,6 +19,25 @@ from ml.common.attestation import (
     sign_receipt,
 )
 
+STATISTICAL_RECEIPT_SCHEMA = "woof-model-promotion-receipt-v2"
+UNCERTAINTY_REPORT_SCHEMA = "woof-compatibility-uncertainty-v1"
+EXPECTED_CLUSTER_COLUMNS = {
+    "futureTest": "owner_pair_key",
+    "coldPair": "pair_key",
+    "coldOwner": "owner_pair_key",
+    "safety": "owner_pair_key",
+}
+
+
+def _sha256_hex(value: Any) -> bool:
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+    except ValueError:
+        return False
+    return True
+
 
 def _artifact_consistency_failures(
     manifest: dict[str, Any],
@@ -50,6 +69,74 @@ def _artifact_consistency_failures(
     return failures
 
 
+def _uncertainty_slice_authority_failures(
+    uncertainty: dict[str, Any], slice_name: str
+) -> list[str]:
+    failures: list[str] = []
+    block = uncertainty.get(slice_name)
+    if not isinstance(block, dict) or block.get("available") is not True:
+        return [f"{slice_name}_uncertainty_authority_missing"]
+
+    source = block.get("source")
+    if not isinstance(source, dict):
+        return [f"{slice_name}_uncertainty_source_missing"]
+
+    if not _sha256_hex(source.get("predictionSha256")):
+        failures.append(f"{slice_name}_prediction_hash_missing")
+    if not _sha256_hex(source.get("clusterSourceSha256")):
+        failures.append(f"{slice_name}_cluster_source_hash_missing")
+    if source.get("clusterJoinKey") != "outcome_id":
+        failures.append(f"{slice_name}_cluster_join_key_invalid")
+    if source.get("clusterLabelVerified") is not True:
+        failures.append(f"{slice_name}_cluster_label_verification_missing")
+    if source.get("clusterColumn") != EXPECTED_CLUSTER_COLUMNS[slice_name]:
+        failures.append(f"{slice_name}_cluster_column_invalid")
+    return failures
+
+
+def _statistical_authority_failures(statistical: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
+    if statistical.get("schemaVersion") != STATISTICAL_RECEIPT_SCHEMA:
+        failures.append("statistical_receipt_schema_not_authoritative")
+    if statistical.get("passed") is not True or statistical.get("decision") != "promote":
+        failures.append("statistical_gate_not_passed")
+    if statistical.get("authoritativeEligible") is not True:
+        failures.append("statistical_receipt_not_authoritative")
+
+    uncertainty = statistical.get("uncertaintyEvidence")
+    if not isinstance(uncertainty, dict):
+        failures.append("uncertainty_authority_missing")
+        return failures
+
+    if uncertainty.get("required") is not True:
+        failures.append("uncertainty_not_required_by_statistical_gate")
+    if uncertainty.get("passed") is not True:
+        failures.append("uncertainty_gate_not_passed")
+    if uncertainty.get("schemaVersion") != UNCERTAINTY_REPORT_SCHEMA:
+        failures.append("uncertainty_schema_not_authoritative")
+
+    policy = uncertainty.get("policy")
+    if not isinstance(policy, dict):
+        failures.append("uncertainty_policy_missing")
+    else:
+        if policy.get("pairedRows") is not True:
+            failures.append("uncertainty_paired_rows_policy_missing")
+        if policy.get("relationshipClusterBootstrap") is not True:
+            failures.append("uncertainty_cluster_bootstrap_policy_missing")
+        if policy.get("clusterIdentityFromEvaluationSplits") is not True:
+            failures.append("uncertainty_split_cluster_authority_missing")
+        if policy.get("splitLabelAgreementRequired") is not True:
+            failures.append("uncertainty_split_label_authority_missing")
+
+    for slice_name in ("futureTest", "coldPair", "coldOwner"):
+        failures.extend(_uncertainty_slice_authority_failures(uncertainty, slice_name))
+
+    safety = statistical.get("safety")
+    if isinstance(safety, dict) and safety.get("available") is True:
+        failures.extend(_uncertainty_slice_authority_failures(uncertainty, "safety"))
+    return failures
+
+
 def attest_promotion(
     *,
     statistical_receipt_path: Path,
@@ -70,9 +157,7 @@ def attest_promotion(
         feature_contract_path,
     )
 
-    failures: list[str] = []
-    if statistical.get("passed") is not True or statistical.get("decision") != "promote":
-        failures.append("statistical_gate_not_passed")
+    failures = _statistical_authority_failures(statistical)
     failures.extend(_artifact_consistency_failures(manifest, contract, hashes))
 
     calibration = manifest.get("calibration")
@@ -92,6 +177,10 @@ def attest_promotion(
     release_status = "promoted" if not deduplicated else "shadow"
     decision = "promote" if not deduplicated else "hold_shadow"
     statistical_hash = sha256_file(statistical_receipt_path)
+
+    uncertainty = statistical.get("uncertaintyEvidence")
+    uncertainty_schema = uncertainty.get("schemaVersion") if isinstance(uncertainty, dict) else None
+    uncertainty_policy = uncertainty.get("policy") if isinstance(uncertainty, dict) else None
 
     attestation_seed = {
         "identity": identity,
@@ -114,6 +203,9 @@ def attest_promotion(
             "statisticalReceiptSchema": statistical.get("schemaVersion"),
             "statisticalDecision": statistical.get("decision"),
             "statisticalGeneratedAt": statistical.get("generatedAt"),
+            "statisticalAuthoritativeEligible": statistical.get("authoritativeEligible"),
+            "uncertaintyReportSchema": uncertainty_schema,
+            "uncertaintyPolicy": uncertainty_policy,
         },
         "failures": deduplicated,
     }
