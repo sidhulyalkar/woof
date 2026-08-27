@@ -197,26 +197,19 @@ jobs:
             .github/workflows/dogos-social-adventure-ci.yml \
             docs/DOGOS_SOCIAL_ADVENTURE_V1.md
           then
-            {
-              echo '### Prettier patch required'
-              echo
-              echo '```diff'
-              git diff -- \
-                apps/api/src/social-adventure \
-                apps/api/src/social \
-                apps/api/src/adventure/pack-challenges.service.ts \
-                apps/api/src/app.module.ts \
-                apps/web/src/app/community \
-                apps/web/src/app/arcade \
-                apps/web/src/app/leaderboard/page.tsx \
-                apps/web/src/components/social-adventure \
-                apps/web/src/components/bottom-nav.tsx \
-                apps/web/src/lib/api/social-adventure.ts \
-                .github/workflows/dogos-social-adventure-ci.yml \
-                docs/DOGOS_SOCIAL_ADVENTURE_V1.md | head -c 60000
-              echo
-              echo '```'
-            } >> "${GITHUB_STEP_SUMMARY}"
+            git diff -- \
+              apps/api/src/social-adventure \
+              apps/api/src/social \
+              apps/api/src/adventure/pack-challenges.service.ts \
+              apps/api/src/app.module.ts \
+              apps/web/src/app/community \
+              apps/web/src/app/arcade \
+              apps/web/src/app/leaderboard/page.tsx \
+              apps/web/src/components/social-adventure \
+              apps/web/src/components/bottom-nav.tsx \
+              apps/web/src/lib/api/social-adventure.ts \
+              .github/workflows/dogos-social-adventure-ci.yml \
+              docs/DOGOS_SOCIAL_ADVENTURE_V1.md | head -c 60000
             exit 1
           fi
 
