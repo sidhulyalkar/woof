@@ -13,6 +13,7 @@ on:
       - 'apps/api/src/config/env.validation.ts'
       - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/.env.example'
+      - '.github/scripts/assert-database-ownership.py'
       - '.github/workflows/dogos-observability-device-ci.yml'
       - 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md'
 
@@ -75,15 +76,21 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Reject database ownership when observability or device source changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Observability + Device Contracts v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA" \
+            --enforce-if-changed 'apps/api/src/observability/**' \
+            --enforce-if-changed 'apps/api/src/connectors/device-partner-contract*.ts' \
+            --enforce-if-changed 'apps/api/src/connectors/connectors.service.ts' \
+            --enforce-if-changed 'apps/api/src/connectors/connectors.service.spec.ts' \
+            --enforce-if-changed 'apps/api/src/app.service.ts' \
+            --enforce-if-changed 'apps/api/src/config/env.validation.ts' \
+            --enforce-if-changed 'apps/api/src/config/env.validation.spec.ts' \
+            --enforce-if-changed 'apps/api/.env.example' \
+            --enforce-if-changed 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md' \
+            --enforce-if-changed '.github/workflows/dogos-observability-device-ci.yml'
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
