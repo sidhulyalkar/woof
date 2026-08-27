@@ -274,7 +274,7 @@ jobs:
           ]:
               workflow = Path(workflow_path).read_text()
               required = [
-                  'setup-flyctl@v1.5',
+                  'setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be',
                   'version: 0.4.76',
                   'apps/api/fly.toml',
                   '/api/v1/ops/health/live',
@@ -284,7 +284,12 @@ jobs:
               missing = [token for token in required if token not in workflow]
               if missing:
                   raise SystemExit(f'{workflow_path} missing deterministic deploy invariant: {missing}')
-              for forbidden in ['setup-flyctl@master', 'vercel@latest', 'sleep 10']:
+              for forbidden in [
+                  'setup-flyctl@v1.5',
+                  'setup-flyctl@master',
+                  'vercel@latest',
+                  'sleep 10',
+              ]:
                   if forbidden in workflow:
                       raise SystemExit(f'{workflow_path} contains forbidden deploy pattern: {forbidden}')
           PY
