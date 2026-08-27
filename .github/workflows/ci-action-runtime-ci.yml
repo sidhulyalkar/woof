@@ -45,7 +45,7 @@ jobs:
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Enforce maintained action majors across every workflow
+      - name: Enforce maintained and pinned action refs across every workflow
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -55,6 +55,7 @@ jobs:
               'actions/setup-node': 'v7',
               'pnpm/action-setup': 'v6',
               'actions/upload-artifact': 'v7',
+              'superfly/flyctl-actions/setup-flyctl': 'fc53c09e1bc3be6f54706524e3b82c4f462f77be',
           }
 
           workflows = sorted(Path('.github/workflows').glob('*.yml'))
@@ -83,11 +84,24 @@ jobs:
           if violations:
               raise SystemExit('\n'.join(violations))
 
-          required = ['actions/checkout', 'actions/setup-node', 'pnpm/action-setup']
+          required = [
+              'actions/checkout',
+              'actions/setup-node',
+              'pnpm/action-setup',
+              'superfly/flyctl-actions/setup-flyctl',
+          ]
           missing = [action for action in required if seen[action] == 0]
           if missing:
               raise SystemExit(f'missing required maintained action families: {missing}')
           PY
+
+      - name: Exercise pinned Fly.io setup action
+        uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+        with:
+          version: 0.4.76
+
+      - name: Verify pinned Fly.io CLI
+        run: flyctl version | grep -F '0.4.76'
 
       - name: Parse and format-check the complete workflow inventory
         run: pnpm exec prettier --check .github/workflows docs/CI_ACTION_RUNTIME.md
@@ -97,6 +111,7 @@ jobs:
           {
             echo "node=$(node --version)"
             echo "pnpm=$(pnpm --version)"
+            echo "flyctl=$(flyctl version | head -n 1)"
             echo "workflows=$(find .github/workflows -maxdepth 1 -type f -name '*.yml' | wc -l | tr -d ' ')"
           } > /tmp/ci-action-runtime-proof.txt
           cat /tmp/ci-action-runtime-proof.txt
