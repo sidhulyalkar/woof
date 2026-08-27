@@ -54,6 +54,7 @@ def health() -> dict[str, object]:
         "ok": True,
         "service": "woof-behavior-vision",
         "enabledAdapters": [getattr(adapter, "adapter_id", "unknown") for adapter in pipeline.adapters],
+        "runtimeProvenance": pipeline.runtime_provenance(),
         "authoritativeEmotionInference": False,
         "automaticGreetingRecommendation": False,
     }

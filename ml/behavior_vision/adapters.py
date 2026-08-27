@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .contracts import AdapterObservation, RequestMetadata
+from .registry import BehaviorModelRegistry
 
 
 @dataclass(frozen=True)
@@ -47,13 +48,40 @@ def load_adapter(import_path: str) -> BehaviorAdapter:
     return instance
 
 
-def load_configured_adapters() -> list[BehaviorAdapter]:
+def parse_configured_adapter_spec(spec: str) -> tuple[str, str]:
+    if "=" not in spec:
+        raise ValueError(
+            "Behavior Vision adapters must be configured as registry-id=package.module:object"
+        )
+    adapter_id, import_path = (part.strip() for part in spec.split("=", 1))
+    if not adapter_id or not import_path:
+        raise ValueError(
+            "Behavior Vision adapters must include both registry id and import path"
+        )
+    return adapter_id, import_path
+
+
+def load_configured_adapters(
+    registry: BehaviorModelRegistry | None = None,
+) -> list[BehaviorAdapter]:
     raw = os.getenv("WOOF_BEHAVIOR_ADAPTERS", "").strip()
     if not raw:
         return []
+    authority = registry or BehaviorModelRegistry.load()
     adapters: list[BehaviorAdapter] = []
+    configured_ids: list[str] = []
     for item in raw.split(","):
-        path = item.strip()
-        if path:
-            adapters.append(load_adapter(path))
+        spec = item.strip()
+        if not spec:
+            continue
+        adapter_id, import_path = parse_configured_adapter_spec(spec)
+        authority.assert_primary_runtime_adapter(adapter_id)
+        adapter = load_adapter(import_path)
+        if adapter.adapter_id != adapter_id:
+            raise TypeError(
+                f"configured Behavior Vision adapter {adapter_id} identified itself as {adapter.adapter_id}"
+            )
+        adapters.append(adapter)
+        configured_ids.append(adapter_id)
+    authority.validate_configured_adapter_ids(configured_ids)
     return adapters

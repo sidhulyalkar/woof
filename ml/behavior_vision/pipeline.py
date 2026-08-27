@@ -12,6 +12,7 @@ from statistics import fmean
 from typing import Iterable
 
 from .adapters import BehaviorAdapter, MediaInput, load_configured_adapters
+from .registry import BehaviorModelRegistry
 from .contracts import (
     AdapterObservation,
     CanonicalAnalysis,
@@ -25,8 +26,34 @@ from .contracts import (
 
 
 class BehaviorVisionPipeline:
-    def __init__(self, adapters: Iterable[BehaviorAdapter] | None = None) -> None:
-        self.adapters = list(adapters) if adapters is not None else load_configured_adapters()
+    def __init__(
+        self,
+        adapters: Iterable[BehaviorAdapter] | None = None,
+        *,
+        enforce_registry: bool | None = None,
+        registry: BehaviorModelRegistry | None = None,
+    ) -> None:
+        self.registry = registry or BehaviorModelRegistry.load()
+        self.enforce_registry = adapters is None if enforce_registry is None else enforce_registry
+        self.adapters = (
+            list(adapters)
+            if adapters is not None
+            else load_configured_adapters(self.registry)
+        )
+        if self.enforce_registry:
+            self.registry.validate_configured_adapter_ids(
+                getattr(adapter, "adapter_id", "") for adapter in self.adapters
+            )
+
+    def runtime_provenance(
+        self, observations: Iterable[AdapterObservation] = ()
+    ) -> dict[str, object]:
+        observed = tuple(observations)
+        return self.registry.runtime_provenance(
+            (getattr(adapter, "adapter_id", "") for adapter in self.adapters),
+            ((entry.adapter_id, entry.model_version) for entry in observed),
+            enforce_registry=self.enforce_registry,
+        )
 
     def analyze(self, media: MediaInput, metadata: RequestMetadata) -> CanonicalAnalysis:
         if not media.bytes:
@@ -91,6 +118,7 @@ class BehaviorVisionPipeline:
                 ),
                 observable_summary="The clip did not produce enough reliable objective evidence.",
                 uncertainty="Woof abstained rather than inferring behavior from weak model signals.",
+                runtime_provenance=self.runtime_provenance(observations),
             )
 
         summary = self._observable_summary(evidence, dimensions)
@@ -110,6 +138,7 @@ class BehaviorVisionPipeline:
                 "Dimensions summarize observable movement/posture evidence. They do not reveal the dog’s "
                 "internal emotion or prove social intent."
             ),
+            runtime_provenance=self.runtime_provenance(observations),
         )
 
     def _fuse_evidence(self, observations: list[AdapterObservation]) -> list[Evidence]:
@@ -302,4 +331,5 @@ class BehaviorVisionPipeline:
             ),
             observable_summary="No reliable automated behavior observation was produced.",
             uncertainty="Woof abstained rather than inferring behavior without adequate evidence.",
+            runtime_provenance=self.runtime_provenance(),
         )

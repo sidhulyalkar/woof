@@ -201,6 +201,7 @@ class CanonicalAnalysis:
     hypotheses: tuple[Hypothesis, ...]
     observable_summary: str
     uncertainty: str
+    runtime_provenance: dict[str, Any] = field(default_factory=dict)
     feature_version: str = FEATURE_VERSION
     schema_version: str = SCHEMA_VERSION
 
@@ -209,6 +210,7 @@ class CanonicalAnalysis:
             "schemaVersion": self.schema_version,
             "modelVersion": self.model_version,
             "featureVersion": self.feature_version,
+            "runtimeProvenance": self.runtime_provenance,
             "mediaQuality": self.media_quality.to_api(),
             "evidence": [entry.to_api() for entry in self.evidence[:40]],
             "dimensions": [entry.to_api() for entry in self.dimensions],
@@ -240,10 +242,19 @@ class RequestMetadata:
             "objectiveObservationOnly": True,
             "noDefinitiveEmotionInference": True,
             "noAutomaticGreetingRecommendation": True,
+            "noHumanFaceRecognition": True,
+            "noBiometricIdentityInference": True,
         }
         for key, expected in required_policy.items():
             if policy.get(key) is not expected:
                 raise ContractError(f"request must enforce policy {key}={expected}")
+
+        audio_policy = policy.get("audioAnalysisAllowed")
+        context_audio = context.get("audioAnalysisAllowed")
+        if not isinstance(audio_policy, bool) or audio_policy is not context_audio:
+            raise ContractError(
+                "request audioAnalysisAllowed policy must match the observation context"
+            )
 
         question = payload.get("question")
         if question is not None and not isinstance(question, str):

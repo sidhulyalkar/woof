@@ -74,13 +74,20 @@ def metadata(other_dogs: bool = True) -> RequestMetadata:
         {
             "schemaVersion": SCHEMA_VERSION,
             "pet": {"name": "Nova", "species": "DOG"},
-            "context": {"context": "street", "otherDogsPresent": other_dogs},
+            "context": {
+                "context": "street",
+                "otherDogsPresent": other_dogs,
+                "audioAnalysisAllowed": False,
+            },
             "question": None,
             "priorProfileSummary": None,
             "policy": {
                 "objectiveObservationOnly": True,
                 "noDefinitiveEmotionInference": True,
                 "noAutomaticGreetingRecommendation": True,
+                "noHumanFaceRecognition": True,
+                "noBiometricIdentityInference": True,
+                "audioAnalysisAllowed": False,
             },
         }
     )
@@ -118,6 +125,35 @@ class BehaviorVisionPipelineTest(unittest.TestCase):
                     "pet": {"name": "Nova"},
                     "context": {},
                     "policy": {"objectiveObservationOnly": True},
+                }
+            )
+
+
+    def test_runtime_provenance_is_emitted_without_claiming_checkpoint_attestation(self) -> None:
+        result = BehaviorVisionPipeline(adapters=[FakePoseAdapter()]).analyze(
+            MediaInput(bytes=b"video", mime_type="video/webm", filename="dog.webm"),
+            metadata(),
+        )
+        provenance = result.to_api()["runtimeProvenance"]
+        self.assertEqual(provenance["artifactAttestation"], "not-available")
+        self.assertEqual(provenance["policyVersion"], "behavior-runtime-provenance-v1")
+        self.assertEqual(provenance["contributingAdapters"][0]["id"], "fake-pose")
+
+    def test_audio_policy_must_match_context(self) -> None:
+        with self.assertRaises(ValueError):
+            RequestMetadata.from_json(
+                {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "pet": {"name": "Nova"},
+                    "context": {"audioAnalysisAllowed": False},
+                    "policy": {
+                        "objectiveObservationOnly": True,
+                        "noDefinitiveEmotionInference": True,
+                        "noAutomaticGreetingRecommendation": True,
+                        "noHumanFaceRecognition": True,
+                        "noBiometricIdentityInference": True,
+                        "audioAnalysisAllowed": True,
+                    },
                 }
             )
 
