@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Fail closed on Prisma ownership changes, with explicit add-only exceptions."""
+"""Fail closed on Prisma ownership changes, with explicit add-only exceptions.
+
+The guard can also be scoped to domain-owned files. That lets shared composition
+changes (for example app.module.ts) run a subsystem's regression lane without
+making that subsystem veto a database migration owned and qualified elsewhere.
+"""
 
 from __future__ import annotations
 
+import argparse
+from fnmatch import fnmatch
 import subprocess
 import sys
 
@@ -12,26 +19,67 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        fail("usage: assert-database-ownership.py BASE_SHA [ALLOW_ADDED_PATH ...]")
-
-    base_sha = sys.argv[1]
-    allowed_added = set(sys.argv[2:])
-    diff = subprocess.run(
-        [
-            "git",
-            "diff",
-            "--name-status",
-            "--find-renames",
-            f"{base_sha}...HEAD",
-            "--",
-            "packages/database/prisma/",
-        ],
+def git_output(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Reject Prisma ownership changes for a release slice."
+    )
+    parser.add_argument("base_sha")
+    parser.add_argument(
+        "allowed_added",
+        nargs="*",
+        help="Exact newly-added Prisma paths explicitly owned by this lane.",
+    )
+    parser.add_argument(
+        "--enforce-if-changed",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help=(
+            "Only enforce the database boundary when at least one changed file "
+            "matches this domain-owned glob. Repeat for multiple globs."
+        ),
+    )
+    args = parser.parse_args()
+
+    if args.enforce_if_changed:
+        changed_files = git_output(
+            "diff",
+            "--name-only",
+            f"{args.base_sha}...HEAD",
+        ).splitlines()
+        owned_changes = [
+            path
+            for path in changed_files
+            if any(fnmatch(path, pattern) for pattern in args.enforce_if_changed)
+        ]
+        if not owned_changes:
+            print(
+                "Database ownership guard skipped: no domain-owned files changed; "
+                "shared composition regressions may still run."
+            )
+            return
+        print("Database ownership guard active for domain changes:")
+        for path in owned_changes:
+            print(f"  {path}")
+
+    allowed_added = set(args.allowed_added)
+    diff = git_output(
+        "diff",
+        "--name-status",
+        "--find-renames",
+        f"{args.base_sha}...HEAD",
+        "--",
+        "packages/database/prisma/",
+    )
 
     violations: list[str] = []
     for raw_line in diff.splitlines():
