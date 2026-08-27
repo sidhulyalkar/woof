@@ -4,11 +4,17 @@ import { CareEventsService } from '../care-events/care-events.service';
 import {
   QUEST_EVENT_TYPES,
   WELLBEING_PATHWAYS,
+  type AdventureLearningCareEvent,
   type CareSummary,
   type WellbeingPathway,
 } from '../care-events/care-event.types';
 import { baseXpForEvent } from '../care-events/reward-policy';
 import { InsightsService } from '../insights/insights.service';
+import {
+  ADVENTURE_LEARNING_POLICY_VERSION,
+  deriveAdventureLearningSignals,
+  type AdventureLearningSignals,
+} from './adventure-learning-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteQuestDto } from './dto/adventure.dto';
 
@@ -62,8 +68,11 @@ export class AdventureService {
 
   async getDashboard(userId: string, requestedPetId?: string) {
     const insights = await this.insights.getForUser(userId, requestedPetId);
-    const summary = await this.careEvents.getSummary(userId, insights.pet.id);
-    const quests = this.buildQuests(userId, insights, summary);
+    const [summary, learningEvents] = await Promise.all([
+      this.careEvents.getSummary(userId, insights.pet.id),
+      this.careEvents.getAdventureLearningEvents(userId, insights.pet.id),
+    ]);
+    const quests = this.buildQuests(userId, insights, summary, learningEvents);
 
     return {
       pet: insights.pet,
@@ -104,6 +113,7 @@ export class AdventureService {
       context: {
         questKey: quest.key,
         confidence: quest.confidence,
+        learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
         ...(interaction === 'SELECTED' ? { questSnapshot: this.questSnapshot(quest) } : {}),
       },
     });
@@ -160,6 +170,7 @@ export class AdventureService {
         questKey: quest.key,
         questTitle: quest.title,
         originalPathway: quest.primaryPathway,
+        learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
         personalRelevance: quest.personalRelevance,
         memoryAdded: Boolean(verifiedMemory),
         memoryAssetId: verifiedMemory?.id ?? null,
@@ -185,6 +196,9 @@ export class AdventureService {
         pathway: rewardPathway,
         context: {
           questKey: quest.key,
+          originalPathway: quest.primaryPathway,
+          rewardPathway,
+          learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
           dogExperience: dto.dogExperience,
           ownerExperience: dto.ownerExperience,
           safeOptOut,
@@ -213,6 +227,9 @@ export class AdventureService {
           data: {
             questId,
             pathway: rewardPathway,
+            originalPathway: quest.primaryPathway,
+            rewardPathway,
+            learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
             bondXp: receipt.bondXp,
             duplicate: receipt.duplicate,
             dogExperience: dto.dogExperience,
@@ -292,17 +309,18 @@ export class AdventureService {
   private buildQuests(
     userId: string,
     insights: Awaited<ReturnType<InsightsService['getForUser']>>,
-    summary: CareSummary
+    summary: CareSummary,
+    learningEvents: AdventureLearningCareEvent[]
   ): Quest[] {
     const dateKey = new Date().toISOString().slice(0, 10);
     const coverage = new Map(summary.pathways.map((item) => [item.pathway, item.coverage]));
-    const preference = this.preferenceSignals(summary);
+    const learning = deriveAdventureLearningSignals(learningEvents);
 
     const candidates: Candidate[] = insights.recommendations.map((recommendation) => {
       const pathway = CATEGORY_PATHWAYS[recommendation.category] ?? 'BOND';
       const eventType = QUEST_EVENT_TYPES[pathway];
       const gap = 1 - (coverage.get(pathway) ?? 0) / 100;
-      const personalRelevance = this.clamp(1 + (preference[pathway] ?? 0), 0.9, 1.08);
+      const personalRelevance = this.pathwayRelevance(learning, pathway);
       return {
         key: `insight-${recommendation.id}`,
         title: recommendation.title,
@@ -333,8 +351,11 @@ export class AdventureService {
         href: '/activity',
         actionLabel: 'Start an exploration',
         safeStopEligible: false,
-        personalRelevance: this.clamp(1 + (preference.EXPLORE ?? 0), 0.9, 1.08),
-        score: 0.62 + (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28,
+        personalRelevance: this.pathwayRelevance(learning, 'EXPLORE'),
+        score:
+          0.62 +
+          (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28 +
+          this.learningScoreAdjustment(learning, 'EXPLORE'),
       },
       {
         key: 'skill-spark',
@@ -349,8 +370,11 @@ export class AdventureService {
         href: '/coach',
         actionLabel: 'Open Coach',
         safeStopEligible: true,
-        personalRelevance: this.clamp(1 + (preference.LEARN ?? 0), 0.9, 1.08),
-        score: 0.58 + (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3,
+        personalRelevance: this.pathwayRelevance(learning, 'LEARN'),
+        score:
+          0.58 +
+          (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3 +
+          this.learningScoreAdjustment(learning, 'LEARN'),
       },
       {
         key: 'easy-day',
@@ -365,8 +389,12 @@ export class AdventureService {
         href: '/activity',
         actionLabel: 'Log an easy session',
         safeStopEligible: false,
-        personalRelevance: this.clamp(1 + (preference.RECOVER ?? 0), 0.9, 1.08),
-        score: 0.48 + (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24,
+        personalRelevance: this.pathwayRelevance(learning, 'RECOVER'),
+        score:
+          0.48 +
+          (1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +
+          this.learningScoreAdjustment(learning, 'RECOVER') +
+          (learning.temporaryPace === 'easy' ? 0.06 : 0),
       },
       {
         key: 'favorite-ritual',
@@ -381,8 +409,11 @@ export class AdventureService {
         href: '/activity',
         actionLabel: 'Log the moment',
         safeStopEligible: false,
-        personalRelevance: this.clamp(1 + (preference.BOND ?? 0), 0.9, 1.08),
-        score: 0.5 + (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22,
+        personalRelevance: this.pathwayRelevance(learning, 'BOND'),
+        score:
+          0.5 +
+          (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22 +
+          this.learningScoreAdjustment(learning, 'BOND'),
       },
     ];
 
@@ -414,18 +445,14 @@ export class AdventureService {
     }));
   }
 
-  private preferenceSignals(summary: CareSummary) {
-    const signals: Partial<Record<WellbeingPathway, number>> = {};
-    for (const event of summary.recentEvents.slice(0, 10)) {
-      const dog = event.outcome?.dogExperience;
-      const owner = event.outcome?.ownerExperience;
-      const positiveDog = dog === 'loved_it' || dog === 'comfortable';
-      const positiveOwner = owner === 'great' || owner === 'fine';
-      const negative = dog === 'not_their_thing' || owner === 'a_lot_today';
-      const delta = negative ? -0.025 : positiveDog && positiveOwner ? 0.018 : 0;
-      signals[event.pathway] = this.clamp((signals[event.pathway] ?? 0) + delta, -0.1, 0.08);
-    }
-    return signals;
+  private pathwayRelevance(learning: AdventureLearningSignals, pathway: WellbeingPathway) {
+    const durable = learning.durablePathwayPreference[pathway] ?? 0;
+    const temporary = learning.temporaryPathwayModifier[pathway] ?? 0;
+    return this.clamp(1 + durable + temporary, 0.9, 1.08);
+  }
+
+  private learningScoreAdjustment(learning: AdventureLearningSignals, pathway: WellbeingPathway) {
+    return (this.pathwayRelevance(learning, pathway) - 0.9) * 0.5;
   }
 
   private secondaryPathways(primary: WellbeingPathway): WellbeingPathway[] {
