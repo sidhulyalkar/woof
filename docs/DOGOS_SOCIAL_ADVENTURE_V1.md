@@ -171,7 +171,13 @@ Tables:
 
 Completed Human Skill attempts are immutable at PostgreSQL. Competition receipts are append-only/immutable at PostgreSQL. Competition receipt identity includes user, weekly season, policy version and a SHA-256 hash of the bounded source evidence used for that snapshot.
 
-The v1 score function deduplicates Human Skill games and Adventure pathways before arithmetic. A future ledger hardening slice should also canonicalize receipt source identity to one deterministic first qualifying row per breadth category so irrelevant replay volume cannot create redundant zero-delta snapshots.
+Competition evidence is canonicalized before the receipt is derived:
+
+- one deterministic first qualifying `QUEST_ENGINE` row per Adventure pathway;
+- one deterministic first completed attempt per Human Skill game;
+- Arcade practice-score magnitude is excluded from the source hash.
+
+Therefore a zero-value retry does not change the public score **or** competition-evidence identity. Practice attempts remain available as personal learning history without becoming artificial league evidence.
 
 ## Server authority
 
@@ -214,6 +220,7 @@ Social Adventure v1 must fail qualification if:
 
 - legacy post creation awards points;
 - score policy starts counting CARE, posting/popularity, raw Arcade score magnitude, or repeated pathway volume;
+- competition source identity starts depending on repeat attempts or practice-score magnitude;
 - global leaderboard default becomes opt-out instead of opt-in;
 - local cohort threshold disappears;
 - completed Arcade attempts become mutable;
@@ -234,9 +241,8 @@ Next Social Adventure slices should add:
 3. stronger moderation/reporting around shared content;
 4. richer Human Skill scenario banks and trainer-reviewed calibration;
 5. a validated evidence channel before any true proficiency-based public competition is promoted;
-6. canonical breadth-only competition receipt source identity so zero-value repetition cannot churn snapshots;
-7. friend-authority semantics for `FRIENDS_ONLY`;
-8. `ANIMAL_ALLY`, foster, volunteer and authorized-caregiver capabilities from #64;
-9. partner-authorized shelter/foster opportunities and responsible adoption-readiness flows.
+6. friend-authority semantics for `FRIENDS_ONLY`;
+7. `ANIMAL_ALLY`, foster, volunteer and authorized-caregiver capabilities from #64;
+8. partner-authorized shelter/foster opportunities and responsible adoption-readiness flows.
 
 The release succeeds if social energy makes useful dog-human interaction feel more playful while the data and incentive architecture makes unsafe volume, popularity optimization and gameable pseudo-skill ranking harder, not easier.
