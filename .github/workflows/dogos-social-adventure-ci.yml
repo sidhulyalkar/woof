@@ -167,6 +167,14 @@ jobs:
             packages/database/prisma/migrations/20260827220000_add_dogos_social_adventure_v1/migration.sql
           grep -F "LOCAL_LEAGUE_MINIMUM_COHORT = 5" \
             apps/api/src/social-adventure/social-adventure.policy.ts
+          grep -F "HUMAN_SKILL_BREADTH_POINTS = 50" \
+            apps/api/src/social-adventure/social-adventure.policy.ts
+          grep -F "completedChallenges" apps/api/src/social-adventure/social-adventure.policy.ts
+          if grep -F "humanSkillScore += bounded" apps/api/src/social-adventure/social-adventure.policy.ts; then
+            echo 'Raw Arcade practice scores must not determine public league rank.' >&2
+            exit 1
+          fi
+          grep -F "browser timing" docs/DOGOS_SOCIAL_ADVENTURE_V1.md
           grep -F "visibility: 'PUBLIC'" apps/api/src/social/social.service.ts
           grep -F "blockedUserIds" apps/api/src/social/social.service.ts
           grep -F "redirect('/community')" apps/web/src/app/leaderboard/page.tsx
