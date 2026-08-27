@@ -48,7 +48,7 @@ def main() -> None:
             "matches this domain-owned glob. Repeat for multiple globs."
         ),
     )
-    args = parser.parse_args()
+    args = parser.parse_intermixed_args()
 
     if args.enforce_if_changed:
         changed_files = git_output(
