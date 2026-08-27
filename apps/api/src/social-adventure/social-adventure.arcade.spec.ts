@@ -1,7 +1,7 @@
 import { scenarioByKey, scoreArcadeResponse } from './social-adventure.arcade';
 
 describe('Human Skill Arcade', () => {
-  it('scores Make It Easier from the server-owned answer', () => {
+  it('scores Make It Easier as personal practice feedback', () => {
     const scenario = scenarioByKey('recall-busy-park-v1');
     expect(scenario).not.toBeNull();
     if (!scenario) throw new Error('fixture missing');
@@ -11,7 +11,7 @@ describe('Human Skill Arcade', () => {
       correct: true,
     });
     expect(scoreArcadeResponse(scenario, { optionId: 'repeat_louder' })).toMatchObject({
-      score: 20,
+      score: 0,
       correct: false,
     });
   });
@@ -26,7 +26,7 @@ describe('Human Skill Arcade', () => {
     expect(result.correct).toBe(true);
   });
 
-  it('scores marker timing by temporal precision with bounded output', () => {
+  it('scores marker timing as bounded practice telemetry', () => {
     const scenario = scenarioByKey('four-paws-mat-v1');
     expect(scenario).not.toBeNull();
     if (!scenario) throw new Error('fixture missing');
