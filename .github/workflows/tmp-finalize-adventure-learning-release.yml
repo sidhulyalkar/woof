@@ -1,4 +1,4 @@
-name: Temporary finalize Adventure learning release
+name: Temporary finalize Adventure learning source contracts
 
 on:
   push:
@@ -27,23 +27,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Finalize learning qualification and bounded evidence limit
+      - name: Finalize bounded Adventure learning evidence limit
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          workflow = Path('.github/workflows/dogos-adventure-learning-ci.yml')
-          text = workflow.read_text()
-          old = '''          apps/api/src/adventure/adventure-learning-policy.spec.ts\n          apps/api/src/adventure/adventure.service.ts'''
-          new = '''          apps/api/src/adventure/adventure-learning-policy.spec.ts\n          apps/api/src/adventure/adventure-learning-ranking.spec.ts\n          apps/api/src/adventure/adventure.service.ts'''
-          if old not in text:
-              raise SystemExit('missing ranking format-list anchor')
-          text = text.replace(old, new, 1)
-          old = '''      - name: Run deterministic learning policy contracts\n        run: >-\n          pnpm --filter @woof/api exec jest\n          src/adventure/adventure-learning-policy.spec.ts\n          --runInBand'''
-          new = '''      - name: Run deterministic learning and ranking contracts\n        run: >-\n          pnpm --filter @woof/api exec jest\n          src/adventure/adventure-learning-policy.spec.ts\n          src/adventure/adventure-learning-ranking.spec.ts\n          --runInBand'''
-          if old not in text:
-              raise SystemExit('missing deterministic test anchor')
-          workflow.write_text(text.replace(old, new, 1))
 
           service = Path('apps/api/src/care-events/care-events.service.ts')
           text = service.read_text()
@@ -67,27 +54,18 @@ jobs:
           spec.write_text(text.replace(old, new, 1))
           PY
 
-      - name: Canonicalize final release surface
+      - name: Canonicalize source changes
         run: >-
           pnpm exec prettier --write
-          .github/workflows/dogos-adventure-learning-ci.yml
-          docs/DOGOS_ADVENTURE_LEARNING_V2.md
-          apps/api/src/adventure/adventure-learning-policy.ts
-          apps/api/src/adventure/adventure-learning-policy.spec.ts
-          apps/api/src/adventure/adventure-learning-ranking.spec.ts
-          apps/api/src/adventure/adventure.service.ts
-          apps/api/src/adventure/adventure.service.spec.ts
-          apps/api/src/care-events/care-event.types.ts
           apps/api/src/care-events/care-events.service.ts
           apps/api/src/care-events/care-events.integration.spec.ts
 
-      - name: Commit final release changes
+      - name: Commit source changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            .github/workflows/dogos-adventure-learning-ci.yml \
             apps/api/src/care-events/care-events.service.ts \
             apps/api/src/care-events/care-events.integration.spec.ts
-          git commit -m "Finalize Adventure learning release contracts"
+          git commit -m "Harden Adventure learning evidence limit"
           git push origin HEAD:agent/adventure-learning-signals-v2
