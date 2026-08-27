@@ -1,0 +1,76 @@
+name: Temporary score Adventure learning v2
+
+on:
+  push:
+    branches: [agent/tmp-score-adventure-learning-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/adventure-learning-signals-v2
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply learning relevance to template ranking
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service = Path('apps/api/src/adventure/adventure.service.ts')
+          text = service.read_text()
+          replacements = {
+              "score: 0.62 + (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28,":
+                  "score:\n          0.62 +\n          (1 - (coverage.get('EXPLORE') ?? 0) / 100) * 0.28 +\n          this.learningScoreAdjustment(learning, 'EXPLORE'),",
+              "score: 0.58 + (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3,":
+                  "score:\n          0.58 +\n          (1 - (coverage.get('LEARN') ?? 0) / 100) * 0.3 +\n          this.learningScoreAdjustment(learning, 'LEARN'),",
+              "(1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +\n          (learning.temporaryPace === 'easy' ? 0.06 : 0),":
+                  "(1 - (coverage.get('RECOVER') ?? 0) / 100) * 0.24 +\n          this.learningScoreAdjustment(learning, 'RECOVER') +\n          (learning.temporaryPace === 'easy' ? 0.06 : 0),",
+              "score: 0.5 + (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22,":
+                  "score:\n          0.5 +\n          (1 - (coverage.get('BOND') ?? 0) / 100) * 0.22 +\n          this.learningScoreAdjustment(learning, 'BOND'),",
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing template score anchor: {old}')
+              text = text.replace(old, new, 1)
+
+          anchor = '''  private secondaryPathways(primary: WellbeingPathway): WellbeingPathway[] {'''
+          helper = '''  private learningScoreAdjustment(\n    learning: AdventureLearningSignals,\n    pathway: WellbeingPathway\n  ) {\n    return (this.pathwayRelevance(learning, pathway) - 0.9) * 0.5;\n  }\n\n'''
+          if anchor not in text:
+              raise SystemExit('missing score helper anchor')
+          service.write_text(text.replace(anchor, helper + anchor, 1))
+
+          spec = Path('apps/api/src/adventure/adventure-learning-ranking.spec.ts')
+          spec.write_text('''import { CareEventsService } from '../care-events/care-events.service';\nimport {\n  WELLBEING_PATHWAYS,\n  type AdventureLearningCareEvent,\n  type CareSummary,\n} from '../care-events/care-event.types';\nimport { InsightsService } from '../insights/insights.service';\nimport { PrismaService } from '../prisma/prisma.service';\nimport { AdventureService } from './adventure.service';\n\ntype RankedQuest = {\n  key: string;\n  primaryPathway: string;\n  personalRelevance: number;\n};\n\ntype QuestBuilder = {\n  buildQuests: (\n    userId: string,\n    insights: object,\n    summary: CareSummary,\n    learningEvents: AdventureLearningCareEvent[]\n  ) => RankedQuest[];\n};\n\nconst insights = {\n  pet: { id: 'pet-1', name: 'Shasta' },\n  recommendations: [],\n  algorithm: { confidence: 0.7 },\n};\n\nfunction summary(): CareSummary {\n  return {\n    bondXp: 0,\n    rhythm: { activeWeeks: 0, windowWeeks: 5, label: 'Every useful moment can start a rhythm' },\n    pathways: WELLBEING_PATHWAYS.map((pathway) => ({\n      pathway,\n      label: pathway,\n      recentDays: 0,\n      coverage: pathway === 'BOND' ? 68.18 : 100,\n      xp: 0,\n      lastEventAt: null,\n    })),\n    recentEvents: [],\n  };\n}\n\ndescribe('Adventure learning ranking integration', () => {\n  it('lets original-pathway mismatch change ranking without punishing the BOND reward pathway', () => {\n    const service = new AdventureService(\n      {} as PrismaService,\n      {} as InsightsService,\n      {} as CareEventsService\n    );\n    const buildQuests = (service as unknown as QuestBuilder).buildQuests.bind(service);\n\n    const neutral = buildQuests('user-1', insights, summary(), []);\n    const mismatch = buildQuests('user-1', insights, summary(), [\n      {\n        id: 'mismatch-1',\n        eventType: 'QUEST_BOND',\n        pathway: 'BOND',\n        occurredAt: new Date().toISOString(),\n        context: { originalPathway: 'LEARN' },\n        outcome: {\n          dogExperience: 'not_their_thing',\n          ownerExperience: 'fine',\n          safeOptOut: false,\n        },\n      },\n    ]);\n\n    expect(neutral.map((quest) => quest.key)).toEqual([\n      'sniffari',\n      'skill-spark',\n      'favorite-ritual',\n    ]);\n    expect(mismatch.map((quest) => quest.key)).toEqual([\n      'sniffari',\n      'favorite-ritual',\n      'skill-spark',\n    ]);\n\n    const learnedSkill = mismatch.find((quest) => quest.key === 'skill-spark');\n    const bondRitual = mismatch.find((quest) => quest.key === 'favorite-ritual');\n    expect(learnedSkill?.personalRelevance).toBeLessThan(1);\n    expect(bondRitual?.personalRelevance).toBe(1);\n  });\n});\n''')
+          PY
+
+      - name: Format ranking changes
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/adventure/adventure.service.ts
+          apps/api/src/adventure/adventure-learning-ranking.spec.ts
+
+      - name: Commit ranking integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/adventure/adventure.service.ts \
+            apps/api/src/adventure/adventure-learning-ranking.spec.ts
+          git commit -m "Apply Adventure learning signals to template ranking"
+          git push origin HEAD:agent/adventure-learning-signals-v2
