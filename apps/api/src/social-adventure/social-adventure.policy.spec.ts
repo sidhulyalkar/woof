@@ -26,25 +26,48 @@ describe('Social Adventure score policy', () => {
     expect(score.components.adventureVariety.score).toBe(25);
   });
 
-  it('caps every Human Skill game and never scores posting or popularity inputs', () => {
-    const score = deriveSocialAdventureScore({
+  it('rewards bounded Skillcraft breadth while ignoring practice score magnitude', () => {
+    const lowPractice = deriveSocialAdventureScore({
       adventurePathways: [],
       humanSkillBestScores: {
-        MAKE_IT_EASIER: 1000,
-        CATCH_THE_GOOD: 88.4,
+        MAKE_IT_EASIER: 0,
+        CATCH_THE_GOOD: 1,
         PAIRING_LAB: -50,
-        MARKER_TIMING: 92,
+        MARKER_TIMING: 2,
+      },
+    });
+    const perfectPractice = deriveSocialAdventureScore({
+      adventurePathways: [],
+      humanSkillBestScores: {
+        MAKE_IT_EASIER: 100,
+        CATCH_THE_GOOD: 100,
+        PAIRING_LAB: 100,
+        MARKER_TIMING: 100,
       },
     });
 
-    expect(score.components.humanSkill.bestByChallenge).toEqual({
-      MAKE_IT_EASIER: 100,
-      CATCH_THE_GOOD: 88,
-      PAIRING_LAB: 0,
-      MARKER_TIMING: 92,
+    expect(lowPractice.components.skillcraft.completedChallenges).toEqual([
+      'MAKE_IT_EASIER',
+      'CATCH_THE_GOOD',
+      'PAIRING_LAB',
+      'MARKER_TIMING',
+    ]);
+    expect(lowPractice.components.skillcraft.score).toBe(200);
+    expect(perfectPractice.score).toBe(lowPractice.score);
+    expect(lowPractice.maxScore).toBe(375);
+  });
+
+  it('ignores missing or non-finite practice telemetry', () => {
+    const score = deriveSocialAdventureScore({
+      adventurePathways: [],
+      humanSkillBestScores: {
+        MAKE_IT_EASIER: Number.NaN,
+        MARKER_TIMING: Number.POSITIVE_INFINITY,
+      },
     });
-    expect(score.components.humanSkill.score).toBe(280);
-    expect(score.maxScore).toBe(575);
+
+    expect(score.components.skillcraft.completedChallenges).toEqual([]);
+    expect(score.components.skillcraft.score).toBe(0);
   });
 
   it('uses an explicit Monday UTC weekly season without streak semantics', () => {
