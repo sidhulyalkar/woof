@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { SocialService } from './social.service';
+import { HouseholdsModule } from '../households/households.module';
 import { SocialController } from './social.controller';
-import { GamificationModule } from '../gamification/gamification.module';
+import { SocialService } from './social.service';
 
 @Module({
-  imports: [GamificationModule],
+  imports: [HouseholdsModule],
   providers: [SocialService],
   controllers: [SocialController],
   exports: [SocialService],
