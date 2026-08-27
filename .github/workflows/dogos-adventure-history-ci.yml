@@ -1,0 +1,178 @@
+name: dogOS Adventure History Integrity CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/database/prisma/migrations/**quest_interactions**/**'
+      - '.github/workflows/dogos-adventure-history-ci.yml'
+      - 'docs/DOGOS_ADVENTURE_HISTORY_INTEGRITY.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-adventure-history-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Immutable Adventure interaction history
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Create isolated interaction fixture
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users (id, handle, email, created_at, updated_at)
+          VALUES ('history-user', 'history_user', 'history@example.test', NOW(), NOW());
+
+          INSERT INTO pets (id, owner_id, name, species, created_at, updated_at)
+          VALUES ('history-pet', 'history-user', 'History Dog', 'DOG', NOW(), NOW());
+
+          INSERT INTO quest_interactions (
+            id, user_id, pet_id, quest_id, interaction, pathway, context, created_at
+          ) VALUES (
+            'history-interaction',
+            'history-user',
+            'history-pet',
+            'history-quest',
+            'SELECTED',
+            'LEARN',
+            '{"decisionReceiptId":"receipt-v1","rank":1}'::jsonb,
+            '2026-08-27T18:00:00Z'::timestamptz
+          );
+          SQL
+
+      - name: Prove exact retry converges without rewriting time
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO quest_interactions (
+            id, user_id, pet_id, quest_id, interaction, pathway, context, created_at
+          ) VALUES (
+            'different-insert-id-is-ignored-on-conflict',
+            'history-user',
+            'history-pet',
+            'history-quest',
+            'SELECTED',
+            'LEARN',
+            '{"decisionReceiptId":"receipt-v1","rank":1}'::jsonb,
+            NOW()
+          )
+          ON CONFLICT (user_id, pet_id, quest_id, interaction)
+          DO UPDATE SET
+            pathway = EXCLUDED.pathway,
+            context = EXCLUDED.context,
+            created_at = EXCLUDED.created_at;
+
+          DO $$
+          DECLARE
+            row_count integer;
+            preserved_at timestamptz;
+          BEGIN
+            SELECT COUNT(*), MIN(created_at)
+            INTO row_count, preserved_at
+            FROM quest_interactions
+            WHERE user_id = 'history-user'
+              AND pet_id = 'history-pet'
+              AND quest_id = 'history-quest'
+              AND interaction = 'SELECTED';
+
+            IF row_count <> 1 THEN
+              RAISE EXCEPTION 'exact retry did not converge: % rows', row_count;
+            END IF;
+            IF preserved_at <> '2026-08-27T18:00:00Z'::timestamptz THEN
+              RAISE EXCEPTION 'exact retry rewrote created_at: %', preserved_at;
+            END IF;
+          END $$;
+          SQL
+
+      - name: Prove divergent retry fails closed
+        run: |
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO quest_interactions (
+            id, user_id, pet_id, quest_id, interaction, pathway, context, created_at
+          ) VALUES (
+            'divergent-interaction',
+            'history-user',
+            'history-pet',
+            'history-quest',
+            'SELECTED',
+            'LEARN',
+            '{"decisionReceiptId":"receipt-v1","rank":2}'::jsonb,
+            NOW()
+          )
+          ON CONFLICT (user_id, pet_id, quest_id, interaction)
+          DO UPDATE SET
+            pathway = EXCLUDED.pathway,
+            context = EXCLUDED.context,
+            created_at = EXCLUDED.created_at;
+          SQL
+          then
+            echo 'Divergent retry unexpectedly rewrote history.' >&2
+            exit 1
+          fi
+
+      - name: Prove direct historical mutation fails
+        run: |
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE quest_interactions SET pathway = 'BOND' WHERE id = 'history-interaction';"
+          then
+            echo 'Direct historical mutation unexpectedly succeeded.' >&2
+            exit 1
+          fi
+
+      - name: Prove privacy/cascade deletion remains possible
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM users WHERE id = 'history-user';"
+          remaining="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM quest_interactions WHERE user_id = 'history-user';")"
+          test "${remaining}" = '0'
+
+      - name: Check migration contract and formatting
+        run: |
+          grep -F "RETURN OLD;" packages/database/prisma/migrations/20260827181500_make_quest_interactions_immutable/migration.sql
+          grep -F "ERRCODE = '23514'" packages/database/prisma/migrations/20260827181500_make_quest_interactions_immutable/migration.sql
+          pnpm exec prettier --check \
+            .github/workflows/dogos-adventure-history-ci.yml \
+            docs/DOGOS_ADVENTURE_HISTORY_INTEGRITY.md
