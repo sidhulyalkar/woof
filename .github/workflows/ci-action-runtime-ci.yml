@@ -103,21 +103,23 @@ jobs:
           production = Path('.github/workflows/deploy-production.yml').read_text()
           staging = Path('.github/workflows/deploy-staging.yml').read_text()
 
-          secret_ref = lambda name: f'{name}: $' + '{{ secrets.' + name + ' }}'
+          def secret_mapping(env_name: str, secret_name: str | None = None) -> str:
+              secret_name = secret_name or env_name
+              return f'{env_name}: $' + '{{ secrets.' + secret_name + ' }}'
 
           required_production = [
-              secret_ref('FLY_API_TOKEN'),
-              secret_ref('VERCEL_TOKEN'),
-              secret_ref('VERCEL_ORG_ID'),
-              secret_ref('VERCEL_PROJECT_ID'),
+              secret_mapping('FLY_API_TOKEN'),
+              secret_mapping('VERCEL_TOKEN'),
+              secret_mapping('VERCEL_ORG_ID'),
+              secret_mapping('VERCEL_PROJECT_ID'),
               'Validate production API deployment credentials',
               'Validate production Web deployment credentials',
           ]
           required_staging = [
-              secret_ref('FLY_API_TOKEN'),
-              secret_ref('VERCEL_TOKEN'),
-              secret_ref('VERCEL_ORG_ID'),
-              secret_ref('VERCEL_PROJECT_ID'),
+              secret_mapping('FLY_API_TOKEN'),
+              secret_mapping('VERCEL_TOKEN'),
+              secret_mapping('VERCEL_ORG_ID'),
+              secret_mapping('VERCEL_PROJECT_ID'),
               'Validate staging API deployment credentials',
               'Validate staging Web deployment credentials',
           ]
@@ -142,8 +144,7 @@ jobs:
               )
 
           notification_markers = [
-              secret_ref('SLACK_WEBHOOK'),
-              'SLACK_WEBHOOK_URL',
+              secret_mapping('SLACK_WEBHOOK_URL', 'SLACK_WEBHOOK'),
               'continue-on-error: true',
               'skipping optional deployment notification',
           ]
