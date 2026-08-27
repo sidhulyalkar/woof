@@ -174,6 +174,15 @@ jobs:
             echo 'Raw Arcade practice scores must not determine public league rank.' >&2
             exit 1
           fi
+          grep -F "SELECT DISTINCT ON (pathway)" apps/api/src/social-adventure/social-adventure.service.ts
+          grep -F "SELECT DISTINCT ON (challenge_key)" apps/api/src/social-adventure/social-adventure.service.ts
+          grep -F "humanSkill: skillRows.map((row) => [row.id, row.challengeKey])" \
+            apps/api/src/social-adventure/social-adventure.service.ts
+          if grep -F "humanSkill: skillRows.map((row) => [row.id, row.challengeKey, row.score])" \
+            apps/api/src/social-adventure/social-adventure.service.ts; then
+            echo 'Competition source identity must not depend on Arcade practice-score magnitude.' >&2
+            exit 1
+          fi
           grep -F "browser timing" docs/DOGOS_SOCIAL_ADVENTURE_V1.md
           grep -F "visibility: 'PUBLIC'" apps/api/src/social/social.service.ts
           grep -F "blockedUserIds" apps/api/src/social/social.service.ts
