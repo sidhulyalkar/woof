@@ -350,7 +350,9 @@ export class SocialAdventureService {
     const membership = rows[0];
     if (!membership) return { ok: true };
     if (membership.role === 'OWNER') {
-      throw new BadRequestException('A Pack owner cannot leave without transferring or retiring the Pack');
+      throw new BadRequestException(
+        'A Pack owner cannot leave without transferring or retiring the Pack'
+      );
     }
 
     await this.prisma.$executeRaw(Prisma.sql`
@@ -380,7 +382,8 @@ export class SocialAdventureService {
     }
     const scenario = scenarioForChallenge(challengeKey);
     const publicScenario = publicArcadeCatalog().find((item) => item.challengeKey === challengeKey);
-    if (!scenario || !publicScenario) throw new NotFoundException('Human Skill challenge unavailable');
+    if (!scenario || !publicScenario)
+      throw new NotFoundException('Human Skill challenge unavailable');
 
     const id = randomUUID();
     const issuedAt = new Date();
@@ -708,7 +711,10 @@ export class SocialAdventureService {
     return rows.sort((a, b) => b.score - a.score || a.handle.localeCompare(b.handle));
   }
 
-  private async resolveShareSource(userId: string, dto: CreateSocialShareDto): Promise<ShareSource> {
+  private async resolveShareSource(
+    userId: string,
+    dto: CreateSocialShareDto
+  ): Promise<ShareSource> {
     if (dto.sourceType === 'CARE_EVENT') {
       const event = await this.prisma.careEvent.findFirst({
         where: { id: dto.sourceId, userId, source: 'QUEST_ENGINE' },
@@ -719,7 +725,8 @@ export class SocialAdventureService {
       const context = this.asRecord(event.context);
       const outcome = this.asRecord(event.outcome);
       const safeOptOut = outcome.safeOptOut === true;
-      const dogExperience = typeof outcome.dogExperience === 'string' ? outcome.dogExperience : null;
+      const dogExperience =
+        typeof outcome.dogExperience === 'string' ? outcome.dogExperience : null;
       const questTitle =
         typeof context.questTitle === 'string' && context.questTitle.trim()
           ? context.questTitle.trim().slice(0, 100)
@@ -769,7 +776,8 @@ export class SocialAdventureService {
       LIMIT 1
     `);
     const attempt = rows[0];
-    if (!attempt || attempt.score === null) throw new NotFoundException('Human Skill result not found');
+    if (!attempt || attempt.score === null)
+      throw new NotFoundException('Human Skill result not found');
     const scenario = scenarioByKey(attempt.scenarioKey);
     const title = scenario?.title ?? 'Human Skill Arcade';
 

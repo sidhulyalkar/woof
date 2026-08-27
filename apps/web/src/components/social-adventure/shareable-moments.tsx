@@ -45,8 +45,8 @@ export function ShareableMoments() {
           Recent moments you could share
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          These previews come from your canonical Adventure history. Private notes and detailed outcome
-          context are not copied into the feed card.
+          These previews come from your canonical Adventure history. Private notes and detailed
+          outcome context are not copied into the feed card.
         </p>
       </div>
 

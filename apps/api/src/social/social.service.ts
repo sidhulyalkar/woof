@@ -8,7 +8,7 @@ import { CreatePostDto, UpdatePostDto } from './dto/social.dto';
 export class SocialService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly households: HouseholdsService,
+    private readonly households: HouseholdsService
   ) {}
 
   async createPost(userId: string, data: CreatePostDto) {
@@ -36,7 +36,7 @@ export class SocialService {
     skip = 0,
     take = 20,
     authorUserId?: string,
-    petId?: string,
+    petId?: string
   ) {
     const safeSkip = Math.max(0, Number(skip) || 0);
     const safeTake = Math.max(1, Math.min(Number(take) || 20, 100));
@@ -124,7 +124,11 @@ export class SocialService {
           ? { pet: data.petId ? { connect: { id: data.petId } } : { disconnect: true } }
           : {}),
         ...(data.activityId !== undefined
-          ? { activity: data.activityId ? { connect: { id: data.activityId } } : { disconnect: true } }
+          ? {
+              activity: data.activityId
+                ? { connect: { id: data.activityId } }
+                : { disconnect: true },
+            }
           : {}),
       },
       include: this.postCardInclude(userId),

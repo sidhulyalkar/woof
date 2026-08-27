@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,7 +37,7 @@ export class SocialController {
     @Query('skip') skip?: number,
     @Query('take') take?: number,
     @Query('authorUserId') authorUserId?: string,
-    @Query('petId') petId?: string,
+    @Query('petId') petId?: string
   ) {
     return this.socialService.findAllPosts(req.user.sub, skip, take, authorUserId, petId);
   }
@@ -42,7 +53,7 @@ export class SocialController {
   async updatePost(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: UpdatePostDto,
+    @Body() dto: UpdatePostDto
   ) {
     return this.socialService.updatePost(id, req.user.sub, dto);
   }
@@ -76,7 +87,7 @@ export class SocialController {
   async createComment(
     @Request() req: AuthenticatedRequest,
     @Param('postId') postId: string,
-    @Body() dto: CreateCommentDto,
+    @Body() dto: CreateCommentDto
   ) {
     return this.socialService.createComment(postId, req.user.sub, dto.text);
   }
@@ -92,7 +103,7 @@ export class SocialController {
   async updateComment(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: UpdateCommentDto,
+    @Body() dto: UpdateCommentDto
   ) {
     return this.socialService.updateComment(id, req.user.sub, dto.text);
   }

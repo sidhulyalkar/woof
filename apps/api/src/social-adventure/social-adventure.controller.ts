@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,7 +35,10 @@ export class SocialAdventureController {
   }
 
   @Put('preferences')
-  updatePreferences(@Request() req: AuthenticatedRequest, @Body() dto: UpdateSocialAdventurePreferencesDto) {
+  updatePreferences(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: UpdateSocialAdventurePreferencesDto
+  ) {
     return this.socialAdventure.updatePreferences(req.user.sub, dto);
   }
 

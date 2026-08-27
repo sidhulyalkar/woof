@@ -18,10 +18,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { ShareableMoments } from '@/components/social-adventure/shareable-moments';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  socialAdventureApi,
-  type SocialAdventureReaction,
-} from '@/lib/api/social-adventure';
+import { socialAdventureApi, type SocialAdventureReaction } from '@/lib/api/social-adventure';
 
 const reactionCopy: Record<SocialAdventureReaction, string> = {
   NICE_READ: 'Nice read',
@@ -101,10 +98,13 @@ export default function CommunityPage() {
             </div>
             <div>
               <p className="eyebrow">You compete. Your dog doesn&apos;t.</p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight">Get better at the human side.</h2>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight">
+                Get better at the human side.
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Social Adventure rewards Human Skill games and varied, suitable Adventures. Distance,
-                repetitions, posting, likes, health status, and missed days are worth zero league points.
+                Social Adventure rewards Human Skill games and varied, suitable Adventures.
+                Distance, repetitions, posting, likes, health status, and missed days are worth zero
+                league points.
               </p>
             </div>
           </div>
@@ -193,8 +193,8 @@ export default function CommunityPage() {
                       : 'Your score is private by default.'}
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    Opting in publishes your handle and Social Adventure score only. It does not publish
-                    pet health, route data, Daily Signals, or private notes.
+                    Opting in publishes your handle and Social Adventure score only. It does not
+                    publish pet health, route data, Daily Signals, or private notes.
                   </p>
                   <Button
                     variant={me.data.preferences.globalLeaderboardOptIn ? 'outline' : 'default'}
@@ -205,7 +205,9 @@ export default function CommunityPage() {
                       preferenceMutation.mutate(!me.data.preferences.globalLeaderboardOptIn)
                     }
                   >
-                    {me.data.preferences.globalLeaderboardOptIn ? 'Make my rank private' : 'Join global league'}
+                    {me.data.preferences.globalLeaderboardOptIn
+                      ? 'Make my rank private'
+                      : 'Join global league'}
                   </Button>
                 </div>
               </div>
@@ -215,21 +217,27 @@ export default function CommunityPage() {
               {leaderboard.data.entries.length === 0 ? (
                 <div className="surface-soft rounded-2xl p-5 text-center">
                   <Trophy className="mx-auto h-6 w-6 text-primary" aria-hidden="true" />
-                  <p className="mt-2 font-semibold">The league is still gathering its first players.</p>
+                  <p className="mt-2 font-semibold">
+                    The league is still gathering its first players.
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Private-by-default means an empty podium is allowed.
                   </p>
                 </div>
               ) : (
                 leaderboard.data.entries.slice(0, 10).map((entry) => (
-                  <article key={entry.userId} className="surface-soft flex items-center gap-3 rounded-2xl p-3">
+                  <article
+                    key={entry.userId}
+                    className="surface-soft flex items-center gap-3 rounded-2xl p-3"
+                  >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary">
                       {entry.rank}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">@{entry.handle}</p>
                       <p className="text-xs text-muted-foreground">
-                        {entry.components.humanSkill.score} skill · {entry.components.adventureVariety.pathways.length} pathways
+                        {entry.components.humanSkill.score} skill ·{' '}
+                        {entry.components.adventureVariety.pathways.length} pathways
                       </p>
                     </div>
                     <span className="text-lg font-black text-primary">{entry.score}</span>
@@ -261,13 +269,17 @@ export default function CommunityPage() {
               <PawPrint className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
               <h3 className="mt-3 font-bold">No shared moments yet</h3>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                Recent private Adventure moments appear above when they are eligible to share. Nothing is posted automatically.
+                Recent private Adventure moments appear above when they are eligible to share.
+                Nothing is posted automatically.
               </p>
             </div>
           ) : (
             <div className="mt-3 space-y-4">
               {feed.data.posts.map((post) => (
-                <article key={post.shareId} className="rounded-3xl border border-border/70 bg-card/70 p-5">
+                <article
+                  key={post.shareId}
+                  className="rounded-3xl border border-border/70 bg-card/70 p-5"
+                >
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <PawPrint className="h-5 w-5" aria-hidden="true" />
@@ -286,7 +298,9 @@ export default function CommunityPage() {
                   </div>
 
                   <h3 className="mt-4 text-lg font-bold tracking-tight">{post.headline}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{post.summary}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {post.summary}
+                  </p>
                   {post.caption && post.caption !== post.summary && (
                     <p className="mt-3 rounded-2xl bg-background/55 p-3 text-sm leading-relaxed">
                       {post.caption}

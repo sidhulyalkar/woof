@@ -80,11 +80,13 @@ export default function LocalPacksPage() {
       <main className="mx-auto max-w-xl px-4 pb-8 pt-5">
         <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.1] via-card/95 to-secondary/[0.06] p-5">
           <p className="eyebrow">Local without tracking you</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight">Choose a coarse community, not a coordinate.</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">
+            Choose a coarse community, not a coordinate.
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            A Pack uses a user-chosen locality such as “south-bay-ca.” Woof does not derive Pack rank
-            from your home location, route endpoints, or live GPS. Local ranks stay hidden until the
-            Pack has enough active members for a safer cohort.
+            A Pack uses a user-chosen locality such as “south-bay-ca.” Woof does not derive Pack
+            rank from your home location, route endpoints, or live GPS. Local ranks stay hidden
+            until the Pack has enough active members for a safer cohort.
           </p>
           <Button variant="outline" asChild className="mt-4 bg-transparent">
             <Link href="/community">← Back to Community</Link>
@@ -109,7 +111,9 @@ export default function LocalPacksPage() {
           ) : !packs.data?.packs.length ? (
             <div className="surface-soft mt-3 rounded-2xl p-5 text-center">
               <p className="font-semibold">No local Packs yet.</p>
-              <p className="mt-1 text-sm text-muted-foreground">You can start the first coarse-locality Pack below.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You can start the first coarse-locality Pack below.
+              </p>
             </div>
           ) : (
             <div className="mt-3 space-y-2">
@@ -126,7 +130,8 @@ export default function LocalPacksPage() {
                     >
                       <p className="font-bold">{pack.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {pack.regionKey} · {pack.memberCount} {pack.memberCount === 1 ? 'member' : 'members'}
+                        {pack.regionKey} · {pack.memberCount}{' '}
+                        {pack.memberCount === 1 ? 'member' : 'members'}
                       </p>
                     </button>
                     {pack.joined ? (
@@ -167,14 +172,18 @@ export default function LocalPacksPage() {
             ) : leaderboard.data && !leaderboard.data.cohortReady ? (
               <div className="surface-soft mt-3 rounded-2xl p-5">
                 <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                  <ShieldCheck
+                    className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
                   <div>
                     <p className="font-semibold">Building a privacy-safe cohort</p>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                       {leaderboard.data.message}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {leaderboard.data.pack.memberCount}/{leaderboard.data.minimumCohort} active members
+                      {leaderboard.data.pack.memberCount}/{leaderboard.data.minimumCohort} active
+                      members
                     </p>
                   </div>
                 </div>
@@ -182,14 +191,18 @@ export default function LocalPacksPage() {
             ) : leaderboard.data ? (
               <div className="mt-3 space-y-2">
                 {leaderboard.data.entries.map((entry) => (
-                  <article key={entry.userId} className="surface-soft flex items-center gap-3 rounded-2xl p-3">
+                  <article
+                    key={entry.userId}
+                    className="surface-soft flex items-center gap-3 rounded-2xl p-3"
+                  >
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary">
                       {entry.rank}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">@{entry.handle}</p>
                       <p className="text-xs text-muted-foreground">
-                        {entry.components.humanSkill.score} human skill · {entry.components.adventureVariety.pathways.length} pathways
+                        {entry.components.humanSkill.score} human skill ·{' '}
+                        {entry.components.adventureVariety.pathways.length} pathways
                       </p>
                     </div>
                     <span className="text-lg font-black text-primary">{entry.score}</span>
@@ -234,11 +247,15 @@ export default function LocalPacksPage() {
               />
             </label>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {createMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
               Create Pack
             </Button>
             {createMutation.isError && (
-              <p className="text-sm text-destructive">That Pack could not be created. Check the coarse region label and try again.</p>
+              <p className="text-sm text-destructive">
+                That Pack could not be created. Check the coarse region label and try again.
+              </p>
             )}
           </form>
         </section>

@@ -1,7 +1,4 @@
-import {
-  HUMAN_SKILL_CHALLENGE_VERSION,
-  type HumanSkillChallenge,
-} from './social-adventure.policy';
+import { HUMAN_SKILL_CHALLENGE_VERSION, type HumanSkillChallenge } from './social-adventure.policy';
 
 export type ArcadeOption = {
   id: string;
@@ -83,7 +80,10 @@ const SCENARIOS: ArcadeScenario[] = [
       'A mild novel sound is comfortable enough that the dog can notice it without distress. Which pairing best teaches that the sound predicts something good?',
     options: [
       { id: 'sound_then_good', label: 'Sound appears, then the good thing follows promptly' },
-      { id: 'good_then_sound_late', label: 'Give the good thing, wait a long time, then play the sound' },
+      {
+        id: 'good_then_sound_late',
+        label: 'Give the good thing, wait a long time, then play the sound',
+      },
       { id: 'require_sit', label: 'Play the sound, require a sit, then reward the sit' },
       { id: 'repeat_until_ignored', label: 'Repeat the sound continuously until it is ignored' },
     ],
@@ -135,9 +135,10 @@ export function scoreArcadeResponse(
     };
   }
 
-  const tapMs = typeof response.tapMs === 'number' && Number.isFinite(response.tapMs)
-    ? response.tapMs
-    : Number.NaN;
+  const tapMs =
+    typeof response.tapMs === 'number' && Number.isFinite(response.tapMs)
+      ? response.tapMs
+      : Number.NaN;
   if (!Number.isFinite(tapMs) || tapMs < 0 || tapMs > scenario.timing.durationMs) {
     return {
       score: 0,

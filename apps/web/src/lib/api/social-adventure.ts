@@ -1,11 +1,7 @@
 import { apiClient } from './client';
 
 export type SocialAdventureReaction =
-  | 'NICE_READ'
-  | 'GOOD_CALL'
-  | 'TRYING_THIS'
-  | 'ADVENTURE_INSPIRATION'
-  | 'CHEER';
+  'NICE_READ' | 'GOOD_CALL' | 'TRYING_THIS' | 'ADVENTURE_INSPIRATION' | 'CHEER';
 
 export type SocialAdventureScoreComponents = {
   humanSkill: {
@@ -151,8 +147,7 @@ export const socialAdventureApi = {
     apiClient.put<{ globalLeaderboardOptIn: boolean }>('/social-adventure/preferences', {
       globalLeaderboardOptIn,
     }),
-  globalLeaderboard: () =>
-    apiClient.get<GlobalLeaderboard>('/social-adventure/leaderboard/global'),
+  globalLeaderboard: () => apiClient.get<GlobalLeaderboard>('/social-adventure/leaderboard/global'),
   feed: () => apiClient.get<SocialAdventureFeed>('/social-adventure/feed'),
   shareCandidates: () =>
     apiClient.get<{ candidates: SocialShareCandidate[]; privacy: string }>(

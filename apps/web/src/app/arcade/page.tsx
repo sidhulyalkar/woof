@@ -1,7 +1,16 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brain, CheckCircle2, Gamepad2, Loader2, PawPrint, Share2, Sparkles, TimerReset } from 'lucide-react';
+import {
+  Brain,
+  CheckCircle2,
+  Gamepad2,
+  Loader2,
+  PawPrint,
+  Share2,
+  Sparkles,
+  TimerReset,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
@@ -39,8 +48,13 @@ export default function ArcadePage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: ({ attemptId, response }: { attemptId: string; response: Record<string, unknown> }) =>
-      socialAdventureApi.completeArcadeAttempt(attemptId, response),
+    mutationFn: ({
+      attemptId,
+      response,
+    }: {
+      attemptId: string;
+      response: Record<string, unknown>;
+    }) => socialAdventureApi.completeArcadeAttempt(attemptId, response),
     onSuccess: async (result) => {
       setReceipt(result);
       timingStartRef.current = null;
@@ -111,10 +125,13 @@ export default function ArcadePage() {
       <main className="mx-auto max-w-xl px-4 pb-8 pt-5">
         <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.11] via-card/95 to-secondary/[0.06] p-5">
           <p className="eyebrow">The dog gets the day off</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight">Practice the human mechanics as a game.</h2>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">
+            Practice the human mechanics as a game.
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Timing, shaping decisions, catching useful behavior, and positive pairing are scored here.
-            Only your best score in each game counts this week, so grinding repetitions gives no advantage.
+            Timing, shaping decisions, catching useful behavior, and positive pairing are scored
+            here. Only your best score in each game counts this week, so grinding repetitions gives
+            no advantage.
           </p>
           <Button variant="outline" asChild className="mt-4 bg-transparent">
             <Link href="/community">See Community league →</Link>
@@ -213,7 +230,10 @@ export default function ArcadePage() {
             )}
 
             {completeMutation.isPending && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+              <div
+                className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+                role="status"
+              >
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Scoring the human move…
               </div>
@@ -222,7 +242,10 @@ export default function ArcadePage() {
             {receipt && (
               <div className="mt-5 rounded-2xl bg-primary/10 p-5">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-primary" aria-hidden="true" />
+                  <CheckCircle2
+                    className="mt-0.5 h-6 w-6 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
                   <div>
                     <p className="eyebrow">Round complete</p>
                     <p className="mt-1 text-3xl font-black text-primary">{receipt.score}/100</p>
@@ -262,9 +285,9 @@ export default function ArcadePage() {
             <div>
               <h2 className="font-bold">Arcade success is not dog-training authority</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                These games teach general reward-based mechanics. Significant fear, aggression, pain,
-                or sudden behavior change should not become a DIY exposure level; Woof should route
-                those situations toward qualified professional or veterinary help.
+                These games teach general reward-based mechanics. Significant fear, aggression,
+                pain, or sudden behavior change should not become a DIY exposure level; Woof should
+                route those situations toward qualified professional or veterinary help.
               </p>
             </div>
           </div>
