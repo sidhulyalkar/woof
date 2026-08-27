@@ -154,7 +154,7 @@ export default function BehaviorShadowPage() {
                 <p className="text-xs text-muted-foreground">Usable evidence</p>
                 <p className="mt-1 text-2xl font-bold">{evaluation?.usableObservations ?? 0}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {percent(evaluation?.usableRate ?? 0)} of observations
+                  {percent(evaluation?.usableRate ?? 0)} of active-release observations
                 </p>
               </div>
               <div className="rounded-2xl border border-border/60 bg-card p-4">
@@ -176,6 +176,49 @@ export default function BehaviorShadowPage() {
                 <p className="mt-1 text-2xl font-bold">{evaluation?.pairedSessions ?? 0}</p>
                 <p className="mt-1 text-xs text-muted-foreground">baseline + change/recovery</p>
               </div>
+            </section>
+
+            <section className="rounded-3xl border border-border/60 bg-card/70 p-5">
+              <div className="flex gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="eyebrow">Model evidence authority</p>
+                  <h2 className="mt-2 font-semibold">Active qualified release only</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Personal baselines and research-readiness gates use only observations from the
+                    exact model release active today. Older qualified releases remain visible for
+                    audit, but are not mixed into the current measurement scale.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-muted/35 px-3 py-3">
+                  <p className="text-[11px] text-muted-foreground">Active release</p>
+                  <p className="mt-1 text-lg font-bold">
+                    {evaluation?.activeReleaseObservations ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-muted/35 px-3 py-3">
+                  <p className="text-[11px] text-muted-foreground">Older qualified</p>
+                  <p className="mt-1 text-lg font-bold">
+                    {evaluation?.inactiveQualifiedObservations ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-muted/35 px-3 py-3">
+                  <p className="text-[11px] text-muted-foreground">Legacy unknown</p>
+                  <p className="mt-1 text-lg font-bold">
+                    {evaluation?.unqualifiedObservations ?? 0}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                {evaluation?.inactiveQualifiedObservations ?? 0} older qualified and{' '}
+                {evaluation?.unqualifiedObservations ?? 0} legacy unqualified observations are
+                excluded from current learning.
+              </p>
+              <p className="mt-2 break-words text-xs text-muted-foreground">
+                Active release: {evaluation?.activeReleaseId ?? 'none configured'}
+              </p>
             </section>
 
             <section className="rounded-3xl border border-border/60 bg-card/70 p-5">
@@ -214,8 +257,8 @@ export default function BehaviorShadowPage() {
                 ))}
               </div>
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                Passing every gate only makes the evidence substantial enough to evaluate. It does
-                not switch on production authority.
+                Passing every gate only makes the active-release evidence substantial enough to
+                evaluate. It does not switch on production authority.
               </p>
             </section>
 
@@ -230,8 +273,8 @@ export default function BehaviorShadowPage() {
               </p>
               {snapshot.data.moments.length === 0 ? (
                 <p className="mt-4 rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
-                  No timestamped video evidence yet. New model runs can populate moments when the
-                  model returns timed evidence.
+                  No timestamped active-release video evidence yet. New model runs can populate
+                  moments when the model returns timed evidence.
                 </p>
               ) : (
                 <div className="mt-4 space-y-3">

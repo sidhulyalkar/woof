@@ -38,6 +38,7 @@ function dimensionValue(
 }
 
 function observationWeight(observation: StoredBehaviorObservation) {
+  if (observation.analysis.releaseQualification?.qualified !== true) return 0;
   if (!observation.analysis.mediaQuality.usable) return 0;
   if (observation.ownerFeedback?.accurate === false) return 0;
   const modelConfidence = clamp01(observation.analysis.mediaQuality.confidence);

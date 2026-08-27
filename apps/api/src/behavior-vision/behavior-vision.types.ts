@@ -1,5 +1,7 @@
 export const BEHAVIOR_OBSERVATION_SCHEMA_VERSION = 'woof-behavior-observation-v1';
 export const BEHAVIOR_PROFILE_SCHEMA_VERSION = 'woof-individual-behavior-profile-v1';
+export const BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION =
+  'woof-behavior-release-qualification-v1';
 
 export const BEHAVIOR_DIMENSIONS = [
   'arousal',
@@ -91,10 +93,23 @@ export type MediaQualityAssessment = {
   recaptureInstructions: string[];
 };
 
+export type BehaviorVisionReleaseQualification = {
+  qualificationVersion: typeof BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION;
+  qualified: true;
+  releaseId: string;
+  modelVersion: string;
+  featureVersion: string;
+  artifactSha256: string;
+  responseContract: typeof BEHAVIOR_OBSERVATION_SCHEMA_VERSION;
+};
+
 export type BehaviorVisionModelAnalysis = {
   schemaVersion: typeof BEHAVIOR_OBSERVATION_SCHEMA_VERSION;
   modelVersion: string;
   featureVersion: string;
+  releaseId?: string;
+  artifactSha256?: string;
+  releaseQualification?: BehaviorVisionReleaseQualification;
   mediaQuality: MediaQualityAssessment;
   evidence: BehaviorEvidence[];
   dimensions: BehaviorDimensionEstimate[];

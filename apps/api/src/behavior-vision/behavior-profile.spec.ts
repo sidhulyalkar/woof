@@ -1,10 +1,13 @@
 import { deriveIndividualBehaviorProfile } from './behavior-profile';
 import {
+  BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION,
   BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
   type BehaviorDimension,
   type HandlerAction,
   type StoredBehaviorObservation,
 } from './behavior-vision.types';
+
+const ARTIFACT_SHA256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 function makeObservation(input: {
   id: string;
@@ -15,8 +18,10 @@ function makeObservation(input: {
   context?: 'street' | 'park' | 'home';
   values?: Partial<Record<BehaviorDimension, number>>;
   accurate?: boolean;
+  qualified?: boolean;
 }): StoredBehaviorObservation {
   const values = input.values ?? {};
+  const qualified = input.qualified !== false;
   return {
     id: input.id,
     petId: 'pet-1',
@@ -36,6 +41,21 @@ function makeObservation(input: {
       schemaVersion: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
       modelVersion: 'test-model',
       featureVersion: 'test-features',
+      ...(qualified
+        ? {
+            releaseId: 'test-release',
+            artifactSha256: ARTIFACT_SHA256,
+            releaseQualification: {
+              qualificationVersion: BEHAVIOR_MODEL_RELEASE_QUALIFICATION_VERSION,
+              qualified: true as const,
+              releaseId: 'test-release',
+              modelVersion: 'test-model',
+              featureVersion: 'test-features',
+              artifactSha256: ARTIFACT_SHA256,
+              responseContract: BEHAVIOR_OBSERVATION_SCHEMA_VERSION,
+            },
+          }
+        : {}),
       mediaQuality: {
         usable: true,
         confidence: 0.9,
@@ -149,6 +169,29 @@ describe('individual behavior profile', () => {
       }),
     ]);
 
+    const arousal = profile.baselines.find((entry) => entry.dimension === 'arousal');
+    expect(arousal?.sampleCount).toBe(1);
+    expect(arousal?.mean).toBeCloseTo(0.2);
+  });
+
+  it('does not let owner confirmation promote a legacy unqualified model observation', () => {
+    const profile = deriveIndividualBehaviorProfile('pet-1', [
+      makeObservation({
+        id: 'legacy-confirmed',
+        createdAt: new Date(2026, 2, 3).toISOString(),
+        accurate: true,
+        qualified: false,
+        values: { arousal: 0.95, 'body-tension': 0.9 },
+      }),
+      makeObservation({
+        id: 'qualified-current',
+        createdAt: new Date(2026, 2, 4).toISOString(),
+        accurate: true,
+        values: { arousal: 0.2, 'body-tension': 0.25 },
+      }),
+    ]);
+
+    expect(profile.sampleCount).toBe(1);
     const arousal = profile.baselines.find((entry) => entry.dimension === 'arousal');
     expect(arousal?.sampleCount).toBe(1);
     expect(arousal?.mean).toBeCloseTo(0.2);

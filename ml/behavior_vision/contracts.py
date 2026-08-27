@@ -6,11 +6,13 @@ lightweight CI without downloading any vision checkpoints.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
+import re
 from typing import Any, Literal
 
 SCHEMA_VERSION = "woof-behavior-observation-v1"
 FEATURE_VERSION = "behavior-evidence-fusion-v1"
+SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 DIMENSIONS = {
     "arousal",
@@ -46,6 +48,58 @@ def clamp01(value: float) -> float:
     except (TypeError, ValueError) as exc:
         raise ContractError(f"expected numeric probability/value, got {value!r}") from exc
     return max(0.0, min(1.0, numeric))
+
+
+@dataclass(frozen=True)
+class ReleaseIdentity:
+    release_id: str
+    model_version: str
+    feature_version: str
+    artifact_sha256: str
+    response_contract: str = SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("releaseId", self.release_id),
+            ("modelVersion", self.model_version),
+            ("featureVersion", self.feature_version),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ContractError(f"{name} must be a non-empty string")
+        if not isinstance(self.artifact_sha256, str):
+            raise ContractError("artifactSha256 must be a string")
+        normalized_sha = self.artifact_sha256.strip().lower()
+        if not SHA256_RE.fullmatch(normalized_sha):
+            raise ContractError("artifactSha256 must be a 64-hex SHA-256")
+        if not isinstance(self.response_contract, str):
+            raise ContractError("responseContract must be a string")
+        if self.response_contract != SCHEMA_VERSION:
+            raise ContractError("responseContract does not match Behavior Vision contract")
+        object.__setattr__(self, "release_id", self.release_id.strip())
+        object.__setattr__(self, "model_version", self.model_version.strip())
+        object.__setattr__(self, "feature_version", self.feature_version.strip())
+        object.__setattr__(self, "artifact_sha256", normalized_sha)
+
+    @classmethod
+    def from_api(cls, value: object) -> "ReleaseIdentity":
+        if not isinstance(value, dict):
+            raise ContractError("expectedRelease must be an object")
+        return cls(
+            release_id=value.get("releaseId", ""),
+            model_version=value.get("modelVersion", ""),
+            feature_version=value.get("featureVersion", ""),
+            artifact_sha256=value.get("artifactSha256", ""),
+            response_contract=value.get("responseContract", ""),
+        )
+
+    def to_api(self) -> dict[str, str]:
+        return {
+            "releaseId": self.release_id,
+            "modelVersion": self.model_version,
+            "featureVersion": self.feature_version,
+            "artifactSha256": self.artifact_sha256,
+            "responseContract": self.response_contract,
+        }
 
 
 @dataclass(frozen=True)
@@ -204,8 +258,8 @@ class CanonicalAnalysis:
     feature_version: str = FEATURE_VERSION
     schema_version: str = SCHEMA_VERSION
 
-    def to_api(self) -> dict[str, Any]:
-        return {
+    def to_api(self, release_identity: ReleaseIdentity | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "schemaVersion": self.schema_version,
             "modelVersion": self.model_version,
             "featureVersion": self.feature_version,
@@ -216,6 +270,16 @@ class CanonicalAnalysis:
             "observableSummary": self.observable_summary,
             "uncertainty": self.uncertainty,
         }
+        if release_identity is not None:
+            payload.update(
+                {
+                    "releaseId": release_identity.release_id,
+                    "modelVersion": release_identity.model_version,
+                    "featureVersion": release_identity.feature_version,
+                    "artifactSha256": release_identity.artifact_sha256,
+                }
+            )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -225,6 +289,7 @@ class RequestMetadata:
     question: str | None = None
     prior_profile_summary: dict[str, Any] | None = None
     policy: dict[str, Any] = field(default_factory=dict)
+    expected_release: ReleaseIdentity | None = None
 
     @classmethod
     def from_json(cls, payload: dict[str, Any]) -> "RequestMetadata":
@@ -251,6 +316,12 @@ class RequestMetadata:
         prior = payload.get("priorProfileSummary")
         if prior is not None and not isinstance(prior, dict):
             raise ContractError("priorProfileSummary must be an object or null")
+        expected_release_raw = payload.get("expectedRelease")
+        expected_release = (
+            ReleaseIdentity.from_api(expected_release_raw)
+            if expected_release_raw is not None
+            else None
+        )
 
         return cls(
             pet=pet,
@@ -258,4 +329,5 @@ class RequestMetadata:
             question=question,
             prior_profile_summary=prior,
             policy=policy,
+            expected_release=expected_release,
         )

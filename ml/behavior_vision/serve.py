@@ -2,7 +2,8 @@
 
 Run separately from the main compatibility service because video dependencies and latency profiles are
 very different. Raw uploads are held only in request memory by this worker. Production deployments
-should put the worker on a private network and configure WOOF_BEHAVIOR_SERVICE_TOKEN.
+should put the worker on a private network and configure WOOF_BEHAVIOR_SERVICE_TOKEN plus an exact
+worker-owned release identity.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from .adapters import MediaInput
 from .contracts import ContractError, RequestMetadata
 from .pipeline import BehaviorVisionPipeline
+from .release import load_release_identity, require_matching_release
 
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
 ALLOWED_MEDIA_TYPES = {
@@ -48,12 +50,31 @@ def _authorize(authorization: str | None) -> None:
         raise HTTPException(status_code=403, detail="invalid behavior service bearer token")
 
 
+def _worker_release_or_http_error():
+    try:
+        release = load_release_identity()
+    except ContractError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if release is None:
+        raise HTTPException(status_code=503, detail="Behavior Vision worker release is not configured")
+    return release
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
+    try:
+        release = load_release_identity()
+        release_error = None
+    except ContractError as exc:
+        release = None
+        release_error = str(exc)
     return {
-        "ok": True,
+        "ok": release is not None and release_error is None,
         "service": "woof-behavior-vision",
         "enabledAdapters": [getattr(adapter, "adapter_id", "unknown") for adapter in pipeline.adapters],
+        "releaseConfigured": release is not None,
+        "release": release.to_api() if release is not None else None,
+        "releaseError": release_error,
         "authoritativeEmotionInference": False,
         "automaticGreetingRecommendation": False,
     }
@@ -66,6 +87,7 @@ async def analyze(
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, object]:
     _authorize(authorization)
+    worker_release = _worker_release_or_http_error()
 
     if media.content_type not in ALLOWED_MEDIA_TYPES:
         raise HTTPException(status_code=415, detail="unsupported behavior media type")
@@ -79,6 +101,10 @@ async def analyze(
 
     try:
         request_metadata = RequestMetadata.from_json(raw_metadata)
+        qualified_release = require_matching_release(
+            request_metadata.expected_release,
+            worker_release,
+        )
     except ContractError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -96,4 +122,4 @@ async def analyze(
         ),
         request_metadata,
     )
-    return analysis.to_api()
+    return analysis.to_api(qualified_release)
