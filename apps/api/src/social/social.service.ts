@@ -1,24 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
-import { GamificationService } from '../gamification/gamification.service';
+import { HouseholdsService } from '../households/households.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto, UpdatePostDto } from './dto/social.dto';
 
 @Injectable()
 export class SocialService {
   constructor(
-    private prisma: PrismaService,
-    private gamificationService: GamificationService,
+    private readonly prisma: PrismaService,
+    private readonly households: HouseholdsService,
   ) {}
 
   async createPost(userId: string, data: CreatePostDto) {
-    await this.validateOwnedRelations(userId, data.petId, data.activityId);
+    await this.validateAccessibleRelations(userId, data.petId, data.activityId);
 
     if (!data.text?.trim() && (!data.mediaUrls || data.mediaUrls.length === 0)) {
       throw new BadRequestException('A post needs text or media');
     }
 
-    const post = await this.prisma.post.create({
+    return this.prisma.post.create({
       data: {
         author: { connect: { id: userId } },
         text: data.text?.trim() || null,
@@ -29,15 +29,6 @@ export class SocialService {
       },
       include: this.postCardInclude(userId),
     });
-
-    await this.gamificationService.awardPoints({
-      userId,
-      points: 2,
-      reason: 'post_created',
-      relatedEntityId: post.id,
-    });
-
-    return post;
   }
 
   async findAllPosts(
@@ -49,9 +40,14 @@ export class SocialService {
   ) {
     const safeSkip = Math.max(0, Number(skip) || 0);
     const safeTake = Math.max(1, Math.min(Number(take) || 20, 100));
-    const where: Prisma.PostWhereInput = {};
-    if (authorUserId) where.authorUserId = authorUserId;
-    if (petId) where.petId = petId;
+    const blockedIds = await this.blockedUserIds(viewerUserId);
+    const filters: Prisma.PostWhereInput = {};
+    if (authorUserId) filters.authorUserId = authorUserId;
+    if (petId) filters.petId = petId;
+
+    const where: Prisma.PostWhereInput = {
+      AND: [filters, this.visiblePostWhere(viewerUserId, blockedIds)],
+    };
 
     const [posts, total] = await Promise.all([
       this.prisma.post.findMany({
@@ -76,9 +72,13 @@ export class SocialService {
     return { posts, total, skip: safeSkip, take: safeTake };
   }
 
-  async findPostById(id: string, viewerUserId?: string) {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
+  async findPostById(id: string, viewerUserId: string) {
+    const blockedIds = await this.blockedUserIds(viewerUserId);
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        AND: [this.visiblePostWhere(viewerUserId, blockedIds)],
+      },
       include: {
         author: {
           select: { id: true, handle: true, avatarUrl: true, isVerified: true },
@@ -89,14 +89,9 @@ export class SocialService {
         activity: {
           select: { id: true, type: true, startedAt: true, endedAt: true },
         },
-        likes: viewerUserId
-          ? { where: { userId: viewerUserId }, select: { id: true } }
-          : {
-              include: {
-                user: { select: { id: true, handle: true, avatarUrl: true } },
-              },
-            },
+        likes: { where: { userId: viewerUserId }, select: { id: true } },
         comments: {
+          where: blockedIds.length ? { userId: { notIn: blockedIds } } : undefined,
           include: {
             user: {
               select: { id: true, handle: true, avatarUrl: true },
@@ -117,7 +112,7 @@ export class SocialService {
 
   async updatePost(id: string, userId: string, data: UpdatePostDto) {
     await this.assertPostOwned(id, userId);
-    await this.validateOwnedRelations(userId, data.petId, data.activityId);
+    await this.validateAccessibleRelations(userId, data.petId, data.activityId);
 
     return this.prisma.post.update({
       where: { id },
@@ -142,18 +137,11 @@ export class SocialService {
   }
 
   async createLike(postId: string, userId: string) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true },
-    });
-    if (!post) {
-      throw new NotFoundException(`Post with ID ${postId} not found`);
-    }
+    await this.assertPostViewable(postId, userId);
 
     const existingLike = await this.prisma.like.findUnique({
       where: { postId_userId: { postId, userId } },
     });
-
     if (existingLike) return existingLike;
 
     return this.prisma.like.create({
@@ -180,9 +168,14 @@ export class SocialService {
     return { success: true };
   }
 
-  async getPostLikes(postId: string) {
+  async getPostLikes(postId: string, viewerUserId: string) {
+    await this.assertPostViewable(postId, viewerUserId);
+    const blockedIds = await this.blockedUserIds(viewerUserId);
     return this.prisma.like.findMany({
-      where: { postId },
+      where: {
+        postId,
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+      },
       include: {
         user: { select: { id: true, handle: true, avatarUrl: true } },
       },
@@ -191,8 +184,7 @@ export class SocialService {
   }
 
   async createComment(postId: string, userId: string, text: string) {
-    const post = await this.prisma.post.findUnique({ where: { id: postId }, select: { id: true } });
-    if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
+    await this.assertPostViewable(postId, userId);
 
     return this.prisma.comment.create({
       data: {
@@ -222,9 +214,14 @@ export class SocialService {
     return this.prisma.comment.delete({ where: { id } });
   }
 
-  async getPostComments(postId: string) {
+  async getPostComments(postId: string, viewerUserId: string) {
+    await this.assertPostViewable(postId, viewerUserId);
+    const blockedIds = await this.blockedUserIds(viewerUserId);
     return this.prisma.comment.findMany({
-      where: { postId },
+      where: {
+        postId,
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+      },
       include: {
         user: { select: { id: true, handle: true, avatarUrl: true } },
       },
@@ -232,7 +229,7 @@ export class SocialService {
     });
   }
 
-  private postCardInclude(viewerUserId?: string) {
+  private postCardInclude(viewerUserId: string) {
     return {
       author: {
         select: { id: true, handle: true, avatarUrl: true, isVerified: true },
@@ -240,18 +237,39 @@ export class SocialService {
       pet: {
         select: { id: true, name: true, species: true, breed: true, avatarUrl: true },
       },
-      likes: viewerUserId
-        ? { where: { userId: viewerUserId }, select: { id: true } }
-        : { take: 0, select: { id: true } },
+      likes: { where: { userId: viewerUserId }, select: { id: true } },
       _count: {
         select: { likes: true, comments: true },
       },
     } satisfies Prisma.PostInclude;
   }
 
+  private visiblePostWhere(viewerUserId: string, blockedIds: string[]): Prisma.PostWhereInput {
+    return {
+      AND: [
+        {
+          OR: [{ authorUserId: viewerUserId }, { visibility: 'PUBLIC' }],
+        },
+        ...(blockedIds.length ? [{ authorUserId: { notIn: blockedIds } }] : []),
+      ],
+    };
+  }
+
   private async assertPostOwned(id: string, userId: string) {
     const post = await this.prisma.post.findFirst({
       where: { id, authorUserId: userId },
+      select: { id: true },
+    });
+    if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
+  }
+
+  private async assertPostViewable(id: string, userId: string) {
+    const blockedIds = await this.blockedUserIds(userId);
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        AND: [this.visiblePostWhere(userId, blockedIds)],
+      },
       select: { id: true },
     });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
@@ -265,21 +283,31 @@ export class SocialService {
     if (!comment) throw new NotFoundException(`Comment with ID ${id} not found`);
   }
 
-  private async validateOwnedRelations(userId: string, petId?: string, activityId?: string) {
+  private async validateAccessibleRelations(userId: string, petId?: string, activityId?: string) {
     if (petId) {
-      const pet = await this.prisma.pet.findFirst({
-        where: { id: petId, ownerId: userId },
-        select: { id: true },
-      });
-      if (!pet) throw new NotFoundException('Pet not found');
+      await this.households.assertPetAccessible(userId, petId);
     }
 
     if (activityId) {
       const activity = await this.prisma.activity.findFirst({
-        where: { id: activityId, userId },
+        where: {
+          id: activityId,
+          AND: [this.households.householdActivityWhere(userId)],
+        },
         select: { id: true },
       });
       if (!activity) throw new NotFoundException('Activity not found');
     }
+  }
+
+  private async blockedUserIds(userId: string) {
+    const rows = await this.prisma.blockedUser.findMany({
+      where: {
+        OR: [{ userId }, { blockedId: userId }],
+      },
+      select: { userId: true, blockedId: true },
+    });
+
+    return [...new Set(rows.map((row) => (row.userId === userId ? row.blockedId : row.userId)))];
   }
 }
