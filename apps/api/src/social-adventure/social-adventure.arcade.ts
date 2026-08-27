@@ -129,12 +129,15 @@ export function scoreArcadeResponse(
     const answer = typeof response.optionId === 'string' ? response.optionId : '';
     const correct = answer === scenario.correctOptionId;
     return {
-      score: correct ? 100 : 20,
+      score: correct ? 100 : 0,
       correct,
       explanation: scenario.explanation,
     };
   }
 
+  // Marker Timing is practice telemetry. The browser reports tap timing so the
+  // learner can receive immediate feedback; public competition never uses this
+  // numeric score as proficiency evidence.
   const tapMs =
     typeof response.tapMs === 'number' && Number.isFinite(response.tapMs)
       ? response.tapMs
