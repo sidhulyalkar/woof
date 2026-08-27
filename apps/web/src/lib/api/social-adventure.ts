@@ -4,10 +4,10 @@ export type SocialAdventureReaction =
   'NICE_READ' | 'GOOD_CALL' | 'TRYING_THIS' | 'ADVENTURE_INSPIRATION' | 'CHEER';
 
 export type SocialAdventureScoreComponents = {
-  humanSkill: {
+  skillcraft: {
     score: number;
     maxScore: number;
-    bestByChallenge: Record<string, number>;
+    completedChallenges: string[];
   };
   adventureVariety: {
     score: number;
