@@ -1,0 +1,157 @@
+name: dogOS Adventure Learning Authority CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/adventure/**'
+      - 'apps/api/src/care-events/**'
+      - '.github/workflows/dogos-adventure-learning-ci.yml'
+      - 'docs/DOGOS_ADVENTURE_LEARNING_V2.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-adventure-learning-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Adventure learning authority
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-adventure-learning-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply canonical database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Enforce learning authority invariants
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const policy = fs.readFileSync('apps/api/src/adventure/adventure-learning-policy.ts', 'utf8');
+          const care = fs.readFileSync('apps/api/src/care-events/care-events.service.ts', 'utf8');
+          const adventure = fs.readFileSync('apps/api/src/adventure/adventure.service.ts', 'utf8');
+
+          for (const forbidden of ['bondXp', 'bond_xp', 'reward_ledger', 'RewardReceipt']) {
+            if (policy.includes(forbidden)) {
+              throw new Error(`Adventure learning policy must not consume reward authority: ${forbidden}`);
+            }
+          }
+
+          const start = care.indexOf('async getAdventureLearningEvents(');
+          const end = care.indexOf('async getSummary(', start);
+          if (start < 0 || end < 0) throw new Error('Missing isolated Adventure learning evidence query');
+          const evidenceQuery = care.slice(start, end);
+
+          for (const required of [
+            "source = 'QUEST_ENGINE'",
+            "event_type = 'SAFE_OPT_OUT'",
+            "LEFT(event_type, 6) = 'QUEST_'",
+            "INTERVAL '28 days'",
+            'Number.isFinite(limit)',
+            'LIMIT ${boundedLimit}',
+          ]) {
+            if (!evidenceQuery.includes(required)) {
+              throw new Error(`Missing Adventure learning evidence invariant: ${required}`);
+            }
+          }
+          for (const forbidden of ['reward_ledger', 'bond_xp', 'bondXp']) {
+            if (evidenceQuery.includes(forbidden)) {
+              throw new Error(`Learning evidence query must remain reward-free: ${forbidden}`);
+            }
+          }
+
+          for (const required of [
+            'originalPathway: quest.primaryPathway',
+            'rewardPathway',
+            'ADVENTURE_LEARNING_POLICY_VERSION',
+            'getAdventureLearningEvents',
+            'learningScoreAdjustment',
+          ]) {
+            if (!adventure.includes(required)) {
+              throw new Error(`Missing Adventure provenance invariant: ${required}`);
+            }
+          }
+          NODE
+
+      - name: Check Adventure learning formatting
+        run: >-
+          pnpm exec prettier --check
+          .github/workflows/dogos-adventure-learning-ci.yml
+          docs/DOGOS_ADVENTURE_LEARNING_V2.md
+          apps/api/src/adventure/adventure-learning-policy.ts
+          apps/api/src/adventure/adventure-learning-policy.spec.ts
+          apps/api/src/adventure/adventure-learning-ranking.spec.ts
+          apps/api/src/adventure/adventure.service.ts
+          apps/api/src/adventure/adventure.service.spec.ts
+          apps/api/src/care-events/care-event.types.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/care-events/care-events.integration.spec.ts
+
+      - name: Type-check monorepo
+        run: pnpm type-check
+
+      - name: Run deterministic learning and ranking contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/adventure/adventure-learning-policy.spec.ts
+          src/adventure/adventure-learning-ranking.spec.ts
+          --runInBand
+
+      - name: Run Adventure reward and completion contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/care-events/reward-policy.spec.ts
+          src/adventure/adventure.service.spec.ts
+          --runInBand
+
+      - name: Run canonical learning evidence integration contract
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/care-events/care-events.integration.spec.ts
+          --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build

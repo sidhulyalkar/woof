@@ -86,6 +86,15 @@ export type PathwayProgress = {
   lastEventAt: string | null;
 };
 
+export type AdventureLearningCareEvent = {
+  id: string;
+  eventType: string;
+  pathway: WellbeingPathway;
+  occurredAt: string;
+  context: Record<string, unknown> | null;
+  outcome: Record<string, unknown> | null;
+};
+
 export type CareSummary = {
   bondXp: number;
   rhythm: {
