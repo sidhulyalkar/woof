@@ -6,6 +6,7 @@ import {
   Globe2,
   HeartHandshake,
   Loader2,
+  MapPinned,
   PawPrint,
   ShieldCheck,
   Sparkles,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { BottomNav } from '@/components/bottom-nav';
+import { ShareableMoments } from '@/components/social-adventure/shareable-moments';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -149,9 +151,15 @@ export default function CommunityPage() {
               </Link>
             </Button>
             <Button variant="outline" asChild className="bg-transparent">
+              <Link href="/community/packs">
+                <MapPinned className="mr-2 h-4 w-4" aria-hidden="true" />
+                Local Packs
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="col-span-2 bg-transparent">
               <Link href="/pack">
                 <HeartHandshake className="mr-2 h-4 w-4" aria-hidden="true" />
-                Pack quests
+                Cooperative Pack quests
               </Link>
             </Button>
           </div>
@@ -235,6 +243,8 @@ export default function CommunityPage() {
           </section>
         )}
 
+        <ShareableMoments />
+
         <section className="mt-8" aria-labelledby="community-feed-heading">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -251,7 +261,7 @@ export default function CommunityPage() {
               <PawPrint className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
               <h3 className="mt-3 font-bold">No shared moments yet</h3>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                Finish an Adventure and choose “Share with Community.” Nothing is posted automatically.
+                Recent private Adventure moments appear above when they are eligible to share. Nothing is posted automatically.
               </p>
             </div>
           ) : (
