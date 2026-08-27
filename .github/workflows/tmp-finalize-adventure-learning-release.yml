@@ -1,0 +1,93 @@
+name: Temporary finalize Adventure learning release
+
+on:
+  push:
+    branches: [agent/tmp-finalize-adventure-learning-release]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/adventure-learning-signals-v2
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Finalize learning qualification and bounded evidence limit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/dogos-adventure-learning-ci.yml')
+          text = workflow.read_text()
+          old = '''          apps/api/src/adventure/adventure-learning-policy.spec.ts\n          apps/api/src/adventure/adventure.service.ts'''
+          new = '''          apps/api/src/adventure/adventure-learning-policy.spec.ts\n          apps/api/src/adventure/adventure-learning-ranking.spec.ts\n          apps/api/src/adventure/adventure.service.ts'''
+          if old not in text:
+              raise SystemExit('missing ranking format-list anchor')
+          text = text.replace(old, new, 1)
+          old = '''      - name: Run deterministic learning policy contracts\n        run: >-\n          pnpm --filter @woof/api exec jest\n          src/adventure/adventure-learning-policy.spec.ts\n          --runInBand'''
+          new = '''      - name: Run deterministic learning and ranking contracts\n        run: >-\n          pnpm --filter @woof/api exec jest\n          src/adventure/adventure-learning-policy.spec.ts\n          src/adventure/adventure-learning-ranking.spec.ts\n          --runInBand'''
+          if old not in text:
+              raise SystemExit('missing deterministic test anchor')
+          workflow.write_text(text.replace(old, new, 1))
+
+          service = Path('apps/api/src/care-events/care-events.service.ts')
+          text = service.read_text()
+          old = '''    await this.households.assertPetAccessible(userId, petId);\n    const boundedLimit = Math.max(1, Math.min(24, Math.round(limit)));'''
+          new = '''    await this.households.assertPetAccessible(userId, petId);\n    const requestedLimit = Number.isFinite(limit) ? Math.round(limit) : 24;\n    const boundedLimit = Math.max(1, Math.min(24, requestedLimit));'''
+          if old not in text:
+              raise SystemExit('missing bounded learning limit anchor')
+          service.write_text(text.replace(old, new, 1))
+
+          spec = Path('apps/api/src/care-events/care-events.integration.spec.ts')
+          text = spec.read_text()
+          old = '''    const learningEvents = await service.getAdventureLearningEvents(userId, petId);\n    const stored = learningEvents.find((entry) => entry.id === receipt.careEventId);'''
+          new = '''    const learningEvents = await service.getAdventureLearningEvents(userId, petId);\n    const nonFiniteLimitEvents = await service.getAdventureLearningEvents(userId, petId, Number.NaN);\n    const stored = learningEvents.find((entry) => entry.id === receipt.careEventId);'''
+          if old not in text:
+              raise SystemExit('missing learning integration anchor')
+          text = text.replace(old, new, 1)
+          old = '''    expect(stored).not.toHaveProperty('bondXp');\n    expect(\n      learningEvents.every('''
+          new = '''    expect(stored).not.toHaveProperty('bondXp');\n    expect(nonFiniteLimitEvents).toEqual(learningEvents);\n    expect(\n      learningEvents.every('''
+          if old not in text:
+              raise SystemExit('missing non-finite assertion anchor')
+          spec.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Canonicalize final release surface
+        run: >-
+          pnpm exec prettier --write
+          .github/workflows/dogos-adventure-learning-ci.yml
+          docs/DOGOS_ADVENTURE_LEARNING_V2.md
+          apps/api/src/adventure/adventure-learning-policy.ts
+          apps/api/src/adventure/adventure-learning-policy.spec.ts
+          apps/api/src/adventure/adventure-learning-ranking.spec.ts
+          apps/api/src/adventure/adventure.service.ts
+          apps/api/src/adventure/adventure.service.spec.ts
+          apps/api/src/care-events/care-event.types.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/care-events/care-events.integration.spec.ts
+
+      - name: Commit final release changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/dogos-adventure-learning-ci.yml \
+            apps/api/src/care-events/care-events.service.ts \
+            apps/api/src/care-events/care-events.integration.spec.ts
+          git commit -m "Finalize Adventure learning release contracts"
+          git push origin HEAD:agent/adventure-learning-signals-v2
