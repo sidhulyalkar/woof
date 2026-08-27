@@ -10,8 +10,41 @@ from __future__ import annotations
 
 import argparse
 from fnmatch import fnmatch
+import os
 import subprocess
 import sys
+
+
+LEGACY_WORKFLOW_SCOPES: dict[str, tuple[str, ...]] = {
+    "dogOS Session Migration Immutability CI": (
+        "packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/**",
+    ),
+    "dogOS Realtime Session Readiness CI": (
+        "apps/api/src/auth/session-authority.service.ts",
+        "apps/api/src/chat/chat.gateway.ts",
+        "apps/api/src/chat/chat.gateway.spec.ts",
+        "apps/api/src/chat/chat-session-ready.spec.ts",
+        "apps/web/src/lib/socket.ts",
+        "apps/web/src/lib/socket.spec.ts",
+        "packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/**",
+        "docs/DOGOS_SESSION_AUTHORITY.md",
+    ),
+    "dogOS Session Authority CI": (
+        "apps/api/src/auth/**",
+        "apps/api/src/chat/chat.gateway.ts",
+        "apps/api/src/chat/chat.gateway.spec.ts",
+        "apps/api/src/chat/chat-session-ready.spec.ts",
+        "apps/api/src/chat/chat-security.service.ts",
+        "apps/api/src/chat/chat-security.service.spec.ts",
+        "apps/api/src/chat/chat.module.ts",
+        "apps/web/src/lib/api.ts",
+        "apps/web/src/lib/socket.ts",
+        "apps/web/src/lib/socket.spec.ts",
+        "apps/mobile/src/api/auth.ts",
+        "packages/database/prisma/migrations/20260824233000_add_dogos_auth_sessions/**",
+        "docs/DOGOS_SESSION_AUTHORITY.md",
+    ),
+}
 
 
 def fail(message: str) -> None:
@@ -50,7 +83,11 @@ def main() -> None:
     )
     args = parser.parse_intermixed_args()
 
-    if args.enforce_if_changed:
+    scope_patterns = list(args.enforce_if_changed)
+    if not scope_patterns:
+        scope_patterns.extend(LEGACY_WORKFLOW_SCOPES.get(os.environ.get("GITHUB_WORKFLOW", ""), ()))
+
+    if scope_patterns:
         changed_files = git_output(
             "diff",
             "--name-only",
@@ -59,12 +96,14 @@ def main() -> None:
         owned_changes = [
             path
             for path in changed_files
-            if any(fnmatch(path, pattern) for pattern in args.enforce_if_changed)
+            if not path.startswith(".github/workflows/")
+            and path != ".github/scripts/assert-database-ownership.py"
+            and any(fnmatch(path, pattern) for pattern in scope_patterns)
         ]
         if not owned_changes:
             print(
                 "Database ownership guard skipped: no domain-owned files changed; "
-                "shared composition regressions may still run."
+                "shared composition and qualification regressions may still run."
             )
             return
         print("Database ownership guard active for domain changes:")
