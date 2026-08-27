@@ -9,6 +9,7 @@ on:
       - 'apps/api/src/common/time/**'
       - 'apps/api/src/households/**'
       - 'apps/api/src/intelligence/**'
+      - '.github/scripts/assert-database-ownership.py'
       - '.github/workflows/dogos-daily-signals-capture-ci.yml'
       - 'docs/DOGOS_DAILY_SIGNALS_CAPTURE_V1.md'
 
@@ -67,10 +68,17 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject database ownership in capture slice
+      - name: Reject database ownership when Daily Signals source changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python .github/scripts/assert-database-ownership.py "$BASE_SHA"
+        run: |
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA" \
+            --enforce-if-changed 'apps/api/src/care-events/**' \
+            --enforce-if-changed 'apps/api/src/common/time/**' \
+            --enforce-if-changed 'apps/api/src/households/**' \
+            --enforce-if-changed 'apps/api/src/intelligence/**' \
+            --enforce-if-changed 'docs/DOGOS_DAILY_SIGNALS_CAPTURE_V1.md' \
+            --enforce-if-changed '.github/workflows/dogos-daily-signals-capture-ci.yml'
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
