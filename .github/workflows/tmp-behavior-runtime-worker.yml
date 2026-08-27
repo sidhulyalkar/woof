@@ -1,0 +1,145 @@
+name: Temporary Behavior Vision runtime worker materializer
+
+on:
+  push:
+    branches: [agent/tmp-behavior-runtime-worker]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/behavior-vision-runtime-provenance-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Materialize worker provenance contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          adapters = Path('ml/behavior_vision/adapters.py')
+          text = adapters.read_text()
+          text = text.replace(
+              'from .contracts import AdapterObservation, RequestMetadata\n',
+              'from .contracts import AdapterObservation, RequestMetadata\nfrom .registry import BehaviorModelRegistry\n',
+              1,
+          )
+          old = '''def load_configured_adapters() -> list[BehaviorAdapter]:\n    raw = os.getenv("WOOF_BEHAVIOR_ADAPTERS", "").strip()\n    if not raw:\n        return []\n    adapters: list[BehaviorAdapter] = []\n    for item in raw.split(","):\n        path = item.strip()\n        if path:\n            adapters.append(load_adapter(path))\n    return adapters\n'''
+          new = '''def parse_configured_adapter_spec(spec: str) -> tuple[str, str]:\n    if "=" not in spec:\n        raise ValueError(\n            "Behavior Vision adapters must be configured as registry-id=package.module:object"\n        )\n    adapter_id, import_path = (part.strip() for part in spec.split("=", 1))\n    if not adapter_id or not import_path:\n        raise ValueError(\n            "Behavior Vision adapters must include both registry id and import path"\n        )\n    return adapter_id, import_path\n\n\ndef load_configured_adapters(\n    registry: BehaviorModelRegistry | None = None,\n) -> list[BehaviorAdapter]:\n    raw = os.getenv("WOOF_BEHAVIOR_ADAPTERS", "").strip()\n    if not raw:\n        return []\n    authority = registry or BehaviorModelRegistry.load()\n    adapters: list[BehaviorAdapter] = []\n    configured_ids: list[str] = []\n    for item in raw.split(","):\n        spec = item.strip()\n        if not spec:\n            continue\n        adapter_id, import_path = parse_configured_adapter_spec(spec)\n        authority.assert_primary_runtime_adapter(adapter_id)\n        adapter = load_adapter(import_path)\n        if adapter.adapter_id != adapter_id:\n            raise TypeError(\n                f"configured Behavior Vision adapter {adapter_id} identified itself as {adapter.adapter_id}"\n            )\n        adapters.append(adapter)\n        configured_ids.append(adapter_id)\n    authority.validate_configured_adapter_ids(configured_ids)\n    return adapters\n'''
+          if old not in text:
+              raise SystemExit('adapter loader anchor not found')
+          adapters.write_text(text.replace(old, new, 1))
+
+          contracts = Path('ml/behavior_vision/contracts.py')
+          text = contracts.read_text()
+          old = '''class CanonicalAnalysis:\n    model_version: str\n    media_quality: MediaQuality\n    evidence: tuple[Evidence, ...]\n    dimensions: tuple[DimensionEstimate, ...]\n    hypotheses: tuple[Hypothesis, ...]\n    observable_summary: str\n    uncertainty: str\n    feature_version: str = FEATURE_VERSION\n    schema_version: str = SCHEMA_VERSION\n'''
+          new = '''class CanonicalAnalysis:\n    model_version: str\n    media_quality: MediaQuality\n    evidence: tuple[Evidence, ...]\n    dimensions: tuple[DimensionEstimate, ...]\n    hypotheses: tuple[Hypothesis, ...]\n    observable_summary: str\n    uncertainty: str\n    runtime_provenance: dict[str, Any] = field(default_factory=dict)\n    feature_version: str = FEATURE_VERSION\n    schema_version: str = SCHEMA_VERSION\n'''
+          if old not in text:
+              raise SystemExit('CanonicalAnalysis anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''            "featureVersion": self.feature_version,\n            "mediaQuality": self.media_quality.to_api(),'''
+          new = '''            "featureVersion": self.feature_version,\n            "runtimeProvenance": self.runtime_provenance,\n            "mediaQuality": self.media_quality.to_api(),'''
+          if old not in text:
+              raise SystemExit('CanonicalAnalysis to_api anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''        required_policy = {\n            "objectiveObservationOnly": True,\n            "noDefinitiveEmotionInference": True,\n            "noAutomaticGreetingRecommendation": True,\n        }'''
+          new = '''        required_policy = {\n            "objectiveObservationOnly": True,\n            "noDefinitiveEmotionInference": True,\n            "noAutomaticGreetingRecommendation": True,\n            "noHumanFaceRecognition": True,\n            "noBiometricIdentityInference": True,\n        }'''
+          if old not in text:
+              raise SystemExit('request policy anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''        question = payload.get("question")\n        if question is not None and not isinstance(question, str):'''
+          new = '''        audio_policy = policy.get("audioAnalysisAllowed")\n        context_audio = context.get("audioAnalysisAllowed")\n        if not isinstance(audio_policy, bool) or audio_policy is not context_audio:\n            raise ContractError(\n                "request audioAnalysisAllowed policy must match the observation context"\n            )\n\n        question = payload.get("question")\n        if question is not None and not isinstance(question, str):'''
+          if old not in text:
+              raise SystemExit('audio policy insertion anchor not found')
+          contracts.write_text(text.replace(old, new, 1))
+
+          pipeline = Path('ml/behavior_vision/pipeline.py')
+          text = pipeline.read_text()
+          text = text.replace(
+              'from .adapters import BehaviorAdapter, MediaInput, load_configured_adapters\n',
+              'from .adapters import BehaviorAdapter, MediaInput, load_configured_adapters\nfrom .registry import BehaviorModelRegistry\n',
+              1,
+          )
+          old = '''class BehaviorVisionPipeline:\n    def __init__(self, adapters: Iterable[BehaviorAdapter] | None = None) -> None:\n        self.adapters = list(adapters) if adapters is not None else load_configured_adapters()\n'''
+          new = '''class BehaviorVisionPipeline:\n    def __init__(\n        self,\n        adapters: Iterable[BehaviorAdapter] | None = None,\n        *,\n        enforce_registry: bool | None = None,\n        registry: BehaviorModelRegistry | None = None,\n    ) -> None:\n        self.registry = registry or BehaviorModelRegistry.load()\n        self.enforce_registry = adapters is None if enforce_registry is None else enforce_registry\n        self.adapters = (\n            list(adapters)\n            if adapters is not None\n            else load_configured_adapters(self.registry)\n        )\n        if self.enforce_registry:\n            self.registry.validate_configured_adapter_ids(\n                getattr(adapter, "adapter_id", "") for adapter in self.adapters\n            )\n\n    def runtime_provenance(\n        self, observations: Iterable[AdapterObservation] = ()\n    ) -> dict[str, object]:\n        observed = tuple(observations)\n        return self.registry.runtime_provenance(\n            (getattr(adapter, "adapter_id", "") for adapter in self.adapters),\n            ((entry.adapter_id, entry.model_version) for entry in observed),\n            enforce_registry=self.enforce_registry,\n        )\n'''
+          if old not in text:
+              raise SystemExit('pipeline constructor anchor not found')
+          text = text.replace(old, new, 1)
+          # Both normal result branches use the same observable fields.
+          text = text.replace(
+              '''                observable_summary="The clip did not produce enough reliable objective evidence.",\n                uncertainty="Woof abstained rather than inferring behavior from weak model signals.",\n            )''',
+              '''                observable_summary="The clip did not produce enough reliable objective evidence.",\n                uncertainty="Woof abstained rather than inferring behavior from weak model signals.",\n                runtime_provenance=self.runtime_provenance(observations),\n            )''',
+              1,
+          )
+          text = text.replace(
+              '''            observable_summary=summary,\n            uncertainty=(\n                "Dimensions summarize observable movement/posture evidence. They do not reveal the dog’s "\n                "internal emotion or prove social intent."\n            ),\n        )''',
+              '''            observable_summary=summary,\n            uncertainty=(\n                "Dimensions summarize observable movement/posture evidence. They do not reveal the dog’s "\n                "internal emotion or prove social intent."\n            ),\n            runtime_provenance=self.runtime_provenance(observations),\n        )''',
+              1,
+          )
+          text = text.replace(
+              '''            observable_summary="No reliable automated behavior observation was produced.",\n            uncertainty="Woof abstained rather than inferring behavior without adequate evidence.",\n        )''',
+              '''            observable_summary="No reliable automated behavior observation was produced.",\n            uncertainty="Woof abstained rather than inferring behavior without adequate evidence.",\n            runtime_provenance=self.runtime_provenance(),\n        )''',
+              1,
+          )
+          pipeline.write_text(text)
+
+          serve = Path('ml/behavior_vision/serve.py')
+          text = serve.read_text()
+          old = '''        "enabledAdapters": [getattr(adapter, "adapter_id", "unknown") for adapter in pipeline.adapters],\n        "authoritativeEmotionInference": False,'''
+          new = '''        "enabledAdapters": [getattr(adapter, "adapter_id", "unknown") for adapter in pipeline.adapters],\n        "runtimeProvenance": pipeline.runtime_provenance(),\n        "authoritativeEmotionInference": False,'''
+          if old not in text:
+              raise SystemExit('health provenance anchor not found')
+          serve.write_text(text.replace(old, new, 1))
+
+          test_pipeline = Path('ml/behavior_vision/test_pipeline.py')
+          text = test_pipeline.read_text()
+          old = '''            "policy": {\n                "objectiveObservationOnly": True,\n                "noDefinitiveEmotionInference": True,\n                "noAutomaticGreetingRecommendation": True,\n            },'''
+          new = '''            "policy": {\n                "objectiveObservationOnly": True,\n                "noDefinitiveEmotionInference": True,\n                "noAutomaticGreetingRecommendation": True,\n                "noHumanFaceRecognition": True,\n                "noBiometricIdentityInference": True,\n                "audioAnalysisAllowed": False,\n            },'''
+          if old not in text:
+              raise SystemExit('test metadata policy anchor not found')
+          text = text.replace(old, new, 1)
+          old = '''            "context": {"context": "street", "otherDogsPresent": other_dogs},'''
+          new = '''            "context": {\n                "context": "street",\n                "otherDogsPresent": other_dogs,\n                "audioAnalysisAllowed": False,\n            },'''
+          if old not in text:
+              raise SystemExit('test context anchor not found')
+          text = text.replace(old, new, 1)
+          insertion = '''\n    def test_runtime_provenance_is_emitted_without_claiming_checkpoint_attestation(self) -> None:\n        result = BehaviorVisionPipeline(adapters=[FakePoseAdapter()]).analyze(\n            MediaInput(bytes=b"video", mime_type="video/webm", filename="dog.webm"),\n            metadata(),\n        )\n        provenance = result.to_api()["runtimeProvenance"]\n        self.assertEqual(provenance["artifactAttestation"], "not-available")\n        self.assertEqual(provenance["policyVersion"], "behavior-runtime-provenance-v1")\n        self.assertEqual(provenance["contributingAdapters"][0]["id"], "fake-pose")\n\n    def test_audio_policy_must_match_context(self) -> None:\n        with self.assertRaises(ValueError):\n            RequestMetadata.from_json(\n                {\n                    "schemaVersion": SCHEMA_VERSION,\n                    "pet": {"name": "Nova"},\n                    "context": {"audioAnalysisAllowed": False},\n                    "policy": {\n                        "objectiveObservationOnly": True,\n                        "noDefinitiveEmotionInference": True,\n                        "noAutomaticGreetingRecommendation": True,\n                        "noHumanFaceRecognition": True,\n                        "noBiometricIdentityInference": True,\n                        "audioAnalysisAllowed": True,\n                    },\n                }\n            )\n'''
+          anchor = '''    def test_adapter_failure_isolated(self) -> None:\n'''
+          if anchor not in text:
+              raise SystemExit('test insertion anchor not found')
+          test_pipeline.write_text(text.replace(anchor, insertion + '\n' + anchor, 1))
+          PY
+
+      - name: Format worker Python where applicable
+        run: python -m compileall -q ml/behavior_vision
+
+      - name: Run worker contract tests
+        run: python -m unittest ml.behavior_vision.test_pipeline ml.behavior_vision.test_registry
+
+      - name: Commit worker runtime provenance
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ml/behavior_vision/adapters.py \
+            ml/behavior_vision/contracts.py \
+            ml/behavior_vision/pipeline.py \
+            ml/behavior_vision/serve.py \
+            ml/behavior_vision/test_pipeline.py
+          git commit -m "Enforce Behavior Vision runtime registry provenance"
+          git push origin HEAD:agent/behavior-vision-runtime-provenance-v1
