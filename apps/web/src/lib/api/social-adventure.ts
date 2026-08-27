@@ -50,6 +50,16 @@ export type GlobalLeaderboard = {
   disclaimer: string;
 };
 
+export type PackLeaderboard = {
+  scope: 'PACK';
+  pack: { id: string; name: string; memberCount: number };
+  cohortReady: boolean;
+  minimumCohort: number;
+  entries: LeagueEntry[];
+  policyVersion: string;
+  message?: string;
+};
+
 export type ArcadeScenario = {
   challengeKey: 'MAKE_IT_EASIER' | 'CATCH_THE_GOOD' | 'PAIRING_LAB' | 'MARKER_TIMING';
   challengeVersion: string;
@@ -175,4 +185,6 @@ export const socialAdventureApi = {
     apiClient.post<{ ok: true }>(`/social-adventure/packs/${packId}/join`, {}),
   leavePack: (packId: string) =>
     apiClient.delete<{ ok: true }>(`/social-adventure/packs/${packId}/membership`),
+  packLeaderboard: (packId: string) =>
+    apiClient.get<PackLeaderboard>(`/social-adventure/packs/${packId}/leaderboard`),
 };
