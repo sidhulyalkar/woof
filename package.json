@@ -2,7 +2,7 @@
   "name": "woof-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Woof - pet social coordination, activity, and compatibility platform",
+  "description": "Woof - relationship-first dogOS companion for shared activities, longitudinal context, and trustworthy personalization",
   "author": "Sidharth Hulyalkar",
   "license": "MIT",
   "scripts": {
