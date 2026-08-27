@@ -20,7 +20,7 @@ export class SocialController {
   }
 
   @Get('posts')
-  @ApiOperation({ summary: 'Get posts (paginated)' })
+  @ApiOperation({ summary: 'Get privacy-authorized posts (paginated)' })
   async findAllPosts(
     @Request() req: AuthenticatedRequest,
     @Query('skip') skip?: number,
@@ -32,7 +32,7 @@ export class SocialController {
   }
 
   @Get('posts/:id')
-  @ApiOperation({ summary: 'Get post by ID' })
+  @ApiOperation({ summary: 'Get a privacy-authorized post by ID' })
   async findOnePost(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.socialService.findPostById(id, req.user.sub);
   }
@@ -54,7 +54,7 @@ export class SocialController {
   }
 
   @Post('posts/:postId/likes')
-  @ApiOperation({ summary: 'Like a post as the authenticated user' })
+  @ApiOperation({ summary: 'Like a visible post as the authenticated user' })
   async createLike(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
     return this.socialService.createLike(postId, req.user.sub);
   }
@@ -66,13 +66,13 @@ export class SocialController {
   }
 
   @Get('posts/:postId/likes')
-  @ApiOperation({ summary: 'Get likes for a post' })
-  async getPostLikes(@Param('postId') postId: string) {
-    return this.socialService.getPostLikes(postId);
+  @ApiOperation({ summary: 'Get visible likes for a privacy-authorized post' })
+  async getPostLikes(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
+    return this.socialService.getPostLikes(postId, req.user.sub);
   }
 
   @Post('posts/:postId/comments')
-  @ApiOperation({ summary: 'Comment on a post as the authenticated user' })
+  @ApiOperation({ summary: 'Comment on a visible post as the authenticated user' })
   async createComment(
     @Request() req: AuthenticatedRequest,
     @Param('postId') postId: string,
@@ -82,9 +82,9 @@ export class SocialController {
   }
 
   @Get('posts/:postId/comments')
-  @ApiOperation({ summary: 'Get comments for a post' })
-  async getPostComments(@Param('postId') postId: string) {
-    return this.socialService.getPostComments(postId);
+  @ApiOperation({ summary: 'Get visible comments for a privacy-authorized post' })
+  async getPostComments(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
+    return this.socialService.getPostComments(postId, req.user.sub);
   }
 
   @Put('comments/:id')
