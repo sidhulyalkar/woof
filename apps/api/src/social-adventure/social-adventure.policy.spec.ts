@@ -26,7 +26,7 @@ describe('Social Adventure score policy', () => {
     expect(score.components.adventureVariety.score).toBe(25);
   });
 
-  it('rewards bounded Skillcraft breadth while ignoring practice score magnitude', () => {
+  it('rewards bounded Human Skill breadth while ignoring practice score magnitude', () => {
     const lowPractice = deriveSocialAdventureScore({
       adventurePathways: [],
       humanSkillBestScores: {
@@ -46,13 +46,13 @@ describe('Social Adventure score policy', () => {
       },
     });
 
-    expect(lowPractice.components.skillcraft.completedChallenges).toEqual([
+    expect(lowPractice.components.humanSkill.completedChallenges).toEqual([
       'MAKE_IT_EASIER',
       'CATCH_THE_GOOD',
       'PAIRING_LAB',
       'MARKER_TIMING',
     ]);
-    expect(lowPractice.components.skillcraft.score).toBe(200);
+    expect(lowPractice.components.humanSkill.score).toBe(200);
     expect(perfectPractice.score).toBe(lowPractice.score);
     expect(lowPractice.maxScore).toBe(375);
   });
@@ -66,8 +66,8 @@ describe('Social Adventure score policy', () => {
       },
     });
 
-    expect(score.components.skillcraft.completedChallenges).toEqual([]);
-    expect(score.components.skillcraft.score).toBe(0);
+    expect(score.components.humanSkill.completedChallenges).toEqual([]);
+    expect(score.components.humanSkill.score).toBe(0);
   });
 
   it('uses an explicit Monday UTC weekly season without streak semantics', () => {
