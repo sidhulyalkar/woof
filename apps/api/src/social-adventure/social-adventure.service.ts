@@ -210,7 +210,7 @@ export class SocialAdventureService {
       },
       policyVersion: SOCIAL_ADVENTURE_POLICY_VERSION,
       disclaimer:
-        'This league scores human learning and bounded Adventure variety. It does not rank pet obedience, health, exercise volume, symptoms, mileage, likes, or streaks.',
+        'This league scores human learning breadth and bounded Adventure variety. It does not rank pet obedience, health, exercise volume, symptoms, mileage, likes, streaks, or Arcade practice-score magnitude.',
     };
   }
 
@@ -372,7 +372,7 @@ export class SocialAdventureService {
         bestScore: bestScores[scenario.challengeKey] ?? null,
       })),
       scoring:
-        'Only your best score for each Human Skill game contributes to the weekly Social Adventure score. Repetition volume adds nothing.',
+        'Arcade scores are personal practice feedback. Completing each different Human Skill game once this week contributes one fixed breadth unit; higher scores and retries add no league points.',
     };
   }
 
@@ -633,41 +633,46 @@ export class SocialAdventureService {
     const season = currentUtcSeason();
     const [adventureRows, skillRows] = await Promise.all([
       this.prisma.$queryRaw<AdventureEvidenceRow[]>(Prisma.sql`
-        SELECT id, pathway
+        SELECT DISTINCT ON (pathway) id, pathway
         FROM public.care_events
         WHERE user_id = ${userId}
           AND source = 'QUEST_ENGINE'
           AND event_type LIKE 'QUEST_%'
           AND occurred_at >= ${season.startsAt}
           AND occurred_at < ${season.endsAt}
-        ORDER BY id ASC
+        ORDER BY pathway, occurred_at ASC, id ASC
       `),
       this.prisma.$queryRaw<SkillScoreRow[]>(Prisma.sql`
-        SELECT id, challenge_key AS "challengeKey", score
+        SELECT DISTINCT ON (challenge_key)
+          id,
+          challenge_key AS "challengeKey",
+          score
         FROM dogos_social.human_skill_attempts
         WHERE user_id = ${userId}
           AND completed_at >= ${season.startsAt}
           AND completed_at < ${season.endsAt}
           AND score IS NOT NULL
-        ORDER BY id ASC
+        ORDER BY challenge_key, completed_at ASC, id ASC
       `),
     ]);
 
-    const bestScores: Partial<Record<HumanSkillChallenge, number>> = {};
+    const completedHumanSkills: Partial<Record<HumanSkillChallenge, number>> = {};
     for (const row of skillRows) {
       if (!this.isHumanSkillChallenge(row.challengeKey)) continue;
-      bestScores[row.challengeKey] = Math.max(bestScores[row.challengeKey] ?? 0, row.score);
+      // The value only marks finite completion for the breadth policy. Practice
+      // magnitude is intentionally excluded from league arithmetic.
+      completedHumanSkills[row.challengeKey] = row.score;
     }
 
     const score = deriveSocialAdventureScore({
       adventurePathways: adventureRows.map((row) => row.pathway),
-      humanSkillBestScores: bestScores,
+      humanSkillBestScores: completedHumanSkills,
     });
     const sourceHash = createHash('sha256')
       .update(
         JSON.stringify({
           adventure: adventureRows.map((row) => [row.id, row.pathway]),
-          humanSkill: skillRows.map((row) => [row.id, row.challengeKey, row.score]),
+          humanSkill: skillRows.map((row) => [row.id, row.challengeKey]),
         })
       )
       .digest('hex');
@@ -787,7 +792,7 @@ export class SocialAdventureService {
       petId: null,
       kind: 'SKILL_MOMENT',
       headline: title,
-      summary: `Practiced ${this.humanize(attempt.challengeKey)} and scored ${attempt.score}/100. The game measures human learning, not pet performance.`,
+      summary: `Practiced ${this.humanize(attempt.challengeKey)} and scored ${attempt.score}/100. The score is personal feedback, not pet performance or league proficiency.`,
       payload: {
         challengeKey: attempt.challengeKey,
         challengeVersion: attempt.challengeVersion,
