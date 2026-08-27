@@ -129,9 +129,10 @@ export default function ArcadePage() {
             Practice the human mechanics as a game.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Timing, shaping decisions, catching useful behavior, and positive pairing are scored
-            here. Only your best score in each game counts this week, so grinding repetitions gives
-            no advantage.
+            Timing, setup choices, catching useful behavior, and positive pairing are practice
+            skills here. Your 0–100 result is personal feedback, not competitive proficiency.
+            Completing each different game once this week contributes a fixed amount to Social
+            Adventure; replaying or scoring higher does not raise your rank.
           </p>
           <Button variant="outline" asChild className="mt-4 bg-transparent">
             <Link href="/community">See Community league →</Link>
@@ -160,7 +161,7 @@ export default function ArcadePage() {
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-                    {challenge.bestScore === null ? 'New' : `Best ${challenge.bestScore}`}
+                    {challenge.bestScore === null ? 'New' : `Practice best ${challenge.bestScore}`}
                   </span>
                 </div>
                 <Button
@@ -226,6 +227,10 @@ export default function ArcadePage() {
                 <Button size="lg" className="mt-4 w-full" onClick={markTiming}>
                   Mark now
                 </Button>
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                  This browser-timed round is a teaching exercise. Its millisecond result never
+                  determines public rank.
+                </p>
               </div>
             )}
 
@@ -235,7 +240,7 @@ export default function ArcadePage() {
                 role="status"
               >
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Scoring the human move…
+                Scoring the practice round…
               </div>
             )}
 
@@ -247,11 +252,11 @@ export default function ArcadePage() {
                     aria-hidden="true"
                   />
                   <div>
-                    <p className="eyebrow">Round complete</p>
+                    <p className="eyebrow">Practice result</p>
                     <p className="mt-1 text-3xl font-black text-primary">{receipt.score}/100</p>
                     {receipt.timingErrorMs !== undefined && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {receipt.timingErrorMs} ms from the target moment
+                        {receipt.timingErrorMs} ms from the practice target
                       </p>
                     )}
                   </div>
@@ -272,7 +277,8 @@ export default function ArcadePage() {
                   </Button>
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                  Sharing publishes this Human Skill result, not a pet score or private dog history.
+                  Sharing publishes this Human Skill practice result, not a pet score or private dog
+                  history. Your numeric result does not increase league rank.
                 </p>
               </div>
             )}
