@@ -25,6 +25,9 @@ export type HumanSkillChallenge = (typeof HUMAN_SKILL_CHALLENGES)[number];
 
 export type SocialAdventureScoreInput = {
   adventurePathways: string[];
+  // Practice scores establish that a server-issued game was completed, but their
+  // magnitude never affects public rank. Open-source answers and browser timing
+  // are useful teaching feedback, not trustworthy competitive proficiency evidence.
   humanSkillBestScores: Partial<Record<HumanSkillChallenge, number>>;
 };
 
@@ -33,10 +36,10 @@ export type SocialAdventureScore = {
   maxScore: number;
   policyVersion: string;
   components: {
-    humanSkill: {
+    skillcraft: {
       score: number;
       maxScore: number;
-      bestByChallenge: Partial<Record<HumanSkillChallenge, number>>;
+      completedChallenges: HumanSkillChallenge[];
     };
     adventureVariety: {
       score: number;
@@ -46,10 +49,11 @@ export type SocialAdventureScore = {
   };
 };
 
+const SKILLCRAFT_POINTS = 50;
 const PATHWAY_POINTS = 25;
-const HUMAN_SKILL_MAX = 400;
+const SKILLCRAFT_MAX = HUMAN_SKILL_CHALLENGES.length * SKILLCRAFT_POINTS;
 const ADVENTURE_VARIETY_MAX = SOCIAL_ADVENTURE_PATHWAYS.length * PATHWAY_POINTS;
-const MAX_SCORE = HUMAN_SKILL_MAX + ADVENTURE_VARIETY_MAX;
+const MAX_SCORE = SKILLCRAFT_MAX + ADVENTURE_VARIETY_MAX;
 
 export function deriveSocialAdventureScore(input: SocialAdventureScoreInput): SocialAdventureScore {
   const allowedPathways = new Set<string>(SOCIAL_ADVENTURE_PATHWAYS);
@@ -57,28 +61,22 @@ export function deriveSocialAdventureScore(input: SocialAdventureScoreInput): So
     .filter((pathway): pathway is SocialAdventurePathway => allowedPathways.has(pathway))
     .sort((a, b) => a.localeCompare(b));
 
-  const bestByChallenge: Partial<Record<HumanSkillChallenge, number>> = {};
-  let humanSkillScore = 0;
-
-  for (const challenge of HUMAN_SKILL_CHALLENGES) {
-    const raw = input.humanSkillBestScores[challenge];
-    if (raw === undefined || !Number.isFinite(raw)) continue;
-    const bounded = Math.max(0, Math.min(100, Math.round(raw)));
-    bestByChallenge[challenge] = bounded;
-    humanSkillScore += bounded;
-  }
-
+  const completedChallenges = HUMAN_SKILL_CHALLENGES.filter((challenge) => {
+    const practiceScore = input.humanSkillBestScores[challenge];
+    return practiceScore !== undefined && Number.isFinite(practiceScore);
+  });
+  const skillcraftScore = completedChallenges.length * SKILLCRAFT_POINTS;
   const adventureVarietyScore = distinctPathways.length * PATHWAY_POINTS;
 
   return {
-    score: humanSkillScore + adventureVarietyScore,
+    score: skillcraftScore + adventureVarietyScore,
     maxScore: MAX_SCORE,
     policyVersion: SOCIAL_ADVENTURE_POLICY_VERSION,
     components: {
-      humanSkill: {
-        score: humanSkillScore,
-        maxScore: HUMAN_SKILL_MAX,
-        bestByChallenge,
+      skillcraft: {
+        score: skillcraftScore,
+        maxScore: SKILLCRAFT_MAX,
+        completedChallenges,
       },
       adventureVariety: {
         score: adventureVarietyScore,
