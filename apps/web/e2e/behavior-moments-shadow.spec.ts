@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -23,35 +24,22 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function seedSession(page: Page) {
-  await page.addInitScript(() => {
-    const pet = {
+const shadowUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  handle: 'nova-human',
+  pets: [
+    {
       id: 'pet-1',
       name: 'Nova',
       species: 'DOG',
       breed: 'Husky mix',
-    };
-    const user = {
-      id: 'user-1',
-      email: 'owner@example.com',
-      handle: 'nova-human',
-      pets: [pet],
-    };
-    window.localStorage.setItem('authToken', 'shadow-browser-token');
-    window.localStorage.setItem(
-      'woof-session-storage',
-      JSON.stringify({
-        state: {
-          user,
-          pets: [pet],
-          token: 'shadow-browser-token',
-          refreshToken: null,
-          isAuthenticated: true,
-        },
-        version: 0,
-      })
-    );
-  });
+    },
+  ],
+};
+
+async function seedSession(page: Parameters<typeof seedAuthenticatedSession>[0]) {
+  await seedAuthenticatedSession(page, { user: shadowUser, token: 'shadow-browser-token' });
 }
 
 test('Shadow Lab renders active-release evidence without requesting compatibility authority', async ({

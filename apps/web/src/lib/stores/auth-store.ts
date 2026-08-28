@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { AUTH_STORAGE_KEY } from './auth-persist';
+
+export { AUTH_STORAGE_KEY } from './auth-persist';
 
 export interface AuthPet {
   id: string;
@@ -71,7 +74,7 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading) => set({ isLoading: loading }),
     }),
     {
-      name: 'woof-auth-storage',
+      name: AUTH_STORAGE_KEY,
       partialize: (state) => ({
         user: state.user,
         token: state.token,

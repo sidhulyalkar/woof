@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+import { grantRoughLocation, seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -20,33 +21,6 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders(route), 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  });
-}
-
-async function authenticate(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem('authToken', 'trust-browser-token');
-    Object.defineProperty(navigator, 'geolocation', {
-      configurable: true,
-      value: {
-        getCurrentPosition(success: PositionCallback) {
-          success({
-            coords: {
-              latitude: 37.7749,
-              longitude: -122.4194,
-              accuracy: 100,
-              altitude: null,
-              altitudeAccuracy: null,
-              heading: null,
-              speed: null,
-              toJSON: () => ({}),
-            },
-            timestamp: Date.now(),
-            toJSON: () => ({}),
-          } as GeolocationPosition);
-        },
-      },
-    });
   });
 }
 
@@ -95,8 +69,10 @@ const recommendation = {
 
 test('explicit rough-location discovery leads to an empty canonical conversation, never mock state', async ({
   page,
+  context,
 }) => {
-  await authenticate(page);
+  await grantRoughLocation(context, { latitude: 37.7749, longitude: -122.4194 });
+  await seedAuthenticatedSession(page, { user, token: 'trust-browser-token' });
   let locationEnabled = false;
   let conversationCreated = false;
 

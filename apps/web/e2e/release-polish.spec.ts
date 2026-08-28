@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -23,18 +24,16 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function authenticate(page: Page) {
-  await page.route('**/auth/me', (route) =>
-    fulfillJson(route, {
-      id: 'user-1',
-      email: 'owner@example.com',
-      handle: 'dog-owner',
-      pets: [],
-    })
-  );
-  await page.addInitScript(() => {
-    window.localStorage.setItem('authToken', 'browser-test-token');
-  });
+const browserUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  handle: 'dog-owner',
+  pets: [],
+};
+
+async function authenticate(page: Parameters<typeof seedAuthenticatedSession>[0]) {
+  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
+  await seedAuthenticatedSession(page, { user: browserUser, token: 'browser-test-token' });
 }
 
 const pets = [
