@@ -8,6 +8,14 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+type RegistrationRequest = {
+  handle: string;
+  email: string;
+  password: string;
+  bio?: string;
+  registrationKey?: string;
+};
+
 type StorageObject = {
   key: string;
   url: string;
@@ -38,7 +46,7 @@ function authHeader(token: string) {
 }
 
 export const authApi = {
-  register: async (data: { handle: string; email: string; password: string; bio?: string }) => {
+  register: async (data: RegistrationRequest) => {
     const response = await apiClient.post<AuthResponse>('/auth/register', data);
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);
@@ -88,128 +96,12 @@ export const petsApi = {
   getPet: (petId: string) => apiClient.get<AuthPet>(`/pets/${petId}`),
 };
 
-export const activitiesApi = {
-  getActivities: () => apiClient.get<unknown[]>('/activities'),
-  logActivity: (data: {
-    petId: string;
-    type: string;
-    distance?: number;
-    duration: number;
-    calories?: number;
-  }) => apiClient.post<unknown>('/activities', data),
-};
-
-export const socialApi = {
-  getFeed: () => apiClient.get<unknown[]>('/social/posts'),
-  createPost: (data: { text: string; mediaUrls?: string[]; petId?: string }) =>
+export const postsApi = {
+  getFeed: () => apiClient.get<unknown[]>('/social/feed'),
+  createPost: (data: { content?: string; [key: string]: unknown }) =>
     apiClient.post<unknown>('/social/posts', data),
-  likePost: (postId: string) => apiClient.post<void>(`/social/posts/${postId}/likes`, {}),
-  addComment: (postId: string, commentText: string) =>
-    apiClient.post<unknown>(`/social/posts/${postId}/comments`, { text: commentText }),
-  getComments: (postId: string) => apiClient.get<unknown[]>(`/social/posts/${postId}/comments`),
-};
-
-export const meetupsApi = {
-  getMeetups: () => apiClient.get<unknown[]>('/meetups'),
-  createMeetup: (data: {
-    title: string;
-    datetime: string;
-    location: string;
-    description?: string;
-  }) => apiClient.post<unknown>('/meetups', data),
-  rsvp: (meetupId: string, response: 'yes' | 'no' | 'maybe') =>
-    apiClient.post<unknown>(`/meetups/${meetupId}/rsvp`, { response }),
-};
-
-type RawCompatibilityRecommendation = {
-  id: string;
-  pet: {
-    id: string;
-    ownerId: string;
-    name: string;
-    species: string;
-    breed?: string | null;
-    birthdate?: string | null;
-    avatarUrl?: string | null;
-    temperament?: string[];
-    owner?: {
-      id: string;
-      handle: string;
-      bio?: string | null;
-      avatarUrl?: string | null;
-      isVerified?: boolean;
-    };
-  };
-  compatibilityScore: number;
-  confidence?: number;
-  source?: string;
-  factors?: Record<string, number>;
-  explanation?: string[];
-  status?: 'PROPOSED' | 'CONFIRMED' | 'AVOID';
-  lastInteractionAt?: string | null;
-};
-
-type RawRecommendationsResponse = {
-  recommendations?: RawCompatibilityRecommendation[];
-};
-
-const asPercent = (value: number | undefined, fallback = 0) =>
-  Math.round(Math.max(0, Math.min(1, value ?? fallback)) * 100);
-
-const ageFromBirthdate = (birthdate?: string | null) => {
-  if (!birthdate) return undefined;
-  const born = new Date(birthdate);
-  if (Number.isNaN(born.getTime())) return undefined;
-
-  const now = new Date();
-  let age = now.getFullYear() - born.getFullYear();
-  const beforeBirthday =
-    now.getMonth() < born.getMonth() ||
-    (now.getMonth() === born.getMonth() && now.getDate() < born.getDate());
-  if (beforeBirthday) age -= 1;
-  return Math.max(0, age);
-};
-
-const normalizeRecommendation = (recommendation: RawCompatibilityRecommendation): Match => {
-  const rawFactors = recommendation.factors ?? {};
-  const owner = recommendation.pet.owner;
-
-  return {
-    id: recommendation.id,
-    owner: {
-      id: owner?.id ?? recommendation.pet.ownerId,
-      name: owner?.handle ?? 'Woof member',
-      bio: owner?.bio ?? undefined,
-      avatarUrl: owner?.avatarUrl ?? undefined,
-      isVerified: owner?.isVerified,
-    },
-    pet: {
-      id: recommendation.pet.id,
-      ownerId: recommendation.pet.ownerId,
-      name: recommendation.pet.name,
-      species: recommendation.pet.species,
-      breed: recommendation.pet.breed ?? undefined,
-      age: ageFromBirthdate(recommendation.pet.birthdate),
-      temperament: recommendation.pet.temperament ?? [],
-      photoUrl: recommendation.pet.avatarUrl ?? undefined,
-    },
-    compatibility: {
-      overall: asPercent(recommendation.compatibilityScore),
-      confidence: asPercent(recommendation.confidence, 0.5),
-      source: recommendation.source ?? 'unknown',
-      factors: {
-        species: asPercent(rawFactors.species),
-        ...(rawFactors.temperament !== undefined
-          ? { temperament: asPercent(rawFactors.temperament) }
-          : {}),
-        ...(rawFactors.age !== undefined ? { age: asPercent(rawFactors.age) } : {}),
-        ...(rawFactors.breed !== undefined ? { breed: asPercent(rawFactors.breed) } : {}),
-      },
-      explanation: recommendation.explanation ?? [],
-    },
-    status: recommendation.status,
-    matchedAt: recommendation.lastInteractionAt ?? undefined,
-  };
+  likePost: (postId: string) => apiClient.post<void>(`/social/posts/${postId}/like`, {}),
+  unlikePost: (postId: string) => apiClient.delete<void>(`/social/posts/${postId}/like`),
 };
 
 export const compatibilityApi = {
