@@ -112,6 +112,21 @@ async function mockPetlessSocial(page: Page) {
 }
 
 test.describe('dogOS Companion Onramp', () => {
+  test('authenticated returns resume at role choice instead of recreating account details', async ({
+    page,
+  }) => {
+    await authenticate(page);
+    await page.goto('/onboarding/companion');
+
+    await expect(
+      page.getByRole('heading', { name: 'You do not need a pet to start learning.' })
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Step 2 of 2')).toBeVisible();
+    await expect(page.getByLabel('Email')).toHaveCount(0);
+    await expect(page.getByLabel('Password')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Return to Woof' })).toBeVisible();
+  });
+
   test('Animal Ally gets a useful petless Today and no pet-only navigation', async ({ page }) => {
     await authenticate(page);
     await page.route('**/companion/state', (route) => fulfillJson(route, allyState));
