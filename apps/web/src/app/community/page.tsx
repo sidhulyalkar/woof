@@ -18,6 +18,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { ShareableMoments } from '@/components/social-adventure/shareable-moments';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { companionApi } from '@/lib/api/companion';
 import { socialAdventureApi, type SocialAdventureReaction } from '@/lib/api/social-adventure';
 
 const reactionCopy: Record<SocialAdventureReaction, string> = {
@@ -30,6 +31,12 @@ const reactionCopy: Record<SocialAdventureReaction, string> = {
 
 export default function CommunityPage() {
   const queryClient = useQueryClient();
+  const companion = useQuery({
+    queryKey: ['companion', 'state'],
+    queryFn: companionApi.state,
+    retry: false,
+    staleTime: 60_000,
+  });
   const me = useQuery({
     queryKey: ['social-adventure', 'me'],
     queryFn: socialAdventureApi.getMine,
@@ -73,6 +80,7 @@ export default function CommunityPage() {
   });
 
   const loading = me.isLoading || leaderboard.isLoading || feed.isLoading;
+  const hasPetContext = companion.data?.landing === 'PET_TODAY';
 
   return (
     <div className="min-h-screen pb-24">
@@ -122,7 +130,7 @@ export default function CommunityPage() {
                   </p>
                 </div>
                 <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                  Human + pair league
+                  {hasPetContext ? 'Human + pair league' : 'Human learning league'}
                 </span>
               </div>
               <Progress className="mt-3 h-2" value={(me.data.score / me.data.maxScore) * 100} />
@@ -156,12 +164,14 @@ export default function CommunityPage() {
                 Local Packs
               </Link>
             </Button>
-            <Button variant="outline" asChild className="col-span-2 bg-transparent">
-              <Link href="/pack">
-                <HeartHandshake className="mr-2 h-4 w-4" aria-hidden="true" />
-                Cooperative Pack quests
-              </Link>
-            </Button>
+            {hasPetContext && (
+              <Button variant="outline" asChild className="col-span-2 bg-transparent">
+                <Link href="/pack">
+                  <HeartHandshake className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Cooperative Pack quests
+                </Link>
+              </Button>
+            )}
           </div>
         </section>
 
