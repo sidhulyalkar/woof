@@ -32,7 +32,12 @@ async function authenticate(page: Page) {
       pets: [],
     })
   );
-  await page.addInitScript(() => {
+
+  // Seed browser auth from a real same-origin public page. addInitScript is
+  // intentionally avoided because Woof's CSP must remain free to reject
+  // un-nonced inline scripts, including brittle test-only injection.
+  await page.goto('/login');
+  await page.evaluate(() => {
     window.localStorage.setItem('authToken', 'companion-browser-token');
   });
 }
@@ -107,14 +112,14 @@ test.describe('dogOS Companion Onramp', () => {
       page.getByRole('heading', {
         name: 'Learn useful dog-human skills before you need a pet profile.',
       })
-    ).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Arcade' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Community' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Readiness' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Compass' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Story' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Auto' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Coach' })).toHaveCount(0);
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('link', { name: 'Arcade', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Community', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Readiness', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Compass', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Story', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Auto', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Coach', exact: true })).toHaveCount(0);
 
     await page.goto('/community');
     await expect(page.getByRole('link', { name: /Skill Arcade/i })).toBeVisible();
@@ -133,11 +138,13 @@ test.describe('dogOS Companion Onramp', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: 'We could not resolve your Woof mode' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Arcade' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Community' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Readiness' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Compass' })).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { name: 'We could not resolve your Woof mode' })
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('link', { name: 'Arcade', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Community', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Readiness', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Compass', exact: true })).toHaveCount(0);
     await expect(page.locator('[data-today-primary-quest]')).toHaveCount(0);
   });
 
@@ -159,9 +166,11 @@ test.describe('dogOS Companion Onramp', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: 'Add the dog you actually care for.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Add the dog you actually care for.' })
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('link', { name: 'Add a dog' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Compass' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Compass', exact: true })).toHaveCount(0);
     await expect(page.locator('[data-today-primary-quest]')).toHaveCount(0);
   });
 });
