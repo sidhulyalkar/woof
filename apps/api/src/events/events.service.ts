@@ -1,17 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationService } from '../gamification/gamification.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateRSVPDto, EventFeedbackDto } from './dto/rsvp-event.dto';
 
+// Community events acknowledge participation without issuing legacy totalPoints.
 @Injectable()
 export class EventsService {
-  constructor(
-    private prisma: PrismaService,
-    private gamificationService: GamificationService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async create(hostUserId: string, dto: CreateEventDto) {
     return this.prisma.communityEvent.create({
@@ -223,17 +220,9 @@ export class EventsService {
       },
     });
 
-    await this.gamificationService.awardPoints({
-      userId,
-      points: 5,
-      reason: 'event_attended',
-      relatedEntityId: eventId,
-    });
-
     return {
       ...updatedRSVP,
-      pointsAwarded: 5,
-      message: 'Checked in successfully! You earned 5 points.',
+      message: 'Checked in successfully. Thanks for joining the community event.',
     };
   }
 
@@ -298,20 +287,10 @@ export class EventsService {
       isNewFeedback = true;
     }
 
-    if (isNewFeedback) {
-      await this.gamificationService.awardPoints({
-        userId,
-        points: 3,
-        reason: 'event_feedback',
-        relatedEntityId: eventId,
-      });
-    }
-
     return {
       ...feedback,
-      pointsAwarded: isNewFeedback ? 3 : 0,
       message: isNewFeedback
-        ? 'Feedback submitted! You earned 3 points.'
+        ? 'Feedback submitted. Thanks for helping the community learn about this event.'
         : 'Feedback updated successfully.',
     };
   }

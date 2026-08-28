@@ -1,0 +1,49 @@
+name: dogOS Events Reward Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/events/**'
+      - 'docs/DOGOS_EVENTS_REWARD_AUTHORITY.md'
+      - '.github/workflows/dogos-events-reward-authority-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-events-reward-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Community events must not award legacy points
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce events reward-authority source contract
+        run: |
+          if grep -REn "awardPoints|pointsAwarded|GamificationService" apps/api/src/events; then
+            echo 'Community Events must not award or advertise legacy points.' >&2
+            exit 1
+          fi
+
+      - name: Run events reward-authority tests
+        run: pnpm --filter @woof/api exec jest src/events/events.reward-authority.spec.ts --runInBand
