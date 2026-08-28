@@ -238,6 +238,15 @@ jobs:
       - name: Run Companion browser authority contracts
         run: pnpm --filter @woof/web exec playwright test e2e/companion-onramp.spec.ts --project=chromium
 
+      - name: Upload Companion Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: companion-playwright-report-${{ github.run_id }}
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build API
         run: pnpm --filter @woof/api build
 
