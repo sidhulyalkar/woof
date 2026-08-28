@@ -7,6 +7,7 @@ on:
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/common/http/client-ip.ts'
       - 'apps/api/src/common/http/client-ip.spec.ts'
+      - '.github/scripts/assert-database-ownership.py'
       - '.github/workflows/dogos-proxy-safe-throttling-ci.yml'
       - 'docs/DOGOS_PROXY_SAFE_THROTTLING.md'
 
@@ -65,15 +66,15 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema and migration ownership changes
+      - name: Reject database ownership when proxy source changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          changed=$(git diff --name-only "$BASE_SHA"...HEAD)
-          if printf '%s\n' "$changed" | grep -E '^packages/database/prisma/(schema\.prisma|migrations/)'; then
-            echo 'Proxy-Safe Throttling v1 does not own database schema or migration changes.'
-            exit 1
-          fi
+          python .github/scripts/assert-database-ownership.py "$BASE_SHA" \
+            --enforce-if-changed 'apps/api/src/common/http/client-ip.ts' \
+            --enforce-if-changed 'apps/api/src/common/http/client-ip.spec.ts' \
+            --enforce-if-changed 'docs/DOGOS_PROXY_SAFE_THROTTLING.md' \
+            --enforce-if-changed '.github/workflows/dogos-proxy-safe-throttling-ci.yml'
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy

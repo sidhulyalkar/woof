@@ -40,6 +40,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { QuizModule } from './quiz/quiz.module';
 import { ServicesModule } from './services/services.module';
+import { SocialAdventureModule } from './social-adventure/social-adventure.module';
 import { SocialModule } from './social/social.module';
 import { StorageModule } from './storage/storage.module';
 import { StoryModule } from './story/story.module';
@@ -83,6 +84,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     ConciergeModule,
     DiscoveryModule,
     SocialModule,
+    SocialAdventureModule,
     MeetupsModule,
     CompatibilityModule,
     MeetupProposalsModule,

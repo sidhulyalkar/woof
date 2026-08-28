@@ -11,7 +11,7 @@ const navItems = [
   { href: '/journey', icon: Map, label: 'Story', isSpecial: true },
   { href: '/autopilot', icon: Sparkles, label: 'Auto' },
   { href: '/coach', icon: Brain, label: 'Coach' },
-  { href: '/pack', icon: Users, label: 'Pack' },
+  { href: '/community', icon: Users, label: 'Community' },
 ];
 
 export function BottomNav() {

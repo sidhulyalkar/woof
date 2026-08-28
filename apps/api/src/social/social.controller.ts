@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,19 +31,19 @@ export class SocialController {
   }
 
   @Get('posts')
-  @ApiOperation({ summary: 'Get posts (paginated)' })
+  @ApiOperation({ summary: 'Get privacy-authorized posts (paginated)' })
   async findAllPosts(
     @Request() req: AuthenticatedRequest,
     @Query('skip') skip?: number,
     @Query('take') take?: number,
     @Query('authorUserId') authorUserId?: string,
-    @Query('petId') petId?: string,
+    @Query('petId') petId?: string
   ) {
     return this.socialService.findAllPosts(req.user.sub, skip, take, authorUserId, petId);
   }
 
   @Get('posts/:id')
-  @ApiOperation({ summary: 'Get post by ID' })
+  @ApiOperation({ summary: 'Get a privacy-authorized post by ID' })
   async findOnePost(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.socialService.findPostById(id, req.user.sub);
   }
@@ -42,7 +53,7 @@ export class SocialController {
   async updatePost(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: UpdatePostDto,
+    @Body() dto: UpdatePostDto
   ) {
     return this.socialService.updatePost(id, req.user.sub, dto);
   }
@@ -54,7 +65,7 @@ export class SocialController {
   }
 
   @Post('posts/:postId/likes')
-  @ApiOperation({ summary: 'Like a post as the authenticated user' })
+  @ApiOperation({ summary: 'Like a visible post as the authenticated user' })
   async createLike(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
     return this.socialService.createLike(postId, req.user.sub);
   }
@@ -66,25 +77,25 @@ export class SocialController {
   }
 
   @Get('posts/:postId/likes')
-  @ApiOperation({ summary: 'Get likes for a post' })
-  async getPostLikes(@Param('postId') postId: string) {
-    return this.socialService.getPostLikes(postId);
+  @ApiOperation({ summary: 'Get visible likes for a privacy-authorized post' })
+  async getPostLikes(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
+    return this.socialService.getPostLikes(postId, req.user.sub);
   }
 
   @Post('posts/:postId/comments')
-  @ApiOperation({ summary: 'Comment on a post as the authenticated user' })
+  @ApiOperation({ summary: 'Comment on a visible post as the authenticated user' })
   async createComment(
     @Request() req: AuthenticatedRequest,
     @Param('postId') postId: string,
-    @Body() dto: CreateCommentDto,
+    @Body() dto: CreateCommentDto
   ) {
     return this.socialService.createComment(postId, req.user.sub, dto.text);
   }
 
   @Get('posts/:postId/comments')
-  @ApiOperation({ summary: 'Get comments for a post' })
-  async getPostComments(@Param('postId') postId: string) {
-    return this.socialService.getPostComments(postId);
+  @ApiOperation({ summary: 'Get visible comments for a privacy-authorized post' })
+  async getPostComments(@Request() req: AuthenticatedRequest, @Param('postId') postId: string) {
+    return this.socialService.getPostComments(postId, req.user.sub);
   }
 
   @Put('comments/:id')
@@ -92,7 +103,7 @@ export class SocialController {
   async updateComment(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: UpdateCommentDto,
+    @Body() dto: UpdateCommentDto
   ) {
     return this.socialService.updateComment(id, req.user.sub, dto.text);
   }

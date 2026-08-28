@@ -1,0 +1,296 @@
+name: dogOS Social Adventure CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/social-adventure/**'
+      - 'apps/api/src/social/**'
+      - 'apps/api/src/adventure/pack-challenges.service.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/web/src/app/community/**'
+      - 'apps/web/src/app/arcade/**'
+      - 'apps/web/src/app/leaderboard/page.tsx'
+      - 'apps/web/src/components/social-adventure/**'
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/lib/api/social-adventure.ts'
+      - 'packages/database/prisma/migrations/20260827220000_add_dogos_social_adventure_v1/**'
+      - '.github/workflows/dogos-social-adventure-ci.yml'
+      - 'docs/DOGOS_SOCIAL_ADVENTURE_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-social-adventure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+jobs:
+  qualify:
+    name: Social Adventure authority + incentive qualification
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-social-adventure-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Apply canonical migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Prove dogos_social remains additive operational state
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Prove completed Human Skill attempts are immutable
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users (id, handle, email, created_at, updated_at)
+          VALUES ('social-ci-user', 'social_ci_user', 'social-ci@example.test', NOW(), NOW());
+
+          INSERT INTO dogos_social.human_skill_attempts (
+            id, user_id, challenge_key, challenge_version, scenario_key, issued_at, expires_at
+          ) VALUES (
+            'social-ci-attempt',
+            'social-ci-user',
+            'MAKE_IT_EASIER',
+            'human-skill-arcade-v1',
+            'recall-busy-park-v1',
+            NOW(),
+            NOW() + INTERVAL '10 minutes'
+          );
+
+          UPDATE dogos_social.human_skill_attempts
+          SET completed_at = NOW(),
+              response = '{"optionId":"quieter_context"}'::jsonb,
+              score = 100,
+              receipt = '{"score":100,"correct":true}'::jsonb
+          WHERE id = 'social-ci-attempt';
+          SQL
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_social.human_skill_attempts SET score = 1 WHERE id = 'social-ci-attempt';"
+          then
+            echo 'Completed Human Skill history unexpectedly mutated.' >&2
+            exit 1
+          fi
+
+      - name: Prove competition receipts are immutable
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO dogos_social.competition_receipts (
+            id, user_id, season_key, policy_version, score, components, source_hash
+          ) VALUES (
+            'social-ci-receipt',
+            'social-ci-user',
+            'week:2026-08-24',
+            'social-adventure-score-v1',
+            125,
+            '{"humanSkill":{"score":100},"adventureVariety":{"score":25}}'::jsonb,
+            repeat('a', 64)
+          );
+          SQL
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_social.competition_receipts SET score = 500 WHERE id = 'social-ci-receipt';"
+          then
+            echo 'Social competition history unexpectedly mutated.' >&2
+            exit 1
+          fi
+
+      - name: Prove social operational rows follow account deletion
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM users WHERE id = 'social-ci-user';"
+          attempts="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.human_skill_attempts WHERE user_id = 'social-ci-user';")"
+          receipts="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.competition_receipts WHERE user_id = 'social-ci-user';")"
+          test "${attempts}" = '0'
+          test "${receipts}" = '0'
+
+      - name: Enforce incentive and privacy source contracts
+        run: |
+          if grep -REn "awardPoints|post_created" apps/api/src/social; then
+            echo 'Legacy Social must not award points for posting.' >&2
+            exit 1
+          fi
+          grep -F "source = 'QUEST_ENGINE'" apps/api/src/adventure/pack-challenges.service.ts
+          grep -F "event_type LIKE 'QUEST_%'" apps/api/src/adventure/pack-challenges.service.ts
+          grep -F "global_leaderboard_opt_in BOOLEAN NOT NULL DEFAULT FALSE" \
+            packages/database/prisma/migrations/20260827220000_add_dogos_social_adventure_v1/migration.sql
+          grep -F "LOCAL_LEAGUE_MINIMUM_COHORT = 5" \
+            apps/api/src/social-adventure/social-adventure.policy.ts
+          grep -F "HUMAN_SKILL_BREADTH_POINTS = 50" \
+            apps/api/src/social-adventure/social-adventure.policy.ts
+          grep -F "completedChallenges" apps/api/src/social-adventure/social-adventure.policy.ts
+          if grep -F "humanSkillScore += bounded" apps/api/src/social-adventure/social-adventure.policy.ts; then
+            echo 'Raw Arcade practice scores must not determine public league rank.' >&2
+            exit 1
+          fi
+          grep -F "SELECT DISTINCT ON (pathway)" apps/api/src/social-adventure/social-adventure.service.ts
+          grep -F "SELECT DISTINCT ON (challenge_key)" apps/api/src/social-adventure/social-adventure.service.ts
+          grep -F "humanSkill: skillRows.map((row) => [row.id, row.challengeKey])" \
+            apps/api/src/social-adventure/social-adventure.service.ts
+          if grep -F "humanSkill: skillRows.map((row) => [row.id, row.challengeKey, row.score])" \
+            apps/api/src/social-adventure/social-adventure.service.ts; then
+            echo 'Competition source identity must not depend on Arcade practice-score magnitude.' >&2
+            exit 1
+          fi
+          grep -F "browser timing" docs/DOGOS_SOCIAL_ADVENTURE_V1.md
+          grep -F "visibility: 'PUBLIC'" apps/api/src/social/social.service.ts
+          grep -F "blockedUserIds" apps/api/src/social/social.service.ts
+          grep -F "redirect('/community')" apps/web/src/app/leaderboard/page.tsx
+
+      - name: Check Social Adventure formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/social-adventure \
+            apps/api/src/social \
+            apps/api/src/adventure/pack-challenges.service.ts \
+            apps/api/src/app.module.ts \
+            apps/web/src/app/community \
+            apps/web/src/app/arcade \
+            apps/web/src/app/leaderboard/page.tsx \
+            apps/web/src/components/social-adventure \
+            apps/web/src/components/bottom-nav.tsx \
+            apps/web/src/lib/api/social-adventure.ts \
+            .github/workflows/dogos-social-adventure-ci.yml \
+            docs/DOGOS_SOCIAL_ADVENTURE_V1.md
+          if ! git diff --quiet -- \
+            apps/api/src/social-adventure \
+            apps/api/src/social \
+            apps/api/src/adventure/pack-challenges.service.ts \
+            apps/api/src/app.module.ts \
+            apps/web/src/app/community \
+            apps/web/src/app/arcade \
+            apps/web/src/app/leaderboard/page.tsx \
+            apps/web/src/components/social-adventure \
+            apps/web/src/components/bottom-nav.tsx \
+            apps/web/src/lib/api/social-adventure.ts \
+            .github/workflows/dogos-social-adventure-ci.yml \
+            docs/DOGOS_SOCIAL_ADVENTURE_V1.md
+          then
+            git diff -- \
+              apps/api/src/social-adventure \
+              apps/api/src/social \
+              apps/api/src/adventure/pack-challenges.service.ts \
+              apps/api/src/app.module.ts \
+              apps/web/src/app/community \
+              apps/web/src/app/arcade \
+              apps/web/src/app/leaderboard/page.tsx \
+              apps/web/src/components/social-adventure \
+              apps/web/src/components/bottom-nav.tsx \
+              apps/web/src/lib/api/social-adventure.ts \
+              .github/workflows/dogos-social-adventure-ci.yml \
+              docs/DOGOS_SOCIAL_ADVENTURE_V1.md | head -c 60000
+            exit 1
+          fi
+
+      - name: Upload canonical Prettier output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: social-adventure-prettier-output
+          retention-days: 1
+          path: |
+            apps/api/src/social-adventure
+            apps/api/src/social
+            apps/api/src/adventure/pack-challenges.service.ts
+            apps/api/src/app.module.ts
+            apps/web/src/app/community
+            apps/web/src/app/arcade
+            apps/web/src/app/leaderboard/page.tsx
+            apps/web/src/components/social-adventure
+            apps/web/src/components/bottom-nav.tsx
+            apps/web/src/lib/api/social-adventure.ts
+            .github/workflows/dogos-social-adventure-ci.yml
+            docs/DOGOS_SOCIAL_ADVENTURE_V1.md
+
+      - name: Lint Social Adventure API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/social-adventure/**/*.ts'
+          'src/social/**/*.ts'
+          src/adventure/pack-challenges.service.ts
+          src/app.module.ts
+
+      - name: Lint Social Adventure web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/community/page.tsx
+          src/app/community/packs/page.tsx
+          src/app/arcade/page.tsx
+          src/app/leaderboard/page.tsx
+          src/components/social-adventure/shareable-moments.tsx
+          src/components/bottom-nav.tsx
+          src/lib/api/social-adventure.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run Social Adventure policy contracts
+        run: pnpm --filter @woof/api exec jest src/social-adventure --runInBand
+
+      - name: Run full backend contracts
+        run: pnpm --filter @woof/api test -- --runInBand
+
+      - name: Run full web contracts
+        run: pnpm --filter @woof/web test
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
