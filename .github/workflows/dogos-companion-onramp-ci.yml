@@ -15,6 +15,7 @@ on:
       - 'apps/web/src/components/today/**'
       - 'apps/web/src/components/bottom-nav.tsx'
       - 'apps/web/src/lib/api/companion.ts'
+      - 'apps/web/e2e/companion-onramp.spec.ts'
       - 'packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/**'
       - '.github/workflows/dogos-companion-onramp-ci.yml'
       - 'docs/DOGOS_COMPANION_ONRAMP_V1.md'
@@ -174,6 +175,7 @@ jobs:
             apps/web/src/components/today \
             apps/web/src/components/bottom-nav.tsx \
             apps/web/src/lib/api/companion.ts \
+            apps/web/e2e/companion-onramp.spec.ts \
             .github/workflows/dogos-companion-onramp-ci.yml \
             docs/DOGOS_COMPANION_ONRAMP_V1.md
           if ! git diff --quiet; then
@@ -189,6 +191,7 @@ jobs:
               apps/web/src/components/today \
               apps/web/src/components/bottom-nav.tsx \
               apps/web/src/lib/api/companion.ts \
+              apps/web/e2e/companion-onramp.spec.ts \
               .github/workflows/dogos-companion-onramp-ci.yml \
               docs/DOGOS_COMPANION_ONRAMP_V1.md | head -c 60000
             exit 1
@@ -212,6 +215,7 @@ jobs:
           'src/components/today/**/*.tsx'
           src/components/bottom-nav.tsx
           src/lib/api/companion.ts
+          e2e/companion-onramp.spec.ts
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
@@ -227,6 +231,12 @@ jobs:
 
       - name: Run full web contracts
         run: pnpm --filter @woof/web test
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run Companion browser authority contracts
+        run: pnpm --filter @woof/web exec playwright test e2e/companion-onramp.spec.ts --project=chromium
 
       - name: Build API
         run: pnpm --filter @woof/api build
