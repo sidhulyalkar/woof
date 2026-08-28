@@ -11,7 +11,7 @@
     "./components": "./src/components/index.ts"
   },
   "scripts": {
-    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0",
+    "lint": "pnpm --dir ../config exec eslint \"../ui/src/**/*.{ts,tsx}\" --max-warnings=0",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

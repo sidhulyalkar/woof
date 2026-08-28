@@ -5,13 +5,30 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy-api-production:
     name: Deploy API to Production
     runs-on: ubuntu-latest
     environment: production
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Validate production API deployment credentials
+        run: |
+          if [[ -z "${FLY_API_TOKEN}" ]]; then
+            echo "::error title=Missing production secret::FLY_API_TOKEN is not configured for the production environment. Add a Fly deploy token before rerunning this workflow."
+            exit 1
+          fi
 
       - name: Install pinned Fly.io CLI
         uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
@@ -24,8 +41,6 @@ jobs:
           --remote-only
           --app woof-api-prod
           --config apps/api/fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Verify API liveness and readiness
         run: |
@@ -34,43 +49,81 @@ jobs:
           curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
             https://woof-api-prod.fly.dev/api/v1/ops/health/ready
 
-      - name: Notify deployment
-        uses: 8398a7/action-slack@v3
-        if: always()
-        with:
-          status: ${{ job.status }}
-          text: 'Production API deployment completed'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Notify production API deployment when configured
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          DEPLOYMENT_STATUS: ${{ job.status }}
+        run: |
+          if [[ -z "${SLACK_WEBHOOK_URL}" ]]; then
+            echo "SLACK_WEBHOOK is not configured; skipping optional deployment notification."
+            exit 0
+          fi
+
+          payload=$(printf '{"text":"Woof production API deployment: %s (%s @ %.12s)"}' \
+            "${DEPLOYMENT_STATUS}" "${GITHUB_REF_NAME}" "${GITHUB_SHA}")
+          curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            --data "${payload}" \
+            "${SLACK_WEBHOOK_URL}"
 
   deploy-web-production:
     name: Deploy Web to Production
     runs-on: ubuntu-latest
     environment: production
     needs: deploy-api-production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Validate production Web deployment credentials
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error title=Missing production secret::${name} is not configured for the production environment."
+              missing=1
+            fi
+          done
+          if [[ "${missing}" -ne 0 ]]; then
+            exit 1
+          fi
 
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@58.4.4
 
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
         working-directory: apps/web
 
       - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="${VERCEL_TOKEN}"
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://woof-api-prod.fly.dev/api/v1
 
       - name: Deploy to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}"
         working-directory: apps/web
 
-      - name: Notify deployment
-        uses: 8398a7/action-slack@v3
-        if: always()
-        with:
-          status: ${{ job.status }}
-          text: 'Production Web deployment completed'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      - name: Notify production Web deployment when configured
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          DEPLOYMENT_STATUS: ${{ job.status }}
+        run: |
+          if [[ -z "${SLACK_WEBHOOK_URL}" ]]; then
+            echo "SLACK_WEBHOOK is not configured; skipping optional deployment notification."
+            exit 0
+          fi
+
+          payload=$(printf '{"text":"Woof production Web deployment: %s (%s @ %.12s)"}' \
+            "${DEPLOYMENT_STATUS}" "${GITHUB_REF_NAME}" "${GITHUB_SHA}")
+          curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            --data "${payload}" \
+            "${SLACK_WEBHOOK_URL}"

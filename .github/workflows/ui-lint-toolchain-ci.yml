@@ -1,0 +1,64 @@
+name: UI Lint Toolchain Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/ui/**'
+      - 'packages/config/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/ui-lint-toolchain-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-lint-toolchain-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  ESLINT_VERSION: 'v8.57.1'
+
+jobs:
+  qualify:
+    name: Lockfile-owned UI lint executor
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Prove UI lint delegates to the config-owned executor
+        run: |
+          node - <<'NODE'
+          const pkg = require('./packages/ui/package.json');
+          const expected = 'pnpm --dir ../config exec eslint "../ui/src/**/*.{ts,tsx}" --max-warnings=0';
+          if (pkg.scripts?.lint !== expected) {
+            throw new Error(`Unexpected @woof/ui lint command: ${pkg.scripts?.lint}`);
+          }
+          NODE
+
+      - name: Verify exact lockfile-owned ESLint version
+        run: |
+          resolved="$(pnpm --dir packages/config exec eslint --version)"
+          test "${resolved}" = "${ESLINT_VERSION}"
+          echo "@woof/ui lint executor: ${resolved}"
+
+      - name: Run UI lint through its package contract
+        run: pnpm --filter @woof/ui lint
+
+      - name: Verify UI package metadata formatting
+        run: pnpm exec prettier --check packages/ui/package.json .github/workflows/ui-lint-toolchain-ci.yml
