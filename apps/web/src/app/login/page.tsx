@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { authApi } from '@/lib/api';
 
 const productSignals = [
-  'Explainable compatibility, not mystery scores',
-  'Designed around real-world meetup outcomes',
-  'Location and trust treated as product boundaries',
+  'Relationship-first dogOS when you have an authorized pet',
+  'Human-skill practice and community without inventing a pet',
+  'Location, health, and placement authority treated as product boundaries',
 ];
 
 export default function LoginPage() {
@@ -51,11 +51,7 @@ export default function LoginPage() {
           aria-hidden="true"
         />
         <div className="relative">
-          <Link
-            href="/login"
-            className="inline-flex min-h-11 items-center gap-3 rounded-xl"
-            aria-label="Woof sign in"
-          >
+          <Link href="/login" className="inline-flex min-h-11 items-center gap-3 rounded-xl" aria-label="Woof sign in">
             <span className="brand-mark flex h-11 w-11 items-center justify-center rounded-2xl">
               <PawPrint className="h-6 w-6 text-primary-foreground" aria-hidden="true" />
             </span>
@@ -64,13 +60,12 @@ export default function LoginPage() {
         </div>
 
         <div className="relative max-w-xl">
-          <p className="eyebrow">A social network that closes the loop</p>
+          <p className="eyebrow">dogOS starts with the relationship you actually have</p>
           <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tight xl:text-5xl">
-            Better dog friendships start with better context.
+            Learn with a dog, for a future dog, or as someone helping dogs.
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-            Discover compatible dogs, coordinate a safe meetup, and learn from what actually
-            happened offline instead of optimizing another endless feed.
+            Woof can open the full pet relationship loop when you have real pet authority, or stay useful through human-skill practice, community, and private readiness reflection when you do not.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -87,21 +82,18 @@ export default function LoginPage() {
 
         <div className="relative flex items-center gap-2 text-xs text-muted-foreground">
           <ShieldCheck className="h-4 w-4 text-secondary" aria-hidden="true" />
-          Precise location should stay contextual and permissioned.
+          A mode changes presentation. It never grants access to a pet.
         </div>
       </aside>
 
-      <main
-        id="main-content"
-        className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-10"
-      >
+      <main id="main-content" className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <span className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl">
               <PawPrint className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
             </span>
             <div>
-              <p className="eyebrow">Your local pack</p>
+              <p className="eyebrow">Relationship-first dogOS</p>
               <p className="font-bold">Woof</p>
             </div>
           </div>
@@ -114,7 +106,7 @@ export default function LoginPage() {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
                 <CardDescription className="mt-2 leading-relaxed">
-                  Sign in to continue learning what helps your pet thrive with you.
+                  Sign in to continue from the dog, caregiver, or learning context that actually applies to you.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -122,42 +114,17 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
+                  <Input id="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={isLoading} />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
+                  <Input id="password" type="password" autoComplete="current-password" placeholder="••••••••" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={isLoading} />
                 </div>
-
                 {error && (
-                  <div
-                    role="alert"
-                    aria-live="polite"
-                    className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
-                  >
+                  <div role="alert" aria-live="polite" className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                     {error}
                   </div>
                 )}
-
                 <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
@@ -172,19 +139,15 @@ export default function LoginPage() {
 
               <p className="mt-6 text-center text-sm text-muted-foreground">
                 New to Woof?{' '}
-                <Link
-                  href="/onboarding"
-                  className="inline-flex min-h-8 items-center rounded-md px-1 font-semibold text-primary hover:text-primary/80"
-                >
-                  Create your profile
+                <Link href="/onboarding/companion" className="inline-flex min-h-8 items-center rounded-md px-1 font-semibold text-primary hover:text-primary/80">
+                  Choose how to start
                 </Link>
               </p>
             </CardContent>
           </Card>
 
           <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-            Woof is a beta research product. Public demos use synthetic data and avoid sensitive
-            real-world location history.
+            Woof is a beta research product. Public demos use synthetic data and avoid sensitive real-world location history.
           </p>
         </div>
       </main>

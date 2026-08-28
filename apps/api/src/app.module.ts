@@ -16,6 +16,7 @@ import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
 import { clientIpTracker } from './common/http/client-ip';
+import { CompanionModule } from './companion/companion.module';
 import { CompatibilityModule } from './compatibility/compatibility.module';
 import { ConciergeModule } from './concierge/concierge.module';
 import { validateEnvironment } from './config/env.validation';
@@ -75,6 +76,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     UsersModule,
     PetsModule,
     HouseholdsModule,
+    CompanionModule,
     IntelligenceModule,
     ActivitiesModule,
     AdventureModule,

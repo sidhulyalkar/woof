@@ -1,6 +1,17 @@
 export const COMPANION_MODES = ['PET_GUARDIAN', 'ANIMAL_ALLY', 'FOSTER_CAREGIVER'] as const;
+export const READINESS_STATUSES = ['NOT_SURE', 'WORKING_ON_IT', 'READY_TO_DISCUSS'] as const;
+export const READINESS_DIMENSIONS = [
+  'housing',
+  'householdAlignment',
+  'timeCapacity',
+  'financialPlan',
+  'supportPlan',
+  'carePlan',
+] as const;
 
 export type CompanionMode = (typeof COMPANION_MODES)[number];
+export type ReadinessStatus = (typeof READINESS_STATUSES)[number];
+export type ReadinessDimension = (typeof READINESS_DIMENSIONS)[number];
 export type CompanionLanding =
   | 'NEEDS_MODE'
   | 'NEEDS_PET_SETUP'
@@ -21,7 +32,7 @@ export function resolveCompanionState(
   if (!mode) {
     if (hasAuthorizedPet) {
       return {
-        mode: 'PET_GUARDIAN',
+        mode: null,
         modeSource: 'PET_AUTHORITY_COMPAT',
         hasAuthorizedPet,
         landing: 'PET_TODAY',
