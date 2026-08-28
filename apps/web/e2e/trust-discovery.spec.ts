@@ -47,8 +47,10 @@ async function authenticate(page: Page) {
   await page.context().grantPermissions(['geolocation'], { origin: 'http://localhost:3000' });
   await page.context().setGeolocation({ latitude: 37.7749, longitude: -122.4194, accuracy: 100 });
 
-  // Persist the real client auth shape before the protected navigation so
-  // AuthGuard does not race feature rendering through a redundant /auth/me hop.
+  // Persist the real client auth shape before protected navigation so AuthGuard
+  // does not race through session hydration. Discovery still performs its own
+  // canonical profile refresh below, because current pet membership is part of
+  // that feature's freshness contract rather than authentication bootstrap.
   await page.goto('/login');
   await page.evaluate(
     ({ token, user }) => {
@@ -63,6 +65,7 @@ async function authenticate(page: Page) {
     },
     { token, user }
   );
+  await page.route('**/auth/me', (route) => fulfillJson(route, user));
 }
 
 const recommendation = {
