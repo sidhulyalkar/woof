@@ -37,6 +37,22 @@ async function authenticate(page: Page) {
   });
 }
 
+async function authorizePetToday(page: Page) {
+  await page.route('**/companion/state', (route) =>
+    fulfillJson(route, {
+      mode: 'PET_GUARDIAN',
+      modeSource: 'PERSISTED',
+      hasAuthorizedPet: true,
+      landing: 'PET_TODAY',
+      authority: {
+        modeControlsPresentation: true,
+        petAccessComesFromRelationships: true,
+        modeNeverCreatesPetAuthority: true,
+      },
+    })
+  );
+}
+
 const pets = [
   {
     id: 'pet-1',
@@ -143,6 +159,7 @@ test.describe('dogOS release polish', () => {
     page,
   }) => {
     await authenticate(page);
+    await authorizePetToday(page);
     await page.route('**/pets/me**', (route) =>
       fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
     );
@@ -195,6 +212,7 @@ test.describe('dogOS release polish', () => {
     page,
   }) => {
     await authenticate(page);
+    await authorizePetToday(page);
     await page.route('**/pets/me**', (route) =>
       fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
     );
@@ -263,6 +281,19 @@ test.describe('dogOS release polish', () => {
     await authenticate(page);
     let createdBody: Record<string, unknown> | null = null;
     let created = false;
+    await page.route('**/companion/state', (route) =>
+      fulfillJson(route, {
+        mode: 'PET_GUARDIAN',
+        modeSource: 'PERSISTED',
+        hasAuthorizedPet: created,
+        landing: created ? 'PET_TODAY' : 'NEEDS_PET_SETUP',
+        authority: {
+          modeControlsPresentation: true,
+          petAccessComesFromRelationships: true,
+          modeNeverCreatesPetAuthority: true,
+        },
+      })
+    );
     await page.route('**/pets', async (route) => {
       if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
       createdBody = route.request().postDataJSON() as Record<string, unknown>;
