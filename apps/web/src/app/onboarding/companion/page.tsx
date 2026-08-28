@@ -3,7 +3,7 @@
 import { isAxiosError } from 'axios';
 import { ChevronLeft, Loader2, PawPrint } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CompanionModeChooser } from '@/components/companion/companion-mode-chooser';
 import { OwnerInfoStep, type OwnerInfoData } from '@/components/onboarding/owner-info-step';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,17 @@ export default function CompanionOnboardingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const registrationKeyRef = useRef<string | null>(null);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Registration can succeed before mode persistence does. The auth store is
+  // durable, so a returning user should resume at the role choice rather than
+  // being asked to recreate account details that already exist canonically.
+  useEffect(() => {
+    if (isAuthenticated && step === 1) {
+      setError('');
+      setStep(2);
+    }
+  }, [isAuthenticated, step]);
 
   const getRegistrationKey = () => {
     if (registrationKeyRef.current) return registrationKeyRef.current;
@@ -84,6 +95,12 @@ export default function CompanionOnboardingPage() {
   };
 
   const progress = step === 1 ? 50 : 100;
+  const backLabel =
+    step === 2
+      ? isAuthenticated
+        ? 'Return to Woof'
+        : 'Back to account details'
+      : 'Return to sign in';
 
   return (
     <div className="min-h-screen">
@@ -93,8 +110,14 @@ export default function CompanionOnboardingPage() {
             variant="ghost"
             size="icon"
             disabled={isLoading}
-            onClick={() => (step === 2 ? setStep(1) : router.push('/login'))}
-            aria-label={step === 2 ? 'Back to account details' : 'Return to sign in'}
+            onClick={() => {
+              if (step === 2 && !isAuthenticated) {
+                setStep(1);
+                return;
+              }
+              router.push(isAuthenticated ? '/' : '/login');
+            }}
+            aria-label={backLabel}
           >
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
