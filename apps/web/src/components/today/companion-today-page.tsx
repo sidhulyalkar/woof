@@ -69,16 +69,25 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
         </section>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
-          <Link href="/arcade" className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20">
+          <Link
+            href="/arcade"
+            className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20"
+          >
             <Gamepad2 className="h-5 w-5 text-primary" aria-hidden="true" />
             <h2 className="mt-3 font-bold">Skillcraft Arcade</h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Practice marker timing, making setups easier, catching useful behavior, and positive association timing.
+              Practice marker timing, making setups easier, catching useful behavior, and positive
+              association timing.
             </p>
-            <p className="mt-3 text-xs font-semibold text-primary">{completedSkills}/4 games explored this week →</p>
+            <p className="mt-3 text-xs font-semibold text-primary">
+              {completedSkills}/4 games explored this week →
+            </p>
           </Link>
 
-          <Link href="/community" className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20">
+          <Link
+            href="/community"
+            className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20"
+          >
             <Users className="h-5 w-5 text-primary" aria-hidden="true" />
             <h2 className="mt-3 font-bold">Community</h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -87,11 +96,15 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
             <p className="mt-3 text-xs font-semibold text-primary">Open Community →</p>
           </Link>
 
-          <Link href="/companion/readiness" className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20 sm:col-span-2">
+          <Link
+            href="/companion/readiness"
+            className="surface-soft rounded-2xl p-5 transition hover:ring-2 hover:ring-primary/20 sm:col-span-2"
+          >
             <BookOpenCheck className="h-5 w-5 text-primary" aria-hidden="true" />
             <h2 className="mt-3 font-bold">Private readiness reflection</h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Think through housing, time, finances, household alignment, support, and care planning. No score and no automatic sharing.
+              Think through housing, time, finances, household alignment, support, and care
+              planning. No score and no automatic sharing.
             </p>
             <p className="mt-3 text-xs font-semibold text-primary">Reflect on readiness →</p>
           </Link>
@@ -101,14 +114,17 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
           <p className="eyebrow">Real-world opportunities</p>
           <h2 className="mt-1 text-lg font-bold">Partner authority before placement prompts.</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Woof does not fabricate shelter inventory or scrape a dog into your profile. Foster, volunteer, and adoption opportunities will appear only from authorized partner sources with their own eligibility and placement authority.
+            Woof does not fabricate shelter inventory or scrape a dog into your profile. Foster,
+            volunteer, and adoption opportunities will appear only from authorized partner sources
+            with their own eligibility and placement authority.
           </p>
         </section>
 
         <section className="mt-6 rounded-3xl border border-border/70 bg-card/50 p-5">
           <h2 className="font-bold">Your role can change.</h2>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            If you now live with a dog, switch to Pet Guardian. Woof will still require a real pet or authorized household relationship before opening pet-specific surfaces.
+            If you now live with a dog, switch to Pet Guardian. Woof will still require a real pet
+            or authorized household relationship before opening pet-specific surfaces.
           </p>
           <Button
             variant="outline"

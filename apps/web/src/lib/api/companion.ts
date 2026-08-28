@@ -1,19 +1,10 @@
 import { apiClient } from './client';
 
 export type CompanionMode = 'PET_GUARDIAN' | 'ANIMAL_ALLY' | 'FOSTER_CAREGIVER';
-export type CompanionLanding =
-  | 'NEEDS_MODE'
-  | 'NEEDS_PET_SETUP'
-  | 'PET_TODAY'
-  | 'COMPANION_TODAY';
+export type CompanionLanding = 'NEEDS_MODE' | 'NEEDS_PET_SETUP' | 'PET_TODAY' | 'COMPANION_TODAY';
 export type ReadinessStatus = 'NOT_SURE' | 'WORKING_ON_IT' | 'READY_TO_DISCUSS';
 export type ReadinessDimension =
-  | 'housing'
-  | 'householdAlignment'
-  | 'timeCapacity'
-  | 'financialPlan'
-  | 'supportPlan'
-  | 'carePlan';
+  'housing' | 'householdAlignment' | 'timeCapacity' | 'financialPlan' | 'supportPlan' | 'carePlan';
 
 export type CompanionState = {
   mode: CompanionMode | null;

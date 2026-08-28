@@ -12,11 +12,7 @@ export const READINESS_DIMENSIONS = [
 export type CompanionMode = (typeof COMPANION_MODES)[number];
 export type ReadinessStatus = (typeof READINESS_STATUSES)[number];
 export type ReadinessDimension = (typeof READINESS_DIMENSIONS)[number];
-export type CompanionLanding =
-  | 'NEEDS_MODE'
-  | 'NEEDS_PET_SETUP'
-  | 'PET_TODAY'
-  | 'COMPANION_TODAY';
+export type CompanionLanding = 'NEEDS_MODE' | 'NEEDS_PET_SETUP' | 'PET_TODAY' | 'COMPANION_TODAY';
 
 export type CompanionState = {
   mode: CompanionMode | null;

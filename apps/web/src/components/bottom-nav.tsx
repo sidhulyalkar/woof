@@ -1,7 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Brain, ClipboardCheck, Compass, Gamepad2, Map, PawPrint, Sparkles, Users } from 'lucide-react';
+import {
+  Brain,
+  ClipboardCheck,
+  Compass,
+  Gamepad2,
+  Map,
+  PawPrint,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { companionApi } from '@/lib/api/companion';
@@ -58,7 +67,10 @@ export function BottomNav() {
                   isActive ? 'border-primary/50 ring-4 ring-primary/10' : 'border-primary/20'
                 )}
               >
-                <Icon className="h-6 w-6 transition-transform group-hover:scale-105" aria-hidden="true" />
+                <Icon
+                  className="h-6 w-6 transition-transform group-hover:scale-105"
+                  aria-hidden="true"
+                />
                 <span className="sr-only">{item.label}</span>
               </Link>
             );
@@ -82,7 +94,9 @@ export function BottomNav() {
                 aria-hidden="true"
               />
               <Icon className="h-5 w-5" aria-hidden="true" />
-              <span className="text-[10px] font-semibold tracking-wide sm:text-[11px]">{item.label}</span>
+              <span className="text-[10px] font-semibold tracking-wide sm:text-[11px]">
+                {item.label}
+              </span>
             </Link>
           );
         })}

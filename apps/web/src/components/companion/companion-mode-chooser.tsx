@@ -18,13 +18,15 @@ const options: Array<{
   {
     mode: 'ANIMAL_ALLY',
     title: 'I want to learn and help',
-    description: 'Practice human skills, join the community, and prepare without inventing a pet profile.',
+    description:
+      'Practice human skills, join the community, and prepare without inventing a pet profile.',
     icon: HeartHandshake,
   },
   {
     mode: 'FOSTER_CAREGIVER',
     title: 'I foster or plan to foster',
-    description: 'Build caregiver skills and practical readiness while pet authority stays relationship-specific.',
+    description:
+      'Build caregiver skills and practical readiness while pet authority stays relationship-specific.',
     icon: Home,
   },
 ];

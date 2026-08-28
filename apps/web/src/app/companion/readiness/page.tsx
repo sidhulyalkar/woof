@@ -5,23 +5,46 @@ import { BookOpenCheck, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
-import {
-  companionApi,
-  type ReadinessDimension,
-  type ReadinessStatus,
-} from '@/lib/api/companion';
+import { companionApi, type ReadinessDimension, type ReadinessStatus } from '@/lib/api/companion';
 
 const dimensions: Array<{
   key: ReadinessDimension;
   label: string;
   description: string;
 }> = [
-  { key: 'housing', label: 'Housing', description: 'Would the living situation realistically support the animal and applicable rules?' },
-  { key: 'householdAlignment', label: 'Household alignment', description: 'Are the people sharing the home aligned on responsibilities and boundaries?' },
-  { key: 'timeCapacity', label: 'Time capacity', description: 'Is there room for daily care, decompression, training, transport, and interruptions?' },
-  { key: 'financialPlan', label: 'Financial plan', description: 'Is there a realistic plan for routine costs and unexpected care?' },
-  { key: 'supportPlan', label: 'Support plan', description: 'Who can help with care, transport, travel, emergencies, or difficult weeks?' },
-  { key: 'carePlan', label: 'Care plan', description: 'Are veterinary care, supplies, management, and transition needs understood enough to discuss?' },
+  {
+    key: 'housing',
+    label: 'Housing',
+    description:
+      'Would the living situation realistically support the animal and applicable rules?',
+  },
+  {
+    key: 'householdAlignment',
+    label: 'Household alignment',
+    description: 'Are the people sharing the home aligned on responsibilities and boundaries?',
+  },
+  {
+    key: 'timeCapacity',
+    label: 'Time capacity',
+    description:
+      'Is there room for daily care, decompression, training, transport, and interruptions?',
+  },
+  {
+    key: 'financialPlan',
+    label: 'Financial plan',
+    description: 'Is there a realistic plan for routine costs and unexpected care?',
+  },
+  {
+    key: 'supportPlan',
+    label: 'Support plan',
+    description: 'Who can help with care, transport, travel, emergencies, or difficult weeks?',
+  },
+  {
+    key: 'carePlan',
+    label: 'Care plan',
+    description:
+      'Are veterinary care, supplies, management, and transition needs understood enough to discuss?',
+  },
 ];
 
 const statuses: Array<{ value: ReadinessStatus; label: string }> = [
@@ -51,7 +74,9 @@ export default function CompanionReadinessPage() {
         <div className="mx-auto flex h-16 max-w-xl items-center gap-3 px-4">
           <BookOpenCheck className="h-5 w-5 text-primary" aria-hidden="true" />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Companion mode</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Companion mode
+            </p>
             <h1 className="text-lg font-bold tracking-tight">Readiness reflection</h1>
           </div>
         </div>
@@ -64,7 +89,9 @@ export default function CompanionReadinessPage() {
             <div>
               <h2 className="font-bold">A checklist, not a verdict.</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                These answers are private self-reflection. Woof does not combine them into an adoption or foster score, publish them, or replace a shelter, rescue, landlord, veterinarian, trainer, or financial decision-maker.
+                These answers are private self-reflection. Woof does not combine them into an
+                adoption or foster score, publish them, or replace a shelter, rescue, landlord,
+                veterinarian, trainer, or financial decision-maker.
               </p>
             </div>
           </div>
@@ -80,7 +107,9 @@ export default function CompanionReadinessPage() {
         ) : readiness.isError || !readiness.data ? (
           <section className="surface-soft mt-5 rounded-2xl p-5 text-center">
             <p className="font-semibold">Your reflection is unavailable right now.</p>
-            <Button className="mt-4" onClick={() => void readiness.refetch()}>Try again</Button>
+            <Button className="mt-4" onClick={() => void readiness.refetch()}>
+              Try again
+            </Button>
           </section>
         ) : (
           <div className="mt-5 space-y-3">
@@ -89,7 +118,9 @@ export default function CompanionReadinessPage() {
               return (
                 <section key={dimension.key} className="surface-soft rounded-2xl p-5">
                   <h2 className="font-bold">{dimension.label}</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{dimension.description}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {dimension.description}
+                  </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {statuses.map((status) => (
                       <Button
@@ -112,7 +143,9 @@ export default function CompanionReadinessPage() {
         )}
 
         <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-          A “Ready to discuss” selection means only that you feel prepared to talk about that dimension. Placement and foster decisions stay with the organizations and people responsible for them.
+          A “Ready to discuss” selection means only that you feel prepared to talk about that
+          dimension. Placement and foster decisions stay with the organizations and people
+          responsible for them.
         </p>
       </main>
 

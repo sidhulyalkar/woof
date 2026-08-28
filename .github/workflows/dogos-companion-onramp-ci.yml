@@ -111,6 +111,20 @@ jobs:
             exit 1
           fi
 
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_companion.readiness_reflections SET dimensions = dimensions || '{\"readinessScore\":\"READY_TO_DISCUSS\"}'::jsonb WHERE user_id = 'companion-ci-user';"
+          then
+            echo 'Readiness reflection unexpectedly accepted an invented dimension.' >&2
+            exit 1
+          fi
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_companion.readiness_reflections SET dimensions = dimensions || '{\"housing\":\"APPROVED\"}'::jsonb WHERE user_id = 'companion-ci-user';"
+          then
+            echo 'Readiness reflection unexpectedly accepted an invented status.' >&2
+            exit 1
+          fi
+
           score_columns="$(psql -h localhost -U postgres -d woof_test -Atc \
             "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'dogos_companion' AND table_name = 'readiness_reflections' AND column_name ILIKE '%score%';")"
           test "${score_columns}" = '0'
@@ -131,6 +145,8 @@ jobs:
           grep -F "landing: hasAuthorizedPet ? 'PET_TODAY' : 'NEEDS_PET_SETUP'" apps/api/src/companion/companion.policy.ts
           grep -F "landing: 'COMPANION_TODAY'" apps/api/src/companion/companion.policy.ts
           grep -F "SELECT DISTINCT pet.owner_id, 'PET_GUARDIAN'" \
+            packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/migration.sql
+          grep -F "readiness_dimensions_valid" \
             packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/migration.sql
           if grep -REn "pet\.create|createPet\(" apps/api/src/companion; then
             echo 'Companion mode code must never manufacture pet authority.' >&2

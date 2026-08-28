@@ -28,10 +28,7 @@ export class CompanionController {
   }
 
   @Put('readiness')
-  updateReadiness(
-    @Request() req: AuthenticatedRequest,
-    @Body() dto: UpdateReadinessReflectionDto
-  ) {
+  updateReadiness(@Request() req: AuthenticatedRequest, @Body() dto: UpdateReadinessReflectionDto) {
     return this.companion.updateReadiness(req.user.sub, dto);
   }
 }

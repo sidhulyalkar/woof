@@ -128,9 +128,10 @@ export class CompanionService {
   }
 
   private readinessDimensions(value: unknown) {
-    const record = value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
+    const record =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
 
     return Object.fromEntries(
       READINESS_DIMENSIONS.map((dimension) => {

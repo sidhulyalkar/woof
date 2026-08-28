@@ -27,7 +27,11 @@ export default function HomePage() {
 
   if (state.isLoading) {
     return (
-      <main id="main-content" className="flex min-h-screen items-center justify-center" role="status">
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center"
+        role="status"
+      >
         <div className="text-center">
           <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" aria-hidden="true" />
           <p className="mt-3 text-sm text-muted-foreground">Opening the right Woof for you…</p>
@@ -71,7 +75,9 @@ export default function HomePage() {
         <main id="main-content" className="mx-auto max-w-xl px-4 py-10">
           <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.1] via-card/95 to-secondary/[0.06] p-6">
             <p className="eyebrow">Pet Guardian</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">Add the dog you actually care for.</h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">
+              Add the dog you actually care for.
+            </h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Choosing Pet Guardian never creates pet authority by itself. Add a real pet, or join a
               household through an authorized relationship, before pet-specific Today opens.
