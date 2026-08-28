@@ -95,6 +95,69 @@ jobs:
               raise SystemExit(f'missing required maintained action families: {missing}')
           PY
 
+      - name: Enforce explicit deployment credential and notification contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          production = Path('.github/workflows/deploy-production.yml').read_text()
+          staging = Path('.github/workflows/deploy-staging.yml').read_text()
+
+          def secret_mapping(env_name: str, secret_name: str | None = None) -> str:
+              secret_name = secret_name or env_name
+              return f'{env_name}: $' + '{{ secrets.' + secret_name + ' }}'
+
+          required_production = [
+              secret_mapping('FLY_API_TOKEN'),
+              secret_mapping('VERCEL_TOKEN'),
+              secret_mapping('VERCEL_ORG_ID'),
+              secret_mapping('VERCEL_PROJECT_ID'),
+              'Validate production API deployment credentials',
+              'Validate production Web deployment credentials',
+          ]
+          required_staging = [
+              secret_mapping('FLY_API_TOKEN'),
+              secret_mapping('VERCEL_TOKEN'),
+              secret_mapping('VERCEL_ORG_ID'),
+              secret_mapping('VERCEL_PROJECT_ID'),
+              'Validate staging API deployment credentials',
+              'Validate staging Web deployment credentials',
+          ]
+
+          missing = [
+              f'production:{marker}'
+              for marker in required_production
+              if marker not in production
+          ] + [
+              f'staging:{marker}'
+              for marker in required_staging
+              if marker not in staging
+          ]
+          if missing:
+              raise SystemExit('deployment credential contract drift:\n' + '\n'.join(missing))
+
+          forbidden = '8398a7/action-slack'
+          if forbidden in production or forbidden in staging:
+              raise SystemExit(
+                  'deployment workflows must not use the legacy action-slack integration; '
+                  'notifications are optional and must not own deployment success'
+              )
+
+          notification_markers = [
+              secret_mapping('SLACK_WEBHOOK_URL', 'SLACK_WEBHOOK'),
+              'continue-on-error: true',
+              'skipping optional deployment notification',
+          ]
+          notification_missing = [
+              marker for marker in notification_markers if marker not in production
+          ]
+          if notification_missing:
+              raise SystemExit(
+                  'production notification contract drift:\n'
+                  + '\n'.join(notification_missing)
+              )
+          PY
+
       - name: Exercise pinned Fly.io setup action
         uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
         with:
