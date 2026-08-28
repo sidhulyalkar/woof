@@ -23,23 +23,34 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function authenticate(page: Page) {
-  await page.route('**/auth/me', (route) =>
-    fulfillJson(route, {
-      id: 'ally-user',
-      email: 'ally@example.com',
-      handle: 'animal-ally',
-      pets: [],
-    })
-  );
+const browserUser = {
+  id: 'ally-user',
+  email: 'ally@example.com',
+  handle: 'animal-ally',
+  pets: [],
+};
 
-  // Seed browser auth from a real same-origin public page. addInitScript is
-  // intentionally avoided because Woof's CSP must remain free to reject
-  // un-nonced inline scripts, including brittle test-only injection.
+async function authenticate(page: Page) {
+  const token = 'companion-browser-token';
+
+  // Seed the same persisted auth representation Woof itself writes. A raw
+  // authToken alone forces AuthGuard to race through /auth/me before the
+  // feature test can begin, which makes browser authority tests nondeterministic.
+  // Using a real same-origin page keeps CSP fully enforced.
   await page.goto('/login');
-  await page.evaluate(() => {
-    window.localStorage.setItem('authToken', 'companion-browser-token');
-  });
+  await page.evaluate(
+    ({ token, user }) => {
+      window.localStorage.setItem('authToken', token);
+      window.localStorage.setItem(
+        'woof-auth-storage',
+        JSON.stringify({
+          state: { user, token, isAuthenticated: true },
+          version: 0,
+        })
+      );
+    },
+    { token, user: browserUser }
+  );
 }
 
 const allyState = {
