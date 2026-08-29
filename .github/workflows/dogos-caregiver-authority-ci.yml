@@ -1,0 +1,152 @@
+name: dogOS Caregiver Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/caregiver/**'
+      - 'apps/api/src/app.module.ts'
+      - 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**'
+      - 'packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/**'
+      - '.github/workflows/dogos-caregiver-authority-ci.yml'
+      - '.github/scripts/assert-database-ownership.py'
+      - 'docs/DOGOS_CAREGIVER_AUTHORITY_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-caregiver-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Pet-scoped grant + revocation qualification
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-caregiver-authority-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Enforce Caregiver database ownership boundary
+        run: |
+          python3 .github/scripts/assert-database-ownership.py \
+            "${{ github.event.pull_request.base.sha }}" \
+            packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql \
+            packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/migration.sql \
+            --enforce-if-changed 'apps/api/src/caregiver/**' \
+            --enforce-if-changed 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**' \
+            --enforce-if-changed 'packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/**'
+
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Apply full migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Prove caregiver schema remains additive operational state
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Enforce caregiver authority source boundaries
+        run: |
+          grep -F "VIEW_TODAY" apps/api/src/caregiver/caregiver.policy.ts
+          grep -F "LOG_OBSERVATION" apps/api/src/caregiver/caregiver.policy.ts
+          grep -F "source: 'CAREGIVER_GRANT'" apps/api/src/caregiver/pet-capability-authority.ts
+          grep -F "role: { in: ['OWNER', 'ADMIN'] }" apps/api/src/caregiver/pet-capability-authority.ts
+          grep -F "authorityClass: 'CONTEXT_ONLY'" apps/api/src/caregiver/caregiver.service.ts
+          grep -F "caregiver grant is not currently active" \
+            packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql \
+            packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/migration.sql
+
+          if grep -REn "householdMember\.(create|upsert|update|updateMany)|HouseholdsService" apps/api/src/caregiver; then
+            echo 'Caregiver authority must not be implemented as generic household membership.' >&2
+            exit 1
+          fi
+
+          if grep -REn "CareEventsService|DailySignalsService|IntelligenceProjectionService|prisma\.(careEvent|rewardLedger)|RewardLedger" apps/api/src/caregiver; then
+            echo 'Caregiver context must not silently become canonical reward or baseline evidence.' >&2
+            exit 1
+          fi
+
+          if grep -REn "DO_ADVENTURE|JOIN_ACTIVITY|MEDICATION|PRESCRIPTION|CONNECTOR_ADMIN|HOUSEHOLD_ADMIN" apps/api/src/caregiver; then
+            echo 'Caregiver v1 capability surface broadened beyond the qualified VIEW_TODAY/LOG_OBSERVATION boundary.' >&2
+            exit 1
+          fi
+
+      - name: Check Caregiver formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/caregiver \
+            apps/api/src/app.module.ts \
+            .github/workflows/dogos-caregiver-authority-ci.yml
+          if ! git diff --quiet; then
+            git diff -- apps/api/src/caregiver apps/api/src/app.module.ts .github/workflows/dogos-caregiver-authority-ci.yml | head -c 60000
+            exit 1
+          fi
+
+      - name: Lint Caregiver API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/caregiver/**/*.ts'
+          src/app.module.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run caregiver policy + authority unit contracts
+        run: pnpm --filter @woof/api exec jest src/caregiver/caregiver.policy.spec.ts src/caregiver/pet-capability-authority.spec.ts --runInBand
+
+      - name: Run caregiver PostgreSQL authority + concurrency contracts
+        run: pnpm --filter @woof/api exec jest src/caregiver/caregiver-operational.store.integration.spec.ts --runInBand
+
+      - name: Run full backend regression contracts
+        run: pnpm --filter @woof/api test -- --runInBand
+
+      - name: Build production API
+        run: pnpm --filter @woof/api build
