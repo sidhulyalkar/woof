@@ -42,7 +42,9 @@ LEGACY_WORKFLOW_SCOPES: dict[str, tuple[str, ...]] = {
         "apps/api/src/chat/chat-security.service.ts",
         "apps/api/src/chat/chat-security.service.spec.ts",
         "apps/api/src/chat/chat.module.ts",
-        "apps/web/src/lib/api.ts",
+        # api.ts is a shared transport composition surface. Session Authority
+        # still observes and qualifies it, but a generic client edit must not
+        # make this lane claim ownership of an unrelated release migration.
         "apps/web/src/lib/socket.ts",
         "apps/web/src/lib/socket.spec.ts",
         "apps/mobile/src/api/auth.ts",
