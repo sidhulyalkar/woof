@@ -25,7 +25,7 @@ export class PetCapabilityAuthority {
   constructor(
     private readonly prisma: PrismaService,
     private readonly caregiverStore: CaregiverOperationalStore,
-    private readonly trustSafety: TrustSafetyService,
+    private readonly trustSafety: TrustSafetyService
   ) {}
 
   /**
@@ -38,7 +38,7 @@ export class PetCapabilityAuthority {
     userId: string,
     petId: string,
     capability: CaregiverCapability,
-    now = new Date(),
+    now = new Date()
   ): Promise<PetCapabilityDecision> {
     const householdPet = await this.prisma.pet.findFirst({
       where: {
@@ -131,7 +131,7 @@ export class PetCapabilityAuthority {
     userId: string,
     petId: string,
     capability: CaregiverCapability,
-    now = new Date(),
+    now = new Date()
   ) {
     const grant = await this.caregiverStore.findEffectiveGrantForCapability({
       recipientUserId: userId,
