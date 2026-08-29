@@ -12,6 +12,7 @@ import { AppService } from './app.service';
 import { AutopilotModule } from './autopilot/autopilot.module';
 import { AuthModule } from './auth/auth.module';
 import { BehaviorVisionModule } from './behavior-vision/behavior-vision.module';
+import { CaregiverModule } from './caregiver/caregiver.module';
 import { ChatModule } from './chat/chat.module';
 import { CoActivityModule } from './co-activity/co-activity.module';
 import { CoachingModule } from './coaching/coaching.module';
@@ -77,6 +78,7 @@ export const throttlerOptions: ThrottlerModuleOptions = {
     PetsModule,
     HouseholdsModule,
     CompanionModule,
+    CaregiverModule,
     IntelligenceModule,
     ActivitiesModule,
     AdventureModule,
