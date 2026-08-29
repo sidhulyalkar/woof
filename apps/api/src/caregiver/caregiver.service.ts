@@ -19,9 +19,7 @@ import {
 import type { CreateCaregiverObservationDto, IssueCaregiverGrantDto } from './dto/caregiver.dto';
 import { PetCapabilityAuthority } from './pet-capability-authority';
 
-type GrantView = NonNullable<
-  Awaited<ReturnType<CaregiverOperationalStore['getReceivedGrant']>>
->;
+type GrantView = NonNullable<Awaited<ReturnType<CaregiverOperationalStore['getReceivedGrant']>>>;
 
 @Injectable()
 export class CaregiverService {
@@ -29,7 +27,7 @@ export class CaregiverService {
     private readonly prisma: PrismaService,
     private readonly store: CaregiverOperationalStore,
     private readonly authority: PetCapabilityAuthority,
-    private readonly trustSafety: TrustSafetyService,
+    private readonly trustSafety: TrustSafetyService
   ) {}
 
   async issueGrant(issuerUserId: string, dto: IssueCaregiverGrantDto, now = new Date()) {
@@ -72,7 +70,9 @@ export class CaregiverService {
 
     const existing = await this.store.findLiveGrantForRecipientPet(dto.recipientUserId, dto.petId);
     if (existing && effectiveCaregiverStatus(existing, now) !== 'EXPIRED') {
-      throw new ConflictException('This caregiver already has pending or active access to this pet');
+      throw new ConflictException(
+        'This caregiver already has pending or active access to this pet'
+      );
     }
 
     const grantId = randomUUID();
@@ -87,7 +87,15 @@ export class CaregiverService {
         issuedAt: now,
         expiresAt,
       });
-      if (!created) return this.resolveIssuanceNoop(issuerUserId, dto, requestKey, capabilities, expiresAt, now);
+      if (!created)
+        return this.resolveIssuanceNoop(
+          issuerUserId,
+          dto,
+          requestKey,
+          capabilities,
+          expiresAt,
+          now
+        );
     } catch (error) {
       const semantic = await this.resolveIssuanceNoop(
         issuerUserId,
@@ -96,7 +104,7 @@ export class CaregiverService {
         capabilities,
         expiresAt,
         now,
-        false,
+        false
       );
       if (semantic) return semantic;
       throw error;
@@ -119,9 +127,9 @@ export class CaregiverService {
         ...this.grantView(grant, now),
         relationshipBlocked: await this.trustSafety.isBlockedEitherDirection(
           grant.issuerUserId,
-          grant.recipientUserId,
+          grant.recipientUserId
         ),
-      })),
+      }))
     );
   }
 
@@ -189,7 +197,8 @@ export class CaregiverService {
     const grants = await this.store.listActiveCaregiverPets(recipientUserId, now);
     const visible = [];
     for (const grant of grants) {
-      if (await this.trustSafety.isBlockedEitherDirection(grant.issuerUserId, recipientUserId)) continue;
+      if (await this.trustSafety.isBlockedEitherDirection(grant.issuerUserId, recipientUserId))
+        continue;
       visible.push(this.grantView(grant, now));
     }
     return visible;
@@ -200,7 +209,7 @@ export class CaregiverService {
       recipientUserId,
       petId,
       'VIEW_TODAY',
-      now,
+      now
     );
 
     return {
@@ -233,13 +242,13 @@ export class CaregiverService {
     recipientUserId: string,
     petId: string,
     dto: CreateCaregiverObservationDto,
-    now = new Date(),
+    now = new Date()
   ) {
     const grant = await this.authority.assertCaregiverGrantCapability(
       recipientUserId,
       petId,
       'LOG_OBSERVATION',
-      now,
+      now
     );
     const observedAt = dto.observedAt ? new Date(dto.observedAt) : now;
     if (!Number.isFinite(observedAt.getTime())) {
@@ -285,7 +294,8 @@ export class CaregiverService {
   }
 
   private assertCapabilityBundle(capabilities: CaregiverCapability[]) {
-    if (capabilities.length === 0) throw new BadRequestException('At least one capability is required');
+    if (capabilities.length === 0)
+      throw new BadRequestException('At least one capability is required');
     if (capabilities.includes('LOG_OBSERVATION') && !capabilities.includes('VIEW_TODAY')) {
       throw new BadRequestException('LOG_OBSERVATION requires VIEW_TODAY');
     }
@@ -295,7 +305,7 @@ export class CaregiverService {
     existing: GrantView,
     dto: IssueCaregiverGrantDto,
     capabilities: CaregiverCapability[],
-    expiresAt: Date,
+    expiresAt: Date
   ) {
     return (
       existing.petId === dto.petId &&
@@ -313,7 +323,7 @@ export class CaregiverService {
     capabilities: CaregiverCapability[],
     expiresAt: Date,
     now: Date,
-    throwOnConflict = true,
+    throwOnConflict = true
   ) {
     const replay = await this.store.getByIssuerRequestKey(issuerUserId, requestKey);
     if (replay) {
@@ -329,7 +339,9 @@ export class CaregiverService {
     const live = await this.store.findLiveGrantForRecipientPet(dto.recipientUserId, dto.petId);
     if (live && effectiveCaregiverStatus(live, now) !== 'EXPIRED') {
       if (throwOnConflict) {
-        throw new ConflictException('This caregiver already has pending or active access to this pet');
+        throw new ConflictException(
+          'This caregiver already has pending or active access to this pet'
+        );
       }
       return null;
     }
