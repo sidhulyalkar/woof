@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { authApi } from '@/lib/api';
 
 const productSignals = [
-  'Explainable compatibility, not mystery scores',
-  'Designed around real-world meetup outcomes',
-  'Location and trust treated as product boundaries',
+  'Relationship-first dogOS when you have an authorized pet',
+  'Human-skill practice and community without inventing a pet',
+  'Location, health, and placement authority treated as product boundaries',
 ];
 
 export default function LoginPage() {
@@ -64,13 +64,14 @@ export default function LoginPage() {
         </div>
 
         <div className="relative max-w-xl">
-          <p className="eyebrow">A social network that closes the loop</p>
+          <p className="eyebrow">dogOS starts with the relationship you actually have</p>
           <h2 className="mt-4 text-4xl font-bold leading-tight tracking-tight xl:text-5xl">
-            Better dog friendships start with better context.
+            Learn with a dog, for a future dog, or as someone helping dogs.
           </h2>
           <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">
-            Discover compatible dogs, coordinate a safe meetup, and learn from what actually
-            happened offline instead of optimizing another endless feed.
+            Woof can open the full pet relationship loop when you have real pet authority, or stay
+            useful through human-skill practice, community, and private readiness reflection when
+            you do not.
           </p>
 
           <div className="mt-8 space-y-3">
@@ -86,8 +87,8 @@ export default function LoginPage() {
         </div>
 
         <div className="relative flex items-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-secondary" aria-hidden="true" />
-          Precise location should stay contextual and permissioned.
+          <ShieldCheck className="h-4 w-4 text-secondary" aria-hidden="true" />A mode changes
+          presentation. It never grants access to a pet.
         </div>
       </aside>
 
@@ -101,7 +102,7 @@ export default function LoginPage() {
               <PawPrint className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
             </span>
             <div>
-              <p className="eyebrow">Your local pack</p>
+              <p className="eyebrow">Relationship-first dogOS</p>
               <p className="font-bold">Woof</p>
             </div>
           </div>
@@ -114,7 +115,8 @@ export default function LoginPage() {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
                 <CardDescription className="mt-2 leading-relaxed">
-                  Sign in to continue learning what helps your pet thrive with you.
+                  Sign in to continue from the dog, caregiver, or learning context that actually
+                  applies to you.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -133,7 +135,6 @@ export default function LoginPage() {
                     disabled={isLoading}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -147,7 +148,6 @@ export default function LoginPage() {
                     disabled={isLoading}
                   />
                 </div>
-
                 {error && (
                   <div
                     role="alert"
@@ -157,7 +157,6 @@ export default function LoginPage() {
                     {error}
                   </div>
                 )}
-
                 <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
@@ -173,10 +172,10 @@ export default function LoginPage() {
               <p className="mt-6 text-center text-sm text-muted-foreground">
                 New to Woof?{' '}
                 <Link
-                  href="/onboarding"
+                  href="/onboarding/companion"
                   className="inline-flex min-h-8 items-center rounded-md px-1 font-semibold text-primary hover:text-primary/80"
                 >
-                  Create your profile
+                  Choose how to start
                 </Link>
               </p>
             </CardContent>

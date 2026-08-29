@@ -1,11 +1,22 @@
 'use client';
 
-import { Brain, Compass, Map, PawPrint, Sparkles, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Brain,
+  ClipboardCheck,
+  Compass,
+  Gamepad2,
+  Map,
+  PawPrint,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { companionApi } from '@/lib/api/companion';
 import { cn } from '@/lib/utils';
 
-const navItems = [
+const petNavItems = [
   { href: '/', icon: PawPrint, label: 'Today' },
   { href: '/compass', icon: Compass, label: 'Compass' },
   { href: '/journey', icon: Map, label: 'Story', isSpecial: true },
@@ -14,8 +25,31 @@ const navItems = [
   { href: '/community', icon: Users, label: 'Community' },
 ];
 
+const companionNavItems = [
+  { href: '/', icon: PawPrint, label: 'Today' },
+  { href: '/arcade', icon: Gamepad2, label: 'Arcade' },
+  { href: '/community', icon: Users, label: 'Community' },
+  { href: '/companion/readiness', icon: ClipboardCheck, label: 'Readiness' },
+];
+
 export function BottomNav() {
   const pathname = usePathname();
+  const companion = useQuery({
+    queryKey: ['companion', 'state'],
+    queryFn: companionApi.state,
+    retry: false,
+    staleTime: 60_000,
+    // Navigation observes account authority but does not own its resolution.
+    // Failed no-data queries use retryOnMount rather than refetchOnMount, so
+    // both controls must remain off here. The owning surface exposes explicit
+    // retry UX instead of letting a navigation observer revive authority work.
+    refetchOnMount: false,
+    retryOnMount: false,
+  });
+
+  // Fail closed for pet-only navigation. Until account state is positively
+  // resolved as PET_TODAY, only surfaces that are valid without a pet appear.
+  const navItems = companion.data?.landing === 'PET_TODAY' ? petNavItems : companionNavItems;
 
   return (
     <nav
@@ -27,7 +61,7 @@ export function BottomNav() {
           const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
           const Icon = item.icon;
 
-          if (item.isSpecial) {
+          if ('isSpecial' in item && item.isSpecial) {
             return (
               <Link
                 key={item.href}

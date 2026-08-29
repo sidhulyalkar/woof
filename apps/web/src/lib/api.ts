@@ -8,6 +8,14 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+type RegistrationRequest = {
+  handle: string;
+  email: string;
+  password: string;
+  bio?: string;
+  registrationKey?: string;
+};
+
 type StorageObject = {
   key: string;
   url: string;
@@ -38,7 +46,7 @@ function authHeader(token: string) {
 }
 
 export const authApi = {
-  register: async (data: { handle: string; email: string; password: string; bio?: string }) => {
+  register: async (data: RegistrationRequest) => {
     const response = await apiClient.post<AuthResponse>('/auth/register', data);
     if (response.access_token && response.user) {
       useAuthStore.getState().setAuth(response.user, response.access_token);

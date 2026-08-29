@@ -1,0 +1,256 @@
+name: dogOS Companion Onramp CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/companion/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/web/src/app/page.tsx'
+      - 'apps/web/src/app/login/page.tsx'
+      - 'apps/web/src/app/community/page.tsx'
+      - 'apps/web/src/app/onboarding/companion/**'
+      - 'apps/web/src/app/companion/**'
+      - 'apps/web/src/components/companion/**'
+      - 'apps/web/src/components/today/**'
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/lib/api/companion.ts'
+      - 'apps/web/e2e/companion-onramp.spec.ts'
+      - 'packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/**'
+      - '.github/workflows/dogos-companion-onramp-ci.yml'
+      - 'docs/DOGOS_COMPANION_ONRAMP_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-companion-onramp-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+jobs:
+  qualify:
+    name: Companion mode + pet-authority qualification
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-companion-onramp-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Apply canonical migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Prove dogos_companion remains additive operational state
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Prove mode constraints, private reflection shape, and deletion cascade
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users (id, handle, email, created_at, updated_at)
+          VALUES ('companion-ci-user', 'companion_ci_user', 'companion-ci@example.test', NOW(), NOW());
+
+          INSERT INTO dogos_companion.profiles (user_id, mode)
+          VALUES ('companion-ci-user', 'ANIMAL_ALLY');
+
+          INSERT INTO dogos_companion.readiness_reflections (user_id, dimensions)
+          VALUES (
+            'companion-ci-user',
+            '{"housing":"WORKING_ON_IT","timeCapacity":"READY_TO_DISCUSS"}'::jsonb
+          );
+          SQL
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_companion.profiles SET mode = 'PET_SUPERUSER' WHERE user_id = 'companion-ci-user';"
+          then
+            echo 'Companion mode constraint unexpectedly accepted an invented role.' >&2
+            exit 1
+          fi
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_companion.readiness_reflections SET dimensions = dimensions || '{\"readinessScore\":\"READY_TO_DISCUSS\"}'::jsonb WHERE user_id = 'companion-ci-user';"
+          then
+            echo 'Readiness reflection unexpectedly accepted an invented dimension.' >&2
+            exit 1
+          fi
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_companion.readiness_reflections SET dimensions = dimensions || '{\"housing\":\"APPROVED\"}'::jsonb WHERE user_id = 'companion-ci-user';"
+          then
+            echo 'Readiness reflection unexpectedly accepted an invented status.' >&2
+            exit 1
+          fi
+
+          score_columns="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'dogos_companion' AND table_name = 'readiness_reflections' AND column_name ILIKE '%score%';")"
+          test "${score_columns}" = '0'
+
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM users WHERE id = 'companion-ci-user';"
+          profiles="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_companion.profiles WHERE user_id = 'companion-ci-user';")"
+          reflections="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_companion.readiness_reflections WHERE user_id = 'companion-ci-user';")"
+          test "${profiles}" = '0'
+          test "${reflections}" = '0'
+
+      - name: Enforce Companion authority source contracts
+        run: |
+          grep -F "modeNeverCreatesPetAuthority: true" apps/api/src/companion/companion.service.ts
+          grep -F "householdMemberships" apps/api/src/companion/companion.service.ts
+          grep -F "landing: hasAuthorizedPet ? 'PET_TODAY' : 'NEEDS_PET_SETUP'" apps/api/src/companion/companion.policy.ts
+          grep -F "landing: 'COMPANION_TODAY'" apps/api/src/companion/companion.policy.ts
+          grep -F "SELECT DISTINCT pet.owner_id, 'PET_GUARDIAN'" \
+            packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/migration.sql
+          grep -F "readiness_dimensions_valid" \
+            packages/database/prisma/migrations/20260828193000_add_dogos_companion_onramp_v1/migration.sql
+          if grep -REn "pet\.create|createPet\(" apps/api/src/companion; then
+            echo 'Companion mode code must never manufacture pet authority.' >&2
+            exit 1
+          fi
+          grep -F "companion.data?.landing === 'PET_TODAY'" apps/web/src/components/bottom-nav.tsx
+          grep -F "const hasPetContext = companion.data?.landing === 'PET_TODAY';" apps/web/src/app/community/page.tsx
+          grep -F "{hasPetContext && (" apps/web/src/app/community/page.tsx
+          grep -F "href=\"/onboarding/companion\"" apps/web/src/app/login/page.tsx
+          grep -F "No score" apps/web/src/components/today/companion-today-page.tsx
+          grep -F "A checklist, not a verdict." apps/web/src/app/companion/readiness/page.tsx
+
+      - name: Check Companion formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/companion \
+            apps/api/src/app.module.ts \
+            apps/web/src/app/page.tsx \
+            apps/web/src/app/login/page.tsx \
+            apps/web/src/app/community/page.tsx \
+            apps/web/src/app/onboarding/companion \
+            apps/web/src/app/companion \
+            apps/web/src/components/companion \
+            apps/web/src/components/today \
+            apps/web/src/components/bottom-nav.tsx \
+            apps/web/src/lib/api/companion.ts \
+            apps/web/e2e/companion-onramp.spec.ts \
+            .github/workflows/dogos-companion-onramp-ci.yml \
+            docs/DOGOS_COMPANION_ONRAMP_V1.md
+          if ! git diff --quiet; then
+            git diff -- \
+              apps/api/src/companion \
+              apps/api/src/app.module.ts \
+              apps/web/src/app/page.tsx \
+              apps/web/src/app/login/page.tsx \
+              apps/web/src/app/community/page.tsx \
+              apps/web/src/app/onboarding/companion \
+              apps/web/src/app/companion \
+              apps/web/src/components/companion \
+              apps/web/src/components/today \
+              apps/web/src/components/bottom-nav.tsx \
+              apps/web/src/lib/api/companion.ts \
+              apps/web/e2e/companion-onramp.spec.ts \
+              .github/workflows/dogos-companion-onramp-ci.yml \
+              docs/DOGOS_COMPANION_ONRAMP_V1.md | head -c 60000
+            exit 1
+          fi
+
+      - name: Lint Companion API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/companion/**/*.ts'
+          src/app.module.ts
+
+      - name: Lint Companion web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/page.tsx
+          src/app/login/page.tsx
+          src/app/community/page.tsx
+          'src/app/onboarding/companion/**/*.tsx'
+          'src/app/companion/**/*.tsx'
+          'src/components/companion/**/*.tsx'
+          'src/components/today/**/*.tsx'
+          src/components/bottom-nav.tsx
+          src/lib/api/companion.ts
+          e2e/companion-onramp.spec.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check web app
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run Companion policy contracts
+        run: pnpm --filter @woof/api exec jest src/companion --runInBand
+
+      - name: Run full backend contracts
+        run: pnpm --filter @woof/api test -- --runInBand
+
+      - name: Run full web contracts
+        run: pnpm --filter @woof/web test
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run Companion browser authority contracts
+        run: pnpm --filter @woof/web exec playwright test e2e/companion-onramp.spec.ts --project=chromium
+
+      - name: Upload Companion Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: companion-playwright-report-${{ github.run_id }}
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build web app
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build

@@ -65,23 +65,19 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject schema or unaudited migration ownership in release polish
+      - name: Enforce Release Polish database ownership
         run: |
-          git fetch origin main --depth=1
-          changed_database_files="$(
-            git diff --name-only origin/main HEAD -- \
-              packages/database/prisma/schema.prisma \
-              packages/database/prisma/migrations
-          )"
-          unexpected_database_files="$(
-            printf '%s\n' "$changed_database_files" | \
-              grep -Ev '^packages/database/prisma/migrations/(20260823081000_add_dogos_chat_delivery_receipts|20260823082000_add_dogos_discovery_location_cells)/migration\.sql$' || true
-          )"
-          if [ -n "$unexpected_database_files" ]; then
-            echo 'Release polish may inherit only the two audited Trust + Discovery operational migrations; schema ownership and all other migrations remain forbidden.'
-            printf '%s\n' "$unexpected_database_files"
-            exit 1
-          fi
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+          python .github/scripts/assert-database-ownership.py \
+            "${{ github.event.pull_request.base.sha }}" \
+            --enforce-if-changed 'apps/web/src/app/activity/page.tsx' \
+            --enforce-if-changed 'apps/web/src/app/pets/new/page.tsx' \
+            --enforce-if-changed 'apps/web/src/components/concierge/concierge-briefing.tsx' \
+            --enforce-if-changed 'apps/web/src/components/pets/**' \
+            --enforce-if-changed 'apps/web/src/lib/active-pet.ts' \
+            --enforce-if-changed 'apps/web/src/lib/api/activities.ts' \
+            --enforce-if-changed 'apps/web/src/lib/api/adventure.ts' \
+            --enforce-if-changed 'apps/web/src/lib/api/pets.ts'
 
       - name: Check release-polish formatting
         run: |
