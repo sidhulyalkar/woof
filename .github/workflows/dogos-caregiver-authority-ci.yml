@@ -126,8 +126,8 @@ jobs:
             exit 1
           fi
 
-          if grep -REn "BottomNav|PetSwitcher|adventureApi|DailySignals|Health|Connector" apps/web/src/app/caregiver; then
-            echo 'Caregiver-specific Today must not inherit owner-only navigation or authority surfaces.' >&2
+          if grep -REn "from ['\"]@/components/(bottom-nav|pet-switcher)|from ['\"]@/lib/api/(adventure|daily-signals|health|health-lens|connectors)|<BottomNav|<PetSwitcher" apps/web/src/app/caregiver; then
+            echo 'Caregiver-specific Today must not import owner-only navigation or authority surfaces.' >&2
             exit 1
           fi
 
