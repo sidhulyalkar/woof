@@ -75,7 +75,10 @@ FOR EACH ROW
 EXECUTE FUNCTION dogos_caregiver.enforce_grant_activation();
 
 -- Receipt rows must actually attest to the current immutable grant scope and the
--- correct lifecycle actor. This also makes LOG_OBSERVATION imply VIEW_TODAY in v1.
+-- correct lifecycle actor. Receipt capability arrays are canonicalized because
+-- capability scope is set-semantic; presentation order must never decide whether
+-- equivalent authority is accepted or rejected. This also makes
+-- LOG_OBSERVATION imply VIEW_TODAY in v1.
 CREATE OR REPLACE FUNCTION dogos_caregiver.validate_grant_receipt()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -103,6 +106,10 @@ BEGIN
     RAISE EXCEPTION 'caregiver receipt requires at least one grant capability'
       USING ERRCODE = '23514';
   END IF;
+
+  SELECT ARRAY_AGG(receipt_capability ORDER BY receipt_capability)
+  INTO NEW.capabilities
+  FROM UNNEST(NEW.capabilities) AS receipt_capability;
 
   IF 'LOG_OBSERVATION' = ANY(actual_capabilities)
      AND NOT ('VIEW_TODAY' = ANY(actual_capabilities)) THEN
