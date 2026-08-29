@@ -1,8 +1,8 @@
-// Transitional cleanup worker for legacy PetPath/Woof installs.
+// Transitional cleanup worker for legacy Woof browser caches.
 //
 // Woof no longer registers a service worker in the current release. Existing
-// browsers may still have the old cache-first PetPath worker installed, so this
-// file intentionally updates that registration once, removes legacy caches, and
+// browsers may still have the old cache-first worker installed, so this file
+// intentionally updates that registration once, removes legacy caches, and
 // unregisters itself. It must not cache or serve application/user data.
 
 self.addEventListener("install", () => {
