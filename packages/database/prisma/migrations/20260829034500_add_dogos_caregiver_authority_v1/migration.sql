@@ -32,6 +32,7 @@ CREATE TABLE dogos_caregiver.grants (
     status IN ('PENDING_ACCEPTANCE', 'ACTIVE', 'DECLINED', 'REVOKED')
   ),
   CONSTRAINT caregiver_grant_expiry_order CHECK (expires_at > issued_at),
+  CONSTRAINT caregiver_grant_v1_min_duration CHECK (expires_at >= issued_at + INTERVAL '15 minutes'),
   CONSTRAINT caregiver_grant_v1_max_duration CHECK (expires_at <= issued_at + INTERVAL '31 days'),
   CONSTRAINT caregiver_grant_accepted_order CHECK (
     accepted_at IS NULL OR accepted_at >= issued_at
@@ -203,7 +204,8 @@ FOR EACH ROW
 EXECUTE FUNCTION dogos_caregiver.reject_grant_identity_mutation();
 
 -- Capabilities are inserted before the ISSUED receipt in the issuance
--- transaction. After that receipt exists, scope can never be broadened in place.
+-- transaction. After that receipt exists, scope can never be broadened or
+-- narrowed in place.
 CREATE OR REPLACE FUNCTION dogos_caregiver.reject_post_issue_capability_insert()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -245,8 +247,26 @@ BEFORE UPDATE ON dogos_caregiver.grant_capabilities
 FOR EACH ROW
 EXECUTE FUNCTION dogos_caregiver.reject_capability_update();
 
--- Lifecycle receipts are immutable while they exist. They may still disappear
--- through the explicit privacy cascades on grant/user/pet deletion.
+CREATE OR REPLACE FUNCTION dogos_caregiver.reject_direct_capability_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM dogos_caregiver.grants WHERE id = OLD.grant_id) THEN
+    RAISE EXCEPTION 'caregiver grant capabilities cannot be deleted after issuance'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER caregiver_capability_delete_only_with_grant
+BEFORE DELETE ON dogos_caregiver.grant_capabilities
+FOR EACH ROW
+EXECUTE FUNCTION dogos_caregiver.reject_direct_capability_delete();
+
+-- Lifecycle receipts are immutable while their grant exists. Cascading privacy
+-- deletion remains possible by deleting the parent grant/user/pet.
 CREATE OR REPLACE FUNCTION dogos_caregiver.reject_receipt_update()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -264,6 +284,24 @@ CREATE TRIGGER caregiver_receipt_immutable
 BEFORE UPDATE ON dogos_caregiver.grant_receipts
 FOR EACH ROW
 EXECUTE FUNCTION dogos_caregiver.reject_receipt_update();
+
+CREATE OR REPLACE FUNCTION dogos_caregiver.reject_direct_receipt_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM dogos_caregiver.grants WHERE id = OLD.grant_id) THEN
+    RAISE EXCEPTION 'caregiver authority receipts cannot be deleted directly'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER caregiver_receipt_delete_only_with_grant
+BEFORE DELETE ON dogos_caregiver.grant_receipts
+FOR EACH ROW
+EXECUTE FUNCTION dogos_caregiver.reject_direct_receipt_delete();
 
 -- Caregiver observations are source evidence, not mutable pet truth. Corrections
 -- require a later explicit supersession policy rather than rewriting history.
@@ -284,6 +322,24 @@ CREATE TRIGGER caregiver_observation_immutable
 BEFORE UPDATE ON dogos_caregiver.observations
 FOR EACH ROW
 EXECUTE FUNCTION dogos_caregiver.reject_observation_update();
+
+CREATE OR REPLACE FUNCTION dogos_caregiver.reject_direct_observation_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM dogos_caregiver.grants WHERE id = OLD.grant_id) THEN
+    RAISE EXCEPTION 'caregiver observations cannot be deleted directly'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER caregiver_observation_delete_only_with_grant
+BEFORE DELETE ON dogos_caregiver.observations
+FOR EACH ROW
+EXECUTE FUNCTION dogos_caregiver.reject_direct_observation_delete();
 
 -- Direct database inserts of caregiver observations must satisfy current
 -- persisted authority. A stale client or realtime session cannot write after
