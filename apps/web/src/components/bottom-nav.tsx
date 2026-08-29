@@ -40,9 +40,11 @@ export function BottomNav() {
     retry: false,
     staleTime: 60_000,
     // Navigation observes account authority but does not own its resolution.
-    // In particular, mounting the fail-closed nav after a state error must not
-    // refetch the same failed query and bounce the root router back to loading.
+    // Failed no-data queries use retryOnMount rather than refetchOnMount, so
+    // both controls must remain off here. The owning surface exposes explicit
+    // retry UX instead of letting a navigation observer revive authority work.
     refetchOnMount: false,
+    retryOnMount: false,
   });
 
   // Fail closed for pet-only navigation. Until account state is positively
