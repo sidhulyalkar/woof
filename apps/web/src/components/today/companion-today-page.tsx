@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpenCheck, Gamepad2, HeartHandshake, Home, PawPrint, Users } from 'lucide-react';
 import Link from 'next/link';
 import { BottomNav } from '@/components/bottom-nav';
+import { CaregiverAccessPanel } from '@/components/caregiver/caregiver-access-panel';
 import { Button } from '@/components/ui/button';
 import { companionApi, type CompanionState } from '@/lib/api/companion';
 import { socialAdventureApi } from '@/lib/api/social-adventure';
@@ -67,6 +68,8 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
           <h2 className="mt-1 text-3xl font-bold tracking-tight text-balance">{copy.title}</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
         </section>
+
+        <CaregiverAccessPanel />
 
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
