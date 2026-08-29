@@ -5,22 +5,24 @@
 // intentionally updates that registration once, removes legacy caches, and
 // unregisters itself. It must not cache or serve application/user data.
 
-self.addEventListener("install", () => {
-  self.skipWaiting()
-})
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
 
-self.addEventListener("activate", (event) => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
-      caches.keys().then((cacheNames) =>
-        Promise.all(
-          cacheNames
-            .filter((cacheName) => cacheName.startsWith("petpath-"))
-            .map((cacheName) => caches.delete(cacheName)),
+      caches
+        .keys()
+        .then((cacheNames) =>
+          Promise.all(
+            cacheNames
+              .filter((cacheName) => cacheName.startsWith('petpath-'))
+              .map((cacheName) => caches.delete(cacheName))
+          )
         ),
-      ),
       self.registration.unregister(),
       self.clients.claim(),
-    ]),
-  )
-})
+    ])
+  );
+});
