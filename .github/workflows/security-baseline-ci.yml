@@ -1,0 +1,122 @@
+name: dogOS Security Baseline CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '47 11 * * 3'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Supply-chain + secret hygiene
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Scan tracked files for committed credential material
+        run: python .github/scripts/assert-no-committed-secrets.py
+
+      - name: Validate secret scanner source
+        run: python -m py_compile .github/scripts/assert-no-committed-secrets.py
+
+      - name: Materialize locked dependency graph without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Block high and critical production dependency advisories
+        run: pnpm audit --prod --audit-level high
+
+      - name: Build reproducible production dependency inventory
+        run: pnpm list --prod --depth Infinity --json > /tmp/production-dependency-inventory.json
+
+      - name: Enforce committed security baseline contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dependabot = Path('.github/dependabot.yml').read_text()
+          codeql = Path('.github/workflows/codeql.yml').read_text()
+          policy = Path('SECURITY.md').read_text()
+          baseline = Path('docs/SECURITY_BASELINE.md').read_text()
+
+          required_dependabot = [
+              'package-ecosystem: npm',
+              'package-ecosystem: github-actions',
+              'interval: weekly',
+          ]
+          required_codeql = [
+              'github/codeql-action/init@v4',
+              'github/codeql-action/analyze@v4',
+              'javascript-typescript',
+              'python',
+              'security-events: write',
+          ]
+          required_policy = [
+              'Critical reachable production vulnerability',
+              'High reachable production vulnerability',
+              'Credential exposure',
+          ]
+          required_baseline = [
+              'Supply-chain + secret hygiene',
+              'Block force pushes',
+              'Block branch deletion',
+              'Require conversation resolution',
+          ]
+
+          groups = [
+              ('dependabot', dependabot, required_dependabot),
+              ('codeql', codeql, required_codeql),
+              ('policy', policy, required_policy),
+              ('baseline', baseline, required_baseline),
+          ]
+
+          missing = []
+          for label, content, markers in groups:
+              missing.extend(
+                  f'{label}:{marker}' for marker in markers if marker not in content
+              )
+
+          if missing:
+              raise SystemExit('security baseline contract drift:\n' + '\n'.join(missing))
+          PY
+
+      - name: Check security configuration formatting
+        run: >-
+          pnpm exec prettier --check
+          .github/dependabot.yml
+          .github/workflows/codeql.yml
+          .github/workflows/security-baseline-ci.yml
+          SECURITY.md
+          docs/SECURITY_BASELINE.md
+
+      - name: Retain production dependency inventory
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-dependency-inventory-${{ github.run_id }}
+          path: /tmp/production-dependency-inventory.json
+          if-no-files-found: error
+          retention-days: 14
