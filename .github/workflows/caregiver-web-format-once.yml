@@ -1,0 +1,58 @@
+name: Caregiver Web Format Once
+
+on:
+  push:
+    branches:
+      - agent/caregiver-authority-v1
+    paths:
+      - '.github/workflows/caregiver-web-format-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/caregiver-authority-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical caregiver formatting
+        run: >-
+          pnpm exec prettier --write
+          apps/web/src/lib/api/caregiver.ts
+          apps/web/src/components/caregiver
+          apps/web/src/app/caregiver
+          apps/web/e2e/caregiver-authority.spec.ts
+          .github/workflows/dogos-caregiver-authority-ci.yml
+
+      - name: Commit formatter-only changes
+        run: |
+          if git diff --quiet; then
+            echo 'Caregiver web files already match canonical formatting.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/web/src/lib/api/caregiver.ts \
+            apps/web/src/components/caregiver \
+            apps/web/src/app/caregiver \
+            apps/web/e2e/caregiver-authority.spec.ts \
+            .github/workflows/dogos-caregiver-authority-ci.yml
+          git commit -m 'chore: format caregiver web authority'
+          git push origin HEAD:agent/caregiver-authority-v1
