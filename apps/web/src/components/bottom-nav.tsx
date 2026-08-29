@@ -39,6 +39,10 @@ export function BottomNav() {
     queryFn: companionApi.state,
     retry: false,
     staleTime: 60_000,
+    // Navigation observes account authority but does not own its resolution.
+    // In particular, mounting the fail-closed nav after a state error must not
+    // refetch the same failed query and bounce the root router back to loading.
+    refetchOnMount: false,
   });
 
   // Fail closed for pet-only navigation. Until account state is positively
