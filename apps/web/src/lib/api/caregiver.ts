@@ -3,7 +3,8 @@ import { apiClient } from './client';
 export type CaregiverCapability = 'VIEW_TODAY' | 'LOG_OBSERVATION';
 export type CaregiverStoredStatus = 'PENDING_ACCEPTANCE' | 'ACTIVE' | 'DECLINED' | 'REVOKED';
 export type CaregiverEffectiveStatus = CaregiverStoredStatus | 'EXPIRED';
-export type CaregiverObservationKind = 'ROUTINE' | 'ACTIVITY_RESPONSE' | 'BEHAVIOR' | 'HANDOFF_NOTE';
+export type CaregiverObservationKind =
+  'ROUTINE' | 'ACTIVITY_RESPONSE' | 'BEHAVIOR' | 'HANDOFF_NOTE';
 
 export type CaregiverPet = {
   id: string;
@@ -81,9 +82,15 @@ export const caregiverApi = {
   received: () => apiClient.get<CaregiverGrant[]>('/caregiver/grants/received'),
   activePets: () => apiClient.get<CaregiverGrant[]>('/caregiver/pets'),
   accept: (grantId: string) =>
-    apiClient.post<CaregiverGrant, Record<string, never>>(`/caregiver/grants/${grantId}/accept`, {}),
+    apiClient.post<CaregiverGrant, Record<string, never>>(
+      `/caregiver/grants/${grantId}/accept`,
+      {}
+    ),
   decline: (grantId: string) =>
-    apiClient.post<CaregiverGrant, Record<string, never>>(`/caregiver/grants/${grantId}/decline`, {}),
+    apiClient.post<CaregiverGrant, Record<string, never>>(
+      `/caregiver/grants/${grantId}/decline`,
+      {}
+    ),
   today: (petId: string) => apiClient.get<CaregiverToday>(`/caregiver/pets/${petId}/today`),
   observe: (
     petId: string,
@@ -94,5 +101,8 @@ export const caregiverApi = {
       observedAt?: string;
     }
   ) =>
-    apiClient.post<CaregiverObservation, typeof input>(`/caregiver/pets/${petId}/observations`, input),
+    apiClient.post<CaregiverObservation, typeof input>(
+      `/caregiver/pets/${petId}/observations`,
+      input
+    ),
 };

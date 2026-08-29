@@ -144,7 +144,11 @@ export default function CaregiverPetTodayPage() {
 
   if (today.isLoading) {
     return (
-      <main id="main-content" className="flex min-h-screen items-center justify-center" role="status">
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center"
+        role="status"
+      >
         <div className="text-center">
           <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" aria-hidden="true" />
           <p className="mt-3 text-sm text-muted-foreground">Checking caregiver authority…</p>
@@ -192,7 +196,9 @@ export default function CaregiverPetTodayPage() {
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <p className="eyebrow mt-4">Current pet-scoped authority</p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight">Care for {data.pet.name} today.</h2>
+          <h2 className="mt-1 text-3xl font-bold tracking-tight">
+            Care for {data.pet.name} today.
+          </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             @{data.relationship.issuerHandle ?? 'guardian'} granted this temporary view. Opening or
             refreshing this page checks current server authority again.
@@ -209,7 +215,10 @@ export default function CaregiverPetTodayPage() {
           <div className="mt-4 space-y-2 text-sm text-muted-foreground">
             <p>• View this caregiver-safe Today context.</p>
             <p>
-              • {canObserve ? 'Leave context-only care observations.' : 'Observation writing was not granted.'}
+              •{' '}
+              {canObserve
+                ? 'Leave context-only care observations.'
+                : 'Observation writing was not granted.'}
             </p>
           </div>
         </section>
@@ -217,13 +226,19 @@ export default function CaregiverPetTodayPage() {
         {canObserve && (
           <section className="mt-6 rounded-3xl border border-border/70 bg-card/60 p-5">
             <p className="eyebrow">Care observation</p>
-            <h2 className="mt-1 text-lg font-bold">Leave useful context, not a permanent dog trait.</h2>
+            <h2 className="mt-1 text-lg font-bold">
+              Leave useful context, not a permanent dog trait.
+            </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               This note is stored as caregiver context only. It does not award Bond XP, complete an
-              Adventure, update the dog&apos;s profile, or become recommendation evidence automatically.
+              Adventure, update the dog&apos;s profile, or become recommendation evidence
+              automatically.
             </p>
 
-            <label className="mt-5 block text-sm font-semibold" htmlFor="caregiver-observation-kind">
+            <label
+              className="mt-5 block text-sm font-semibold"
+              htmlFor="caregiver-observation-kind"
+            >
               What kind of observation is this?
             </label>
             <select
@@ -240,7 +255,10 @@ export default function CaregiverPetTodayPage() {
               ))}
             </select>
 
-            <label className="mt-4 block text-sm font-semibold" htmlFor="caregiver-observation-summary">
+            <label
+              className="mt-4 block text-sm font-semibold"
+              htmlFor="caregiver-observation-summary"
+            >
               Short observation
             </label>
             <textarea
@@ -253,7 +271,10 @@ export default function CaregiverPetTodayPage() {
               placeholder="Example: Settled after the evening routine and chose to rest by the door."
             />
 
-            <label className="mt-4 block text-sm font-semibold" htmlFor="caregiver-observation-note">
+            <label
+              className="mt-4 block text-sm font-semibold"
+              htmlFor="caregiver-observation-note"
+            >
               Optional handoff detail
             </label>
             <textarea

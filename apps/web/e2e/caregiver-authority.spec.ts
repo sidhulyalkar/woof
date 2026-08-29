@@ -203,7 +203,9 @@ test.describe('dogOS Caregiver Authority', () => {
     await expect(page.getByRole('link', { name: 'Auto', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Coach', exact: true })).toHaveCount(0);
 
-    await page.locator('[data-caregiver-observation-summary]').fill('Settled after the evening routine.');
+    await page
+      .locator('[data-caregiver-observation-summary]')
+      .fill('Settled after the evening routine.');
     await page.locator('[data-caregiver-submit-observation]').click();
     await expect(page.locator('[data-caregiver-observation-saved]')).toContainText('context only');
 

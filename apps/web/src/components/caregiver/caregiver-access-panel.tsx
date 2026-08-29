@@ -151,7 +151,9 @@ export function CaregiverAccessPanel() {
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-bold">{grant.pet.name} is available for temporary care</p>
+                  <p className="text-sm font-bold">
+                    {grant.pet.name} is available for temporary care
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Guardian @{grant.issuerHandle ?? 'guardian'} · {capabilityCopy(grant)}
                   </p>
