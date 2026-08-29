@@ -47,8 +47,9 @@ The committed baseline provides:
 - controlled weekly Dependabot updates for GitHub Actions;
 - CodeQL analysis for JavaScript/TypeScript and Python;
 - a high-confidence committed-secret scan that never prints matching credential values;
-- a production dependency audit that blocks high and critical advisories pending triage;
-- a reproducible production dependency inventory artifact;
+- a production dependency audit that blocks unaccepted high and critical advisories;
+- exact machine-checked, time-bounded risk acceptance for exceptional findings that cannot yet be patched;
+- a reproducible production dependency inventory and raw audit evidence artifact;
 - deterministic GitHub Action runtime/version qualification.
 
 ## Dependency vulnerability triage
@@ -59,9 +60,29 @@ The automated audit is intentionally a first-line release gate, not the final in
 - High reachable production vulnerabilities block release unless risk acceptance is explicit, time-bounded, owned, and documented.
 - Development-only or non-reachable findings are tracked rather than silently ignored.
 - Do not use `--force` upgrades solely to make scanners green.
-- Any exception should identify the advisory, affected package, production reachability, compensating controls, owner, and expiry.
+- Any exception must identify the exact advisory, package, severity, accepted dependency-path boundary, owner, rationale, and expiry.
 
-If the audit produces a legitimate false positive or non-reachable high advisory, add a narrowly scoped documented exception mechanism rather than disabling the audit globally.
+Temporary dependency risk acceptance lives only in `.github/security-audit-exceptions.json` and is enforced by `.github/scripts/assert-pnpm-audit-policy.py` against a fresh `pnpm audit --prod --json` report.
+
+The exception contract intentionally fails when:
+
+- a high/critical GHSA is not explicitly accepted;
+- an accepted advisory changes package or severity;
+- any affected dependency path escapes its approved boundary;
+- the exception expires;
+- an exception extends more than 45 days into the future;
+- an exception becomes stale because the advisory is no longer present.
+
+The current accepted class is `mobile-build-tool-only`. It requires every reported path to begin in `apps/mobile` and pass through Expo and Metro. This allows a short-lived response to an upstream build-tool advisory with no patched release without making that GHSA acceptable if it later reaches Web, API, or another runtime surface.
+
+### Current mobile build-tool risk
+
+As of August 29, 2026, the only accepted high-severity findings are:
+
+- `GHSA-w3rx-r6r6-pgpr` for `image-size`;
+- `GHSA-5p2g-fcmc-qvqq` for `image-size`.
+
+The package registry reports no patched `image-size` version for either advisory. The current Woof audit resolves every affected path through `apps/mobile → Expo → Metro → image-size@1.2.1`. These exceptions expire September 29, 2026 and must be removed earlier if Expo/Metro or image-size publishes a safe path.
 
 ## Secret hygiene
 
@@ -76,7 +97,7 @@ Before calling a SHA public-beta ready:
 - stable required checks are green on the exact head;
 - feature-specific authority lanes relevant to the change are green;
 - CodeQL has no unresolved release-blocking finding;
-- production dependency audit is green or every blocking exception is documented and unexpired;
+- production dependency audit is green or every blocking exception passes the exact unexpired machine policy;
 - committed-secret scan is green;
 - production deployment credentials are configured through repository/environment secrets, never source;
 - deployment readiness, rollback, and backup/restore evidence is current.
