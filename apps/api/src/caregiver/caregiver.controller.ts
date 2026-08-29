@@ -56,7 +56,7 @@ export class CaregiverController {
   logObservation(
     @Request() req: AuthenticatedRequest,
     @Param('petId') petId: string,
-    @Body() dto: CreateCaregiverObservationDto,
+    @Body() dto: CreateCaregiverObservationDto
   ) {
     return this.caregiver.logObservation(req.user.sub, petId, dto);
   }
