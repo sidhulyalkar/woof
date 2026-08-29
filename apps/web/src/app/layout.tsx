@@ -6,7 +6,6 @@ import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
-import { ServiceWorkerRegister } from "@/components/service-worker-register"
 import { Providers } from "@/components/providers"
 import { AuthGuard } from "@/components/auth-guard"
 import { ErrorBoundary } from "@/components/error-boundary"
@@ -19,25 +18,19 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Woof · Better dog friendships, offline",
+    default: "Woof · A better day with your dog",
     template: "%s · Woof",
   },
   description:
-    "Discover compatible dogs nearby, coordinate meetups, track shared activity, and build better real-world pet friendships.",
+    "Woof helps you choose one useful thing to do with your dog, notice how it went, and make the next shared moment easier.",
   applicationName: "Woof",
-  manifest: "/manifest.json",
   keywords: [
-    "dog social app",
-    "pet compatibility",
-    "dog meetups",
-    "pet activity tracking",
-    "pet community",
+    "dog companion",
+    "dog activities",
+    "dog training",
+    "dog care",
+    "dog relationship",
   ],
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Woof",
-  },
   formatDetection: {
     telephone: false,
   },
@@ -64,10 +57,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="apple-touch-icon" href="/icon-192.jpg" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-      </head>
       <body className={`font-sans ${inter.variable} ${GeistMono.variable} antialiased`}>
         <a
           href="#main-content"
@@ -83,7 +72,6 @@ export default function RootLayout({
           </Providers>
           <Analytics />
           <Toaster />
-          <ServiceWorkerRegister />
         </ErrorBoundary>
       </body>
     </html>
