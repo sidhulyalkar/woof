@@ -35,6 +35,22 @@ Woof does not treat a scanner's raw advisory count as release truth. Findings ar
 
 Do not use forced dependency upgrades solely to silence audit output. Preserve reproducibility and re-run the full relevant qualification matrix after security-sensitive changes.
 
+### Dependency risk acceptance
+
+High or critical dependency findings are not suppressed through a global ignore list. Any temporary acceptance must live in `.github/security-audit-exceptions.json` and pass `.github/scripts/assert-pnpm-audit-policy.py` against fresh `pnpm audit --prod --json` evidence.
+
+The current exception mechanism is deliberately narrow:
+
+- one exact GHSA identifier per entry;
+- exact package and severity matching;
+- a named owner and written rationale;
+- a maximum 45-day acceptance horizon;
+- no wildcard advisories, packages, or dependency paths;
+- all affected dependency paths must remain inside the explicitly accepted boundary;
+- stale exceptions fail instead of lingering after the dependency graph changes.
+
+The only supported exception class today is `mobile-build-tool-only`, scoped to dependency paths beginning with `apps/mobile >` and carrying the required Expo/Metro path markers. A finding that moves into Web, API, shared runtime code, or another dependency path becomes release-blocking immediately even if its GHSA identifier was previously accepted.
+
 ## Security boundaries that matter most
 
 The highest-risk areas in Woof are:
