@@ -1,0 +1,115 @@
+name: dogOS Client Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/app/layout.tsx'
+      - 'apps/web/src/components/service-worker-register.tsx'
+      - 'apps/web/public/manifest.json'
+      - 'apps/web/public/sw.js'
+      - '.github/workflows/dogos-client-authority-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-client-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Browser cache authority retirement
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Prove current pages do not register the legacy worker
+        run: |
+          if grep -Fq 'service-worker-register' apps/web/src/app/layout.tsx; then
+            echo 'Root layout must not register the retired legacy worker.' >&2
+            exit 1
+          fi
+          if test -e apps/web/src/components/service-worker-register.tsx; then
+            echo 'Legacy service-worker registration component must remain retired.' >&2
+            exit 1
+          fi
+
+      - name: Prove cleanup worker cannot become presentation authority
+        run: |
+          grep -F 'self.registration.unregister()' apps/web/public/sw.js
+          grep -Eq "cacheName\.startsWith\(['\"]petpath-['\"]\)" apps/web/public/sw.js
+          if grep -Eq "addEventListener\(['\"]fetch['\"]" apps/web/public/sw.js; then
+            echo 'Cleanup worker must never intercept application fetches.' >&2
+            exit 1
+          fi
+          if grep -Fq 'caches.open(' apps/web/public/sw.js; then
+            echo 'Cleanup worker must never create a cache.' >&2
+            exit 1
+          fi
+
+      - name: Validate current product manifest truth
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const manifest = JSON.parse(fs.readFileSync('apps/web/public/manifest.json', 'utf8'))
+          if (manifest.name !== 'Woof' || manifest.short_name !== 'Woof') {
+            throw new Error('Manifest must identify the current Woof product')
+          }
+          if (manifest.display !== 'browser') {
+            throw new Error('This release intentionally does not claim standalone PWA behavior')
+          }
+          if (JSON.stringify(manifest).includes('PetPath')) {
+            throw new Error('Legacy PetPath identity remains in manifest')
+          }
+          for (const icon of manifest.icons || []) {
+            const path = `apps/web/public/${icon.src.replace(/^\//, '')}`
+            if (!fs.existsSync(path)) throw new Error(`Manifest icon does not exist: ${icon.src}`)
+          }
+          NODE
+
+      - name: Enforce current public product truth
+        run: |
+          grep -F 'Woof · A better day with your dog' apps/web/src/app/layout.tsx
+          grep -F 'choose one useful thing to do with your dog' apps/web/src/app/layout.tsx
+          if grep -REn 'PetPath|Better dog friendships, offline' apps/web/src/app/layout.tsx apps/web/public/manifest.json apps/web/public/sw.js; then
+            echo 'Legacy product identity returned to the release surface.' >&2
+            exit 1
+          fi
+
+      - name: Check touched-source formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/web/src/app/layout.tsx \
+            apps/web/public/manifest.json \
+            apps/web/public/sw.js \
+            .github/workflows/dogos-client-authority-ci.yml
+          if ! git diff --quiet; then
+            git diff -- apps/web/src/app/layout.tsx apps/web/public/manifest.json apps/web/public/sw.js .github/workflows/dogos-client-authority-ci.yml | head -c 60000
+            exit 1
+          fi
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Lint Web
+        run: pnpm --filter @woof/web lint
+
+      - name: Build production Web
+        run: pnpm --filter @woof/web build
