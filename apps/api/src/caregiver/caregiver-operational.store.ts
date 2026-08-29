@@ -472,7 +472,7 @@ export class CaregiverOperationalStore {
       expiresAt: Date;
       occurredAt: Date;
       policyVersion?: string;
-    },
+    }
   ) {
     const policyVersion = input.policyVersion ?? CAREGIVER_POLICY_VERSION;
     const expiresAt = input.expiresAt.toISOString();
