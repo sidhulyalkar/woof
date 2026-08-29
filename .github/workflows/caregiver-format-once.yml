@@ -1,0 +1,63 @@
+name: Caregiver Format Once
+
+on:
+  push:
+    branches:
+      - agent/caregiver-authority-v1
+    paths:
+      - 'apps/api/src/caregiver/**'
+      - 'apps/api/src/app.module.ts'
+      - '.github/workflows/dogos-caregiver-authority-ci.yml'
+      - '.github/workflows/caregiver-format-once.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: caregiver-format-once
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/caregiver-authority-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical Prettier output
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/caregiver
+          apps/api/src/app.module.ts
+          .github/workflows/dogos-caregiver-authority-ci.yml
+          .github/workflows/caregiver-format-once.yml
+
+      - name: Commit formatter-only changes
+        run: |
+          if git diff --quiet; then
+            echo 'Caregiver sources already match canonical Prettier output.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/api/src/caregiver \
+            apps/api/src/app.module.ts \
+            .github/workflows/dogos-caregiver-authority-ci.yml \
+            .github/workflows/caregiver-format-once.yml
+          git commit -m 'chore: format caregiver authority'
+          git push origin HEAD:agent/caregiver-authority-v1
