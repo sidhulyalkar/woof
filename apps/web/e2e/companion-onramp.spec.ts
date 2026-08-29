@@ -33,6 +33,11 @@ const browserUser = {
 async function authenticate(page: Page) {
   const token = 'companion-browser-token';
 
+  // Persisted Zustand hydration and AuthGuard's canonical /auth/me fallback are
+  // both valid startup paths. Keep them pointed at the same user so a dev-server
+  // full reload cannot turn feature qualification into an authentication race.
+  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
+
   // Seed the same persisted auth representation Woof itself writes. A raw
   // authToken alone forces AuthGuard to race through /auth/me before the
   // feature test can begin, which makes browser authority tests nondeterministic.
