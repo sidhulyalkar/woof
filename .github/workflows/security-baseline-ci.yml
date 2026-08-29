@@ -41,14 +41,32 @@ jobs:
       - name: Scan tracked files for committed credential material
         run: python .github/scripts/assert-no-committed-secrets.py
 
-      - name: Validate secret scanner source
-        run: python -m py_compile .github/scripts/assert-no-committed-secrets.py
+      - name: Validate security policy scripts
+        run: >-
+          python -m py_compile
+          .github/scripts/assert-no-committed-secrets.py
+          .github/scripts/assert-pnpm-audit-policy.py
 
       - name: Materialize locked dependency graph without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Block high and critical production dependency advisories
-        run: pnpm audit --prod --audit-level high
+      - name: Capture production dependency audit evidence
+        run: |
+          set +e
+          pnpm audit --prod --json > /tmp/pnpm-audit.json
+          audit_status=$?
+          set -e
+          if [[ ! -s /tmp/pnpm-audit.json ]]; then
+            echo 'pnpm audit produced no machine-readable evidence.' >&2
+            exit 1
+          fi
+          echo "pnpm audit raw exit status: ${audit_status}"
+
+      - name: Enforce high and critical production advisory policy
+        run: >-
+          python .github/scripts/assert-pnpm-audit-policy.py
+          /tmp/pnpm-audit.json
+          .github/security-audit-exceptions.json
 
       - name: Build reproducible production dependency inventory
         run: pnpm list --prod --depth Infinity --json > /tmp/production-dependency-inventory.json
@@ -62,6 +80,8 @@ jobs:
           codeql = Path('.github/workflows/codeql.yml').read_text()
           policy = Path('SECURITY.md').read_text()
           baseline = Path('docs/SECURITY_BASELINE.md').read_text()
+          audit_policy = Path('.github/scripts/assert-pnpm-audit-policy.py').read_text()
+          exceptions = Path('.github/security-audit-exceptions.json').read_text()
 
           required_dependabot = [
               'package-ecosystem: npm',
@@ -86,12 +106,25 @@ jobs:
               'Block branch deletion',
               'Require conversation resolution',
           ]
+          required_audit_policy = [
+              'MAX_EXCEPTION_DAYS = 45',
+              'mobile-build-tool-only',
+              'stale audit exceptions are not allowed',
+              'apps/mobile >',
+          ]
+          required_exceptions = [
+              'GHSA-w3rx-r6r6-pgpr',
+              'GHSA-5p2g-fcmc-qvqq',
+              '2026-09-29',
+          ]
 
           groups = [
               ('dependabot', dependabot, required_dependabot),
               ('codeql', codeql, required_codeql),
               ('policy', policy, required_policy),
               ('baseline', baseline, required_baseline),
+              ('audit-policy', audit_policy, required_audit_policy),
+              ('audit-exceptions', exceptions, required_exceptions),
           ]
 
           missing = []
@@ -108,15 +141,18 @@ jobs:
         run: >-
           pnpm exec prettier --check
           .github/dependabot.yml
+          .github/security-audit-exceptions.json
           .github/workflows/codeql.yml
           .github/workflows/security-baseline-ci.yml
           SECURITY.md
           docs/SECURITY_BASELINE.md
 
-      - name: Retain production dependency inventory
+      - name: Retain production security evidence
         uses: actions/upload-artifact@v7
         with:
-          name: production-dependency-inventory-${{ github.run_id }}
-          path: /tmp/production-dependency-inventory.json
+          name: production-security-evidence-${{ github.run_id }}
+          path: |
+            /tmp/pnpm-audit.json
+            /tmp/production-dependency-inventory.json
           if-no-files-found: error
           retention-days: 14
