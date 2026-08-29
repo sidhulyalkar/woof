@@ -16,10 +16,7 @@ describe('CaregiverOperationalStore integration', () => {
     if (usersToDelete.length === 0) return;
     await prisma.blockedUser.deleteMany({
       where: {
-        OR: [
-          { userId: { in: usersToDelete } },
-          { blockedId: { in: usersToDelete } },
-        ],
+        OR: [{ userId: { in: usersToDelete } }, { blockedId: { in: usersToDelete } }],
       },
     });
     await prisma.user.deleteMany({ where: { id: { in: usersToDelete } } });
@@ -152,7 +149,11 @@ describe('CaregiverOperationalStore integration', () => {
       WHERE grant_id = ${grantId}
       ORDER BY occurred_at ASC
     `);
-    expect(receipts.map((receipt) => receipt.transition)).toEqual(['ISSUED', 'ACCEPTED', 'REVOKED']);
+    expect(receipts.map((receipt) => receipt.transition)).toEqual([
+      'ISSUED',
+      'ACCEPTED',
+      'REVOKED',
+    ]);
 
     await expect(
       prisma.$executeRaw(Prisma.sql`
@@ -202,7 +203,13 @@ describe('CaregiverOperationalStore integration', () => {
     const now = new Date();
     const oldIssuedAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     const oldExpiresAt = new Date(now.getTime() - 60 * 60 * 1000);
-    await issue({ issuerUserId, recipientUserId, petId, issuedAt: oldIssuedAt, expiresAt: oldExpiresAt });
+    await issue({
+      issuerUserId,
+      recipientUserId,
+      petId,
+      issuedAt: oldIssuedAt,
+      expiresAt: oldExpiresAt,
+    });
 
     await expect(
       store.findEffectiveGrantForCapability({
@@ -231,7 +238,13 @@ describe('CaregiverOperationalStore integration', () => {
     const { issuerUserId, recipientUserId, petId } = await fixture('evidence');
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + 60 * 60 * 1000);
-    const viewOnlyGrant = await issue({ issuerUserId, recipientUserId, petId, issuedAt, expiresAt });
+    const viewOnlyGrant = await issue({
+      issuerUserId,
+      recipientUserId,
+      petId,
+      issuedAt,
+      expiresAt,
+    });
     const acceptedAt = new Date(issuedAt.getTime() + 1000);
     await expect(store.acceptGrant(viewOnlyGrant, recipientUserId, acceptedAt)).resolves.toBe(true);
     await expect(
