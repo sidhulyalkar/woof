@@ -24,7 +24,7 @@ function harness() {
     authority: new PetCapabilityAuthority(
       prisma as unknown as PrismaService,
       store as unknown as CaregiverOperationalStore,
-      trustSafety as unknown as TrustSafetyService,
+      trustSafety as unknown as TrustSafetyService
     ),
   };
 }
@@ -77,14 +77,14 @@ describe('PetCapabilityAuthority', () => {
     prisma.pet.findFirst.mockResolvedValue(null);
     store.findEffectiveGrantForCapability.mockResolvedValue(grant);
 
-    await expect(
-      authority.assertCapability('caregiver-1', 'pet-1', 'VIEW_TODAY'),
-    ).resolves.toEqual({
-      source: 'CAREGIVER_GRANT',
-      petId: 'pet-1',
-      capability: 'VIEW_TODAY',
-      caregiverGrant: grant,
-    });
+    await expect(authority.assertCapability('caregiver-1', 'pet-1', 'VIEW_TODAY')).resolves.toEqual(
+      {
+        source: 'CAREGIVER_GRANT',
+        petId: 'pet-1',
+        capability: 'VIEW_TODAY',
+        caregiverGrant: grant,
+      }
+    );
 
     expect(trustSafety.isBlockedEitherDirection).toHaveBeenCalledWith('caregiver-1', 'owner-1');
   });
@@ -96,7 +96,7 @@ describe('PetCapabilityAuthority', () => {
     trustSafety.isBlockedEitherDirection.mockResolvedValue(true);
 
     await expect(
-      authority.assertCapability('caregiver-1', 'pet-1', 'VIEW_TODAY'),
+      authority.assertCapability('caregiver-1', 'pet-1', 'VIEW_TODAY')
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -105,7 +105,7 @@ describe('PetCapabilityAuthority', () => {
     prisma.pet.findFirst.mockResolvedValue(null);
 
     await expect(authority.assertCanIssueGrant('member-1', 'pet-1')).rejects.toBeInstanceOf(
-      NotFoundException,
+      NotFoundException
     );
 
     expect(prisma.pet.findFirst).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe('PetCapabilityAuthority', () => {
             }),
           ]),
         }),
-      }),
+      })
     );
   });
 });
