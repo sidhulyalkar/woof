@@ -46,7 +46,7 @@ export type CaregiverGrantSnapshot = {
 
 export function effectiveCaregiverStatus(
   grant: Pick<CaregiverGrantSnapshot, 'status' | 'expiresAt'>,
-  now = new Date(),
+  now = new Date()
 ): CaregiverEffectiveStatus {
   if (
     (grant.status === 'PENDING_ACCEPTANCE' || grant.status === 'ACTIVE') &&
@@ -88,7 +88,7 @@ export function caregiverReceiptHash(input: {
         expiresAt: input.expiresAt,
         occurredAt: input.occurredAt,
         policyVersion: input.policyVersion,
-      }),
+      })
     )
     .digest('hex');
 }
