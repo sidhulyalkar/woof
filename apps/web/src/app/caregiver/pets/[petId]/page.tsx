@@ -105,6 +105,7 @@ export default function CaregiverPetTodayPage() {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   });
+  const refetchToday = today.refetch;
 
   const expiresAtMs = useMemo(
     () => (today.data ? new Date(today.data.relationship.expiresAt).getTime() : Number.NaN),
@@ -116,10 +117,10 @@ export default function CaregiverPetTodayPage() {
     const delay = Math.max(0, expiresAtMs - Date.now()) + 50;
     const timeout = window.setTimeout(() => {
       setClock(Date.now());
-      void today.refetch();
+      void refetchToday();
     }, delay);
     return () => window.clearTimeout(timeout);
-  }, [expiresAtMs, today]);
+  }, [expiresAtMs, refetchToday]);
 
   const observation = useMutation({
     mutationFn: () =>
@@ -219,7 +220,7 @@ export default function CaregiverPetTodayPage() {
             <h2 className="mt-1 text-lg font-bold">Leave useful context, not a permanent dog trait.</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               This note is stored as caregiver context only. It does not award Bond XP, complete an
-              Adventure, update the dog's profile, or become recommendation evidence automatically.
+              Adventure, update the dog&apos;s profile, or become recommendation evidence automatically.
             </p>
 
             <label className="mt-5 block text-sm font-semibold" htmlFor="caregiver-observation-kind">
