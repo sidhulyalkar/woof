@@ -12,7 +12,6 @@ on:
       - 'apps/web/src/app/caregiver/**'
       - 'apps/web/e2e/caregiver-authority.spec.ts'
       - 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**'
-      - 'packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/**'
       - '.github/workflows/dogos-caregiver-authority-ci.yml'
       - '.github/scripts/assert-database-ownership.py'
       - 'docs/DOGOS_CAREGIVER_AUTHORITY_V1.md'
@@ -82,10 +81,8 @@ jobs:
           python3 .github/scripts/assert-database-ownership.py \
             "${{ github.event.pull_request.base.sha }}" \
             packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql \
-            packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/migration.sql \
             --enforce-if-changed 'apps/api/src/caregiver/**' \
-            --enforce-if-changed 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**' \
-            --enforce-if-changed 'packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/**'
+            --enforce-if-changed 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**'
 
       - name: Validate canonical Prisma schema
         run: pnpm --filter @woof/database exec prisma validate
@@ -108,8 +105,7 @@ jobs:
           grep -F "role: { in: ['OWNER', 'ADMIN'] }" apps/api/src/caregiver/pet-capability-authority.ts
           grep -F "authorityClass: 'CONTEXT_ONLY'" apps/api/src/caregiver/caregiver.service.ts
           grep -F "caregiver grant is not currently active" \
-            packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql \
-            packages/database/prisma/migrations/20260829034600_harden_caregiver_issuance_v1/migration.sql
+            packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql
 
           if grep -REn "householdMember\.(create|upsert|update|updateMany)|HouseholdsService" apps/api/src/caregiver; then
             echo 'Caregiver authority must not be implemented as generic household membership.' >&2
