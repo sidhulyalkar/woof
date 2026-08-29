@@ -12,12 +12,8 @@ describe('caregiver authority policy', () => {
       expiresAt: '2026-08-29T10:00:00.000Z',
     };
 
-    expect(effectiveCaregiverStatus(grant, new Date('2026-08-29T09:59:59.999Z'))).toBe(
-      'ACTIVE',
-    );
-    expect(effectiveCaregiverStatus(grant, new Date('2026-08-29T10:00:00.000Z'))).toBe(
-      'EXPIRED',
-    );
+    expect(effectiveCaregiverStatus(grant, new Date('2026-08-29T09:59:59.999Z'))).toBe('ACTIVE');
+    expect(effectiveCaregiverStatus(grant, new Date('2026-08-29T10:00:00.000Z'))).toBe('EXPIRED');
     expect(grant.status).toBe('ACTIVE');
   });
 
@@ -25,16 +21,15 @@ describe('caregiver authority policy', () => {
     expect(
       effectiveCaregiverStatus(
         { status: 'REVOKED', expiresAt: '2026-08-29T10:00:00.000Z' },
-        new Date('2026-08-30T10:00:00.000Z'),
-      ),
+        new Date('2026-08-30T10:00:00.000Z')
+      )
     ).toBe('REVOKED');
   });
 
   it('normalizes capability order and removes duplicates', () => {
-    expect(normalizeCaregiverCapabilities(['LOG_OBSERVATION', 'VIEW_TODAY', 'VIEW_TODAY'])).toEqual([
-      'LOG_OBSERVATION',
-      'VIEW_TODAY',
-    ]);
+    expect(normalizeCaregiverCapabilities(['LOG_OBSERVATION', 'VIEW_TODAY', 'VIEW_TODAY'])).toEqual(
+      ['LOG_OBSERVATION', 'VIEW_TODAY']
+    );
   });
 
   it('hashes the same receipt authority identically regardless of capability input order', () => {
@@ -51,9 +46,9 @@ describe('caregiver authority policy', () => {
       policyVersion: CAREGIVER_POLICY_VERSION,
     };
 
-    expect(
-      caregiverReceiptHash({ ...base, capabilities: ['VIEW_TODAY', 'LOG_OBSERVATION'] }),
-    ).toBe(caregiverReceiptHash({ ...base, capabilities: ['LOG_OBSERVATION', 'VIEW_TODAY'] }));
+    expect(caregiverReceiptHash({ ...base, capabilities: ['VIEW_TODAY', 'LOG_OBSERVATION'] })).toBe(
+      caregiverReceiptHash({ ...base, capabilities: ['LOG_OBSERVATION', 'VIEW_TODAY'] })
+    );
   });
 
   it('changes the receipt hash when authority-relevant content changes', () => {
@@ -70,8 +65,8 @@ describe('caregiver authority policy', () => {
       policyVersion: CAREGIVER_POLICY_VERSION,
     };
 
-    expect(
-      caregiverReceiptHash({ ...common, expiresAt: '2026-08-30T10:00:00.000Z' }),
-    ).not.toBe(caregiverReceiptHash({ ...common, expiresAt: '2026-08-31T10:00:00.000Z' }));
+    expect(caregiverReceiptHash({ ...common, expiresAt: '2026-08-30T10:00:00.000Z' })).not.toBe(
+      caregiverReceiptHash({ ...common, expiresAt: '2026-08-31T10:00:00.000Z' })
+    );
   });
 });
