@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrustSafetyService } from '../trust-safety/trust-safety.service';
 import { CaregiverOperationalStore } from './caregiver-operational.store';
 import type { CaregiverCapability } from './caregiver.policy';
 
@@ -24,6 +25,7 @@ export class PetCapabilityAuthority {
   constructor(
     private readonly prisma: PrismaService,
     private readonly caregiverStore: CaregiverOperationalStore,
+    private readonly trustSafety: TrustSafetyService,
   ) {}
 
   /**
@@ -76,6 +78,9 @@ export class PetCapabilityAuthority {
       now,
     });
     if (!caregiverGrant) throw new NotFoundException('Pet not found');
+    if (await this.trustSafety.isBlockedEitherDirection(userId, caregiverGrant.issuerUserId)) {
+      throw new NotFoundException('Pet not found');
+    }
 
     return {
       source: 'CAREGIVER_GRANT',
@@ -135,6 +140,9 @@ export class PetCapabilityAuthority {
       now,
     });
     if (!grant) throw new NotFoundException('Caregiver pet access not found');
+    if (await this.trustSafety.isBlockedEitherDirection(userId, grant.issuerUserId)) {
+      throw new NotFoundException('Caregiver pet access not found');
+    }
     return grant;
   }
 }
