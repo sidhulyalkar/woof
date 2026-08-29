@@ -54,8 +54,8 @@ jobs:
       - name: Prove cleanup worker cannot become presentation authority
         run: |
           grep -F 'self.registration.unregister()' apps/web/public/sw.js
-          grep -F 'cacheName.startsWith("petpath-")' apps/web/public/sw.js
-          if grep -Fq 'addEventListener("fetch"' apps/web/public/sw.js; then
+          grep -Eq "cacheName\.startsWith\(['\"]petpath-['\"]\)" apps/web/public/sw.js
+          if grep -Eq "addEventListener\(['\"]fetch['\"]" apps/web/public/sw.js; then
             echo 'Cleanup worker must never intercept application fetches.' >&2
             exit 1
           fi
