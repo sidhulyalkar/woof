@@ -41,13 +41,18 @@ test.describe('visual layout contracts', () => {
     }
   });
 
-  test('synthetic demo keeps its evidence hierarchy stable', async ({ page }) => {
+  test('synthetic dogOS walkthrough keeps its evidence hierarchy stable', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/demo');
 
-    await expect(page.getByRole('heading', { name: /synthetic beta demo/i })).toBeVisible();
-    await expect(page.getByText(/compatibility/i).first()).toBeVisible();
-    await expect(page.getByText('No live location or external API calls')).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: /one useful next step, with memory and authority underneath it/i,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText('Synthetic data only')).toBeVisible();
+    await expect(page.getByText('Context + provenance')).toBeVisible();
+    await expect(page.getByText(/no live location, private messages, or real health records/i)).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const cards = page.locator('[data-demo-card]');
