@@ -8,13 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { AppImage } from '@/components/ui/app-image';
 import { useCreatePost } from '@/lib/api/hooks';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/store/ui';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 
 export default function CreatePostPage() {
   const router = useRouter();
-  const { user, pets } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
+  const pets = user?.pets ?? [];
   const { showToast } = useUIStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState('');
@@ -129,12 +130,12 @@ export default function CreatePostPage() {
         <div className="flex items-start gap-3">
           <ProfileAvatar
             type="user"
-            src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
-            fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
+            src={user?.avatarUrl || getPlaceholderAvatar(user?.handle || 'User', 'user')}
+            fallbackText={(user?.handle || 'User').slice(0, 2).toUpperCase()}
             size="lg"
           />
           <div className="flex-1 space-y-1">
-            <p className="font-semibold text-[15px]">{user?.username}</p>
+            <p className="font-semibold text-[15px]">{user?.handle}</p>
             {pets.length > 0 && (
               <select
                 value={selectedPet || ''}
