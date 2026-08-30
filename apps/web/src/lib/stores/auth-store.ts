@@ -54,10 +54,10 @@ function retireLegacySessionStorage() {
   }
 }
 
-// Historical clients may still carry the second `woof-session-storage` Zustand
-// snapshot. It is never allowed to hydrate into authority again. Loading the
-// canonical store opportunistically retires it, while /auth/me remains the
-// server-authoritative recovery path for any still-valid raw bearer session.
+// Historical clients may still carry the retired second Zustand session snapshot.
+// It is never allowed to hydrate into authority again. Loading the canonical store
+// opportunistically retires it, while /auth/me remains the server-authoritative
+// recovery path for any still-valid raw bearer session.
 retireLegacySessionStorage();
 
 export const useAuthStore = create<AuthState>()(
