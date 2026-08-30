@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -37,29 +38,10 @@ const browserUser = {
   pets: [pet],
 };
 
-async function authenticate(page: Page) {
-  const token = 'shadow-browser-token';
-  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
-  await page.goto('/login');
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem('authToken', token);
-      window.localStorage.setItem(
-        'woof-auth-storage',
-        JSON.stringify({
-          state: { user, token, isAuthenticated: true },
-          version: 0,
-        })
-      );
-    },
-    { token, user: browserUser }
-  );
-}
-
 test('Shadow Lab renders active-release evidence without requesting compatibility authority', async ({
   page,
 }) => {
-  await authenticate(page);
+  await seedAuthenticatedSession(page, { user: browserUser, token: 'shadow-browser-token' });
   let compatibilityRequests = 0;
 
   page.on('request', (request) => {
