@@ -1,0 +1,115 @@
+name: dogOS Operational Privacy + Release CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/observability/release-identity.ts'
+      - 'apps/api/src/observability/release-identity.spec.ts'
+      - 'apps/api/src/observability/observability.service.ts'
+      - 'apps/api/src/sentry.ts'
+      - 'apps/web/sentry.client.config.ts'
+      - 'apps/web/sentry.server.config.ts'
+      - 'apps/web/sentry.edge.config.ts'
+      - 'apps/web/src/lib/observability/**'
+      - 'infra/docker/Dockerfile.api'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/deploy-staging.yml'
+      - '.github/scripts/assert-operational-privacy-release.py'
+      - '.github/workflows/dogos-operational-privacy-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operational-privacy-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  TEST_RELEASE_SHA: '0123456789abcdef0123456789abcdef01234567'
+
+jobs:
+  qualify:
+    name: Release identity + telemetry privacy qualification
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check operational privacy formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/observability/release-identity.ts
+          apps/api/src/observability/release-identity.spec.ts
+          apps/api/src/observability/observability.service.ts
+          apps/api/src/sentry.ts
+          apps/web/sentry.client.config.ts
+          apps/web/sentry.server.config.ts
+          apps/web/sentry.edge.config.ts
+          apps/web/src/lib/observability/sentry-policy.ts
+          apps/web/src/lib/observability/sentry-policy.test.ts
+          .github/workflows/deploy-production.yml
+          .github/workflows/deploy-staging.yml
+          .github/workflows/dogos-operational-privacy-ci.yml
+
+      - name: Lint API operational privacy surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/observability/release-identity.ts
+          src/observability/release-identity.spec.ts
+          src/observability/observability.service.ts
+          src/sentry.ts
+
+      - name: Lint Web telemetry privacy surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          sentry.client.config.ts
+          sentry.server.config.ts
+          sentry.edge.config.ts
+          src/lib/observability/sentry-policy.ts
+          src/lib/observability/sentry-policy.test.ts
+
+      - name: Validate source contract
+        run: python -m py_compile .github/scripts/assert-operational-privacy-release.py
+
+      - name: Enforce source contract
+        run: python .github/scripts/assert-operational-privacy-release.py
+
+      - name: Type-check API and Web
+        run: |
+          pnpm --filter @woof/api type-check
+          pnpm --filter @woof/web type-check
+
+      - name: Run release identity contract
+        run: pnpm --filter @woof/api exec jest src/observability/release-identity.spec.ts --runInBand
+
+      - name: Run Web telemetry privacy contract
+        run: pnpm --filter @woof/web exec vitest run src/lib/observability/sentry-policy.test.ts
+
+      - name: Build API with exact release identity source
+        env:
+          WOOF_RELEASE_SHA: ${{ env.TEST_RELEASE_SHA }}
+        run: pnpm --filter @woof/api build
+
+      - name: Build Web with replay privacy closed
+        env:
+          NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.TEST_RELEASE_SHA }}
+          NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:4000/api/v1
+        run: pnpm --filter @woof/web build
