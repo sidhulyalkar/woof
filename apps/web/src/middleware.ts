@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { buildConnectSrc } from '@/lib/security/csp';
+import { shouldRedirectToHttps } from '@/lib/security/transport';
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -32,15 +33,19 @@ export function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
 
-  // HTTPS redirect in production
+  // Public production traffic must be HTTPS. The only exception is explicit
+  // loopback traffic used to qualify the built Next server without pretending
+  // a local HTTP process terminates TLS.
   if (
-    process.env.NODE_ENV === 'production' &&
-    request.headers.get('x-forwarded-proto') !== 'https'
+    shouldRedirectToHttps({
+      nodeEnv: process.env.NODE_ENV,
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      hostname: request.nextUrl.hostname,
+    })
   ) {
-    return NextResponse.redirect(
-      `https://${request.headers.get('host')}${request.nextUrl.pathname}`,
-      301
-    );
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.protocol = 'https:';
+    return NextResponse.redirect(redirectUrl, 301);
   }
 
   return response;
