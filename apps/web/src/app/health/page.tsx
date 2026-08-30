@@ -27,8 +27,8 @@ import {
   type HealthLensResult,
   type HealthTriageLevel,
 } from '@/lib/api/health-lens';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { cn } from '@/lib/utils';
-import { useSessionStore } from '@/store/session';
 
 const bodyAreas = [
   ['general', 'General'],
@@ -201,7 +201,7 @@ function AssessmentDetails({ assessment }: { assessment: HealthAssessment }) {
 }
 
 export default function HealthPage() {
-  const user = useSessionStore((state) => state.user);
+  const user = useAuthStore((state) => state.user);
   const pets = useMemo(() => user?.pets ?? [], [user?.pets]);
   const [petId, setPetId] = useState('');
   const [concern, setConcern] = useState('');
