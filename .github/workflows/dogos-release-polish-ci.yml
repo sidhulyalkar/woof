@@ -6,6 +6,8 @@ on:
     paths:
       - 'apps/web/playwright.config.ts'
       - 'apps/web/src/components/auth-guard.tsx'
+      - 'apps/web/src/lib/stores/auth-store.ts'
+      - 'apps/web/src/lib/stores/auth-store.test.ts'
       - 'apps/web/src/app/activity/page.tsx'
       - 'apps/web/src/app/pets/new/page.tsx'
       - 'apps/web/src/components/concierge/concierge-briefing.tsx'
@@ -166,8 +168,6 @@ jobs:
           src/lib/api/concierge.spec.ts
 
       - name: Build Web app for production-server browser qualification
-        env:
-          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
         run: pnpm --filter @woof/web build
 
       - name: Install Playwright Chromium
