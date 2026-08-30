@@ -198,7 +198,7 @@ for marker in [
     "['line']",
     "['html', { open: 'never' }]",
     "PLAYWRIGHT_PRODUCTION_SERVER",
-    "productionServer ? 'pnpm start' : 'pnpm dev'",
+    "productionServer ? 'NODE_ENV=production pnpm start' : 'pnpm dev'",
 ]:
     require(config, marker)
 
