@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Settings, MapPin, Calendar, Award, Camera, MessageCircle, Plus, Loader2 } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { useFeed } from '@/lib/api/hooks';
 import { PostCard } from '@/components/feed/PostCard';
 import { useUIStore } from '@/store/ui';
@@ -12,7 +12,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { AddPetModal } from '@/components/profile/AddPetModal';
 
 export function ProfileScreen() {
-  const { user, pets } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
+  const pets = user?.pets ?? [];
   const { showToast } = useUIStore();
   const [activeTab, setActiveTab] = useState('posts');
   const [showAddPetModal, setShowAddPetModal] = useState(false);
@@ -52,8 +53,8 @@ export function ProfileScreen() {
             <div className="relative">
               <ProfileAvatar
                 type="user"
-                src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
-                fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
+                src={user?.avatarUrl || getPlaceholderAvatar(user?.handle || 'User', 'user')}
+                fallbackText={(user?.handle || 'User').slice(0, 2).toUpperCase()}
                 size="2xl"
               />
               <button className="absolute bottom-0 right-0 w-7 h-7 flex items-center justify-center bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-full shadow-md transition-all active:scale-95">
@@ -63,7 +64,7 @@ export function ProfileScreen() {
 
             {/* User Info */}
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">{user?.username || 'Anonymous'}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">{user?.handle || 'Anonymous'}</h2>
 
               <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
                 {user?.location && (
@@ -167,7 +168,7 @@ export function ProfileScreen() {
                     >
                       <ProfileAvatar
                         type="pet"
-                        src={pet.avatar || getPlaceholderAvatar(pet.name, 'pet')}
+                        src={pet.avatarUrl || getPlaceholderAvatar(pet.name, 'pet')}
                         fallbackText={pet.name.slice(0, 2).toUpperCase()}
                         size="lg"
                       />
