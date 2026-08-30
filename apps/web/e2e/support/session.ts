@@ -83,12 +83,7 @@ export interface RoughLocation {
 /** Grants geolocation through Playwright's browser context, preserving CSP. */
 export async function grantRoughLocation(
   context: BrowserContext,
-  {
-    latitude,
-    longitude,
-    accuracy = 100,
-    origin = 'http://localhost:3000',
-  }: RoughLocation
+  { latitude, longitude, accuracy = 100, origin = 'http://localhost:3000' }: RoughLocation
 ): Promise<void> {
   await context.grantPermissions(['geolocation'], { origin });
   await context.setGeolocation({ latitude, longitude, accuracy });
