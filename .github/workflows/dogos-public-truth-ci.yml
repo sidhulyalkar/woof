@@ -53,6 +53,9 @@ jobs:
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
       - name: Enforce public product truth contract
         run: |
           python3 - <<'PY'
@@ -140,6 +143,5 @@ jobs:
           NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
           ML_SERVICE_ENABLED: 'false'
         run: |
-          pnpm --filter @woof/database db:generate
           pnpm --filter @woof/api build
           pnpm --filter @woof/web build
