@@ -16,15 +16,28 @@ const inter = Inter({
   display: 'swap',
 });
 
+const productDescription =
+  'Woof helps you choose one useful thing to do with your dog, notice how it went, and make the next shared moment easier.';
+
 export const metadata: Metadata = {
   title: {
     default: 'Woof · A better day with your dog',
     template: '%s · Woof',
   },
-  description:
-    'Woof helps you choose one useful thing to do with your dog, notice how it went, and make the next shared moment easier.',
+  description: productDescription,
   applicationName: 'Woof',
   keywords: ['dog companion', 'dog activities', 'dog training', 'dog care', 'dog relationship'],
+  openGraph: {
+    type: 'website',
+    siteName: 'Woof',
+    title: 'Woof · A better day with your dog',
+    description: productDescription,
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Woof · A better day with your dog',
+    description: productDescription,
+  },
   formatDetection: {
     telephone: false,
   },
