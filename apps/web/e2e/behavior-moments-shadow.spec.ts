@@ -23,41 +23,43 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function seedSession(page: Page) {
-  await page.addInitScript(() => {
-    const pet = {
-      id: 'pet-1',
-      name: 'Nova',
-      species: 'DOG',
-      breed: 'Husky mix',
-    };
-    const user = {
-      id: 'user-1',
-      email: 'owner@example.com',
-      handle: 'nova-human',
-      pets: [pet],
-    };
-    window.localStorage.setItem('authToken', 'shadow-browser-token');
-    window.localStorage.setItem(
-      'woof-session-storage',
-      JSON.stringify({
-        state: {
-          user,
-          pets: [pet],
-          token: 'shadow-browser-token',
-          refreshToken: null,
-          isAuthenticated: true,
-        },
-        version: 0,
-      })
-    );
-  });
+const pet = {
+  id: 'pet-1',
+  name: 'Nova',
+  species: 'DOG',
+  breed: 'Husky mix',
+};
+
+const browserUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  handle: 'nova-human',
+  pets: [pet],
+};
+
+async function authenticate(page: Page) {
+  const token = 'shadow-browser-token';
+  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
+  await page.goto('/login');
+  await page.evaluate(
+    ({ token, user }) => {
+      window.localStorage.setItem('authToken', token);
+      window.localStorage.setItem(
+        'woof-auth-storage',
+        JSON.stringify({
+          state: { user, token, isAuthenticated: true },
+          version: 0,
+        })
+      );
+    },
+    { token, user: browserUser }
+  );
 }
 
 test('Shadow Lab renders active-release evidence without requesting compatibility authority', async ({
   page,
 }) => {
-  await seedSession(page);
+  await authenticate(page);
   let compatibilityRequests = 0;
 
   page.on('request', (request) => {
