@@ -44,27 +44,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check client-reality formatting
-        run: |
-          pnpm exec prettier --write \
-            apps/web/playwright.config.ts \
-            apps/web/src/lib/stores/auth-store.ts \
-            apps/web/src/lib/stores/auth-persist.ts \
-            apps/web/src/lib/stores/auth-persist.test.ts \
-            apps/web/e2e/support/session.ts \
-            apps/web/e2e/companion-onramp.spec.ts \
-            apps/web/e2e/navigation-spine.spec.ts \
-            apps/web/e2e/caregiver-authority.spec.ts \
-            .github/workflows/client-reality-ci.yml
-          git diff --exit-code -- \
-            apps/web/playwright.config.ts \
-            apps/web/src/lib/stores/auth-store.ts \
-            apps/web/src/lib/stores/auth-persist.ts \
-            apps/web/src/lib/stores/auth-persist.test.ts \
-            apps/web/e2e/support/session.ts \
-            apps/web/e2e/companion-onramp.spec.ts \
-            apps/web/e2e/navigation-spine.spec.ts \
-            apps/web/e2e/caregiver-authority.spec.ts \
-            .github/workflows/client-reality-ci.yml
+        run: >-
+          pnpm exec prettier --check
+          apps/web/playwright.config.ts
+          apps/web/src/lib/stores/auth-store.ts
+          apps/web/src/lib/stores/auth-persist.ts
+          apps/web/src/lib/stores/auth-persist.test.ts
+          apps/web/e2e/support/session.ts
+          apps/web/e2e/companion-onramp.spec.ts
+          apps/web/e2e/navigation-spine.spec.ts
+          apps/web/e2e/caregiver-authority.spec.ts
+          .github/workflows/client-reality-ci.yml
 
       - name: Lint client-reality surface
         run: >-
