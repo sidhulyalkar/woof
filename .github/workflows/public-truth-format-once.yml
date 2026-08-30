@@ -1,0 +1,50 @@
+name: Public Truth Format Once
+
+on:
+  push:
+    branches:
+      - agent/public-truth-consistency-v1
+    paths:
+      - '.github/workflows/public-truth-format-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/public-truth-consistency-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical Prettier output
+        run: >-
+          pnpm exec prettier --write
+          apps/web/src/app/demo/page.tsx
+          apps/web/e2e/public-truth.spec.ts
+
+      - name: Commit formatter-only diff
+        run: |
+          if git diff --quiet; then
+            echo 'Public truth sources already match canonical formatting.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/web/src/app/demo/page.tsx apps/web/e2e/public-truth.spec.ts
+          git commit -m 'chore: format public truth surfaces'
+          git push origin HEAD:agent/public-truth-consistency-v1
