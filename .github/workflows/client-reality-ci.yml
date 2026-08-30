@@ -1,0 +1,143 @@
+name: dogOS Client Reality CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - '.github/scripts/assert-client-reality.py'
+      - '.github/workflows/client-reality-ci.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-reality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  contract:
+    name: Client authority + matrix contract
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check client-reality formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/web/playwright.config.ts
+          apps/web/src/lib/stores/auth-store.ts
+          apps/web/src/lib/stores/auth-persist.ts
+          apps/web/src/lib/stores/auth-persist.test.ts
+          apps/web/e2e/support/session.ts
+          apps/web/e2e/companion-onramp.spec.ts
+          apps/web/e2e/navigation-spine.spec.ts
+          apps/web/e2e/caregiver-authority.spec.ts
+          .github/workflows/client-reality-ci.yml
+
+      - name: Lint client-reality surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          playwright.config.ts
+          src/lib/stores/auth-store.ts
+          src/lib/stores/auth-persist.ts
+          src/lib/stores/auth-persist.test.ts
+          e2e/support/session.ts
+          e2e/companion-onramp.spec.ts
+          e2e/navigation-spine.spec.ts
+          e2e/caregiver-authority.spec.ts
+
+      - name: Validate client-reality source contract
+        run: python -m py_compile .github/scripts/assert-client-reality.py
+
+      - name: Enforce client-reality source contract
+        run: python .github/scripts/assert-client-reality.py
+
+      - name: Type-check web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run persisted auth contract
+        run: pnpm --filter @woof/web exec vitest run src/lib/stores/auth-persist.test.ts
+
+  browser-matrix:
+    name: Critical path (${{ matrix.slug }})
+    needs: contract
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: desktop-chromium
+            project: chromium
+            browser: chromium
+          - slug: mobile-chromium
+            project: 'Mobile Chrome'
+            browser: chromium
+          - slug: desktop-firefox
+            project: firefox
+            browser: firefox
+          - slug: desktop-webkit
+            project: webkit
+            browser: webkit
+
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright engine
+        run: pnpm --filter @woof/web exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run named client critical paths
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/auth.spec.ts
+          e2e/companion-onramp.spec.ts
+          e2e/navigation-spine.spec.ts
+          e2e/caregiver-authority.spec.ts
+          --project="${{ matrix.project }}"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-reality-${{ matrix.slug }}-${{ github.run_id }}
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
