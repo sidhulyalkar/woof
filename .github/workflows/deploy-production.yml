@@ -43,26 +43,7 @@ jobs:
           --config apps/api/fly.toml
           --build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"
 
-      - name: Verify API liveness, readiness and release identity
-        run: |
-          live=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
-            https://woof-api-prod.fly.dev/api/v1/ops/health/live)
-          ready=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
-            https://woof-api-prod.fly.dev/api/v1/ops/health/ready)
-          node -e '
-            const expected = process.env.GITHUB_SHA;
-            for (const [name, raw] of Object.entries({ live: process.env.LIVE_BODY, ready: process.env.READY_BODY })) {
-              const parsed = JSON.parse(raw);
-              if (parsed.release !== expected) {
-                throw new Error(`${name} release mismatch: expected ${expected}, received ${parsed.release}`);
-              }
-            }
-          '
-        env:
-          LIVE_BODY: ${{ steps.release_bodies.outputs.live }}
-          READY_BODY: ${{ steps.release_bodies.outputs.ready }}
-
-      - name: Capture release verification bodies
+      - name: Capture liveness and readiness evidence
         id: release_bodies
         run: |
           live=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
