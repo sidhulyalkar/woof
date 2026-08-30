@@ -198,7 +198,10 @@ for marker in [
     "['line']",
     "['html', { open: 'never' }]",
     "PLAYWRIGHT_PRODUCTION_SERVER",
-    "productionServer ? 'NODE_ENV=production pnpm start' : 'pnpm dev'",
+    "'NODE_ENV=production pnpm --filter @woof/web start'",
+    "'pnpm --filter @woof/web dev'",
+    "stdout: 'pipe'",
+    "stderr: 'pipe'",
 ]:
     require(config, marker)
 
