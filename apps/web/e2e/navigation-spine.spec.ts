@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -41,22 +42,10 @@ const owner = {
 };
 
 async function authenticate(page: Page, user = owner) {
-  const token = 'navigation-browser-token';
-  await page.route('**/auth/me', (route) => fulfillJson(route, user));
-  await page.goto('/login');
-  await page.evaluate(
-    ({ persistedToken, persistedUser }) => {
-      window.localStorage.setItem('authToken', persistedToken);
-      window.localStorage.setItem(
-        'woof-auth-storage',
-        JSON.stringify({
-          state: { user: persistedUser, token: persistedToken, isAuthenticated: true },
-          version: 0,
-        })
-      );
-    },
-    { persistedToken: token, persistedUser: user }
-  );
+  await seedAuthenticatedSession(page, {
+    user,
+    token: 'navigation-browser-token',
+  });
 }
 
 function authorizePetToday(page: Page) {

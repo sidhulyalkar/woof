@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -31,31 +32,10 @@ const browserUser = {
 };
 
 async function authenticate(page: Page) {
-  const token = 'companion-browser-token';
-
-  // Persisted Zustand hydration and AuthGuard's canonical /auth/me fallback are
-  // both valid startup paths. Keep them pointed at the same user so a dev-server
-  // full reload cannot turn feature qualification into an authentication race.
-  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
-
-  // Seed the same persisted auth representation Woof itself writes. A raw
-  // authToken alone forces AuthGuard to race through /auth/me before the
-  // feature test can begin, which makes browser authority tests nondeterministic.
-  // Using a real same-origin page keeps CSP fully enforced.
-  await page.goto('/login');
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem('authToken', token);
-      window.localStorage.setItem(
-        'woof-auth-storage',
-        JSON.stringify({
-          state: { user, token, isAuthenticated: true },
-          version: 0,
-        })
-      );
-    },
-    { token, user: browserUser }
-  );
+  await seedAuthenticatedSession(page, {
+    user: browserUser,
+    token: 'companion-browser-token',
+  });
 }
 
 const allyState = {

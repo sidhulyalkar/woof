@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -31,22 +32,10 @@ const browserUser = {
 };
 
 async function authenticate(page: Page) {
-  const token = 'caregiver-browser-token';
-  await page.route('**/auth/me', (route) => fulfillJson(route, browserUser));
-  await page.goto('/login');
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem('authToken', token);
-      window.localStorage.setItem(
-        'woof-auth-storage',
-        JSON.stringify({
-          state: { user, token, isAuthenticated: true },
-          version: 0,
-        })
-      );
-    },
-    { token, user: browserUser }
-  );
+  await seedAuthenticatedSession(page, {
+    user: browserUser,
+    token: 'caregiver-browser-token',
+  });
 }
 
 const companionState = {
@@ -221,7 +210,10 @@ test.describe('dogOS Caregiver Authority', () => {
 
   test('caregiver Today becomes unavailable at the local expiry boundary', async ({ page }) => {
     await authenticate(page);
-    const expiresAt = new Date(Date.now() + 900).toISOString();
+    // Give every engine enough time to render the proven-active state before
+    // exercising the local fail-closed timer. A sub-second grant measures
+    // browser startup speed, not caregiver authority semantics.
+    const expiresAt = new Date(Date.now() + 5_000).toISOString();
 
     await page.route('**/caregiver/pets/pet-1/today', (route) =>
       fulfillJson(route, caregiverToday(expiresAt))
@@ -231,7 +223,7 @@ test.describe('dogOS Caregiver Authority', () => {
     await expect(page.locator('[data-caregiver-today]')).toBeVisible({ timeout: 10_000 });
     await expect(
       page.getByRole('heading', { name: 'Caregiver access is not available' })
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('[data-caregiver-observation-summary]')).toHaveCount(0);
   });
 });
