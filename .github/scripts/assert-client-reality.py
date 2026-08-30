@@ -35,6 +35,7 @@ auth_guard_test = WEB / "src" / "components" / "auth-guard.test.tsx"
 helper = WEB / "e2e" / "support" / "session.ts"
 auth_spec = WEB / "e2e" / "auth.spec.ts"
 workflow = ROOT / ".github" / "workflows" / "client-reality-ci.yml"
+release_polish_workflow = ROOT / ".github" / "workflows" / "dogos-release-polish-ci.yml"
 production_lifecycle = ROOT / ".github" / "scripts" / "playwright-production-web.sh"
 
 matrix_suites = [
@@ -66,6 +67,7 @@ for path in [
     helper,
     auth_spec,
     workflow,
+    release_polish_workflow,
     production_lifecycle,
     *matrix_suites,
     *shared_fixture_suites,
@@ -95,9 +97,11 @@ for marker in [
     "localStorage.removeItem(LEGACY_RAW_AUTH_TOKEN_KEY)",
     "name: AUTH_STORAGE_KEY",
     "version: AUTH_PERSIST_VERSION",
+    "onRehydrateStorage",
 ]:
     require(auth_store, marker)
-reject(auth_store, "localStorage.setItem(")
+for marker in ["localStorage.setItem(", "hasHydrated:", "setHasHydrated"]:
+    reject(auth_store, marker)
 
 for marker in [
     "useAuthStore",
@@ -117,6 +121,10 @@ reject(api_hooks, "refreshSession")
 
 for marker in [
     "const token = useAuthStore((state) => state.token)",
+    "useAuthStore.persist.onHydrate(",
+    "useAuthStore.persist.onFinishHydration(",
+    "useAuthStore.persist.hasHydrated()",
+    "useAuthStore.persist.rehydrate()",
     "const verifiedToken = useRef<string | null>(null)",
     "const candidateToken = token",
     "authApi",
@@ -129,6 +137,8 @@ for marker in [
 ]:
     require(auth_guard, marker)
 for marker in [
+    "state.hasHydrated",
+    "setHasHydrated",
     "localStorage.getItem(",
     "localStorage.setItem(",
     "localStorage.removeItem(",
@@ -137,9 +147,11 @@ for marker in [
     reject(auth_guard, marker)
 
 for marker in [
+    "uses the real persistence lifecycle before deciding an unauthenticated protected route",
     "keeps protected content closed while the canonical persisted token is verified",
     "refreshes canonical user state only after the server accepts the persisted token",
     "fails closed and retires canonical authority when server verification rejects the token",
+    "useAuthStore.persist.rehydrate()",
 ]:
     require(auth_guard_test, marker)
 for marker in ["localStorage.setItem('authToken'", 'localStorage.setItem("authToken"']:
@@ -148,6 +160,14 @@ for marker in ["localStorage.setItem('authToken'", 'localStorage.setItem("authTo
 for path in [auth_store_test, api_client_test]:
     require(path, "LEGACY_SESSION_STORAGE_KEY")
     require(path, "LEGACY_RAW_AUTH_TOKEN_KEY")
+for marker in [
+    "reports the real Zustand hydration lifecycle instead of storing a shadow hydration flag",
+    "useAuthStore.persist.onHydrate(",
+    "useAuthStore.persist.onFinishHydration(",
+    "useAuthStore.persist.hasHydrated()",
+    "useAuthStore.persist.rehydrate()",
+]:
+    require(auth_store_test, marker)
 require(api_client_test, "getCanonicalAccessToken")
 require(api_client_test, "clearStaleSessionAfterUnauthorized")
 
@@ -294,4 +314,18 @@ for marker in [
 ]:
     require(workflow, marker)
 
-print("Client reality contract preserves server-verified auth, HTTPS policy, and proven production browser evidence.")
+# Release-browser evidence must compile the same public API origin it exercises at
+# runtime. NEXT_PUBLIC_* values are baked by Next at build time, so a per-build
+# override would qualify a different client than the browser fixture.
+for marker in [
+    "apps/web/src/lib/stores/auth-store.ts",
+    "apps/web/src/lib/stores/auth-store.test.ts",
+    "NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1",
+    "Build Web app for production-server browser qualification",
+    "run: pnpm --filter @woof/web build",
+    "PLAYWRIGHT_EXTERNAL_SERVER: '1'",
+]:
+    require(release_polish_workflow, marker)
+reject(release_polish_workflow, "https://api.example.com/api/v1")
+
+print("Client reality contract preserves server-verified auth, real persistence hydration, HTTPS policy, and build-identical browser evidence.")
