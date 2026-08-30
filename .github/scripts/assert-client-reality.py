@@ -22,6 +22,11 @@ def reject(path: Path, marker: str) -> None:
 config = WEB / "playwright.config.ts"
 persist = WEB / "src" / "lib" / "stores" / "auth-persist.ts"
 auth_store = WEB / "src" / "lib" / "stores" / "auth-store.ts"
+auth_store_test = WEB / "src" / "lib" / "stores" / "auth-store.test.ts"
+legacy_projection = WEB / "src" / "store" / "session.ts"
+api_client = WEB / "src" / "lib" / "api" / "client.ts"
+api_client_test = WEB / "src" / "lib" / "api" / "client.test.ts"
+api_hooks = WEB / "src" / "lib" / "api" / "hooks.ts"
 helper = WEB / "e2e" / "support" / "session.ts"
 auth_spec = WEB / "e2e" / "auth.spec.ts"
 workflow = ROOT / ".github" / "workflows" / "client-reality-ci.yml"
@@ -32,7 +37,20 @@ matrix_suites = [
     WEB / "e2e" / "caregiver-authority.spec.ts",
 ]
 
-for path in [config, persist, auth_store, helper, auth_spec, workflow, *matrix_suites]:
+for path in [
+    config,
+    persist,
+    auth_store,
+    auth_store_test,
+    legacy_projection,
+    api_client,
+    api_client_test,
+    api_hooks,
+    helper,
+    auth_spec,
+    workflow,
+    *matrix_suites,
+]:
     if not path.is_file():
         raise SystemExit(f"required client-reality source missing: {path.relative_to(ROOT)}")
 
@@ -47,10 +65,59 @@ for marker in [
 for marker in [
     "AUTH_PERSIST_VERSION",
     "AUTH_STORAGE_KEY",
+    "LEGACY_SESSION_STORAGE_KEY",
+    "retireLegacySessionStorage",
+    "localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY)",
     "name: AUTH_STORAGE_KEY",
     "version: AUTH_PERSIST_VERSION",
 ]:
     require(auth_store, marker)
+
+# The historical module may remain temporarily as a UI alias projection, but it
+# must never regain authentication or persistence authority.
+for marker in [
+    "useAuthStore",
+    "Compatibility-only presentation projection",
+    "projectUser",
+    "projectPet",
+]:
+    require(legacy_projection, marker)
+for marker in [
+    "persist(",
+    "refreshToken",
+    "authToken",
+    "/auth/me",
+    "isAuthenticated",
+    "refreshSession",
+    "setSession",
+    "clearSession",
+    "localStorage",
+]:
+    reject(legacy_projection, marker)
+
+for marker in [
+    "useAuthStore",
+    "clearStaleSessionAfterUnauthorized",
+    "auth.logout()",
+]:
+    require(api_client, marker)
+reject(api_client, "localStorage.removeItem('authToken')")
+
+require(api_hooks, "useAuthStore")
+require(api_hooks, "auth.updateUser({ pets: [...currentPets, pet] })")
+reject(api_hooks, "useSessionStore")
+reject(api_hooks, "refreshSession")
+
+for path in [auth_store_test, api_client_test]:
+    require(path, "LEGACY_SESSION_STORAGE_KEY")
+require(api_client_test, "clearStaleSessionAfterUnauthorized")
+
+# No production source may spell the retired persistence key directly. The one
+# constant owner remains auth-persist.ts so stale-state cleanup can be explicit.
+for source in (WEB / "src").rglob("*"):
+    if source.suffix not in {".ts", ".tsx"} or source == persist:
+        continue
+    reject(source, "woof-session-storage")
 
 for marker in [
     "serializePersistedAuthSession",
@@ -101,6 +168,8 @@ for marker in [
     "e2e/navigation-spine.spec.ts",
     "e2e/caregiver-authority.spec.ts",
     "playwright install --with-deps ${{ matrix.browser }}",
+    "src/lib/stores/auth-store.test.ts",
+    "src/lib/api/client.test.ts",
 ]:
     require(workflow, marker)
 
