@@ -62,12 +62,7 @@ export async function seedAuthenticatedSession(
       window.localStorage.removeItem(legacySessionKey);
       window.localStorage.removeItem(legacyRawTokenKey);
     },
-    [
-      AUTH_STORAGE_KEY,
-      LEGACY_SESSION_STORAGE_KEY,
-      LEGACY_RAW_AUTH_TOKEN_KEY,
-      persisted,
-    ] as const
+    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY, persisted] as const
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
 }
