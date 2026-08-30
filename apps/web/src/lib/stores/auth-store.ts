@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import {
-  AUTH_PERSIST_VERSION,
-  AUTH_STORAGE_KEY,
-  LEGACY_SESSION_STORAGE_KEY,
-} from './auth-persist';
+import { AUTH_PERSIST_VERSION, AUTH_STORAGE_KEY } from './auth-persist';
 
 export interface AuthPet {
   id: string;
@@ -46,12 +42,6 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
-function clearLegacySessionStorage() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
-  }
-}
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -63,7 +53,6 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, token) => {
         if (typeof window !== 'undefined') {
           localStorage.setItem('authToken', token);
-          clearLegacySessionStorage();
         }
         set({ user, token, isAuthenticated: true, isLoading: false });
       },
@@ -71,7 +60,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
-          clearLegacySessionStorage();
         }
         set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       },
