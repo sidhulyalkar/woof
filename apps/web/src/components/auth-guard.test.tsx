@@ -32,12 +32,11 @@ function seedCanonicalCandidate() {
     token: 'persisted-token',
     isAuthenticated: true,
     isLoading: false,
-    hasHydrated: true,
   });
 }
 
 describe('AuthGuard', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.clear();
     mockMe.mockResolvedValue({
@@ -50,12 +49,12 @@ describe('AuthGuard', () => {
       token: null,
       isAuthenticated: false,
       isLoading: false,
-      hasHydrated: true,
     });
+    await useAuthStore.persist.rehydrate();
   });
 
-  it('keeps protected content closed without redirecting before persisted auth hydrates', async () => {
-    useAuthStore.setState({ hasHydrated: false });
+  it('uses the real persistence lifecycle before deciding an unauthenticated protected route', async () => {
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
 
     render(
       <AuthGuard>
@@ -63,16 +62,11 @@ describe('AuthGuard', () => {
       </AuthGuard>
     );
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-    expect(mockReplace).not.toHaveBeenCalled();
-    expect(mockMe).not.toHaveBeenCalled();
-
-    useAuthStore.getState().setHasHydrated(true);
-
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/login');
     });
+    expect(mockMe).not.toHaveBeenCalled();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
   it('keeps protected content closed while the canonical persisted token is verified', () => {
@@ -125,8 +119,8 @@ describe('AuthGuard', () => {
       },
       token: 'persisted-token',
       isAuthenticated: true,
-      hasHydrated: true,
     });
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
   });
 
   it('fails closed and retires canonical authority when server verification rejects the token', async () => {
@@ -147,7 +141,6 @@ describe('AuthGuard', () => {
       user: null,
       token: null,
       isAuthenticated: false,
-      hasHydrated: true,
     });
   });
 });
