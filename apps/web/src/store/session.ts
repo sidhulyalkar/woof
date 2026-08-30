@@ -1,5 +1,7 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+'use client';
+
+import { useMemo } from 'react';
+import { useAuthStore, type AuthPet, type AuthUser } from '@/lib/stores/auth-store';
 
 export interface SessionPet {
   id: string;
@@ -30,107 +32,74 @@ export interface SessionUser {
   pets?: SessionPet[];
 }
 
-interface SessionState {
+export interface SessionViewState {
   user: SessionUser | null;
   pets: SessionPet[];
-  token: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
-  login: (user: SessionUser, token: string, refreshToken?: string) => void;
-  logout: () => void;
-  setSession: (user: SessionUser, token: string) => void;
-  clearSession: () => void;
-  refreshSession: () => Promise<void>;
 }
 
-function normalizePet(pet: SessionPet): SessionPet {
+function ageFromBirthdate(birthdate?: string | null) {
+  if (!birthdate) return undefined;
+  const born = new Date(birthdate);
+  if (Number.isNaN(born.getTime())) return undefined;
+
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  const beforeBirthday =
+    now.getMonth() < born.getMonth() ||
+    (now.getMonth() === born.getMonth() && now.getDate() < born.getDate());
+  if (beforeBirthday) age -= 1;
+  return Math.max(0, age);
+}
+
+function projectPet(pet: AuthPet): SessionPet {
   return {
-    ...pet,
-    avatar: pet.avatar ?? pet.avatarUrl,
+    id: pet.id,
+    name: pet.name,
+    species: pet.species,
+    breed: pet.breed ?? undefined,
+    age: ageFromBirthdate(pet.birthdate),
+    avatar: pet.avatarUrl ?? undefined,
+    avatarUrl: pet.avatarUrl ?? undefined,
+    bio: pet.bio ?? undefined,
   };
 }
 
-function normalizeUser(user: SessionUser): SessionUser {
-  const pets = user.pets?.map(normalizePet);
+function projectUser(user: AuthUser | null): SessionUser | null {
+  if (!user) return null;
+  const pets = user.pets?.map(projectPet);
+
   return {
-    ...user,
-    username: user.username ?? user.handle ?? user.name,
-    avatar: user.avatar ?? user.avatarUrl,
+    id: user.id,
+    email: user.email,
+    username: user.handle,
+    handle: user.handle,
+    avatar: user.avatarUrl ?? undefined,
+    avatarUrl: user.avatarUrl ?? undefined,
+    bio: user.bio ?? undefined,
+    location: user.location ?? undefined,
+    createdAt: user.createdAt,
     points: user.points ?? user.totalPoints ?? 0,
+    totalPoints: user.totalPoints,
+    isVerified: user.isVerified,
     pets,
   };
 }
 
-export const useSessionStore = create<SessionState>()(
-  persist(
-    (set, get) => {
-      const applySession = (user: SessionUser, token: string, refreshToken?: string) => {
-        const normalized = normalizeUser(user);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('authToken', token);
-        }
-        set({
-          user: normalized,
-          pets: normalized.pets ?? [],
-          token,
-          refreshToken: refreshToken ?? get().refreshToken,
-          isAuthenticated: true,
-        });
-      };
+/**
+ * Compatibility-only presentation projection for older UI surfaces.
+ *
+ * This module owns no credentials, persistence, authenticated state, logout,
+ * refresh lifecycle, or server authority. All values derive synchronously from
+ * the canonical `useAuthStore`; callers should migrate to that store directly.
+ */
+export function useSessionStore(): SessionViewState;
+export function useSessionStore<T>(selector: (state: SessionViewState) => T): T;
+export function useSessionStore<T>(selector?: (state: SessionViewState) => T) {
+  const authUser = useAuthStore((state) => state.user);
+  const view = useMemo<SessionViewState>(() => {
+    const user = projectUser(authUser);
+    return { user, pets: user?.pets ?? [] };
+  }, [authUser]);
 
-      const clear = () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('authToken');
-        }
-        set({
-          user: null,
-          pets: [],
-          token: null,
-          refreshToken: null,
-          isAuthenticated: false,
-        });
-      };
-
-      return {
-        user: null,
-        pets: [],
-        token: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        login: applySession,
-        logout: clear,
-        setSession: (user, token) => applySession(user, token),
-        clearSession: clear,
-        refreshSession: async () => {
-          const token = get().token;
-          const apiBase = process.env.NEXT_PUBLIC_API_URL;
-          if (!token || !apiBase) return;
-
-          const response = await fetch(`${apiBase}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.status === 401) {
-            clear();
-            return;
-          }
-          if (!response.ok) {
-            throw new Error(`Session refresh failed with status ${response.status}`);
-          }
-
-          const user = (await response.json()) as SessionUser;
-          applySession(user, token);
-        },
-      };
-    },
-    {
-      name: 'woof-session-storage',
-      partialize: (state) => ({
-        user: state.user,
-        pets: state.pets,
-        token: state.token,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
-    }
-  )
-);
+  return selector ? selector(view) : view;
+}
