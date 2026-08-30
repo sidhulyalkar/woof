@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const productionServer = process.env.PLAYWRIGHT_PRODUCTION_SERVER === '1';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -33,7 +35,10 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm dev',
+    // Authoritative CI lanes build first, then exercise the same Next production
+    // server model we intend to deploy. Local Playwright keeps the faster dev
+    // server for iteration without letting Fast Refresh become release evidence.
+    command: productionServer ? 'pnpm start' : 'pnpm dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
