@@ -28,6 +28,7 @@ api_client = WEB / "src" / "lib" / "api" / "client.ts"
 api_client_test = WEB / "src" / "lib" / "api" / "client.test.ts"
 api_hooks = WEB / "src" / "lib" / "api" / "hooks.ts"
 auth_guard = WEB / "src" / "components" / "auth-guard.tsx"
+auth_guard_test = WEB / "src" / "components" / "auth-guard.test.tsx"
 helper = WEB / "e2e" / "support" / "session.ts"
 auth_spec = WEB / "e2e" / "auth.spec.ts"
 workflow = ROOT / ".github" / "workflows" / "client-reality-ci.yml"
@@ -54,6 +55,7 @@ for path in [
     api_client_test,
     api_hooks,
     auth_guard,
+    auth_guard_test,
     helper,
     auth_spec,
     workflow,
@@ -64,9 +66,7 @@ for path in [
         raise SystemExit(f"required client-reality source missing: {path.relative_to(ROOT)}")
 
 if legacy_projection.exists():
-    raise SystemExit(
-        "apps/web/src/store/session.ts: retired client session adapter must not exist"
-    )
+    raise SystemExit("apps/web/src/store/session.ts: retired client session adapter must not exist")
 
 for marker in [
     "AUTH_STORAGE_KEY = 'woof-auth-storage'",
@@ -99,11 +99,7 @@ for marker in [
     "auth.logout()",
 ]:
     require(api_client, marker)
-for marker in [
-    "localStorage.getItem(",
-    "localStorage.setItem(",
-    "localStorage.removeItem(",
-]:
+for marker in ["localStorage.getItem(", "localStorage.setItem(", "localStorage.removeItem("]:
     reject(api_client, marker)
 
 require(api_hooks, "useAuthStore")
@@ -113,16 +109,33 @@ reject(api_hooks, "refreshSession")
 
 for marker in [
     "const token = useAuthStore((state) => state.token)",
-    "if (!token)",
-    "setAuth(user, token)",
+    "const verifiedToken = useRef<string | null>(null)",
+    "const candidateToken = token",
+    "authApi",
+    ".me()",
+    "useAuthStore.getState().token !== candidateToken",
+    "verifiedToken.current = candidateToken",
+    "verifiedToken.current !== token",
+    "setAuth(user, candidateToken)",
+    "router.replace('/login')",
 ]:
     require(auth_guard, marker)
 for marker in [
     "localStorage.getItem(",
     "localStorage.setItem(",
     "localStorage.removeItem(",
+    "if (isAuthenticated)",
 ]:
     reject(auth_guard, marker)
+
+for marker in [
+    "keeps protected content closed while the canonical persisted token is verified",
+    "refreshes canonical user state only after the server accepts the persisted token",
+    "fails closed and retires canonical authority when server verification rejects the token",
+]:
+    require(auth_guard_test, marker)
+for marker in ["localStorage.setItem('authToken'", 'localStorage.setItem("authToken"']:
+    reject(auth_guard_test, marker)
 
 for path in [auth_store_test, api_client_test]:
     require(path, "LEGACY_SESSION_STORAGE_KEY")
@@ -184,6 +197,8 @@ for marker in [
     "name: 'webkit'",
     "['line']",
     "['html', { open: 'never' }]",
+    "PLAYWRIGHT_PRODUCTION_SERVER",
+    "productionServer ? 'pnpm start' : 'pnpm dev'",
 ]:
     require(config, marker)
 
@@ -194,6 +209,9 @@ require(auth_spec, "Integration-only test: intentionally skipped unless the seed
 
 for marker in [
     "src/components/auth-guard.tsx",
+    "src/components/auth-guard.test.tsx",
+    "PLAYWRIGHT_PRODUCTION_SERVER: '1'",
+    "Build Web client for production-server qualification",
     "project: chromium",
     "project: 'Mobile Chrome'",
     "project: firefox",
@@ -213,7 +231,8 @@ for marker in [
     "src/lib/stores/auth-persist.test.ts",
     "src/lib/stores/auth-store.test.ts",
     "src/lib/api/client.test.ts",
+    "src/components/auth-guard.test.tsx",
 ]:
     require(workflow, marker)
 
-print("Client reality contract preserves named browser evidence and one session authority.")
+print("Client reality contract preserves server-verified auth and production browser evidence.")
