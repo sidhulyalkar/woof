@@ -35,19 +35,44 @@ jobs:
         with:
           version: 0.4.76
 
-      - name: Deploy API with migration and readiness gates
+      - name: Deploy API with migration, release identity and readiness gates
         run: >-
           flyctl deploy .
           --remote-only
           --app woof-api-prod
           --config apps/api/fly.toml
+          --build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"
 
-      - name: Verify API liveness and readiness
+      - name: Capture liveness and readiness evidence
+        id: release_bodies
         run: |
-          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
-            https://woof-api-prod.fly.dev/api/v1/ops/health/live
-          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
-            https://woof-api-prod.fly.dev/api/v1/ops/health/ready
+          live=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
+            https://woof-api-prod.fly.dev/api/v1/ops/health/live)
+          ready=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 3 \
+            https://woof-api-prod.fly.dev/api/v1/ops/health/ready)
+          {
+            echo 'live<<EOF'
+            echo "$live"
+            echo EOF
+            echo 'ready<<EOF'
+            echo "$ready"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Enforce deployed API release identity
+        env:
+          LIVE_BODY: ${{ steps.release_bodies.outputs.live }}
+          READY_BODY: ${{ steps.release_bodies.outputs.ready }}
+        run: |
+          node - <<'NODE'
+          const expected = process.env.GITHUB_SHA;
+          for (const [name, raw] of Object.entries({ live: process.env.LIVE_BODY, ready: process.env.READY_BODY })) {
+            const parsed = JSON.parse(raw);
+            if (parsed.release !== expected) {
+              throw new Error(`${name} release mismatch: expected ${expected}, received ${parsed.release}`);
+            }
+          }
+          NODE
 
       - name: Notify production API deployment when configured
         if: ${{ always() }}
@@ -105,6 +130,8 @@ jobs:
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://woof-api-prod.fly.dev/api/v1
+          NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'
 
       - name: Deploy to Vercel
         run: vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}"

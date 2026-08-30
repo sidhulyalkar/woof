@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveReleaseIdentity } from './release-identity';
 
 @Injectable()
 export class ObservabilityService {
@@ -11,16 +12,19 @@ export class ObservabilityService {
       timestamp: new Date().toISOString(),
       uptimeSeconds: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
+      release: resolveReleaseIdentity(),
     };
   }
 
   async readiness() {
     const started = performance.now();
+    const release = resolveReleaseIdentity();
     try {
       await this.prisma.$queryRaw`SELECT 1`;
       return {
         status: 'ready' as const,
         timestamp: new Date().toISOString(),
+        release,
         database: {
           status: 'ready' as const,
           latencyMs: Math.max(0, performance.now() - started),
@@ -30,6 +34,7 @@ export class ObservabilityService {
       return {
         status: 'not_ready' as const,
         timestamp: new Date().toISOString(),
+        release,
         database: {
           status: 'unavailable' as const,
           latencyMs: Math.max(0, performance.now() - started),
