@@ -52,7 +52,9 @@ test.describe('visual layout contracts', () => {
     ).toBeVisible();
     await expect(page.getByText('Synthetic data only')).toBeVisible();
     await expect(page.getByText('Context + provenance')).toBeVisible();
-    await expect(page.getByText(/no live location, private messages, or real health records/i)).toBeVisible();
+    await expect(
+      page.getByText(/no live location, private messages, or real health records/i),
+    ).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     const cards = page.locator('[data-demo-card]');
