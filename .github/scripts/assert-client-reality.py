@@ -32,6 +32,7 @@ auth_guard_test = WEB / "src" / "components" / "auth-guard.test.tsx"
 helper = WEB / "e2e" / "support" / "session.ts"
 auth_spec = WEB / "e2e" / "auth.spec.ts"
 workflow = ROOT / ".github" / "workflows" / "client-reality-ci.yml"
+production_lifecycle = ROOT / ".github" / "scripts" / "playwright-production-web.sh"
 
 matrix_suites = [
     WEB / "e2e" / "companion-onramp.spec.ts",
@@ -59,6 +60,7 @@ for path in [
     helper,
     auth_spec,
     workflow,
+    production_lifecycle,
     *matrix_suites,
     *shared_fixture_suites,
 ]:
@@ -197,13 +199,23 @@ for marker in [
     "name: 'webkit'",
     "['line']",
     "['html', { open: 'never' }]",
-    "PLAYWRIGHT_PRODUCTION_SERVER",
+    "PLAYWRIGHT_EXTERNAL_SERVER",
+    "webServer: externalServer",
     "'NODE_ENV=production pnpm --filter @woof/web start'",
     "'pnpm --filter @woof/web dev'",
-    "stdout: 'pipe'",
-    "stderr: 'pipe'",
 ]:
     require(config, marker)
+
+for marker in [
+    "nohup env NODE_ENV=production pnpm --filter @woof/web start",
+    "curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/demo",
+    "Production Web server exited before readiness.",
+    "Production Web server did not become ready within 45 seconds.",
+    'kill -0 "$pid"',
+    "start)",
+    "stop)",
+]:
+    require(production_lifecycle, marker)
 
 # Root E2E intentionally keeps one full-stack login case out of the mocked suite.
 # The reason must remain explicit so a reported skip is attributable rather than mysterious.
@@ -213,8 +225,11 @@ require(auth_spec, "Integration-only test: intentionally skipped unless the seed
 for marker in [
     "src/components/auth-guard.tsx",
     "src/components/auth-guard.test.tsx",
-    "PLAYWRIGHT_PRODUCTION_SERVER: '1'",
+    "PLAYWRIGHT_EXTERNAL_SERVER: '1'",
     "Build Web client for production-server qualification",
+    "Start and prove production Web server",
+    "bash .github/scripts/playwright-production-web.sh start",
+    "bash .github/scripts/playwright-production-web.sh stop",
     "project: chromium",
     "project: 'Mobile Chrome'",
     "project: firefox",
@@ -238,4 +253,4 @@ for marker in [
 ]:
     require(workflow, marker)
 
-print("Client reality contract preserves server-verified auth and production browser evidence.")
+print("Client reality contract preserves server-verified auth and proven production browser evidence.")
