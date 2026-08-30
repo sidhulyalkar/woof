@@ -73,10 +73,7 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative w-full max-w-2xl bg-card/98 backdrop-blur-2xl border border-border/30 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-300">
@@ -135,7 +132,10 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
           {images.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               {images.map((url, index) => (
-                <div key={index} className="relative aspect-square rounded-2xl overflow-hidden bg-muted/20">
+                <div
+                  key={index}
+                  className="relative aspect-square rounded-2xl overflow-hidden bg-muted/20"
+                >
                   <AppImage
                     src={url}
                     alt={`Upload ${index + 1}`}
@@ -155,9 +155,7 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
           )}
 
           {/* Character Count */}
-          <div className="text-right text-xs text-muted-foreground/70">
-            {content.length}/500
-          </div>
+          <div className="text-right text-xs text-muted-foreground/70">{content.length}/500</div>
         </div>
 
         {/* Actions */}
