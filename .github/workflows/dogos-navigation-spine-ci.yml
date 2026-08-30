@@ -1,0 +1,126 @@
+name: dogOS Navigation Spine CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/components/today/guardian-today-page.tsx'
+      - 'apps/web/src/components/today/relationship-tools.tsx'
+      - 'apps/web/src/app/community/page.tsx'
+      - 'apps/web/e2e/navigation-spine.spec.ts'
+      - 'apps/web/e2e/companion-onramp.spec.ts'
+      - '.github/workflows/dogos-navigation-spine-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/src/components/bottom-nav.tsx'
+      - 'apps/web/src/components/today/guardian-today-page.tsx'
+      - 'apps/web/src/components/today/relationship-tools.tsx'
+      - 'apps/web/src/app/community/page.tsx'
+      - 'apps/web/e2e/navigation-spine.spec.ts'
+      - 'apps/web/e2e/companion-onramp.spec.ts'
+      - '.github/workflows/dogos-navigation-spine-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: navigation-spine-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Four-part spine + contextual reachability
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce navigation authority contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          nav = Path('apps/web/src/components/bottom-nav.tsx').read_text()
+          today_tools = Path('apps/web/src/components/today/relationship-tools.tsx').read_text()
+          today = Path('apps/web/src/components/today/guardian-today-page.tsx').read_text()
+          community = Path('apps/web/src/app/community/page.tsx').read_text()
+
+          match = re.search(
+              r"const petNavItems = \[(.*?)\];\s*\n\s*const companionNavItems",
+              nav,
+              re.S,
+          )
+          if not match:
+              raise SystemExit('pet navigation definition not found')
+
+          pet_block = match.group(1)
+          hrefs = re.findall(r"href: '([^']+)'", pet_block)
+          expected = ['/', '/compass', '/journey', '/community']
+          if hrefs != expected:
+              raise SystemExit(f'pet primary navigation drifted: expected {expected}, got {hrefs}')
+
+          for retired_peer in ('/autopilot', '/coach'):
+              if retired_peer in pet_block:
+                  raise SystemExit(f'{retired_peer} returned as a primary pet navigation peer')
+
+          for required_tool in ("href: '/coach'", "href: '/autopilot'"):
+              if required_tool not in today_tools:
+                  raise SystemExit(f'Today lost contextual tool entry: {required_tool}')
+
+          if '<RelationshipTools />' not in today:
+              raise SystemExit('guardian Today no longer renders contextual relationship tools')
+
+          if 'hasPetContext &&' not in community or 'href="/discover"' not in community:
+              raise SystemExit('Community lost pet-authorized Discovery reachability')
+
+          print('Navigation spine source contract is intact.')
+          PY
+
+      - name: Check navigation formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/web/src/components/bottom-nav.tsx
+          apps/web/src/components/today/guardian-today-page.tsx
+          apps/web/src/components/today/relationship-tools.tsx
+          apps/web/src/app/community/page.tsx
+          apps/web/e2e/navigation-spine.spec.ts
+          .github/workflows/dogos-navigation-spine-ci.yml
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Lint Web
+        run: pnpm --filter @woof/web lint
+
+      - name: Install Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Prove pet and petless navigation journeys
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/navigation-spine.spec.ts
+          e2e/companion-onramp.spec.ts
+          --project=chromium
+          --reporter=line
+
+      - name: Build production Web
+        run: pnpm --filter @woof/web build

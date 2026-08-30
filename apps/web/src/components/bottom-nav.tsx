@@ -1,16 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  Brain,
-  ClipboardCheck,
-  Compass,
-  Gamepad2,
-  Map,
-  PawPrint,
-  Sparkles,
-  Users,
-} from 'lucide-react';
+import { ClipboardCheck, Compass, Gamepad2, Map, PawPrint, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { companionApi } from '@/lib/api/companion';
@@ -20,8 +11,6 @@ const petNavItems = [
   { href: '/', icon: PawPrint, label: 'Today' },
   { href: '/compass', icon: Compass, label: 'Compass' },
   { href: '/journey', icon: Map, label: 'Story', isSpecial: true },
-  { href: '/autopilot', icon: Sparkles, label: 'Auto' },
-  { href: '/coach', icon: Brain, label: 'Coach' },
   { href: '/community', icon: Users, label: 'Community' },
 ];
 
@@ -88,7 +77,7 @@ export function BottomNav() {
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 transition-colors',
+                'group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -100,7 +89,7 @@ export function BottomNav() {
                 aria-hidden="true"
               />
               <Icon className="h-5 w-5" aria-hidden="true" />
-              <span className="text-[10px] font-semibold tracking-wide sm:text-[11px]">
+              <span className="text-[11px] font-semibold tracking-wide sm:text-xs">
                 {item.label}
               </span>
             </Link>
