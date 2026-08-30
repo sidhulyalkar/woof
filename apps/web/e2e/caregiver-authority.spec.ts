@@ -1,10 +1,10 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { seedAuthenticatedSession } from './support/session';
+import { E2E_ORIGIN, seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
   return {
-    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-origin': requestHeaders.origin ?? E2E_ORIGIN,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers':
       requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
@@ -130,6 +130,12 @@ async function mockCompanionShell(page: Page) {
   );
 }
 
+function waitForGet(page: Page, suffix: string) {
+  return page.waitForResponse(
+    (response) => response.request().method() === 'GET' && response.url().endsWith(suffix)
+  );
+}
+
 test.describe('dogOS Caregiver Authority', () => {
   test('invitation -> accept -> caregiver Today -> context observation -> revoke fails closed', async ({
     page,
@@ -174,8 +180,14 @@ test.describe('dogOS Caregiver Authority', () => {
           })
     );
 
+    const companionStateResponse = waitForGet(page, '/companion/state');
+    const receivedGrantsResponse = waitForGet(page, '/caregiver/grants/received');
+    const activePetsResponse = waitForGet(page, '/caregiver/pets');
     await page.goto('/');
 
+    expect((await companionStateResponse).status()).toBe(200);
+    expect((await receivedGrantsResponse).status()).toBe(200);
+    expect((await activePetsResponse).status()).toBe(200);
     await expect(page.locator('[data-caregiver-pending-grant="grant-1"]')).toBeVisible({
       timeout: 10_000,
     });
