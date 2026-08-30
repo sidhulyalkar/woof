@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { AppImage } from '@/components/ui/app-image';
 import { useCreatePost, useUploadImage } from '@/lib/api/hooks';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/store/ui';
 
 interface CreatePostModalProps {
@@ -15,7 +15,8 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ onClose }: CreatePostModalProps) {
-  const { user, pets } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
+  const pets = user?.pets ?? [];
   const { showToast } = useUIStore();
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -97,13 +98,13 @@ export function CreatePostModal({ onClose }: CreatePostModalProps) {
           {/* User Info */}
           <div className="flex items-center gap-3">
             <Avatar className="h-11 w-11 ring-2 ring-primary/10">
-              <AvatarImage src={user?.avatar} />
+              <AvatarImage src={user?.avatarUrl ?? undefined} />
               <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-sm font-medium">
-                {user?.username?.[0]?.toUpperCase() || 'U'}
+                {user?.handle?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <p className="font-semibold text-[15px]">{user?.username}</p>
+              <p className="font-semibold text-[15px]">{user?.handle}</p>
               {pets.length > 0 && (
                 <select
                   value={selectedPet || ''}
