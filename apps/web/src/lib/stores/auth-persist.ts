@@ -15,10 +15,7 @@ export type PersistedAuthSnapshot<TUser> = {
  * Serializes the exact persisted Zustand payload owned by the production auth store.
  * Browser tests consume this helper rather than hand-maintaining a second schema.
  */
-export function serializePersistedAuthSession<TUser>(
-  user: TUser,
-  token: string
-): string {
+export function serializePersistedAuthSession<TUser>(user: TUser, token: string): string {
   const payload: PersistedAuthSnapshot<TUser> = {
     state: {
       user,
