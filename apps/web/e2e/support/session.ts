@@ -40,6 +40,9 @@ async function fulfillAuthMe(route: Route, user: AuthUser) {
 /**
  * Seeds exactly the persisted client session production owns from a real
  * same-origin page. No inline init script is used, so CSP behavior remains real.
+ * Reload after the write so every engine boots the application from the same
+ * persisted-state lifecycle instead of relying on an already-mounted store to
+ * notice a same-document localStorage mutation.
  */
 export async function seedAuthenticatedSession(
   page: Page,
@@ -59,6 +62,7 @@ export async function seedAuthenticatedSession(
     },
     [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, token, persisted] as const
   );
+  await page.reload({ waitUntil: 'domcontentloaded' });
 }
 
 export async function clearAuthenticatedSession(page: Page): Promise<void> {
