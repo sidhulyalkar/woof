@@ -1,0 +1,103 @@
+name: dogOS E2E Session Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/src/lib/stores/auth-store.ts'
+      - 'apps/web/src/lib/stores/auth-persist.ts'
+      - 'apps/web/src/lib/stores/auth-persist.test.ts'
+      - 'apps/web/e2e/support/session.ts'
+      - 'apps/web/e2e/release-polish.spec.ts'
+      - 'apps/web/e2e/trust-discovery.spec.ts'
+      - 'apps/web/e2e/library-regression.spec.ts'
+      - 'apps/web/e2e/behavior-moments-shadow.spec.ts'
+      - '.github/scripts/assert-e2e-session-authority.py'
+      - '.github/workflows/e2e-session-authority-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-session-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Production-aligned browser session qualification
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check session authority formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/web/src/lib/stores/auth-store.ts
+          apps/web/src/lib/stores/auth-persist.ts
+          apps/web/src/lib/stores/auth-persist.test.ts
+          apps/web/e2e/support/session.ts
+          apps/web/e2e/release-polish.spec.ts
+          apps/web/e2e/trust-discovery.spec.ts
+          apps/web/e2e/library-regression.spec.ts
+          apps/web/e2e/behavior-moments-shadow.spec.ts
+          .github/workflows/e2e-session-authority-ci.yml
+
+      - name: Lint session authority surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/lib/stores/auth-store.ts
+          src/lib/stores/auth-persist.ts
+          src/lib/stores/auth-persist.test.ts
+          e2e/support/session.ts
+          e2e/release-polish.spec.ts
+          e2e/trust-discovery.spec.ts
+          e2e/library-regression.spec.ts
+          e2e/behavior-moments-shadow.spec.ts
+
+      - name: Validate source contract script
+        run: python -m py_compile .github/scripts/assert-e2e-session-authority.py
+
+      - name: Enforce browser session authority contract
+        run: python .github/scripts/assert-e2e-session-authority.py
+
+      - name: Type-check web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run persisted auth contract
+        run: pnpm --filter @woof/web exec vitest run src/lib/stores/auth-persist.test.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Run release-critical browser session journeys
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/release-polish.spec.ts
+          e2e/trust-discovery.spec.ts
+          e2e/library-regression.spec.ts
+          e2e/behavior-moments-shadow.spec.ts
+          --project=chromium
+
+      - name: Build web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
