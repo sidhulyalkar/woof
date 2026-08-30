@@ -20,6 +20,7 @@ RUN pnpm --filter @woof/api build
 
 FROM node:${NODE_VERSION}-alpine AS runner
 ARG PNPM_VERSION
+ARG WOOF_RELEASE_SHA=unknown
 
 RUN apk add --no-cache openssl libc6-compat \
   && npm install --global pnpm@${PNPM_VERSION}
@@ -43,6 +44,7 @@ COPY --chown=node:node --from=builder /app/packages ./packages
 ENV NODE_ENV=production
 ENV PORT=4000
 ENV NODE_OPTIONS=--enable-source-maps
+ENV WOOF_RELEASE_SHA=${WOOF_RELEASE_SHA}
 
 EXPOSE 4000
 
