@@ -117,6 +117,8 @@ require(api_client_test, "clearStaleSessionAfterUnauthorized")
 for source in (WEB / "src").rglob("*"):
     if source.suffix not in {".ts", ".tsx"} or source == persist:
         continue
+    if ".test." in source.name or ".spec." in source.name:
+        continue
     reject(source, "woof-session-storage")
 
 for marker in [
