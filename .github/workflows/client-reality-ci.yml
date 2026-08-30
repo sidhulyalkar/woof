@@ -55,6 +55,7 @@ jobs:
             apps/web/src/lib/api/client.test.ts \
             apps/web/src/lib/api/hooks.ts \
             apps/web/src/components/auth-guard.tsx \
+            apps/web/src/components/auth-guard.test.tsx \
             apps/web/src/app/health/page.tsx \
             apps/web/src/app/coach/observe/page.tsx \
             apps/web/src/app/coach/observe/history/page.tsx \
@@ -84,6 +85,7 @@ jobs:
           name: client-reality-formatted-${{ github.run_id }}
           path: |
             apps/web/src/components/auth-guard.tsx
+            apps/web/src/components/auth-guard.test.tsx
             apps/web/src/app/coach/observe/history/page.tsx
             apps/web/src/components/FeedScreen.tsx
             apps/web/src/components/ProfileScreen.tsx
@@ -105,6 +107,7 @@ jobs:
           src/lib/api/client.test.ts
           src/lib/api/hooks.ts
           src/components/auth-guard.tsx
+          src/components/auth-guard.test.tsx
           src/app/health/page.tsx
           src/app/coach/observe/page.tsx
           src/app/coach/observe/history/page.tsx
@@ -137,6 +140,7 @@ jobs:
           src/lib/stores/auth-persist.test.ts
           src/lib/stores/auth-store.test.ts
           src/lib/api/client.test.ts
+          src/components/auth-guard.test.tsx
 
   browser-matrix:
     name: Critical path (${{ matrix.slug }})
@@ -161,6 +165,7 @@ jobs:
 
     env:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      PLAYWRIGHT_PRODUCTION_SERVER: '1'
 
     steps:
       - uses: actions/checkout@v7
@@ -178,6 +183,9 @@ jobs:
 
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
+
+      - name: Build Web client for production-server qualification
+        run: pnpm --filter @woof/web build
 
       - name: Install Playwright engine
         run: pnpm --filter @woof/web exec playwright install --with-deps ${{ matrix.browser }}
