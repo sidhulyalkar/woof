@@ -4,6 +4,7 @@ set -euo pipefail
 RUNNER_TMP="${RUNNER_TEMP:-/tmp}"
 LOG_PATH="${RUNNER_TMP}/woof-playwright-web.log"
 PID_PATH="${RUNNER_TMP}/woof-playwright-web.pid"
+BASE_URL="http://127.0.0.1:3000"
 
 start_server() {
   rm -f "$LOG_PATH" "$PID_PATH"
@@ -13,8 +14,15 @@ start_server() {
   printf '%s\n' "$pid" >"$PID_PATH"
 
   for _ in $(seq 1 45); do
-    if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/demo >/dev/null; then
-      echo "Production Web server is ready on http://127.0.0.1:3000 (pid ${pid})."
+    local status
+    status="$(
+      curl --silent --show-error --max-time 2 \
+        --output /dev/null \
+        --write-out '%{http_code}' \
+        "${BASE_URL}/demo" || true
+    )"
+    if [[ "$status" == "200" ]]; then
+      echo "Production Web server is ready on ${BASE_URL} (pid ${pid})."
       return 0
     fi
 
@@ -27,7 +35,7 @@ start_server() {
     sleep 1
   done
 
-  echo "Production Web server did not become ready within 45 seconds." >&2
+  echo "Production Web server did not return HTTP 200 within 45 seconds." >&2
   cat "$LOG_PATH" >&2 || true
   return 1
 }
