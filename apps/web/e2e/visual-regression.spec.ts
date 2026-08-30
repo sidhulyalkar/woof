@@ -48,12 +48,12 @@ test.describe('visual layout contracts', () => {
     await expect(
       page.getByRole('heading', {
         name: /one useful next step, with memory and authority underneath it/i,
-      }),
+      })
     ).toBeVisible();
     await expect(page.getByText('Synthetic data only')).toBeVisible();
     await expect(page.getByText('Context + provenance')).toBeVisible();
     await expect(
-      page.getByText(/no live location, private messages, or real health records/i),
+      page.getByText(/no live location, private messages, or real health records/i)
     ).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
