@@ -6,10 +6,13 @@ on:
     paths:
       - 'apps/api/src/caregiver/**'
       - 'apps/api/src/app.module.ts'
+      - 'apps/web/playwright.config.ts'
+      - 'apps/web/src/components/auth-guard.tsx'
       - 'apps/web/src/lib/api/caregiver.ts'
       - 'apps/web/src/components/caregiver/**'
       - 'apps/web/src/components/today/companion-today-page.tsx'
       - 'apps/web/src/app/caregiver/**'
+      - 'apps/web/e2e/support/session.ts'
       - 'apps/web/e2e/caregiver-authority.spec.ts'
       - 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**'
       - '.github/workflows/dogos-caregiver-authority-ci.yml'
@@ -55,6 +58,7 @@ jobs:
       ENABLE_ADVENTURE_SYSTEM: 'true'
       PGPASSWORD: postgres
       NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      PLAYWRIGHT_PRODUCTION_SERVER: '1'
 
     steps:
       - uses: actions/checkout@v7
@@ -178,6 +182,9 @@ jobs:
       - name: Lint Web
         run: pnpm --filter @woof/web lint
 
+      - name: Build production Web for browser authority qualification
+        run: pnpm --filter @woof/web build
+
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
 
@@ -187,6 +194,3 @@ jobs:
           e2e/caregiver-authority.spec.ts
           --project=chromium
           --reporter=line
-
-      - name: Build production Web
-        run: pnpm --filter @woof/web build
