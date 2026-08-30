@@ -51,7 +51,9 @@ export default function BehaviorHistoryPage() {
             </Link>
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Individual model</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              Individual model
+            </p>
             <h1 className="truncate text-lg font-bold">Behavior history</h1>
           </div>
         </div>
@@ -89,8 +91,8 @@ export default function BehaviorHistoryPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  {profile.sampleCount} usable observations across {profile.contextsSeen.length} contexts.
-                  Confidence reflects evidence depth and breadth, not a personality score.
+                  {profile.sampleCount} usable observations across {profile.contextsSeen.length}{' '}
+                  contexts. Confidence reflects evidence depth and breadth, not a personality score.
                 </p>
               </div>
             </div>
@@ -98,10 +100,15 @@ export default function BehaviorHistoryPage() {
             {profile.interventionEffects.length > 0 && (
               <div className="mt-4 space-y-2">
                 {profile.interventionEffects.slice(0, 4).map((effect) => (
-                  <div key={effect.action} className="rounded-xl border border-border/50 bg-background/60 p-3">
+                  <div
+                    key={effect.action}
+                    className="rounded-xl border border-border/50 bg-background/60 p-3"
+                  >
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <span className="font-semibold">{effect.action}</span>
-                      <span className="text-muted-foreground">{effect.pairedSessions} paired sessions</span>
+                      <span className="text-muted-foreground">
+                        {effect.pairedSessions} paired sessions
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Evidence confidence {Math.round(effect.confidence * 100)}%
@@ -117,7 +124,9 @@ export default function BehaviorHistoryPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold">Observation timeline</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Derived observations only. Raw media is not stored here.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Derived observations only. Raw media is not stored here.
+              </p>
             </div>
           </div>
 
@@ -141,7 +150,10 @@ export default function BehaviorHistoryPage() {
 
           <div className="mt-4 space-y-3">
             {timeline.map((entry) => (
-              <article key={entry.id} className="rounded-2xl border border-border/60 bg-card/65 p-4">
+              <article
+                key={entry.id}
+                className="rounded-2xl border border-border/60 bg-card/65 p-4"
+              >
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                     {entry.mediaType === 'video' ? (
@@ -170,7 +182,9 @@ export default function BehaviorHistoryPage() {
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed">{entry.analysis.observableSummary}</p>
+                    <p className="mt-3 text-sm leading-relaxed">
+                      {entry.analysis.observableSummary}
+                    </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {entry.analysis.dimensions
                         .filter((dimension) => dimension.confidence >= 0.5)
@@ -186,7 +200,8 @@ export default function BehaviorHistoryPage() {
                     </div>
                     {entry.ownerFeedback && (
                       <p className="mt-3 text-xs font-medium text-muted-foreground">
-                        Owner feedback: {entry.ownerFeedback.accurate ? 'matched what I saw' : 'needs correction'}
+                        Owner feedback:{' '}
+                        {entry.ownerFeedback.accurate ? 'matched what I saw' : 'needs correction'}
                       </p>
                     )}
                   </div>
