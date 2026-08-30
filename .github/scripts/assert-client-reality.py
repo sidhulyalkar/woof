@@ -27,6 +27,7 @@ legacy_projection = WEB / "src" / "store" / "session.ts"
 api_client = WEB / "src" / "lib" / "api" / "client.ts"
 api_client_test = WEB / "src" / "lib" / "api" / "client.test.ts"
 api_hooks = WEB / "src" / "lib" / "api" / "hooks.ts"
+auth_guard = WEB / "src" / "components" / "auth-guard.tsx"
 helper = WEB / "e2e" / "support" / "session.ts"
 auth_spec = WEB / "e2e" / "auth.spec.ts"
 workflow = ROOT / ".github" / "workflows" / "client-reality-ci.yml"
@@ -52,6 +53,7 @@ for path in [
     api_client,
     api_client_test,
     api_hooks,
+    auth_guard,
     helper,
     auth_spec,
     workflow,
@@ -108,6 +110,19 @@ require(api_hooks, "useAuthStore")
 require(api_hooks, "auth.updateUser({ pets: [...currentPets, pet] })")
 reject(api_hooks, "useSessionStore")
 reject(api_hooks, "refreshSession")
+
+for marker in [
+    "const token = useAuthStore((state) => state.token)",
+    "if (!token)",
+    "setAuth(user, token)",
+]:
+    require(auth_guard, marker)
+for marker in [
+    "localStorage.getItem(",
+    "localStorage.setItem(",
+    "localStorage.removeItem(",
+]:
+    reject(auth_guard, marker)
 
 for path in [auth_store_test, api_client_test]:
     require(path, "LEGACY_SESSION_STORAGE_KEY")
@@ -178,6 +193,7 @@ require(auth_spec, "test.skip('logs in with seeded credentials against the full 
 require(auth_spec, "Integration-only test: intentionally skipped unless the seeded API is running.")
 
 for marker in [
+    "src/components/auth-guard.tsx",
     "project: chromium",
     "project: 'Mobile Chrome'",
     "project: firefox",
