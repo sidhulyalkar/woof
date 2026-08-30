@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 type UnwrappedAxiosInstance = Omit<
   AxiosInstance,
@@ -43,12 +44,14 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    const auth = useAuthStore.getState();
     const requestHadAuthToken =
-      typeof window !== 'undefined' && Boolean(localStorage.getItem('authToken'));
+      typeof window !== 'undefined' &&
+      Boolean(localStorage.getItem('authToken') || auth.token || auth.isAuthenticated);
 
     if (error.response?.status === 401 && requestHadAuthToken) {
       console.warn('Authenticated API request returned 401; clearing the stale session');
-      localStorage.removeItem('authToken');
+      auth.logout();
       if (window.location.pathname !== '/login') {
         window.location.pathname = '/login';
       }
