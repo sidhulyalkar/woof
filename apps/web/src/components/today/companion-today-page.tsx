@@ -60,7 +60,11 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
       </header>
 
       <main id="main-content" className="mx-auto max-w-xl px-4 pb-8 pt-5">
-        <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.1] via-card/95 to-secondary/[0.06] p-6">
+        {/* A real pending/active caregiver grant outranks generic learning content.
+            The panel renders nothing when no authority exists, preserving the normal companion layout. */}
+        <CaregiverAccessPanel />
+
+        <section className="mt-6 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.1] via-card/95 to-secondary/[0.06] p-6">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Icon className="h-5 w-5" aria-hidden="true" />
           </span>
@@ -68,8 +72,6 @@ export default function CompanionTodayPage({ state }: { state: CompanionState })
           <h2 className="mt-1 text-3xl font-bold tracking-tight text-balance">{copy.title}</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
         </section>
-
-        <CaregiverAccessPanel />
 
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <Link
