@@ -1,0 +1,145 @@
+name: dogOS Public Truth CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'apps/api/src/main.ts'
+      - 'apps/web/src/app/layout.tsx'
+      - 'apps/web/src/app/demo/page.tsx'
+      - 'apps/web/public/manifest.json'
+      - 'apps/web/e2e/public-truth.spec.ts'
+      - '.github/workflows/dogos-public-truth-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'apps/api/src/main.ts'
+      - 'apps/web/src/app/layout.tsx'
+      - 'apps/web/src/app/demo/page.tsx'
+      - 'apps/web/public/manifest.json'
+      - 'apps/web/e2e/public-truth.spec.ts'
+      - '.github/workflows/dogos-public-truth-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-truth-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Public product identity + synthetic demo
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce public product truth contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          readme = Path('README.md').read_text()
+          layout = Path('apps/web/src/app/layout.tsx').read_text()
+          api = Path('apps/api/src/main.ts').read_text()
+          demo = Path('apps/web/src/app/demo/page.tsx').read_text()
+          manifest = json.loads(Path('apps/web/public/manifest.json').read_text())
+
+          required = {
+              'README relationship thesis': ('relationship-first pet companion', readme),
+              'README dogOS architecture': ('broader **dogOS** experiment', readme),
+              'README qualified Next runtime': ('Next.js-15.5.24-000000', readme),
+              'browser title': ('Woof · A better day with your dog', layout),
+              'browser relationship-loop description': (
+                  'choose one useful thing to do with your dog, notice how it went', layout
+              ),
+              'Open Graph metadata': ('openGraph:', layout),
+              'Twitter metadata': ('twitter:', layout),
+              'API dogOS description': ('Application API for Woof dogOS:', api),
+              'demo dogOS hero': ('One useful next step, with memory and authority underneath it.', demo),
+              'demo Today decision': ('A short sniff walk', demo),
+              'demo Story boundary': ('Story remembers the relationship, not a score.', demo),
+              'demo caregiver boundary': ('Temporary caregiver authority has edges.', demo),
+          }
+          missing = [label for label, (marker, content) in required.items() if marker not in content]
+          if missing:
+              raise SystemExit('public product truth markers missing:\n- ' + '\n- '.join(missing))
+
+          stale = {
+              'old browser slogan': 'Better dog friendships, offline',
+              'old demo hero': 'Synthetic beta demo',
+              'old demo primary compatibility CTA': 'Explore compatibility',
+              'old README Next badge': 'Next.js-15.3-000000',
+          }
+          combined = '\n'.join([readme, layout, api, demo])
+          found = [label for label, marker in stale.items() if marker in combined]
+          if found:
+              raise SystemExit('stale public product truth returned:\n- ' + '\n- '.join(found))
+
+          if manifest.get('name') != 'Woof' or manifest.get('short_name') != 'Woof':
+              raise SystemExit('manifest identity drifted from Woof')
+          if manifest.get('display') != 'browser':
+              raise SystemExit('manifest must not imply installable standalone authority before PWA requalification')
+          if 'relationship-first companion' not in manifest.get('description', ''):
+              raise SystemExit('manifest lost relationship-first product description')
+
+          print('Public product truth contract is aligned.')
+          PY
+
+      - name: Check public truth formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/main.ts
+          apps/web/src/app/layout.tsx
+          apps/web/src/app/demo/page.tsx
+          apps/web/e2e/public-truth.spec.ts
+          .github/workflows/dogos-public-truth-ci.yml
+
+      - name: Type-check API and Web
+        run: |
+          pnpm --filter @woof/api exec tsc --noEmit
+          pnpm --filter @woof/web type-check
+
+      - name: Lint API and Web
+        run: |
+          pnpm --filter @woof/api lint
+          pnpm --filter @woof/web lint
+
+      - name: Install Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Prove synthetic public demo
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/public-truth.spec.ts
+          --project=chromium
+          --reporter=line
+
+      - name: Build production API and Web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+          ML_SERVICE_ENABLED: 'false'
+        run: |
+          pnpm --filter @woof/database db:generate
+          pnpm --filter @woof/api build
+          pnpm --filter @woof/web build
