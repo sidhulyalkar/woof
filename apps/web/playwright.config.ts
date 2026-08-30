@@ -36,11 +36,15 @@ export default defineConfig({
 
   webServer: {
     // Authoritative CI lanes build first, then exercise the same Next production
-    // server model we intend to deploy. Local Playwright keeps the faster dev
-    // server for iteration without letting Fast Refresh become release evidence.
-    command: productionServer ? 'NODE_ENV=production pnpm start' : 'pnpm dev',
+    // server model we intend to deploy. Select the workspace explicitly so server
+    // startup does not depend on the caller's working directory.
+    command: productionServer
+      ? 'NODE_ENV=production pnpm --filter @woof/web start'
+      : 'pnpm --filter @woof/web dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 });
