@@ -9,20 +9,20 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 const PUBLIC_ROUTES = ['/login', '/onboarding', '/demo'];
 
 function useCanonicalAuthHydration(isPublicRoute: boolean) {
-  const [hasHydrated, setHasHydrated] = useState(false);
+  const [hasHydrated, setPersistenceHydrated] = useState(false);
 
   useEffect(() => {
     if (isPublicRoute) return;
 
     const stopHydrationListener = useAuthStore.persist.onHydrate(() => {
-      setHasHydrated(false);
+      setPersistenceHydrated(false);
     });
     const finishHydrationListener = useAuthStore.persist.onFinishHydration(() => {
-      setHasHydrated(true);
+      setPersistenceHydrated(true);
     });
 
     if (useAuthStore.persist.hasHydrated()) {
-      setHasHydrated(true);
+      setPersistenceHydrated(true);
     } else {
       // Persist middleware owns hydration truth. Explicitly request hydration as a
       // fallback so a protected production document cannot remain stranded if
