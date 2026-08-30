@@ -32,6 +32,7 @@ function seedCanonicalCandidate() {
     token: 'persisted-token',
     isAuthenticated: true,
     isLoading: false,
+    hasHydrated: true,
   });
 }
 
@@ -49,6 +50,28 @@ describe('AuthGuard', () => {
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: true,
+    });
+  });
+
+  it('keeps protected content closed without redirecting before persisted auth hydrates', async () => {
+    useAuthStore.setState({ hasHydrated: false });
+
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
+    );
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockMe).not.toHaveBeenCalled();
+
+    useAuthStore.getState().setHasHydrated(true);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/login');
     });
   });
 
@@ -67,7 +90,7 @@ describe('AuthGuard', () => {
     expect(mockMe).toHaveBeenCalledTimes(1);
   });
 
-  it('redirects a protected route with no canonical token to login', async () => {
+  it('redirects a hydrated protected route with no canonical token to login', async () => {
     render(
       <AuthGuard>
         <div>Protected Content</div>
@@ -102,6 +125,7 @@ describe('AuthGuard', () => {
       },
       token: 'persisted-token',
       isAuthenticated: true,
+      hasHydrated: true,
     });
   });
 
@@ -123,6 +147,7 @@ describe('AuthGuard', () => {
       user: null,
       token: null,
       isAuthenticated: false,
+      hasHydrated: true,
     });
   });
 });
