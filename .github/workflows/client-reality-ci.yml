@@ -54,6 +54,7 @@ jobs:
             apps/web/src/lib/api/client.ts \
             apps/web/src/lib/api/client.test.ts \
             apps/web/src/lib/api/hooks.ts \
+            apps/web/src/components/auth-guard.tsx \
             apps/web/src/app/health/page.tsx \
             apps/web/src/app/coach/observe/page.tsx \
             apps/web/src/app/coach/observe/history/page.tsx \
@@ -82,6 +83,7 @@ jobs:
         with:
           name: client-reality-formatted-${{ github.run_id }}
           path: |
+            apps/web/src/components/auth-guard.tsx
             apps/web/src/app/coach/observe/history/page.tsx
             apps/web/src/components/FeedScreen.tsx
             apps/web/src/components/ProfileScreen.tsx
@@ -102,6 +104,7 @@ jobs:
           src/lib/api/client.ts
           src/lib/api/client.test.ts
           src/lib/api/hooks.ts
+          src/components/auth-guard.tsx
           src/app/health/page.tsx
           src/app/coach/observe/page.tsx
           src/app/coach/observe/history/page.tsx
