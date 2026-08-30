@@ -57,6 +57,7 @@ for marker in [
     "await page.goto('/login')",
     "window.localStorage.setItem(storageKey, persistedState)",
     "window.localStorage.removeItem(legacyKey)",
+    "await page.reload({ waitUntil: 'domcontentloaded' })",
 ]:
     require(helper, marker)
 reject(helper, "addInitScript")
