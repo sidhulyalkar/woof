@@ -38,7 +38,7 @@ export default defineConfig({
     // Authoritative CI lanes build first, then exercise the same Next production
     // server model we intend to deploy. Local Playwright keeps the faster dev
     // server for iteration without letting Fast Refresh become release evidence.
-    command: productionServer ? 'pnpm start' : 'pnpm dev',
+    command: productionServer ? 'NODE_ENV=production pnpm start' : 'pnpm dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
