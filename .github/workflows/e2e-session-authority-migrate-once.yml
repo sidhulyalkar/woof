@@ -19,109 +19,93 @@ jobs:
           ref: agent/e2e-session-authority-v1
           fetch-depth: 0
 
-      - name: Apply exact session fixture migration
+      - name: Apply bounded session fixture migration
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
 
-          def replace_exact(path: str, old: str, new: str) -> None:
+          def add_import(path: str, import_line: str) -> None:
               file = Path(path)
               text = file.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one replacement target, found {count}')
-              file.write_text(text.replace(old, new))
+              first_newline = text.find('\n')
+              if first_newline < 0:
+                  raise SystemExit(f'{path}: missing first import boundary')
+              if import_line in text:
+                  raise SystemExit(f'{path}: session helper import already present unexpectedly')
+              file.write_text(text[: first_newline + 1] + import_line + '\n' + text[first_newline + 1 :])
 
-          replace_exact(
-              'apps/web/e2e/release-polish.spec.ts',
-              "import { expect, test, type Page, type Route } from '@playwright/test';\n",
-              "import { expect, test, type Page, type Route } from '@playwright/test';\nimport { seedAuthenticatedSession } from './support/session';\n",
-          )
-          replace_exact(
-              'apps/web/e2e/release-polish.spec.ts',
-              """async function authenticate(page: Page) {
-          await page.route('**/auth/me', (route) =>
-            fulfillJson(route, {
-              id: 'user-1',
-              email: 'owner@example.com',
-              handle: 'dog-owner',
-              pets: [],
-            })
-          );
-          await page.addInitScript(() => {
-            window.localStorage.setItem('authToken', 'browser-test-token');
-          });
-          }
-          """.replace('          ', ''),
+          def replace_region(path: str, pattern: str, replacement: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.DOTALL)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one bounded auth region, found {count}')
+              file.write_text(updated)
+
+          release = 'apps/web/e2e/release-polish.spec.ts'
+          add_import(release, "import { seedAuthenticatedSession } from './support/session';")
+          replace_region(
+              release,
+              r"async function authenticate\(page: Page\) \{.*?\n\}\n\n(?=async function authorizePetToday)",
               """const browserUser = {
-          id: 'user-1',
-          email: 'owner@example.com',
-          handle: 'dog-owner',
-          pets: [],
+            id: 'user-1',
+            email: 'owner@example.com',
+            handle: 'dog-owner',
+            pets: [],
           };
 
           async function authenticate(page: Page) {
-          await seedAuthenticatedSession(page, {
-            user: browserUser,
-            token: 'browser-test-token',
-          });
+            await seedAuthenticatedSession(page, {
+              user: browserUser,
+              token: 'browser-test-token',
+            });
           }
+
           """.replace('          ', ''),
           )
 
-          replace_exact(
-              'apps/web/e2e/library-regression.spec.ts',
-              "import { expect, test, type Page, type Route } from '@playwright/test';\n",
-              "import { expect, test, type Page, type Route } from '@playwright/test';\nimport { seedAuthenticatedSession } from './support/session';\n",
-          )
-          replace_exact(
-              'apps/web/e2e/library-regression.spec.ts',
+          library = 'apps/web/e2e/library-regression.spec.ts'
+          add_import(library, "import { seedAuthenticatedSession } from './support/session';")
+          replace_region(
+              library,
+              r"async function authenticate\(page: Page\) \{.*?\n\}\n\n(?=async function routeLibrary)",
               """async function authenticate(page: Page) {
-          await page.route('**/auth/me', async (route) => {
-            if (await fulfillPreflight(route)) return;
-            await fulfillJson(route, user);
-          });
-          await page.addInitScript(() => {
-            window.localStorage.setItem('authToken', 'browser-test-token');
-          });
+            await seedAuthenticatedSession(page, {
+              user,
+              token: 'browser-test-token',
+            });
           }
+
           """.replace('          ', ''),
+          )
+
+          trust = 'apps/web/e2e/trust-discovery.spec.ts'
+          add_import(trust, "import { grantRoughLocation, seedAuthenticatedSession } from './support/session';")
+          replace_region(
+              trust,
+              r"async function authenticate\(page: Page\) \{.*?\n\}\n\n(?=const recommendation)",
               """async function authenticate(page: Page) {
-          await seedAuthenticatedSession(page, {
-            user,
-            token: 'browser-test-token',
-          });
+            await grantRoughLocation(page.context(), {
+              latitude: 37.7749,
+              longitude: -122.4194,
+              accuracy: 100,
+            });
+            await seedAuthenticatedSession(page, {
+              user,
+              token: 'trust-browser-token',
+            });
           }
+
           """.replace('          ', ''),
           )
 
-          replace_exact(
-              'apps/web/e2e/trust-discovery.spec.ts',
-              "import { expect, test, type Page, type Route } from '@playwright/test';\n",
-              "import { expect, test, type Page, type Route } from '@playwright/test';\nimport { grantRoughLocation, seedAuthenticatedSession } from './support/session';\n",
-          )
-          trust = Path('apps/web/e2e/trust-discovery.spec.ts')
-          text = trust.read_text()
-          start = "async function authenticate(page: Page) {\n"
-          end = "\n}\n\nconst recommendation = {"
-          start_index = text.find(start)
-          end_index = text.find(end, start_index)
-          if start_index < 0 or end_index < 0:
-              raise SystemExit('trust-discovery: authenticate block boundaries not found')
-          replacement = """async function authenticate(page: Page) {
-          await grantRoughLocation(page.context(), {
-            latitude: 37.7749,
-            longitude: -122.4194,
-            accuracy: 100,
-          });
-          await seedAuthenticatedSession(page, {
-            user,
-            token: 'trust-browser-token',
-          });
-          }
-
-          const recommendation = {""".replace('          ', '')
-          trust.write_text(text[:start_index] + replacement + text[end_index + len(end):])
+          for path in [release, library, trust]:
+              text = Path(path).read_text()
+              if 'addInitScript' in text:
+                  raise SystemExit(f'{path}: addInitScript remains after migration')
+              if 'seedAuthenticatedSession' not in text:
+                  raise SystemExit(f'{path}: shared session helper missing after migration')
 
           Path('.github/workflows/e2e-session-authority-migrate-once.yml').unlink()
           PY
