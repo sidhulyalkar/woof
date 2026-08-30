@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { ConciergeBriefing } from '@/components/concierge/concierge-briefing';
 import { PetSwitcher } from '@/components/pets/pet-switcher';
+import { RelationshipTools } from '@/components/today/relationship-tools';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { adventureApi, type AdventureQuest, type WellbeingPathway } from '@/lib/api/adventure';
@@ -374,6 +375,8 @@ export default function HomePage() {
                 <ConciergeBriefing showPetSwitcher={false} />
               </div>
             </details>
+
+            <RelationshipTools />
 
             <section data-today-progress className="mt-7" aria-labelledby="recent-rhythm-heading">
               <div className="flex items-end justify-between gap-3">

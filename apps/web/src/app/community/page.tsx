@@ -166,6 +166,14 @@ export default function CommunityPage() {
             </Button>
             {hasPetContext && (
               <Button variant="outline" asChild className="col-span-2 bg-transparent">
+                <Link href="/discover">
+                  <Globe2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Discover compatible dogs & places
+                </Link>
+              </Button>
+            )}
+            {hasPetContext && (
+              <Button variant="outline" asChild className="col-span-2 bg-transparent">
                 <Link href="/pack">
                   <HeartHandshake className="mr-2 h-4 w-4" aria-hidden="true" />
                   Cooperative Pack quests

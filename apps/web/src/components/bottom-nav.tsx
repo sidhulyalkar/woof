@@ -89,7 +89,9 @@ export function BottomNav() {
                 aria-hidden="true"
               />
               <Icon className="h-5 w-5" aria-hidden="true" />
-              <span className="text-[11px] font-semibold tracking-wide sm:text-xs">{item.label}</span>
+              <span className="text-[11px] font-semibold tracking-wide sm:text-xs">
+                {item.label}
+              </span>
             </Link>
           );
         })}
