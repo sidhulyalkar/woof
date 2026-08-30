@@ -41,17 +41,24 @@ axiosClient.interceptors.request.use((config) => {
   return config;
 });
 
+export function clearStaleSessionAfterUnauthorized() {
+  if (typeof window === 'undefined') return false;
+
+  const auth = useAuthStore.getState();
+  const requestHadAuthToken = Boolean(
+    localStorage.getItem('authToken') || auth.token || auth.isAuthenticated
+  );
+  if (!requestHadAuthToken) return false;
+
+  auth.logout();
+  return true;
+}
+
 axiosClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const auth = useAuthStore.getState();
-    const requestHadAuthToken =
-      typeof window !== 'undefined' &&
-      Boolean(localStorage.getItem('authToken') || auth.token || auth.isAuthenticated);
-
-    if (error.response?.status === 401 && requestHadAuthToken) {
+    if (error.response?.status === 401 && clearStaleSessionAfterUnauthorized()) {
       console.warn('Authenticated API request returned 401; clearing the stale session');
-      auth.logout();
       if (window.location.pathname !== '/login') {
         window.location.pathname = '/login';
       }
