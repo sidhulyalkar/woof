@@ -407,8 +407,8 @@ export function useUpdateActivity(
 ) {
   const queryClient = useQueryClient();
 
-  return useMutation<Activity, Error, Partial<Activity> & { id: string }>({
-    mutationFn: ({ id, ...data }) => apiClient.put<Activity>(`/activities/${id}`, data),
+  return useMutation<Activity, Error, { id: string; data: Partial<Activity> }>({
+    mutationFn: ({ id, data }) => apiClient.put<Activity>(`/activities/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.activities });
     },
