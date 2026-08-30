@@ -1,4 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+
+function corsHeaders(route: Route) {
+  const requestHeaders = route.request().headers();
+  return {
+    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-methods': 'POST,OPTIONS',
+    'access-control-allow-headers':
+      requestHeaders['access-control-request-headers'] ?? 'content-type',
+    vary: 'Origin',
+  };
+}
 
 test.describe('Authentication Flow', () => {
   test('redirects unauthenticated visitors to login', async ({ page }) => {
@@ -24,16 +35,26 @@ test.describe('Authentication Flow', () => {
 
   test('shows an API error without requiring a live backend', async ({ page }) => {
     await page.route('**/auth/login', async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders(route), body: '' });
+        return;
+      }
       await route.fulfill({
         status: 401,
-        contentType: 'application/json',
+        headers: { ...corsHeaders(route), 'content-type': 'application/json' },
         body: JSON.stringify({ message: 'Invalid email or password' }),
       });
     });
 
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('invalid@example.com');
-    await page.getByLabel(/password/i).fill('wrongpassword');
+    const email = page.getByLabel(/email/i);
+    const password = page.getByLabel(/password/i);
+    await email.click();
+    await email.pressSequentially('invalid@example.com');
+    await password.click();
+    await password.pressSequentially('wrongpassword');
+    await expect(email).toHaveValue('invalid@example.com');
+    await expect(password).toHaveValue('wrongpassword');
     await page.getByRole('button', { name: /sign in/i }).click();
 
     await expect(page.getByText(/invalid email or password/i)).toBeVisible({ timeout: 5000 });
