@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { formatDistanceToNow } from 'date-fns';
 
 export interface Comment {
@@ -33,7 +33,7 @@ export function CommentSection({
   onAddComment,
   onDeleteComment
 }: CommentSectionProps) {
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -112,8 +112,8 @@ export function CommentSection({
       <form onSubmit={handleSubmit} className="flex gap-3 pt-3 border-t border-gray-100">
         <ProfileAvatar
           type="user"
-          src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
-          fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
+          src={user?.avatarUrl || getPlaceholderAvatar(user?.handle || 'User', 'user')}
+          fallbackText={(user?.handle || 'User').slice(0, 2).toUpperCase()}
           size="sm"
         />
 
