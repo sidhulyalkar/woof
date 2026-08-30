@@ -20,6 +20,9 @@ def reject(path: Path, marker: str) -> None:
 
 
 config = WEB / "playwright.config.ts"
+middleware = WEB / "src" / "middleware.ts"
+transport = WEB / "src" / "lib" / "security" / "transport.ts"
+transport_test = WEB / "src" / "lib" / "security" / "transport.test.ts"
 persist = WEB / "src" / "lib" / "stores" / "auth-persist.ts"
 auth_store = WEB / "src" / "lib" / "stores" / "auth-store.ts"
 auth_store_test = WEB / "src" / "lib" / "stores" / "auth-store.test.ts"
@@ -49,6 +52,9 @@ shared_fixture_suites = [
 
 for path in [
     config,
+    middleware,
+    transport,
+    transport_test,
     persist,
     auth_store,
     auth_store_test,
@@ -145,6 +151,30 @@ for path in [auth_store_test, api_client_test]:
 require(api_client_test, "getCanonicalAccessToken")
 require(api_client_test, "clearStaleSessionAfterUnauthorized")
 
+for marker in [
+    "normalized === 'localhost'",
+    "normalized === '127.0.0.1'",
+    "normalized === '::1'",
+    "nodeEnv === 'production'",
+    "forwardedProto !== 'https'",
+    "!isLoopbackHostname(hostname)",
+]:
+    require(transport, marker)
+for marker in [
+    "requires HTTPS for a public production host",
+    "accepts a public production request already proven HTTPS by the proxy",
+    "allows HTTP only for local production qualification",
+]:
+    require(transport_test, marker)
+for marker in [
+    "shouldRedirectToHttps",
+    "hostname: request.nextUrl.hostname",
+    "const redirectUrl = request.nextUrl.clone()",
+    "redirectUrl.protocol = 'https:'",
+]:
+    require(middleware, marker)
+reject(middleware, "`https://${request.headers.get('host')}${request.nextUrl.pathname}`")
+
 # No production source may retain the retired adapter or either historical raw
 # storage literal. auth-persist.ts is the one constant owner so cleanup remains
 # explicit without letting stale state regain authority.
@@ -199,23 +229,30 @@ for marker in [
     "name: 'webkit'",
     "['line']",
     "['html', { open: 'never' }]",
+    "const loopbackBaseUrl = 'http://127.0.0.1:3000'",
+    "baseURL: loopbackBaseUrl",
     "PLAYWRIGHT_EXTERNAL_SERVER",
     "webServer: externalServer",
     "'NODE_ENV=production pnpm --filter @woof/web start'",
     "'pnpm --filter @woof/web dev'",
+    "url: loopbackBaseUrl",
 ]:
     require(config, marker)
+reject(config, "http://localhost:3000")
 
 for marker in [
+    'BASE_URL="http://127.0.0.1:3000"',
     "nohup env NODE_ENV=production pnpm --filter @woof/web start",
-    "curl --fail --silent --show-error --max-time 2 http://127.0.0.1:3000/demo",
+    "--write-out '%{http_code}'",
+    'if [[ "$status" == "200" ]]',
     "Production Web server exited before readiness.",
-    "Production Web server did not become ready within 45 seconds.",
+    "Production Web server did not return HTTP 200 within 45 seconds.",
     'kill -0 "$pid"',
     "start)",
     "stop)",
 ]:
     require(production_lifecycle, marker)
+reject(production_lifecycle, "curl --fail")
 
 # Root E2E intentionally keeps one full-stack login case out of the mocked suite.
 # The reason must remain explicit so a reported skip is attributable rather than mysterious.
@@ -223,6 +260,10 @@ require(auth_spec, "test.skip('logs in with seeded credentials against the full 
 require(auth_spec, "Integration-only test: intentionally skipped unless the seeded API is running.")
 
 for marker in [
+    "apps/web/src/middleware.ts",
+    "apps/web/src/lib/security/transport.ts",
+    "apps/web/src/lib/security/transport.test.ts",
+    "src/lib/security/transport.test.ts",
     "src/components/auth-guard.tsx",
     "src/components/auth-guard.test.tsx",
     "PLAYWRIGHT_EXTERNAL_SERVER: '1'",
@@ -253,4 +294,4 @@ for marker in [
 ]:
     require(workflow, marker)
 
-print("Client reality contract preserves server-verified auth and proven production browser evidence.")
+print("Client reality contract preserves server-verified auth, HTTPS policy, and proven production browser evidence.")
