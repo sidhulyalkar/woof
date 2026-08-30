@@ -1,6 +1,7 @@
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import {
   AUTH_STORAGE_KEY,
+  LEGACY_RAW_AUTH_TOKEN_KEY,
   LEGACY_SESSION_STORAGE_KEY,
   serializePersistedAuthSession,
 } from '../../src/lib/stores/auth-persist';
@@ -39,7 +40,8 @@ async function fulfillAuthMe(route: Route, user: AuthUser) {
 
 /**
  * Seeds exactly the persisted client session production owns from a real
- * same-origin page. No inline init script is used, so CSP behavior remains real.
+ * same-origin page. No inline init script or duplicate raw-token mirror is used,
+ * so CSP behavior and token authority remain representative of production.
  * Reload after the write so every engine boots the application from the same
  * persisted-state lifecycle instead of relying on an already-mounted store to
  * notice a same-document localStorage mutation.
@@ -55,12 +57,17 @@ export async function seedAuthenticatedSession(
   const persisted = serializePersistedAuthSession(user, token);
   await page.goto('/login');
   await page.evaluate(
-    ([storageKey, legacyKey, authToken, persistedState]) => {
-      window.localStorage.setItem('authToken', authToken);
+    ([storageKey, legacySessionKey, legacyRawTokenKey, persistedState]) => {
       window.localStorage.setItem(storageKey, persistedState);
-      window.localStorage.removeItem(legacyKey);
+      window.localStorage.removeItem(legacySessionKey);
+      window.localStorage.removeItem(legacyRawTokenKey);
     },
-    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, token, persisted] as const
+    [
+      AUTH_STORAGE_KEY,
+      LEGACY_SESSION_STORAGE_KEY,
+      LEGACY_RAW_AUTH_TOKEN_KEY,
+      persisted,
+    ] as const
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
 }
@@ -68,12 +75,12 @@ export async function seedAuthenticatedSession(
 export async function clearAuthenticatedSession(page: Page): Promise<void> {
   await page.goto('/login');
   await page.evaluate(
-    ([storageKey, legacyKey]) => {
-      window.localStorage.removeItem('authToken');
+    ([storageKey, legacySessionKey, legacyRawTokenKey]) => {
       window.localStorage.removeItem(storageKey);
-      window.localStorage.removeItem(legacyKey);
+      window.localStorage.removeItem(legacySessionKey);
+      window.localStorage.removeItem(legacyRawTokenKey);
     },
-    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY] as const
+    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY] as const
   );
 }
 
