@@ -10,6 +10,7 @@ describe('Auth Store', () => {
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: true,
     });
   });
 
@@ -17,11 +18,25 @@ describe('Auth Store', () => {
     localStorage.clear();
   });
 
-  it('should initialize with unauthenticated state', () => {
-    const { user, token, isAuthenticated } = useAuthStore.getState();
+  it('should initialize with unauthenticated state once hydration is complete', () => {
+    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
+    expect(hasHydrated).toBe(true);
+  });
+
+  it('tracks persistence hydration separately from authentication authority', () => {
+    useAuthStore.getState().setHasHydrated(false);
+
+    expect(useAuthStore.getState()).toMatchObject({
+      token: null,
+      isAuthenticated: false,
+      hasHydrated: false,
+    });
+
+    useAuthStore.getState().setHasHydrated(true);
+    expect(useAuthStore.getState().hasHydrated).toBe(true);
   });
 
   it('should set auth correctly and retire historical browser auth mirrors', () => {
@@ -32,10 +47,11 @@ describe('Auth Store', () => {
 
     useAuthStore.getState().setAuth(mockUser, mockToken);
 
-    const { user, token, isAuthenticated } = useAuthStore.getState();
+    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
     expect(user).toEqual(mockUser);
     expect(token).toBe(mockToken);
     expect(isAuthenticated).toBe(true);
+    expect(hasHydrated).toBe(true);
     expect(localStorage.getItem(LEGACY_RAW_AUTH_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
@@ -49,10 +65,11 @@ describe('Auth Store', () => {
 
     useAuthStore.getState().logout();
 
-    const { user, token, isAuthenticated } = useAuthStore.getState();
+    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
+    expect(hasHydrated).toBe(true);
     expect(localStorage.getItem(LEGACY_RAW_AUTH_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
