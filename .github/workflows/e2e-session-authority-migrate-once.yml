@@ -40,17 +40,17 @@ jobs:
           replace_exact(
               'apps/web/e2e/release-polish.spec.ts',
               """async function authenticate(page: Page) {
-            await page.route('**/auth/me', (route) =>
-              fulfillJson(route, {
-                id: 'user-1',
-                email: 'owner@example.com',
-                handle: 'dog-owner',
-                pets: [],
-              })
-            );
-            await page.addInitScript(() => {
-              window.localStorage.setItem('authToken', 'browser-test-token');
-            });
+          await page.route('**/auth/me', (route) =>
+            fulfillJson(route, {
+              id: 'user-1',
+              email: 'owner@example.com',
+              handle: 'dog-owner',
+              pets: [],
+            })
+          );
+          await page.addInitScript(() => {
+            window.localStorage.setItem('authToken', 'browser-test-token');
+          });
           }
           """.replace('          ', ''),
               """const browserUser = {
@@ -77,13 +77,13 @@ jobs:
           replace_exact(
               'apps/web/e2e/library-regression.spec.ts',
               """async function authenticate(page: Page) {
-            await page.route('**/auth/me', async (route) => {
-              if (await fulfillPreflight(route)) return;
-              await fulfillJson(route, user);
-            });
-            await page.addInitScript(() => {
-              window.localStorage.setItem('authToken', 'browser-test-token');
-            });
+          await page.route('**/auth/me', async (route) => {
+            if (await fulfillPreflight(route)) return;
+            await fulfillJson(route, user);
+          });
+          await page.addInitScript(() => {
+            window.localStorage.setItem('authToken', 'browser-test-token');
+          });
           }
           """.replace('          ', ''),
               """async function authenticate(page: Page) {
@@ -100,42 +100,28 @@ jobs:
               "import { expect, test, type Page, type Route } from '@playwright/test';\n",
               "import { expect, test, type Page, type Route } from '@playwright/test';\nimport { grantRoughLocation, seedAuthenticatedSession } from './support/session';\n",
           )
-          start = "async function authenticate(page: Page) {\n"
-          end = "\n}\n\nconst recommendation = {"
           trust = Path('apps/web/e2e/trust-discovery.spec.ts')
           text = trust.read_text()
+          start = "async function authenticate(page: Page) {\n"
+          end = "\n}\n\nconst recommendation = {"
           start_index = text.find(start)
           end_index = text.find(end, start_index)
           if start_index < 0 or end_index < 0:
               raise SystemExit('trust-discovery: authenticate block boundaries not found')
           replacement = """async function authenticate(page: Page) {
-            await grantRoughLocation(page.context(), {
-              latitude: 37.7749,
-              longitude: -122.4194,
-              accuracy: 100,
-            });
-            await seedAuthenticatedSession(page, {
-              user,
-              token: 'trust-browser-token',
-            });
+          await grantRoughLocation(page.context(), {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            accuracy: 100,
+          });
+          await seedAuthenticatedSession(page, {
+            user,
+            token: 'trust-browser-token',
+          });
           }
 
           const recommendation = {""".replace('          ', '')
           trust.write_text(text[:start_index] + replacement + text[end_index + len(end):])
-
-          legacy = Path('apps/web/src/store/session.ts')
-          consumers = []
-          for path in Path('apps/web/src').rglob('*'):
-              if not path.is_file() or path == legacy:
-                  continue
-              if path.suffix not in {'.ts', '.tsx', '.js', '.jsx'}:
-                  continue
-              source = path.read_text(errors='ignore')
-              if 'useSessionStore' in source or "@/store/session" in source:
-                  consumers.append(str(path))
-          if consumers:
-              raise SystemExit('legacy session store still has consumers:\n' + '\n'.join(consumers))
-          legacy.unlink()
 
           Path('.github/workflows/e2e-session-authority-migrate-once.yml').unlink()
           PY
@@ -149,8 +135,7 @@ jobs:
             apps/web/e2e/release-polish.spec.ts \
             apps/web/e2e/library-regression.spec.ts \
             apps/web/e2e/trust-discovery.spec.ts \
-            apps/web/src/store/session.ts \
             .github/workflows/e2e-session-authority-migrate-once.yml
-          git diff --cached --name-only
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
           git commit -m 'test(web): consolidate browser session authority'
           git push origin HEAD:agent/e2e-session-authority-v1
