@@ -5,8 +5,8 @@ import {
   type UseMutationOptions,
   type UseQueryOptions,
 } from '@tanstack/react-query';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import type { MLFeatureVector, QuizSession } from '@/types/quiz';
-import { useSessionStore } from '@/store/session';
 import { apiClient } from './client';
 
 type ManagedQueryOptions<T> = Omit<
@@ -407,8 +407,8 @@ export function useUpdateActivity(
 ) {
   const queryClient = useQueryClient();
 
-  return useMutation<Activity, Error, { id: string; data: Partial<Activity> }>({
-    mutationFn: ({ id, data }) => apiClient.put<Activity>(`/activities/${id}`, data),
+  return useMutation<Activity, Error, Partial<Activity> & { id: string }>({
+    mutationFn: ({ id, ...data }) => apiClient.put<Activity>(`/activities/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.activities });
     },
@@ -450,9 +450,17 @@ export function useCreatePet(
 
   return useMutation<PetProfile, Error, Record<string, unknown>>({
     mutationFn: (data) => apiClient.post<PetProfile>('/pets', data),
-    onSuccess: () => {
+    onSuccess: (pet) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.friends });
-      void useSessionStore.getState().refreshSession();
+      queryClient.invalidateQueries({ queryKey: ['auth-profile'] });
+
+      const auth = useAuthStore.getState();
+      if (auth.user) {
+        const currentPets = auth.user.pets ?? [];
+        if (!currentPets.some((current) => current.id === pet.id)) {
+          auth.updateUser({ pets: [...currentPets, pet] });
+        }
+      }
     },
     ...options,
   });
@@ -550,7 +558,7 @@ export function useSubmitQuiz(
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.userProfile(useSessionStore.getState().user?.id ?? ''),
+        queryKey: queryKeys.userProfile(useAuthStore.getState().user?.id ?? ''),
       });
     },
     ...options,
