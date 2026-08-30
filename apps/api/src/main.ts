@@ -76,7 +76,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Woof API')
       .setDescription(
-        'Application API for Woof: pet profiles, compatibility, activity, social coordination, events, messaging, preferences, and operational integrations.'
+        'Application API for Woof dogOS: pet and people authority, daily relationship context, shared activities, longitudinal evidence, community, messaging, and operational integrations.'
       )
       .setVersion('1.0')
       .addTag('auth', 'Authentication endpoints')

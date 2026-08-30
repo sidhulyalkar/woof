@@ -2,7 +2,7 @@
 
 **A relationship-first pet companion that helps people choose one useful thing to do with their dog, learn from how it went, and make the next shared moment easier.**
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.3-000000?logo=nextdotjs)](apps/web)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5.24-000000?logo=nextdotjs)](apps/web)
 [![NestJS](https://img.shields.io/badge/NestJS-10-E0234E?logo=nestjs)](apps/api)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2054-000020?logo=expo)](apps/mobile)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql)](packages/database)
