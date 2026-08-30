@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { LEGACY_SESSION_STORAGE_KEY } from './auth-persist';
 import { useAuthStore } from './auth-store';
 
 describe('Auth Store', () => {
@@ -23,27 +24,35 @@ describe('Auth Store', () => {
     expect(isAuthenticated).toBe(false);
   });
 
-  it('should set auth correctly', () => {
+  it('should set auth correctly and retire historical session persistence', () => {
     const mockUser = { id: '123', handle: 'testuser', email: 'test@example.com' };
     const mockToken = 'mock-jwt-token';
+    localStorage.setItem(LEGACY_SESSION_STORAGE_KEY, '{"stale":true}');
+
     useAuthStore.getState().setAuth(mockUser, mockToken);
+
     const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toEqual(mockUser);
     expect(token).toBe(mockToken);
     expect(isAuthenticated).toBe(true);
     expect(localStorage.getItem('authToken')).toBe(mockToken);
+    expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
 
-  it('should logout correctly', () => {
+  it('should logout correctly and fail closed across historical storage', () => {
     const mockUser = { id: '123', handle: 'testuser', email: 'test@example.com' };
     const mockToken = 'mock-jwt-token';
     useAuthStore.getState().setAuth(mockUser, mockToken);
+    localStorage.setItem(LEGACY_SESSION_STORAGE_KEY, '{"stale":true}');
+
     useAuthStore.getState().logout();
+
     const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
     expect(localStorage.getItem('authToken')).toBeNull();
+    expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
 
   it('should update user correctly', () => {

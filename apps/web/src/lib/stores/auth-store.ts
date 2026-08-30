@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AUTH_PERSIST_VERSION, AUTH_STORAGE_KEY } from './auth-persist';
+import { AUTH_PERSIST_VERSION, AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY } from './auth-persist';
 
 export interface AuthPet {
   id: string;
@@ -11,6 +11,7 @@ export interface AuthPet {
   birthdate?: string | null;
   temperament?: unknown;
   avatarUrl?: string | null;
+  bio?: string | null;
 }
 
 export interface AuthUser {
@@ -24,6 +25,7 @@ export interface AuthUser {
   totalPoints?: number;
   isVerified?: boolean;
   createdAt?: string;
+  location?: string | null;
   pets?: AuthPet[];
   _count?: {
     posts?: number;
@@ -42,6 +44,18 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
+function retireLegacySessionStorage() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+  }
+}
+
+// Historical clients may still carry the retired second Zustand session snapshot.
+// It is never allowed to hydrate into authority again. Loading the canonical store
+// opportunistically retires it, while /auth/me remains the server-authoritative
+// recovery path for any still-valid raw bearer session.
+retireLegacySessionStorage();
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -54,6 +68,7 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined') {
           localStorage.setItem('authToken', token);
         }
+        retireLegacySessionStorage();
         set({ user, token, isAuthenticated: true, isLoading: false });
       },
 
@@ -61,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
         }
+        retireLegacySessionStorage();
         set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       },
 

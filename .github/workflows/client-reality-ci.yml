@@ -48,8 +48,13 @@ jobs:
           pnpm exec prettier --check
           apps/web/playwright.config.ts
           apps/web/src/lib/stores/auth-store.ts
+          apps/web/src/lib/stores/auth-store.test.ts
           apps/web/src/lib/stores/auth-persist.ts
           apps/web/src/lib/stores/auth-persist.test.ts
+          apps/web/src/store/session.ts
+          apps/web/src/lib/api/client.ts
+          apps/web/src/lib/api/client.test.ts
+          apps/web/src/lib/api/hooks.ts
           apps/web/e2e/support/session.ts
           apps/web/e2e/companion-onramp.spec.ts
           apps/web/e2e/navigation-spine.spec.ts
@@ -61,8 +66,13 @@ jobs:
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           playwright.config.ts
           src/lib/stores/auth-store.ts
+          src/lib/stores/auth-store.test.ts
           src/lib/stores/auth-persist.ts
           src/lib/stores/auth-persist.test.ts
+          src/store/session.ts
+          src/lib/api/client.ts
+          src/lib/api/client.test.ts
+          src/lib/api/hooks.ts
           e2e/support/session.ts
           e2e/companion-onramp.spec.ts
           e2e/navigation-spine.spec.ts
@@ -77,8 +87,12 @@ jobs:
       - name: Type-check web
         run: pnpm --filter @woof/web type-check
 
-      - name: Run persisted auth contract
-        run: pnpm --filter @woof/web exec vitest run src/lib/stores/auth-persist.test.ts
+      - name: Run canonical auth authority contracts
+        run: >-
+          pnpm --filter @woof/web exec vitest run
+          src/lib/stores/auth-persist.test.ts
+          src/lib/stores/auth-store.test.ts
+          src/lib/api/client.test.ts
 
   browser-matrix:
     name: Critical path (${{ matrix.slug }})
