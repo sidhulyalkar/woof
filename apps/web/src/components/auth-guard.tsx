@@ -13,6 +13,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
   const token = useAuthStore((state) => state.token);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
   const [isChecking, setIsChecking] = useState(true);
@@ -24,6 +25,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       verifiedToken.current = null;
       verificationInFlight.current = null;
       setIsChecking(false);
+      return;
+    }
+
+    // Persisted auth hydrates after the first client render. Until that boundary
+    // completes, token === null means "unknown", not "logged out". Keep protected
+    // content closed without redirecting so a real persisted session can be loaded
+    // and then independently re-authorized by the server.
+    if (!hasHydrated) {
+      setIsChecking(true);
       return;
     }
 
@@ -78,7 +88,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         verificationInFlight.current = null;
       }
     };
-  }, [isPublicRoute, logout, router, setAuth, token]);
+  }, [hasHydrated, isPublicRoute, logout, router, setAuth, token]);
 
   // Public surfaces never need session verification. Rendering them synchronously
   // removes an unnecessary auth-spinner flash and keeps demos/login deterministic.
@@ -86,11 +96,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // A persisted bearer token is only a candidate credential until /auth/me proves
-  // current server authority. Never expose protected children during that window or
-  // while a missing/invalid token is being redirected to login.
-  if (isChecking || !token || verifiedToken.current !== token) {
-    if (!token && !isChecking) return null;
+  // A persisted bearer token is only a candidate credential after persistence has
+  // hydrated and until /auth/me proves current server authority. Never expose
+  // protected children during either window or while redirecting an invalid session.
+  if (!hasHydrated || isChecking || !token || verifiedToken.current !== token) {
+    if (hasHydrated && !token && !isChecking) return null;
     return (
       <div
         className="flex min-h-screen items-center justify-center"
