@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
+import { seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -23,21 +24,18 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function authenticate(page: Page) {
-  await page.route('**/auth/me', (route) =>
-    fulfillJson(route, {
-      id: 'user-1',
-      email: 'owner@example.com',
-      handle: 'dog-owner',
-      pets: [],
-    })
-  );
-  await page.addInitScript(() => {
-    window.localStorage.setItem('authToken', 'browser-test-token');
-  });
+const releaseUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  handle: 'dog-owner',
+  pets: [],
+};
+
+async function authenticate(page: Parameters<typeof seedAuthenticatedSession>[0]) {
+  await seedAuthenticatedSession(page, { user: releaseUser, token: 'browser-test-token' });
 }
 
-async function authorizePetToday(page: Page) {
+async function authorizePetToday(page: Parameters<typeof seedAuthenticatedSession>[0]) {
   await page.route('**/companion/state', (route) =>
     fulfillJson(route, {
       mode: 'PET_GUARDIAN',
