@@ -48,6 +48,9 @@ jobs:
         run: |
           pnpm exec prettier --write \
             apps/web/playwright.config.ts \
+            apps/web/src/middleware.ts \
+            apps/web/src/lib/security/transport.ts \
+            apps/web/src/lib/security/transport.test.ts \
             apps/web/src/lib/stores/auth-store.ts \
             apps/web/src/lib/stores/auth-store.test.ts \
             apps/web/src/lib/stores/auth-persist.ts \
@@ -85,6 +88,9 @@ jobs:
         with:
           name: client-reality-formatted-${{ github.run_id }}
           path: |
+            apps/web/src/middleware.ts
+            apps/web/src/lib/security/transport.ts
+            apps/web/src/lib/security/transport.test.ts
             apps/web/src/components/auth-guard.tsx
             apps/web/src/components/auth-guard.test.tsx
             apps/web/src/app/coach/observe/history/page.tsx
@@ -100,6 +106,9 @@ jobs:
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           playwright.config.ts
+          src/middleware.ts
+          src/lib/security/transport.ts
+          src/lib/security/transport.test.ts
           src/lib/stores/auth-store.ts
           src/lib/stores/auth-store.test.ts
           src/lib/stores/auth-persist.ts
@@ -137,9 +146,10 @@ jobs:
       - name: Type-check web
         run: pnpm --filter @woof/web type-check
 
-      - name: Run canonical auth authority contracts
+      - name: Run canonical auth and transport authority contracts
         run: >-
           pnpm --filter @woof/web exec vitest run
+          src/lib/security/transport.test.ts
           src/lib/stores/auth-persist.test.ts
           src/lib/stores/auth-store.test.ts
           src/lib/api/client.test.ts
