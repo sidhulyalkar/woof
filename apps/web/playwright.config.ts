@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const externalServer = process.env.PLAYWRIGHT_EXTERNAL_SERVER === '1';
 const productionServer = process.env.PLAYWRIGHT_PRODUCTION_SERVER === '1';
+const loopbackBaseUrl = 'http://127.0.0.1:3000';
 
 export default defineConfig({
   testDir: './e2e',
@@ -11,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: loopbackBaseUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -43,7 +44,7 @@ export default defineConfig({
         command: productionServer
           ? 'NODE_ENV=production pnpm --filter @woof/web start'
           : 'pnpm --filter @woof/web dev',
-        url: 'http://localhost:3000',
+        url: loopbackBaseUrl,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
         stdout: 'pipe',
