@@ -43,10 +43,12 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasHydrated: boolean;
   setAuth: (user: AuthUser, token: string) => void;
   logout: () => void;
   updateUser: (user: Partial<AuthUser>) => void;
   setLoading: (loading: boolean) => void;
+  setHasHydrated: (hydrated: boolean) => void;
 }
 
 function retireLegacyBrowserAuth() {
@@ -69,6 +71,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: false,
 
       setAuth: (user, token) => {
         retireLegacyBrowserAuth();
@@ -86,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       setLoading: (loading) => set({ isLoading: loading }),
+      setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
     }),
     {
       name: AUTH_STORAGE_KEY,
@@ -95,6 +99,10 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        retireLegacyBrowserAuth();
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
