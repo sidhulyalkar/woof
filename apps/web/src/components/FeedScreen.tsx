@@ -5,13 +5,13 @@ import { Plus, Search, Loader2, Bell } from 'lucide-react';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryCircle } from '@/components/feed/StoryCircle';
 import { useFeed } from '@/lib/api/hooks';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/store/ui';
 
 export function FeedScreen() {
   const router = useRouter();
   const { data: posts, isLoading, error } = useFeed();
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const { showToast } = useUIStore();
 
   return (
@@ -44,8 +44,8 @@ export function FeedScreen() {
       <div className="border-b border-gray-200/30 bg-white/70 backdrop-blur-md">
         <div className="max-w-3xl mx-auto flex gap-4 overflow-x-auto scrollbar-hide px-6 py-4">
           <StoryCircle
-            username={user?.username || 'You'}
-            avatar={user?.avatar}
+            username={user?.handle || 'You'}
+            avatar={user?.avatarUrl ?? undefined}
             isOwn
             onClick={() => showToast({ message: 'Story creation coming soon!', type: 'info' })}
           />
