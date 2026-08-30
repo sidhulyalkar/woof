@@ -9,6 +9,8 @@ import type { AuthUser } from '../../src/lib/stores/auth-store';
 
 export type { AuthUser };
 
+export const E2E_ORIGIN = 'http://127.0.0.1:3000';
+
 export interface SeedAuthenticatedSessionOptions {
   user: AuthUser;
   token: string;
@@ -18,7 +20,7 @@ export interface SeedAuthenticatedSessionOptions {
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
   return {
-    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-origin': requestHeaders.origin ?? E2E_ORIGIN,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers':
       requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
@@ -89,7 +91,7 @@ export interface RoughLocation {
 /** Grants geolocation through Playwright's browser context, preserving CSP. */
 export async function grantRoughLocation(
   context: BrowserContext,
-  { latitude, longitude, accuracy = 100, origin = 'http://localhost:3000' }: RoughLocation
+  { latitude, longitude, accuracy = 100, origin = E2E_ORIGIN }: RoughLocation
 ): Promise<void> {
   await context.grantPermissions(['geolocation'], { origin });
   await context.setGeolocation({ latitude, longitude, accuracy });
