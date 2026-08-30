@@ -38,7 +38,8 @@ const evidence = [
   {
     label: 'Weather',
     value: 'Not configured',
-    detail: 'Missing live context stays missing. Woof does not fill the gap with invented certainty.',
+    detail:
+      'Missing live context stays missing. Woof does not fill the gap with invented certainty.',
     icon: CircleDot,
   },
 ] as const;
@@ -119,9 +120,9 @@ export default function DemoPage() {
                 One useful next step, with memory and authority underneath it.
               </h1>
               <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Woof is built around a daily relationship loop: notice what matters, choose something
-                reasonable to do together, read the response, and preserve only the evidence that
-                should make a later decision easier.
+                Woof is built around a daily relationship loop: notice what matters, choose
+                something reasonable to do together, read the response, and preserve only the
+                evidence that should make a later decision easier.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
@@ -143,15 +144,24 @@ export default function DemoPage() {
               <p className="eyebrow">What this demo is not</p>
               <ul className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
                 <li className="flex gap-2">
-                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                  <CheckCircle2
+                    className="mt-1 h-4 w-4 shrink-0 text-emerald-400"
+                    aria-hidden="true"
+                  />
                   No diagnosis or exercise prescription
                 </li>
                 <li className="flex gap-2">
-                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                  <CheckCircle2
+                    className="mt-1 h-4 w-4 shrink-0 text-emerald-400"
+                    aria-hidden="true"
+                  />
                   No live location, private messages, or real health records
                 </li>
                 <li className="flex gap-2">
-                  <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                  <CheckCircle2
+                    className="mt-1 h-4 w-4 shrink-0 text-emerald-400"
+                    aria-hidden="true"
+                  />
                   No claim that a model score is product or release authority
                 </li>
               </ul>
@@ -201,7 +211,10 @@ export default function DemoPage() {
               </div>
             </div>
 
-            <article data-demo-card className="rounded-[1.75rem] border border-primary/25 bg-primary/5 p-6">
+            <article
+              data-demo-card
+              className="rounded-[1.75rem] border border-primary/25 bg-primary/5 p-6"
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="eyebrow">2 · Choose</p>
@@ -213,8 +226,8 @@ export default function DemoPage() {
               </div>
 
               <p className="mt-5 text-base leading-7 text-muted-foreground">
-                Try an easy exploratory walk with room to sniff. Stop early if Nova disengages or the
-                outing stops feeling useful.
+                Try an easy exploratory walk with room to sniff. Stop early if Nova disengages or
+                the outing stops feeling useful.
               </p>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -223,8 +236,8 @@ export default function DemoPage() {
                     Why this surfaced
                   </p>
                   <p className="mt-2 text-sm leading-6">
-                    The owner asked for a lower-key day and recent activity has been walk-heavy, so the
-                    suggestion stays familiar while emphasizing exploration rather than volume.
+                    The owner asked for a lower-key day and recent activity has been walk-heavy, so
+                    the suggestion stays familiar while emphasizing exploration rather than volume.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-background/45 p-4">
@@ -232,8 +245,8 @@ export default function DemoPage() {
                     Boundaries
                   </p>
                   <p className="mt-2 text-sm leading-6">
-                    No medical inference. No calorie or distance target. Missing weather is not silently
-                    substituted. A safe stop still counts as a useful outcome.
+                    No medical inference. No calorie or distance target. Missing weather is not
+                    silently substituted. A safe stop still counts as a useful outcome.
                   </p>
                 </div>
               </div>
@@ -269,7 +282,9 @@ export default function DemoPage() {
 
           <article data-demo-card className="glass rounded-[2rem] p-6 sm:p-7">
             <p className="eyebrow">4 · Remember</p>
-            <h2 className="mt-2 text-2xl font-semibold">Story remembers the relationship, not a score.</h2>
+            <h2 className="mt-2 text-2xl font-semibold">
+              Story remembers the relationship, not a score.
+            </h2>
             <div className="mt-5 rounded-2xl border border-border/70 bg-background/35 p-5">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -281,17 +296,17 @@ export default function DemoPage() {
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                Nova stayed engaged on a short exploratory outing. The owner said the format was easy
-                to fit into a lower-key day. This can inform a later choice without becoming a permanent
-                claim about Nova.
+                Nova stayed engaged on a short exploratory outing. The owner said the format was
+                easy to fit into a lower-key day. This can inform a later choice without becoming a
+                permanent claim about Nova.
               </p>
             </div>
 
             <div className="mt-4 flex items-start gap-3 rounded-2xl bg-secondary/8 p-4 text-sm">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-secondary" aria-hidden="true" />
               <p className="leading-6 text-muted-foreground">
-                Owner correction remains stronger than inference. Reward mechanics and social reactions
-                do not become recommendation labels.
+                Owner correction remains stronger than inference. Reward mechanics and social
+                reactions do not become recommendation labels.
               </p>
             </div>
           </article>
@@ -301,7 +316,9 @@ export default function DemoPage() {
           <div className="grid gap-7 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
             <div>
               <p className="eyebrow">Shared care without shared ownership</p>
-              <h2 className="mt-2 text-3xl font-semibold">Temporary caregiver authority has edges.</h2>
+              <h2 className="mt-2 text-3xl font-semibold">
+                Temporary caregiver authority has edges.
+              </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 In this fictional handoff, Maya can see the temporary Today context and leave a
                 context-only observation until the grant expires. That does not turn Maya into a
@@ -317,7 +334,10 @@ export default function DemoPage() {
               {caregiverBoundaries.map(([label, status]) => {
                 const granted = status === 'Granted';
                 return (
-                  <div key={label} className="surface-soft flex items-center justify-between gap-4 rounded-2xl p-4">
+                  <div
+                    key={label}
+                    className="surface-soft flex items-center justify-between gap-4 rounded-2xl p-4"
+                  >
                     <span className="text-sm font-medium">{label}</span>
                     <span
                       className={
@@ -338,8 +358,8 @@ export default function DemoPage() {
             <HeartHandshake className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <p className="leading-6 text-muted-foreground">
               Revocation, expiry, or a relationship block removes present-tense caregiver authority.
-              Context-only caregiver observations do not automatically become Bond XP, medical truth,
-              owner correction, or canonical recommendation evidence.
+              Context-only caregiver observations do not automatically become Bond XP, medical
+              truth, owner correction, or canonical recommendation evidence.
             </p>
           </div>
         </section>
@@ -361,7 +381,10 @@ export default function DemoPage() {
             This route is intentionally synthetic. It demonstrates qualified product contracts, not
             real-world efficacy or clinical outcomes.
           </p>
-          <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link
+            href="/login"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Open Woof <ArrowRight className="ml-1 inline h-4 w-4" aria-hidden="true" />
           </Link>
         </footer>

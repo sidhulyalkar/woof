@@ -18,7 +18,9 @@ test.describe('public Woof product truth', () => {
 
     await expect(page.getByRole('heading', { name: 'A short sniff walk' })).toBeVisible();
     await expect(
-      page.getByText('Missing live context stays missing. Woof does not fill the gap with invented certainty.')
+      page.getByText(
+        'Missing live context stays missing. Woof does not fill the gap with invented certainty.'
+      )
     ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Story remembers the relationship, not a score.' })
