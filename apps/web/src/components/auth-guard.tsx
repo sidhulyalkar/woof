@@ -13,6 +13,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const token = useAuthStore((state) => state.token);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
   const [isChecking, setIsChecking] = useState(true);
@@ -31,9 +32,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-
-    if (!storedToken) {
+    if (!token) {
       hydrationInFlight.current = false;
       setIsChecking(false);
       router.replace('/login');
@@ -50,7 +49,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     void authApi
       .me()
       .then((user) => {
-        setAuth(user, storedToken);
+        setAuth(user, token);
       })
       .catch((error) => {
         console.error('Token verification failed:', error);
@@ -61,7 +60,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         hydrationInFlight.current = false;
         setIsChecking(false);
       });
-  }, [isAuthenticated, isPublicRoute, router, setAuth, logout]);
+  }, [isAuthenticated, isPublicRoute, logout, router, setAuth, token]);
 
   // Public surfaces never need token hydration. Rendering them synchronously removes
   // an unnecessary auth-spinner flash and keeps demos/login deterministic for humans,
