@@ -35,8 +35,9 @@ require(
 )
 require(
     "apps/api/src/observability/observability.service.ts",
-    "release: this.releaseIdentity",
-    "resolveReleaseIdentity",
+    "release: resolveReleaseIdentity()",
+    "const release = resolveReleaseIdentity()",
+    "release,",
 )
 require(
     "apps/api/src/sentry.ts",
