@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'apps/web/playwright.config.ts'
+      - 'apps/web/src/components/auth-guard.tsx'
       - 'apps/web/src/app/activity/page.tsx'
       - 'apps/web/src/app/pets/new/page.tsx'
       - 'apps/web/src/components/concierge/concierge-briefing.tsx'
@@ -16,6 +18,7 @@ on:
       - 'apps/web/src/lib/api/adventure.spec.ts'
       - 'apps/web/src/lib/api/pets.ts'
       - 'apps/web/src/lib/api/pets.spec.ts'
+      - 'apps/web/e2e/support/session.ts'
       - 'apps/web/e2e/release-polish.spec.ts'
       - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_RELEASE_POLISH.md'
@@ -44,6 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      PLAYWRIGHT_PRODUCTION_SERVER: '1'
 
     steps:
       - uses: actions/checkout@v7
@@ -157,13 +161,13 @@ jobs:
           src/lib/api/adventure.spec.ts
           src/lib/api/concierge.spec.ts
 
+      - name: Build Web app for production-server browser qualification
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build
+
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
 
       - name: Run multi-pet and activation browser contracts
         run: pnpm --filter @woof/web exec playwright test e2e/release-polish.spec.ts --project=chromium
-
-      - name: Build web app
-        env:
-          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
-        run: pnpm --filter @woof/web build
