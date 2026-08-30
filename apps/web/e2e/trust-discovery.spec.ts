@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { grantRoughLocation, seedAuthenticatedSession } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
@@ -39,33 +40,15 @@ const user = {
 };
 
 async function authenticate(page: Page) {
-  const token = 'trust-browser-token';
-
-  // Model geolocation through Playwright's browser context rather than replacing
-  // navigator.geolocation with an injected inline script. This keeps the test
-  // compatible with the same CSP that protects the production app.
-  await page.context().grantPermissions(['geolocation'], { origin: 'http://localhost:3000' });
-  await page.context().setGeolocation({ latitude: 37.7749, longitude: -122.4194, accuracy: 100 });
-
-  // Persist the real client auth shape before protected navigation so AuthGuard
-  // does not race through session hydration. Discovery still performs its own
-  // canonical profile refresh below, because current pet membership is part of
-  // that feature's freshness contract rather than authentication bootstrap.
-  await page.goto('/login');
-  await page.evaluate(
-    ({ token, user }) => {
-      window.localStorage.setItem('authToken', token);
-      window.localStorage.setItem(
-        'woof-auth-storage',
-        JSON.stringify({
-          state: { user, token, isAuthenticated: true },
-          version: 0,
-        })
-      );
-    },
-    { token, user }
-  );
-  await page.route('**/auth/me', (route) => fulfillJson(route, user));
+  await grantRoughLocation(page.context(), {
+    latitude: 37.7749,
+    longitude: -122.4194,
+    accuracy: 100,
+  });
+  await seedAuthenticatedSession(page, {
+    user,
+    token: 'trust-browser-token',
+  });
 }
 
 const recommendation = {

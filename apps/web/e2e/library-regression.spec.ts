@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { seedAuthenticatedSession } from './support/session';
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 const user = {
@@ -112,12 +113,9 @@ function libraryPayload(assets: ReturnType<typeof asset>[] = []) {
 }
 
 async function authenticate(page: Page) {
-  await page.route('**/auth/me', async (route) => {
-    if (await fulfillPreflight(route)) return;
-    await fulfillJson(route, user);
-  });
-  await page.addInitScript(() => {
-    window.localStorage.setItem('authToken', 'browser-test-token');
+  await seedAuthenticatedSession(page, {
+    user,
+    token: 'browser-test-token',
   });
 }
 
