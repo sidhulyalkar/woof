@@ -8,12 +8,43 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 
 const PUBLIC_ROUTES = ['/login', '/onboarding', '/demo'];
 
+function useCanonicalAuthHydration(isPublicRoute: boolean) {
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    if (isPublicRoute) return;
+
+    const stopHydrationListener = useAuthStore.persist.onHydrate(() => {
+      setHasHydrated(false);
+    });
+    const finishHydrationListener = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true);
+    });
+
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true);
+    } else {
+      // Persist middleware owns hydration truth. Explicitly request hydration as a
+      // fallback so a protected production document cannot remain stranded if
+      // automatic browser hydration has not completed before AuthGuard mounts.
+      void useAuthStore.persist.rehydrate();
+    }
+
+    return () => {
+      stopHydrationListener();
+      finishHydrationListener();
+    };
+  }, [isPublicRoute]);
+
+  return hasHydrated;
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
   const token = useAuthStore((state) => state.token);
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const hasHydrated = useCanonicalAuthHydration(isPublicRoute);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
   const [isChecking, setIsChecking] = useState(true);
@@ -28,10 +59,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Persisted auth hydrates after the first client render. Until that boundary
-    // completes, token === null means "unknown", not "logged out". Keep protected
-    // content closed without redirecting so a real persisted session can be loaded
-    // and then independently re-authorized by the server.
+    // Until Zustand's real persistence lifecycle completes, token === null means
+    // "unknown", not "logged out". Keep protected content closed without
+    // redirecting, then independently re-authorize any hydrated candidate token.
     if (!hasHydrated) {
       setIsChecking(true);
       return;
