@@ -37,12 +37,18 @@ matrix_suites = [
     WEB / "e2e" / "caregiver-authority.spec.ts",
 ]
 
+shared_fixture_suites = [
+    WEB / "e2e" / "trust-discovery.spec.ts",
+    WEB / "e2e" / "release-polish.spec.ts",
+    WEB / "e2e" / "behavior-moments-shadow.spec.ts",
+    WEB / "e2e" / "library-regression.spec.ts",
+]
+
 for path in [
     config,
     persist,
     auth_store,
     auth_store_test,
-    legacy_projection,
     api_client,
     api_client_test,
     api_hooks,
@@ -50,13 +56,20 @@ for path in [
     auth_spec,
     workflow,
     *matrix_suites,
+    *shared_fixture_suites,
 ]:
     if not path.is_file():
         raise SystemExit(f"required client-reality source missing: {path.relative_to(ROOT)}")
 
+if legacy_projection.exists():
+    raise SystemExit(
+        "apps/web/src/store/session.ts: retired client session adapter must not exist"
+    )
+
 for marker in [
     "AUTH_STORAGE_KEY = 'woof-auth-storage'",
     "LEGACY_SESSION_STORAGE_KEY = 'woof-session-storage'",
+    "LEGACY_RAW_AUTH_TOKEN_KEY = 'authToken'",
     "AUTH_PERSIST_VERSION = 0",
     "serializePersistedAuthSession",
 ]:
@@ -65,43 +78,31 @@ for marker in [
 for marker in [
     "AUTH_PERSIST_VERSION",
     "AUTH_STORAGE_KEY",
+    "LEGACY_RAW_AUTH_TOKEN_KEY",
     "LEGACY_SESSION_STORAGE_KEY",
-    "retireLegacySessionStorage",
+    "retireLegacyBrowserAuth",
     "localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY)",
+    "localStorage.removeItem(LEGACY_RAW_AUTH_TOKEN_KEY)",
     "name: AUTH_STORAGE_KEY",
     "version: AUTH_PERSIST_VERSION",
 ]:
     require(auth_store, marker)
-
-# The historical module may remain temporarily as a UI alias projection, but it
-# must never regain authentication or persistence authority.
-for marker in [
-    "useAuthStore",
-    "Compatibility-only presentation projection",
-    "projectUser",
-    "projectPet",
-]:
-    require(legacy_projection, marker)
-for marker in [
-    "persist(",
-    "refreshToken",
-    "authToken",
-    "/auth/me",
-    "isAuthenticated",
-    "refreshSession",
-    "setSession",
-    "clearSession",
-    "localStorage",
-]:
-    reject(legacy_projection, marker)
+reject(auth_store, "localStorage.setItem(")
 
 for marker in [
     "useAuthStore",
+    "getCanonicalAccessToken",
+    "return useAuthStore.getState().token",
     "clearStaleSessionAfterUnauthorized",
     "auth.logout()",
 ]:
     require(api_client, marker)
-reject(api_client, "localStorage.removeItem('authToken')")
+for marker in [
+    "localStorage.getItem(",
+    "localStorage.setItem(",
+    "localStorage.removeItem(",
+]:
+    reject(api_client, marker)
 
 require(api_hooks, "useAuthStore")
 require(api_hooks, "auth.updateUser({ pets: [...currentPets, pet] })")
@@ -110,28 +111,45 @@ reject(api_hooks, "refreshSession")
 
 for path in [auth_store_test, api_client_test]:
     require(path, "LEGACY_SESSION_STORAGE_KEY")
+    require(path, "LEGACY_RAW_AUTH_TOKEN_KEY")
+require(api_client_test, "getCanonicalAccessToken")
 require(api_client_test, "clearStaleSessionAfterUnauthorized")
 
-# No production source may spell the retired persistence key directly. The one
-# constant owner remains auth-persist.ts so stale-state cleanup can be explicit.
+# No production source may retain the retired adapter or either historical raw
+# storage literal. auth-persist.ts is the one constant owner so cleanup remains
+# explicit without letting stale state regain authority.
 for source in (WEB / "src").rglob("*"):
     if source.suffix not in {".ts", ".tsx"} or source == persist:
         continue
     if ".test." in source.name or ".spec." in source.name:
         continue
-    reject(source, "woof-session-storage")
+    for marker in [
+        "@/store/session",
+        "useSessionStore",
+        "woof-session-storage",
+        "'authToken'",
+        '"authToken"',
+    ]:
+        reject(source, marker)
 
 for marker in [
     "serializePersistedAuthSession",
+    "LEGACY_RAW_AUTH_TOKEN_KEY",
     "await page.goto('/login')",
     "window.localStorage.setItem(storageKey, persistedState)",
-    "window.localStorage.removeItem(legacyKey)",
+    "window.localStorage.removeItem(legacySessionKey)",
+    "window.localStorage.removeItem(legacyRawTokenKey)",
     "await page.reload({ waitUntil: 'domcontentloaded' })",
 ]:
     require(helper, marker)
-reject(helper, "addInitScript")
+for marker in [
+    "addInitScript",
+    "localStorage.setItem('authToken'",
+    'localStorage.setItem("authToken"',
+]:
+    reject(helper, marker)
 
-for suite in matrix_suites:
+for suite in [*matrix_suites, *shared_fixture_suites]:
     require(suite, "seedAuthenticatedSession")
     for marker in [
         "addInitScript",
@@ -141,6 +159,8 @@ for suite in matrix_suites:
         'localStorage.setItem("authToken"',
     ]:
         reject(suite, marker)
+
+require(WEB / "e2e" / "trust-discovery.spec.ts", "grantRoughLocation")
 
 for marker in [
     "name: 'chromium'",
@@ -169,7 +189,12 @@ for marker in [
     "e2e/companion-onramp.spec.ts",
     "e2e/navigation-spine.spec.ts",
     "e2e/caregiver-authority.spec.ts",
+    "e2e/trust-discovery.spec.ts",
+    "e2e/release-polish.spec.ts",
+    "e2e/behavior-moments-shadow.spec.ts",
+    "e2e/library-regression.spec.ts",
     "playwright install --with-deps ${{ matrix.browser }}",
+    "src/lib/stores/auth-persist.test.ts",
     "src/lib/stores/auth-store.test.ts",
     "src/lib/api/client.test.ts",
 ]:
