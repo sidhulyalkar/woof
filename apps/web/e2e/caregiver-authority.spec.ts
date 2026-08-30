@@ -210,7 +210,10 @@ test.describe('dogOS Caregiver Authority', () => {
 
   test('caregiver Today becomes unavailable at the local expiry boundary', async ({ page }) => {
     await authenticate(page);
-    const expiresAt = new Date(Date.now() + 900).toISOString();
+    // Give every engine enough time to render the proven-active state before
+    // exercising the local fail-closed timer. A sub-second grant measures
+    // browser startup speed, not caregiver authority semantics.
+    const expiresAt = new Date(Date.now() + 5_000).toISOString();
 
     await page.route('**/caregiver/pets/pet-1/today', (route) =>
       fulfillJson(route, caregiverToday(expiresAt))
@@ -220,7 +223,7 @@ test.describe('dogOS Caregiver Authority', () => {
     await expect(page.locator('[data-caregiver-today]')).toBeVisible({ timeout: 10_000 });
     await expect(
       page.getByRole('heading', { name: 'Caregiver access is not available' })
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('[data-caregiver-observation-summary]')).toHaveCount(0);
   });
 });
