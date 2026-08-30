@@ -43,7 +43,7 @@ jobs:
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Check client-reality formatting
+      - name: Materialize client-reality formatting
         run: |
           pnpm exec prettier --write \
             apps/web/playwright.config.ts \
@@ -71,7 +71,25 @@ jobs:
             apps/web/e2e/behavior-moments-shadow.spec.ts \
             apps/web/e2e/library-regression.spec.ts \
             .github/workflows/client-reality-ci.yml
-          git diff --exit-code
+
+      - name: Enforce committed client-reality formatting
+        id: formatting-diff
+        run: git diff --exit-code
+
+      - name: Upload formatter output on mismatch
+        if: failure() && steps.formatting-diff.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-reality-formatted-${{ github.run_id }}
+          path: |
+            apps/web/src/app/coach/observe/history/page.tsx
+            apps/web/src/components/FeedScreen.tsx
+            apps/web/src/components/ProfileScreen.tsx
+            apps/web/src/components/feed/CommentSection.tsx
+            apps/web/src/components/feed/CreatePostModal.tsx
+            apps/web/e2e/support/session.ts
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Lint client-reality surface
         run: >-
