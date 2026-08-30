@@ -12,64 +12,85 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const token = useAuthStore((state) => state.token);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
   const [isChecking, setIsChecking] = useState(true);
-  const hydrationInFlight = useRef(false);
+  const verifiedToken = useRef<string | null>(null);
+  const verificationInFlight = useRef<string | null>(null);
 
   useEffect(() => {
     if (isPublicRoute) {
-      hydrationInFlight.current = false;
-      setIsChecking(false);
-      return;
-    }
-
-    if (isAuthenticated) {
-      hydrationInFlight.current = false;
+      verifiedToken.current = null;
+      verificationInFlight.current = null;
       setIsChecking(false);
       return;
     }
 
     if (!token) {
-      hydrationInFlight.current = false;
+      verifiedToken.current = null;
+      verificationInFlight.current = null;
       setIsChecking(false);
+      logout();
       router.replace('/login');
       return;
     }
 
-    if (hydrationInFlight.current) {
+    if (verifiedToken.current === token) {
+      setIsChecking(false);
       return;
     }
 
-    hydrationInFlight.current = true;
+    if (verificationInFlight.current === token) {
+      return;
+    }
+
+    const candidateToken = token;
+    let cancelled = false;
+    verificationInFlight.current = candidateToken;
     setIsChecking(true);
 
     void authApi
       .me()
       .then((user) => {
-        setAuth(user, token);
+        if (cancelled || useAuthStore.getState().token !== candidateToken) return;
+        verifiedToken.current = candidateToken;
+        setAuth(user, candidateToken);
       })
       .catch((error) => {
+        if (cancelled || useAuthStore.getState().token !== candidateToken) return;
         console.error('Token verification failed:', error);
+        verifiedToken.current = null;
         logout();
         router.replace('/login');
       })
       .finally(() => {
-        hydrationInFlight.current = false;
+        if (cancelled) return;
+        if (verificationInFlight.current === candidateToken) {
+          verificationInFlight.current = null;
+        }
         setIsChecking(false);
       });
-  }, [isAuthenticated, isPublicRoute, logout, router, setAuth, token]);
 
-  // Public surfaces never need token hydration. Rendering them synchronously removes
-  // an unnecessary auth-spinner flash and keeps demos/login deterministic for humans,
-  // crawlers, and browser accessibility tests.
+    return () => {
+      cancelled = true;
+      if (verificationInFlight.current === candidateToken) {
+        verificationInFlight.current = null;
+      }
+    };
+  }, [isPublicRoute, logout, router, setAuth, token]);
+
+  // Public surfaces never need session verification. Rendering them synchronously
+  // removes an unnecessary auth-spinner flash and keeps demos/login deterministic.
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
-  if (isChecking) {
+  // A persisted bearer token is only a candidate credential until /auth/me proves
+  // current server authority. Never expose protected children during that window or
+  // while a missing/invalid token is being redirected to login.
+  if (isChecking || !token || verifiedToken.current !== token) {
+    if (!token && !isChecking) return null;
     return (
       <div
         className="flex min-h-screen items-center justify-center"
