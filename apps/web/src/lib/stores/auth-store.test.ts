@@ -3,40 +3,41 @@ import { LEGACY_RAW_AUTH_TOKEN_KEY, LEGACY_SESSION_STORAGE_KEY } from './auth-pe
 import { useAuthStore } from './auth-store';
 
 describe('Auth Store', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
     useAuthStore.setState({
       user: null,
       token: null,
       isAuthenticated: false,
       isLoading: false,
-      hasHydrated: true,
     });
+    await useAuthStore.persist.rehydrate();
   });
 
   afterEach(() => {
     localStorage.clear();
   });
 
-  it('should initialize with unauthenticated state once hydration is complete', () => {
-    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
+  it('should initialize with unauthenticated state once persistence hydration is complete', () => {
+    const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
-    expect(hasHydrated).toBe(true);
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
   });
 
-  it('tracks persistence hydration separately from authentication authority', () => {
-    useAuthStore.getState().setHasHydrated(false);
+  it('reports the real Zustand hydration lifecycle instead of storing a shadow hydration flag', async () => {
+    const lifecycle: string[] = [];
+    const stopHydrate = useAuthStore.persist.onHydrate(() => lifecycle.push('hydrate'));
+    const stopFinish = useAuthStore.persist.onFinishHydration(() => lifecycle.push('finish'));
 
-    expect(useAuthStore.getState()).toMatchObject({
-      token: null,
-      isAuthenticated: false,
-      hasHydrated: false,
-    });
+    await useAuthStore.persist.rehydrate();
 
-    useAuthStore.getState().setHasHydrated(true);
-    expect(useAuthStore.getState().hasHydrated).toBe(true);
+    stopHydrate();
+    stopFinish();
+    expect(lifecycle).toEqual(['hydrate', 'finish']);
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
+    expect(useAuthStore.getState()).not.toHaveProperty('hasHydrated');
   });
 
   it('should set auth correctly and retire historical browser auth mirrors', () => {
@@ -47,11 +48,10 @@ describe('Auth Store', () => {
 
     useAuthStore.getState().setAuth(mockUser, mockToken);
 
-    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
+    const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toEqual(mockUser);
     expect(token).toBe(mockToken);
     expect(isAuthenticated).toBe(true);
-    expect(hasHydrated).toBe(true);
     expect(localStorage.getItem(LEGACY_RAW_AUTH_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
@@ -65,11 +65,10 @@ describe('Auth Store', () => {
 
     useAuthStore.getState().logout();
 
-    const { user, token, isAuthenticated, hasHydrated } = useAuthStore.getState();
+    const { user, token, isAuthenticated } = useAuthStore.getState();
     expect(user).toBeNull();
     expect(token).toBeNull();
     expect(isAuthenticated).toBe(false);
-    expect(hasHydrated).toBe(true);
     expect(localStorage.getItem(LEGACY_RAW_AUTH_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_SESSION_STORAGE_KEY)).toBeNull();
   });
