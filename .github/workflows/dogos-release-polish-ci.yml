@@ -20,6 +20,7 @@ on:
       - 'apps/web/src/lib/api/pets.spec.ts'
       - 'apps/web/e2e/support/session.ts'
       - 'apps/web/e2e/release-polish.spec.ts'
+      - '.github/scripts/playwright-production-web.sh'
       - '.github/workflows/dogos-release-polish-ci.yml'
       - 'docs/DOGOS_RELEASE_POLISH.md'
 
@@ -47,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
-      PLAYWRIGHT_PRODUCTION_SERVER: '1'
+      PLAYWRIGHT_EXTERNAL_SERVER: '1'
 
     steps:
       - uses: actions/checkout@v7
@@ -118,6 +119,9 @@ jobs:
             .github/workflows/dogos-release-polish-ci.yml \
             docs/DOGOS_RELEASE_POLISH.md
 
+      - name: Validate production Web lifecycle script
+        run: bash -n .github/scripts/playwright-production-web.sh
+
       - name: Lint release-polish web surface
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
@@ -169,5 +173,21 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
 
+      - name: Start and prove production Web server
+        run: bash .github/scripts/playwright-production-web.sh start
+
       - name: Run multi-pet and activation browser contracts
         run: pnpm --filter @woof/web exec playwright test e2e/release-polish.spec.ts --project=chromium
+
+      - name: Upload production Web log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-polish-web-${{ github.run_id }}
+          path: ${{ runner.temp }}/woof-playwright-web.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop production Web server
+        if: always()
+        run: bash .github/scripts/playwright-production-web.sh stop
