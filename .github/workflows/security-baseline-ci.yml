@@ -1,0 +1,158 @@
+name: dogOS Security Baseline CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '47 11 * * 3'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Supply-chain + secret hygiene
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Scan tracked files for committed credential material
+        run: python .github/scripts/assert-no-committed-secrets.py
+
+      - name: Validate security policy scripts
+        run: >-
+          python -m py_compile
+          .github/scripts/assert-no-committed-secrets.py
+          .github/scripts/assert-pnpm-audit-policy.py
+
+      - name: Materialize locked dependency graph without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Capture production dependency audit evidence
+        run: |
+          set +e
+          pnpm audit --prod --json > /tmp/pnpm-audit.json
+          audit_status=$?
+          set -e
+          if [[ ! -s /tmp/pnpm-audit.json ]]; then
+            echo 'pnpm audit produced no machine-readable evidence.' >&2
+            exit 1
+          fi
+          echo "pnpm audit raw exit status: ${audit_status}"
+
+      - name: Enforce high and critical production advisory policy
+        run: >-
+          python .github/scripts/assert-pnpm-audit-policy.py
+          /tmp/pnpm-audit.json
+          .github/security-audit-exceptions.json
+
+      - name: Build reproducible production dependency inventory
+        run: pnpm list --prod --depth Infinity --json > /tmp/production-dependency-inventory.json
+
+      - name: Enforce committed security baseline contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dependabot = Path('.github/dependabot.yml').read_text()
+          codeql = Path('.github/workflows/codeql.yml').read_text()
+          policy = Path('SECURITY.md').read_text()
+          baseline = Path('docs/SECURITY_BASELINE.md').read_text()
+          audit_policy = Path('.github/scripts/assert-pnpm-audit-policy.py').read_text()
+          exceptions = Path('.github/security-audit-exceptions.json').read_text()
+
+          required_dependabot = [
+              'package-ecosystem: npm',
+              'package-ecosystem: github-actions',
+              'interval: weekly',
+          ]
+          required_codeql = [
+              'github/codeql-action/init@v4',
+              'github/codeql-action/analyze@v4',
+              'javascript-typescript',
+              'python',
+              'security-events: write',
+          ]
+          required_policy = [
+              'Critical reachable production vulnerability',
+              'High reachable production vulnerability',
+              'Credential exposure',
+          ]
+          required_baseline = [
+              'Supply-chain + secret hygiene',
+              'Block force pushes',
+              'Block branch deletion',
+              'Require conversation resolution',
+          ]
+          required_audit_policy = [
+              'MAX_EXCEPTION_DAYS = 45',
+              'mobile-build-tool-only',
+              'stale audit exceptions are not allowed',
+              'apps/mobile >',
+          ]
+          required_exceptions = [
+              'GHSA-w3rx-r6r6-pgpr',
+              'GHSA-5p2g-fcmc-qvqq',
+              '2026-09-29',
+          ]
+
+          groups = [
+              ('dependabot', dependabot, required_dependabot),
+              ('codeql', codeql, required_codeql),
+              ('policy', policy, required_policy),
+              ('baseline', baseline, required_baseline),
+              ('audit-policy', audit_policy, required_audit_policy),
+              ('audit-exceptions', exceptions, required_exceptions),
+          ]
+
+          missing = []
+          for label, content, markers in groups:
+              missing.extend(
+                  f'{label}:{marker}' for marker in markers if marker not in content
+              )
+
+          if missing:
+              raise SystemExit('security baseline contract drift:\n' + '\n'.join(missing))
+          PY
+
+      - name: Check security configuration formatting
+        run: >-
+          pnpm exec prettier --check
+          .github/dependabot.yml
+          .github/security-audit-exceptions.json
+          .github/workflows/codeql.yml
+          .github/workflows/security-baseline-ci.yml
+          SECURITY.md
+          docs/SECURITY_BASELINE.md
+
+      - name: Retain production security evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-security-evidence-${{ github.run_id }}
+          path: |
+            /tmp/pnpm-audit.json
+            /tmp/production-dependency-inventory.json
+          if-no-files-found: error
+          retention-days: 14

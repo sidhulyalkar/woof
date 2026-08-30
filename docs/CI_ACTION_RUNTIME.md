@@ -10,8 +10,10 @@ Repository workflows standardize on these action majors:
 - `actions/setup-node@v7`
 - `pnpm/action-setup@v6`
 - `actions/upload-artifact@v7`
+- `github/codeql-action/init@v4`
+- `github/codeql-action/analyze@v4`
 
-These maintained action lines use the current GitHub Actions Node 24 execution generation instead of the deprecated Node 20 action runtime that GitHub-hosted runners were already forcing forward during qualification runs.
+These maintained action lines use the current GitHub Actions execution generation rather than silently retaining deprecated action runtimes. CodeQL v4 is the qualified static-analysis action family for this repository; changing its major is an infrastructure release, not a Dependabot auto-merge assumption.
 
 The repository does not use removed `actions/setup-node` inputs such as `always-auth`, and it does not depend on an `actions/download-artifact@v4` workflow contract.
 
@@ -52,14 +54,21 @@ Production Slack notification is optional. `SLACK_WEBHOOK` may be omitted withou
 
 1. uses the maintained checkout, pnpm, setup-node, and artifact-upload actions itself;
 2. proves the project runtime resolves to Node `20.20.2` and pnpm `8.15.1`;
-3. scans every workflow and rejects an unapproved major for the standardized action families or an unapproved Fly setup ref;
-4. checks staging and production for explicit Fly/Vercel credential preflight contracts;
-5. rejects the legacy Slack action and verifies notification failure cannot own production release success;
-6. runs Prettier over the complete workflow inventory so malformed YAML cannot pass silently;
-7. performs a frozen lockfile install; and
-8. uploads a one-day qualification artifact so `actions/upload-artifact@v7` is exercised on a successful path.
+3. scans every workflow and rejects an unapproved major for standardized action families, including CodeQL, or an unapproved Fly setup ref;
+4. requires the qualified CodeQL init and analyze action families to remain present;
+5. checks staging and production for explicit Fly/Vercel credential preflight contracts;
+6. rejects the legacy Slack action and verifies notification failure cannot own production release success;
+7. runs Prettier over the complete workflow inventory so malformed YAML cannot pass silently;
+8. performs a frozen lockfile install; and
+9. uploads a one-day qualification artifact so `actions/upload-artifact@v7` is exercised on a successful path.
 
 A future action-major, deployment-identity, or notification-contract change should be an explicit, qualified infrastructure release rather than silent version drift.
+
+## Security workflow relationship
+
+`.github/workflows/security-baseline-ci.yml` owns the always-on supply-chain and committed-secret hygiene contract. `.github/workflows/codeql.yml` owns static JavaScript/TypeScript and Python analysis. These workflows are separate from application feature authority lanes so a security infrastructure failure is visible as its own release boundary.
+
+Dependabot may propose GitHub Action updates, but the action-runtime qualification lane remains the authority that decides whether a new action major is acceptable for Woof.
 
 ## Release qualification
 

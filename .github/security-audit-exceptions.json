@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    {
+      "advisory_id": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "severity": "high",
+      "classification": "mobile-build-tool-only",
+      "allowed_path_prefix": "apps/mobile >",
+      "required_path_substrings": ["> @expo/", "> metro@"],
+      "owner": "sidhulyalkar",
+      "expires_on": "2026-09-29",
+      "rationale": "No patched image-size release is available. Every current production-audit path is confined to Expo/Metro dependency inspection used to build the mobile app; Woof does not expose image-size as an application runtime parser for user-supplied ICNS data. Re-evaluate on Expo/Metro or image-size release changes."
+    },
+    {
+      "advisory_id": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "severity": "high",
+      "classification": "mobile-build-tool-only",
+      "allowed_path_prefix": "apps/mobile >",
+      "required_path_substrings": ["> @expo/", "> metro@"],
+      "owner": "sidhulyalkar",
+      "expires_on": "2026-09-29",
+      "rationale": "No patched image-size release is available. Every current production-audit path is confined to Expo/Metro dependency inspection used to build the mobile app; Woof does not expose image-size as an application runtime parser for user-supplied JXL or HEIF data. Re-evaluate on Expo/Metro or image-size release changes."
+    }
+  ]
+}
