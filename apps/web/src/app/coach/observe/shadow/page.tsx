@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
 import { behaviorVisionApi } from '@/lib/api/behavior-vision';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 function percent(value: number | null) {
   return value === null ? '—' : `${Math.round(value * 100)}%`;
@@ -30,7 +30,7 @@ function clipTime(milliseconds: number) {
 }
 
 export default function BehaviorShadowPage() {
-  const user = useSessionStore((state) => state.user);
+  const user = useAuthStore((state) => state.user);
   const pets = useMemo(() => user?.pets ?? [], [user?.pets]);
   const [petId, setPetId] = useState(pets[0]?.id ?? '');
 
