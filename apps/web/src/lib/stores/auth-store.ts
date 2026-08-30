@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import {
-  AUTH_PERSIST_VERSION,
-  AUTH_STORAGE_KEY,
-  LEGACY_SESSION_STORAGE_KEY,
-} from './auth-persist';
+import { AUTH_PERSIST_VERSION, AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY } from './auth-persist';
 
 export interface AuthPet {
   id: string;
