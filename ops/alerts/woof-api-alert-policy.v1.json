@@ -32,7 +32,7 @@
     "criticalRatio": 0.05,
     "warningFor": "5m",
     "criticalFor": "2m",
-    "operationRegex": "AuthController\\.(register|login|logout|logoutAll|getProfile)"
+    "operationRegex": "AuthController[.](register|login|logout|logoutAll|getProfile)"
   },
   "todayReadP95Ms": {
     "window": "10m",
@@ -42,7 +42,7 @@
     "criticalMs": 1500,
     "warningFor": "10m",
     "criticalFor": "5m",
-    "operationRegex": "AdventureController\\.getMine|CompanionController\\.(getState|getReadiness)|CaregiverController\\.getCaregiverToday"
+    "operationRegex": "AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"
   },
   "caregiverTransition5xx": {
     "window": "5m",
@@ -51,7 +51,7 @@
     "criticalRatio": 0.05,
     "warningFor": "5m",
     "criticalFor": "2m",
-    "operationRegex": "CaregiverController\\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"
+    "operationRegex": "CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"
   },
   "connectorRejected": {
     "window": "15m",
