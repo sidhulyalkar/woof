@@ -5,17 +5,180 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = ROOT / "ops" / "alerts" / "woof-api-alert-policy.v1.json"
 RULES_PATH = ROOT / "ops" / "alerts" / "woof-api.rules.yml"
 FIXTURES_PATH = ROOT / "ops" / "alerts" / "fixtures" / "woof-api-alert-fixtures.v1.json"
 
+CONTROLLER_SOURCES = {
+    "AuthController": ROOT / "apps" / "api" / "src" / "auth" / "auth.controller.ts",
+    "AdventureController": ROOT / "apps" / "api" / "src" / "adventure" / "adventure.controller.ts",
+    "CompanionController": ROOT / "apps" / "api" / "src" / "companion" / "companion.controller.ts",
+    "CaregiverController": ROOT / "apps" / "api" / "src" / "caregiver" / "caregiver.controller.ts",
+    "ObservabilityController": ROOT
+    / "apps"
+    / "api"
+    / "src"
+    / "observability"
+    / "observability.controller.ts",
+}
+
+DURATION_PATTERN = re.compile(r"^[1-9][0-9]*(?:s|m|h|d)$")
+IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
+
+
+def validate_duration(name: str, value: Any) -> None:
+    if not isinstance(value, str) or DURATION_PATTERN.fullmatch(value) is None:
+        raise SystemExit(f"{name} must be a positive Prometheus duration such as 30s, 5m, or 1h")
+
+
+def split_operation(operation: str) -> tuple[str, str]:
+    parts = operation.split(".")
+    if len(parts) != 2 or any(IDENTIFIER_PATTERN.fullmatch(part) is None for part in parts):
+        raise SystemExit(
+            f"operation {operation!r} must be an exact Controller.method identifier without dynamic data"
+        )
+    return parts[0], parts[1]
+
+
+def operation_regex(operations: Iterable[str]) -> str:
+    patterns: list[str] = []
+    for operation in operations:
+        controller, method = split_operation(operation)
+        patterns.append(f"{controller}[.]{method}")
+    if not patterns:
+        raise SystemExit("alert operation lists cannot be empty")
+    return "|".join(patterns)
+
+
+def validate_operation_source(operation: str) -> None:
+    controller, method = split_operation(operation)
+    source_path = CONTROLLER_SOURCES.get(controller)
+    if source_path is None:
+        raise SystemExit(f"no source binding is registered for alert controller {controller}")
+    source = source_path.read_text()
+    if re.search(rf"\bclass\s+{re.escape(controller)}\b", source) is None:
+        raise SystemExit(f"alert controller {controller} no longer exists in {source_path}")
+    if re.search(rf"\b(?:async\s+)?{re.escape(method)}\s*\(", source) is None:
+        raise SystemExit(f"alert operation {operation} no longer exists in {source_path}")
+
+
+def validate_ratio_policy(name: str, config: dict[str, Any], minimum_key: str) -> None:
+    warning = config.get("warningRatio")
+    critical = config.get("criticalRatio")
+    minimum = config.get(minimum_key)
+    if not isinstance(warning, (int, float)) or not isinstance(critical, (int, float)):
+        raise SystemExit(f"{name} warningRatio and criticalRatio must be numeric")
+    if not 0 < warning < critical < 1:
+        raise SystemExit(f"{name} must satisfy 0 < warningRatio < criticalRatio < 1")
+    if not isinstance(minimum, int) or minimum <= 0:
+        raise SystemExit(f"{name}.{minimum_key} must be a positive integer")
+    warning_bad_count = math.ceil(warning * minimum)
+    critical_bad_count = math.ceil(critical * minimum)
+    if warning_bad_count >= critical_bad_count:
+        raise SystemExit(
+            f"{name}.{minimum_key}={minimum} makes warning and critical indistinguishable "
+            f"at the sample floor ({warning_bad_count} bad samples trigger both); raise the floor "
+            "or separate the ratios"
+        )
+    validate_duration(f"{name}.window", config.get("window"))
+    validate_duration(f"{name}.warningFor", config.get("warningFor"))
+    validate_duration(f"{name}.criticalFor", config.get("criticalFor"))
+
+
+def validate_policy(policy: dict[str, Any]) -> None:
+    if policy.get("version") != "woof-api-alert-policy-v1":
+        raise SystemExit("alert policy version must remain explicitly bound to woof-api-alert-policy-v1")
+    if policy.get("service") != "woof-api":
+        raise SystemExit("alert policy service must remain the low-cardinality woof-api identity")
+    validate_duration("evaluationInterval", policy.get("evaluationInterval"))
+
+    missing = policy.get("telemetryMissing", {})
+    validate_duration("telemetryMissing.warningFor", missing.get("warningFor"))
+    validate_duration("telemetryMissing.criticalFor", missing.get("criticalFor"))
+    unknown = policy.get("unknownRelease", {})
+    validate_duration("unknownRelease.warningFor", unknown.get("warningFor"))
+
+    readiness = policy.get("readinessFailures", {})
+    if not isinstance(readiness.get("warningFailures"), int) or not isinstance(
+        readiness.get("criticalFailures"), int
+    ):
+        raise SystemExit("readiness failure thresholds must be integers")
+    if not 0 < readiness["warningFailures"] < readiness["criticalFailures"]:
+        raise SystemExit("readiness warningFailures must be positive and below criticalFailures")
+    validate_duration("readinessFailures.window", readiness.get("window"))
+    validate_duration("readinessFailures.warningFor", readiness.get("warningFor"))
+    validate_duration("readinessFailures.criticalFor", readiness.get("criticalFor"))
+    validate_operation_source(readiness.get("operation", ""))
+
+    http = policy.get("http5xx", {})
+    auth = policy.get("auth5xx", {})
+    caregiver = policy.get("caregiverTransition5xx", {})
+    connector = policy.get("connectorRejected", {})
+    validate_ratio_policy("http5xx", http, "minimumRequests")
+    validate_ratio_policy("auth5xx", auth, "minimumRequests")
+    validate_ratio_policy("caregiverTransition5xx", caregiver, "minimumRequests")
+    validate_ratio_policy("connectorRejected", connector, "minimumImports")
+
+    operation_sets = {
+        "http5xx.excludedOperations": http.get("excludedOperations"),
+        "auth5xx.operations": auth.get("operations"),
+        "todayReadP95Ms.operations": policy.get("todayReadP95Ms", {}).get("operations"),
+        "caregiverTransition5xx.operations": caregiver.get("operations"),
+    }
+    for name, operations in operation_sets.items():
+        if not isinstance(operations, list) or not operations or not all(
+            isinstance(operation, str) for operation in operations
+        ):
+            raise SystemExit(f"{name} must be a non-empty list of exact controller operations")
+        if len(operations) != len(set(operations)):
+            raise SystemExit(f"{name} cannot contain duplicate operations")
+        for operation in operations:
+            validate_operation_source(operation)
+
+    today = policy.get("todayReadP95Ms", {})
+    quantile = today.get("quantile")
+    warning_ms = today.get("warningMs")
+    critical_ms = today.get("criticalMs")
+    minimum_requests = today.get("minimumRequests")
+    if not isinstance(quantile, (int, float)) or not 0 < quantile < 1:
+        raise SystemExit("todayReadP95Ms.quantile must be between 0 and 1")
+    if not isinstance(warning_ms, (int, float)) or not isinstance(critical_ms, (int, float)):
+        raise SystemExit("todayReadP95Ms latency thresholds must be numeric")
+    if not 0 < warning_ms < critical_ms:
+        raise SystemExit("todayReadP95Ms warningMs must be positive and below criticalMs")
+    if not isinstance(minimum_requests, int) or minimum_requests <= 0:
+        raise SystemExit("todayReadP95Ms.minimumRequests must be a positive integer")
+    validate_duration("todayReadP95Ms.window", today.get("window"))
+    validate_duration("todayReadP95Ms.warningFor", today.get("warningFor"))
+    validate_duration("todayReadP95Ms.criticalFor", today.get("criticalFor"))
+
+    device = policy.get("deviceContractRejections", {})
+    if not isinstance(device.get("warningCount"), int) or not isinstance(
+        device.get("criticalCount"), int
+    ):
+        raise SystemExit("device contract rejection thresholds must be integers")
+    if not 0 < device["warningCount"] < device["criticalCount"]:
+        raise SystemExit("device warningCount must be positive and below criticalCount")
+    validate_duration("deviceContractRejections.window", device.get("window"))
+    validate_duration("deviceContractRejections.warningFor", device.get("warningFor"))
+    validate_duration("deviceContractRejections.criticalFor", device.get("criticalFor"))
+
+    deferred = policy.get("deferredSignals")
+    if not isinstance(deferred, list) or not deferred:
+        raise SystemExit("deferredSignals must explicitly preserve unavailable operational signals")
+    deferred_names = [entry.get("name") for entry in deferred if isinstance(entry, dict)]
+    if len(deferred_names) != len(deferred) or len(deferred_names) != len(set(deferred_names)):
+        raise SystemExit("deferredSignals must be uniquely named objects")
 
 
 def alert_rule(
@@ -60,21 +223,21 @@ def ratio_expr(
     bad_selector: str,
     ratio: float,
     minimum: int,
-    extra_selector: str = "",
+    group_by: tuple[str, ...] = ("release",),
+    selectors: tuple[str, ...] = (),
 ) -> str:
-    selector_prefix = f'service="{service}"'
-    if extra_selector:
-        selector_prefix = f"{selector_prefix},{extra_selector}"
+    grouping = ", ".join(group_by)
+    selector_prefix = ",".join((f'service="{service}"', *selectors))
     bad = f"{selector_prefix},{bad_selector}"
     return "\n".join(
         [
             "(",
-            f"  sum by (release) (rate({metric}{{{bad}}}[{window}]))",
+            f"  sum by ({grouping}) (rate({metric}{{{bad}}}[{window}]))",
             "  /",
-            f"  clamp_min(sum by (release) (rate({metric}{{{selector_prefix}}}[{window}])), 0.000001)",
+            f"  clamp_min(sum by ({grouping}) (rate({metric}{{{selector_prefix}}}[{window}])), 0.000001)",
             f") >= {ratio}",
-            "and on (release)",
-            f"sum by (release) (increase({metric}{{{selector_prefix}}}[{window}])) >= {minimum}",
+            f"and on ({grouping})",
+            f"sum by ({grouping}) (increase({metric}{{{selector_prefix}}}[{window}])) >= {minimum}",
         ]
     )
 
@@ -123,9 +286,7 @@ def render_rules(policy: dict[str, Any]) -> str:
     )
 
     readiness = policy["readinessFailures"]
-    readiness_selector = (
-        f'service="{service}",operation="{readiness["operation"]}"'
-    )
+    readiness_selector = f'service="{service}",operation="{readiness["operation"]}"'
     readiness_missing_expr = f"absent(woof_http_requests_total{{{readiness_selector}}})"
     for severity, duration in [
         ("warning", missing["warningFor"]),
@@ -160,6 +321,7 @@ def render_rules(policy: dict[str, Any]) -> str:
         )
 
     http = policy["http5xx"]
+    http_selector = f'operation!~"{operation_regex(http["excludedOperations"])}"'
     for severity, ratio, duration in [
         ("warning", http["warningRatio"], http["warningFor"]),
         ("critical", http["criticalRatio"], http["criticalFor"]),
@@ -173,16 +335,17 @@ def render_rules(policy: dict[str, Any]) -> str:
                 bad_selector='status_class="5xx"',
                 ratio=ratio,
                 minimum=http["minimumRequests"],
+                selectors=(http_selector,),
             ),
             duration=duration,
             severity=severity,
             operation_class="http_service",
-            summary=f"Woof API 5xx ratio is elevated ({severity})",
-            description="The bounded service-wide 5xx ratio exceeded policy for release {{ $labels.release }} after the minimum request floor was met.",
+            summary=f"Woof API application 5xx ratio is elevated ({severity})",
+            description="The bounded application-request 5xx ratio exceeded policy for release {{ $labels.release }} after the minimum request floor was met. Health and metrics endpoints are excluded from this ratio.",
         )
 
     auth = policy["auth5xx"]
-    auth_selector = f'operation=~"{auth["operationRegex"]}"'
+    auth_selector = f'operation=~"{operation_regex(auth["operations"])}"'
     for severity, ratio, duration in [
         ("warning", auth["warningRatio"], auth["warningFor"]),
         ("critical", auth["criticalRatio"], auth["criticalFor"]),
@@ -196,17 +359,18 @@ def render_rules(policy: dict[str, Any]) -> str:
                 bad_selector='status_class="5xx"',
                 ratio=ratio,
                 minimum=auth["minimumRequests"],
-                extra_selector=auth_selector,
+                group_by=("release", "operation"),
+                selectors=(auth_selector,),
             ),
             duration=duration,
             severity=severity,
             operation_class="auth_session",
-            summary=f"Woof authentication/session server-error ratio is elevated ({severity})",
-            description="Auth/session operations are returning server errors above policy for release {{ $labels.release }}. Expected login 401s are intentionally excluded.",
+            summary=f"Woof authentication/session operation 5xx ratio is elevated ({severity})",
+            description="Auth/session operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}. Expected login 401s are intentionally excluded.",
         )
 
     today = policy["todayReadP95Ms"]
-    today_selector = f'service="{service}",operation=~"{today["operationRegex"]}"'
+    today_selector = f'service="{service}",operation=~"{operation_regex(today["operations"])}"'
     for severity, threshold, duration in [
         ("warning", today["warningMs"], today["warningFor"]),
         ("critical", today["criticalMs"], today["criticalFor"]),
@@ -215,13 +379,13 @@ def render_rules(policy: dict[str, Any]) -> str:
             [
                 "(",
                 f"  histogram_quantile({today['quantile']},",
-                "    sum by (le, release) (",
+                "    sum by (le, release, operation) (",
                 f"      rate(woof_http_request_duration_ms_bucket{{{today_selector}}}[{today['window']}])",
                 "    )",
                 "  )",
                 f") >= {threshold}",
-                "and on (release)",
-                f"sum by (release) (increase(woof_http_request_duration_ms_count{{{today_selector}}}[{today['window']}])) >= {today['minimumRequests']}",
+                "and on (release, operation)",
+                f"sum by (release, operation) (increase(woof_http_request_duration_ms_count{{{today_selector}}}[{today['window']}])) >= {today['minimumRequests']}",
             ]
         )
         add(
@@ -230,12 +394,12 @@ def render_rules(policy: dict[str, Any]) -> str:
             duration=duration,
             severity=severity,
             operation_class="today_read",
-            summary=f"Woof Today/read p95 latency is elevated ({severity})",
-            description="Histogram-derived p95 latency exceeded the initial operator guardrail for release {{ $labels.release }} after the minimum sample floor was met.",
+            summary=f"Woof Today/read operation p95 latency is elevated ({severity})",
+            description="Histogram-derived p95 latency for {{ $labels.operation }} exceeded the initial operator guardrail for release {{ $labels.release }} after the minimum sample floor was met.",
         )
 
     caregiver = policy["caregiverTransition5xx"]
-    caregiver_selector = f'operation=~"{caregiver["operationRegex"]}"'
+    caregiver_selector = f'operation=~"{operation_regex(caregiver["operations"])}"'
     for severity, ratio, duration in [
         ("warning", caregiver["warningRatio"], caregiver["warningFor"]),
         ("critical", caregiver["criticalRatio"], caregiver["criticalFor"]),
@@ -249,13 +413,14 @@ def render_rules(policy: dict[str, Any]) -> str:
                 bad_selector='status_class="5xx"',
                 ratio=ratio,
                 minimum=caregiver["minimumRequests"],
-                extra_selector=caregiver_selector,
+                group_by=("release", "operation"),
+                selectors=(caregiver_selector,),
             ),
             duration=duration,
             severity=severity,
             operation_class="caregiver_transition",
-            summary=f"Woof caregiver transition server-error ratio is elevated ({severity})",
-            description="Pet-scoped caregiver grant transitions are returning server errors above policy for release {{ $labels.release }}.",
+            summary=f"Woof caregiver transition operation 5xx ratio is elevated ({severity})",
+            description="Pet-scoped caregiver operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}.",
         )
 
     connector = policy["connectorRejected"]
@@ -272,12 +437,13 @@ def render_rules(policy: dict[str, Any]) -> str:
                 bad_selector='outcome="REJECTED"',
                 ratio=ratio,
                 minimum=connector["minimumImports"],
+                group_by=("release", "provider", "kind"),
             ),
             duration=duration,
             severity=severity,
             operation_class="connector_import",
             summary=f"Woof connector rejection ratio is elevated ({severity})",
-            description="Verified connector imports are being rejected above the initial operator guardrail for release {{ $labels.release }}.",
+            description="Verified {{ $labels.provider }} {{ $labels.kind }} imports are being rejected above the initial operator guardrail for release {{ $labels.release }}.",
         )
 
     device = policy["deviceContractRejections"]
@@ -299,7 +465,27 @@ def render_rules(policy: dict[str, Any]) -> str:
             description="Untrusted device envelopes are being rejected above policy for release {{ $labels.release }}. Inspect partner transport without logging raw payloads.",
         )
 
-    return "\n".join(lines) + "\n"
+    rendered = "\n".join(lines) + "\n"
+    validate_rendered_rules(rendered)
+    return rendered
+
+
+def validate_rendered_rules(rendered: str) -> None:
+    required = [
+        'operation!~"ObservabilityController[.]liveness|ObservabilityController[.]readiness|ObservabilityController[.]prometheus|ObservabilityController[.]snapshot"',
+        "sum by (release, operation)",
+        "sum by (le, release, operation)",
+        "and on (release, operation)",
+        "sum by (release, provider, kind)",
+        "and on (release, provider, kind)",
+    ]
+    for marker in required:
+        if marker not in rendered:
+            raise SystemExit(f"generated alert rules lost required grouping/exclusion contract: {marker}")
+    if "\\." in rendered:
+        raise SystemExit("generated PromQL must not rely on invalid backslash-dot Go string escapes")
+    if rendered.count("    - alert: ") != 19:
+        raise SystemExit("woof-api-alert-policy-v1 must render exactly 19 named alert rules")
 
 
 def classify_ratio(total: float, bad: float, minimum: int, warning: float, critical: float) -> str:
@@ -414,6 +600,7 @@ def main() -> None:
     args = parser.parse_args()
 
     policy = load_json(POLICY_PATH)
+    validate_policy(policy)
     rendered = render_rules(policy)
 
     if args.check:
