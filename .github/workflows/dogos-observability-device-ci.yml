@@ -18,6 +18,7 @@ on:
       - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/.env.example'
       - '.github/scripts/assert-database-ownership.py'
+      - '.github/scripts/assert-alert-privacy.py'
       - '.github/scripts/woof-alert-policy.py'
       - '.github/workflows/dogos-observability-device-ci.yml'
       - 'ops/alerts/**'
@@ -99,6 +100,7 @@ jobs:
             --enforce-if-changed 'apps/api/src/config/env.validation.ts' \
             --enforce-if-changed 'apps/api/src/config/env.validation.spec.ts' \
             --enforce-if-changed 'apps/api/.env.example' \
+            --enforce-if-changed '.github/scripts/assert-alert-privacy.py' \
             --enforce-if-changed '.github/scripts/woof-alert-policy.py' \
             --enforce-if-changed 'ops/alerts/**' \
             --enforce-if-changed 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md' \
@@ -128,7 +130,7 @@ jobs:
 
       - name: Validate deterministic alert policy authority
         run: |
-          python -m py_compile .github/scripts/woof-alert-policy.py
+          python -m py_compile .github/scripts/woof-alert-policy.py .github/scripts/assert-alert-privacy.py
           python .github/scripts/woof-alert-policy.py --check
           python .github/scripts/woof-alert-policy.py --verify-fixtures
           grep -Fq 'histogram_quantile(0.95' ops/alerts/woof-api.rules.yml
@@ -153,14 +155,7 @@ jobs:
 
       - name: Enforce identifier-free alert labels and fixtures
         run: |
-          if grep -REn '(userId|petId|externalObjectId|externalPetId|accountId|request_url|requestUrl|email|handle)' ops/alerts; then
-            echo 'Operational alert policy cannot contain user/pet/account/provider identifiers, request URLs, emails, or handles.'
-            exit 1
-          fi
-          if grep -REn '(request\.body|request\.query|request\.params|rawPayload|raw_payload)' ops/alerts; then
-            echo 'Operational alert policy cannot depend on private request or raw payload data.'
-            exit 1
-          fi
+          python .github/scripts/assert-alert-privacy.py --self-test
 
       - name: Lint Observability + Device API surface
         run: >-
