@@ -24,10 +24,7 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function authenticate(
-  page: Parameters<typeof seedAuthenticatedSession>[0],
-  user: AuthUser
-) {
+async function authenticate(page: Parameters<typeof seedAuthenticatedSession>[0], user: AuthUser) {
   await seedAuthenticatedSession(page, { user, token: 'browser-test-token' });
 }
 
