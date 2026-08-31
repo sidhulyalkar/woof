@@ -24,6 +24,8 @@ required_workflow = [
     '--event-head-sha "${{ github.event.pull_request.head.sha }}"',
     '--event-base-sha "${{ github.event.pull_request.base.sha }}"',
     '--api-url "${NEXT_PUBLIC_API_URL}"',
+    '--node-version "${NODE_VERSION}"',
+    '--pnpm-version "${PNPM_VERSION}"',
     "uses: actions/upload-artifact@v7",
     "name: client-reality-web-${{ github.run_id }}",
     "browser-matrix:",
@@ -73,16 +75,19 @@ required_artifact = [
     '"buildTreeSha256"',
     '"nodeVersion"',
     '"pnpmVersion"',
+    'expected_node_version',
+    'expected_pnpm_version',
     'excludedBuildPaths',
     'relative.parts[0] == "cache"',
     "sha256_file(archive)",
-    "git rev-parse",
+    '["git", "rev-parse", "HEAD"]',
     "Unsafe Client Reality artifact member",
     "Unexpected Client Reality artifact member",
     "Client Reality artifact checksum mismatch",
     "Client Reality artifact manifest mismatch",
     "tree digest does not match its manifest",
     "Self-test failed to reject a mismatched PR head SHA",
+    "Self-test failed to reject a mismatched Node version",
     "Self-test failed to reject a tampered artifact",
 ]
 missing = [marker for marker in required_artifact if marker not in artifact]
@@ -99,5 +104,6 @@ for forbidden in [
 
 print(
     "Client Reality artifact contract preserves one build, checked transfer bytes, "
-    "actual checkout identity, PR head/base provenance, build config, and four independent engines."
+    "actual checkout identity, PR head/base provenance, build config, toolchain identity, "
+    "and four independent engines."
 )
