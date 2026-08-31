@@ -269,6 +269,8 @@ jobs:
           --event-head-sha "${{ github.event.pull_request.head.sha }}"
           --event-base-sha "${{ github.event.pull_request.base.sha }}"
           --api-url "${NEXT_PUBLIC_API_URL}"
+          --node-version "${NODE_VERSION}"
+          --pnpm-version "${PNPM_VERSION}"
 
       - name: Install Playwright engine
         run: pnpm --filter @woof/web exec playwright install --with-deps ${{ matrix.browser }}
