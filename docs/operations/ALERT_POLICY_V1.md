@@ -27,7 +27,7 @@ These thresholds are **initial operator guardrails**, not an SLA, SLO, availabil
 
 ## Exact operation authority
 
-Alert targets are stored as exact `Controller.method` operations, not free-form regular expressions. The generator converts those exact names into RE2-safe Prometheus matchers and verifies that every referenced controller method still exists in source.
+Alert targets are stored as exact `Controller.method` operations, not free-form regular expressions. The generator converts those exact names into RE2-safe Prometheus matchers and verifies that every referenced controller method still exists as a method declaration in source.
 
 The Observability + Device workflow is triggered when those controller files change. Renaming a protected operation without updating alert policy therefore fails closed instead of silently turning off an alert.
 
@@ -51,10 +51,10 @@ Every Woof-owned series carries:
 Request series additionally use only bounded operational labels:
 
 - HTTP method;
-- controller/handler operation name;
+- controller operation name;
 - status class such as `2xx`, `4xx`, or `5xx`.
 
-Alert rules add a static `operation_class` such as `today_read`, `auth_session`, `caregiver_transition`, or `telemetry_quality`.
+Alert rules add a static `operation_class` such as `today_read`, `auth_session`, `caregiver_transition`, `http_operation_burst`, or `telemetry_quality`.
 
 The metrics and alert policy must not collect or label:
 
@@ -68,6 +68,14 @@ The metrics and alert policy must not collect or label:
 
 External infrastructure may add ordinary scrape labels such as `job` or `instance`. Woof rules aggregate process-local counters only across explicitly chosen bounded labels such as release, exact controller operation, or verified connector provider/kind.
 
+### Multi-replica scrape topology
+
+These counters are process-local. A single load-balanced metrics URL that lands on different API replicas across successive scrapes can corrupt counter and histogram math because unrelated process counters appear to be one time series.
+
+`ops/alerts/SCRAPE_TOPOLOGY.md` therefore requires stable per-process target identity, or an equivalent instance-aware collector, before multi-replica production metrics are considered trustworthy. `rate()` and `increase()` must run on stable underlying series before Woof aggregates by release/operation/provider/kind.
+
+The current rules intentionally claim release-level and selected operation-level health, **not per-replica health**. Provider-native target evidence such as Prometheus `up` remains required to detect a missing individual scrape target.
+
 ## Request latency histogram
 
 `woof_http_request_duration_ms` is a cumulative Prometheus histogram with fixed millisecond buckets:
@@ -76,7 +84,7 @@ External infrastructure may add ordinary scrape labels such as `job` or `instanc
 
 This replaces percentile guessing from `sum`, `count`, or `max`. External Prometheus-compatible aggregation can now use `histogram_quantile()` over bounded windows.
 
-The measured duration is **Nest request-handler execution time**, from interceptor entry until the controller observable emits or errors. It is not browser round-trip time, CDN latency, TLS time, or full response-flush latency. Those require external black-box or edge instrumentation.
+The measured duration is **Nest request execution time**, from interceptor entry until the controller observable emits or errors. It is not browser round-trip time, CDN latency, TLS time, or full response-flush latency. Those require external black-box or edge instrumentation.
 
 The first latency alert targets successful `2xx` responses for each user-facing Today/read operation independently:
 
@@ -87,8 +95,8 @@ The first latency alert targets successful `2xx` responses for each user-facing 
 
 Per operation, after at least 20 successful requests in 10 minutes:
 
-- warning: p95 >= 750 ms for 10 minutes;
-- critical: p95 >= 1500 ms for 5 minutes.
+- warning: p95 >= 750 ms continuously for 10 minutes;
+- critical: p95 >= 1500 ms continuously for 5 minutes.
 
 Per-operation grouping prevents a high-volume fast endpoint from statistically hiding a quieter slow endpoint.
 
@@ -103,10 +111,12 @@ Instead:
 - the request itself still increments `woof_http_requests_total`;
 - the invalid duration is excluded from histogram buckets, sum, and count;
 - `woof_http_request_duration_invalid_total` increments for that bounded operation/status series;
-- warning begins at 1 invalid timing sample in 15 minutes;
-- critical begins at 5 invalid timing samples in 15 minutes.
+- warning condition: at least 1 invalid timing sample in 15 minutes, sustained for 5 minutes;
+- critical condition: at least 5 invalid timing samples in 15 minutes, sustained for 2 minutes.
 
 Connector duration aggregates use the same honest sampling rule and expose `woof_connector_import_duration_invalid_total`, although connector rejection alerts are based on import outcomes rather than timing.
+
+Malformed/non-finite HTTP status values are mapped conservatively into the `5xx` operational class rather than creating nonsense classes such as `0xx` or `9xx`.
 
 ## Initial alert classes
 
@@ -119,7 +129,7 @@ The API process uptime metric is treated as the heartbeat for the operational sc
 
 Missing telemetry is an **unknown/degraded observability state**, never evidence that the service is healthy.
 
-This is a service-level metric heartbeat. Per-target scrape failure should later be covered by provider-native target health such as Prometheus `up`, because Woof cannot infer the identity of a target that is not being scraped at all.
+This is a service-level metric heartbeat. Per-target scrape failure must later be covered by provider-native target health such as Prometheus `up`, because Woof cannot infer the identity of a target that is not being scraped at all.
 
 ### Unknown release identity
 
@@ -136,8 +146,8 @@ The missing-probe rule is release-aware: every currently scraped release identit
 The rules alert when:
 
 - a scraped release has no readiness probe telemetry for 5/15 minutes;
-- one readiness 5xx occurs in a 5-minute window and persists for the warning interval;
-- three readiness 5xx responses occur in a 5-minute window for the critical boundary.
+- one readiness 5xx occurs in a 5-minute window and the condition remains true for 1 minute;
+- three readiness 5xx responses occur in a 5-minute window and the condition remains true for 1 minute.
 
 A process exporting metrics without an externally exercised readiness series is not treated as fully observed.
 
@@ -149,10 +159,21 @@ The denominator also excludes `4xx` client outcomes. The operational server-erro
 
 Over a 5-minute window, after at least 50 eligible application requests:
 
-- warning: 5xx ratio >= 2%;
-- critical: 5xx ratio >= 5%.
+- warning: 5xx ratio >= 2%, sustained for 5 minutes;
+- critical: 5xx ratio >= 5%, sustained for 2 minutes.
 
 At the minimum floor those severities remain discretely distinguishable; policy validation rejects configurations where the same number of failures would trigger both warning and critical.
+
+### Low-volume application 5xx fallback
+
+Ratio sample floors are useful statistically but create a blind spot during sparse beta traffic. A rarely used endpoint can be completely broken without receiving 50 eligible calls in five minutes.
+
+Woof therefore also evaluates repeated server errors **per operation**, still excluding observability endpoints:
+
+- warning condition: at least 3 5xx responses for one operation in 15 minutes, sustained for 5 minutes;
+- critical condition: at least 10 5xx responses for one operation in 15 minutes, sustained for 2 minutes.
+
+This is intentionally independent of the ratio sample floor. At higher traffic both a ratio alert and a repeated-error alert may be true; external routing should group related notifications rather than deleting either signal from the source policy.
 
 ### Authentication/session server errors
 
@@ -168,10 +189,12 @@ Each operation is evaluated independently. A high-volume healthy login path cann
 
 Over 5 minutes, per operation, after at least 50 eligible `2xx + 3xx + 5xx` outcomes:
 
-- warning: 5xx ratio >= 2%;
-- critical: 5xx ratio >= 5%.
+- warning: 5xx ratio >= 2%, sustained for 5 minutes;
+- critical: 5xx ratio >= 5%, sustained for 2 minutes.
 
 Expected authentication denials such as invalid-credential `401` responses are excluded from both numerator and denominator. They remain visible in the raw HTTP metrics but do not dilute the server-failure ratio.
+
+The low-volume application 5xx fallback still covers repeated auth-operation server failures before this ratio floor is met.
 
 ### Caregiver authority transitions
 
@@ -179,10 +202,12 @@ The transition class includes exact issue, accept, decline, and revoke operation
 
 Over 5 minutes, per operation, after at least 25 eligible `2xx + 3xx + 5xx` outcomes:
 
-- warning: 5xx ratio >= 2%;
-- critical: 5xx ratio >= 5%.
+- warning: 5xx ratio >= 2%, sustained for 5 minutes;
+- critical: 5xx ratio >= 5%, sustained for 2 minutes.
 
 Authorization/client `4xx` outcomes are not silently reclassified as server failures and do not dilute this server-error ratio. Correctness of allow/deny decisions remains covered by the dedicated caregiver authority contracts.
+
+The generic low-volume 5xx fallback also observes these operations before the ratio floor is met.
 
 ### Connector rejection ratio
 
@@ -190,17 +215,17 @@ Connector rejection is evaluated per exact verified `provider + kind` pair. A he
 
 Over 15 minutes, after at least 20 verified import attempts for that provider/kind:
 
-- warning: rejected ratio >= 10%;
-- critical: rejected ratio >= 25%.
+- warning: rejected ratio >= 10%, sustained for 10 minutes;
+- critical: rejected ratio >= 25%, sustained for 5 minutes.
 
 This surfaces partner/contract drift without recording provider payload contents or external identifiers.
 
 ### Device contract rejection count
 
-Over 15 minutes:
+Over a 15-minute window:
 
-- warning: at least 5 pre-provider contract rejections;
-- critical: at least 20.
+- warning condition: at least 5 pre-provider contract rejections, sustained for 10 minutes;
+- critical condition: at least 20, sustained for 5 minutes.
 
 Operators should inspect transport/provider contract state without copying raw device payloads into tickets or chat.
 
@@ -208,15 +233,19 @@ Operators should inspect transport/provider contract state without copying raw d
 
 Ratio and latency threshold fixtures have explicit minimum sample floors.
 
-When telemetry is present but the minimum floor has not been met, deterministic policy evaluation reports `INSUFFICIENT_DATA`, not `OK`. Prometheus alert rules simply remain inactive until their sample-floor predicate is satisfied.
+When telemetry is present but the minimum floor has not been met, deterministic policy evaluation reports `INSUFFICIENT_DATA`, not `OK`. Prometheus ratio/latency rules remain inactive until their sample-floor predicate is satisfied.
+
+The low-volume application 5xx fallback is intentionally different: it does not require a denominator and can surface repeated server errors while ratio evidence remains insufficient.
 
 This distinction matters during low traffic and immediately after process startup.
 
-The JSON fixtures validate deterministic threshold classification. They are **not** a substitute for Prometheus's own temporal `for:` state machine. `promtool check rules` independently validates the rendered rule syntax; live/staging alert drills remain required before claiming paging behavior.
+The JSON fixtures validate deterministic threshold classification. They are **not** a substitute for Prometheus's own temporal `for:` state machine or grouping behavior. The generator has separate structural contracts for grouping/exclusions, and `promtool check rules` independently validates the rendered rule syntax. Live/staging alert drills remain required before claiming paging behavior.
 
 ## Warning versus critical routing
 
-Warning and critical rules may both be logically true at critical severity. When Alertmanager or another external router is configured, the routing configuration should inhibit the warning notification when the matching critical alert for the same service/release/operation identity is firing. That routing behavior is not claimed until Phase 6 live operational qualification.
+Warning and critical rules may both be logically true at critical severity. When Alertmanager or another external router is configured, the routing configuration should inhibit the warning notification when the matching critical alert for the same service/release/operation identity is firing. Related ratio and repeated-error alerts should also be grouped to avoid duplicate operator noise.
+
+That routing behavior is not claimed until Phase 6 live operational qualification.
 
 ## Explicitly deferred signals
 
@@ -254,8 +283,9 @@ python .github/scripts/woof-alert-policy.py --verify-fixtures
 
 CI additionally:
 
-- verifies alert target controller methods still exist;
+- verifies alert target controller methods still exist as declarations;
 - verifies threshold/sample-floor semantics;
+- rejects warning/critical ratio configurations that collapse to the same bad-sample count at the minimum floor;
 - validates the rendered rule file with a checksum-pinned official Prometheus `promtool`;
 - type-checks/tests the API metric implementation;
 - verifies the alert and metric surfaces remain identifier-free.
@@ -266,13 +296,14 @@ This Phase 2 code release is not equivalent to a functioning pager.
 
 Still required under #100 and #77:
 
-1. connect a real external scraper/aggregator to the protected production metric endpoint;
-2. configure and verify alert routing to an accountable operator, including warning inhibition beneath matching critical alerts;
-3. exercise a benign alert drill and retain evidence tied to an exact deployed SHA;
-4. add and rehearse incident runbooks for authentication, database, deployment, realtime authorization, and privacy failures;
-5. perform a real backup/restore rehearsal against a production-equivalent snapshot;
-6. run bounded load qualification using synthetic/non-production data;
-7. add real realtime and database-pool signals before claiming those alert classes are covered;
-8. add external black-box/edge latency evidence before making end-user latency claims.
+1. connect a real external scraper/aggregator to the protected production metric endpoint using a stable instance-aware topology;
+2. configure and verify per-target scrape health plus alert routing to an accountable operator;
+3. configure warning inhibition and grouping for overlapping critical/ratio/repeated-error conditions;
+4. exercise a benign alert drill and retain evidence tied to an exact deployed SHA;
+5. add and rehearse incident runbooks for authentication, database, deployment, realtime authorization, and privacy failures;
+6. perform a real backup/restore rehearsal against a production-equivalent snapshot;
+7. run bounded load qualification using synthetic/non-production data;
+8. add real realtime and database-pool signals before claiming those alert classes are covered;
+9. add external black-box/edge latency evidence before making end-user latency claims.
 
 Until those are completed, the correct statement is: **alert policy and metric contracts are code-qualified, while live operational routing and recovery evidence remain unproven.**
