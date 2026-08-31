@@ -1,0 +1,149 @@
+name: dogOS Events Reward Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/events/**'
+      - 'apps/api/src/gamification/**'
+      - 'apps/api/src/care-events/**'
+      - 'apps/api/src/social-adventure/**'
+      - 'apps/web/src/app/profile/page.tsx'
+      - 'apps/web/src/lib/api.ts'
+      - 'apps/web/src/lib/stores/gamification-store.ts'
+      - 'apps/mobile/src/api/gamification.ts'
+      - 'apps/mobile/src/screens/ProfileScreen.tsx'
+      - 'docs/DOGOS_EVENTS_REWARD_AUTHORITY.md'
+      - '.github/scripts/assert-events-reward-authority.py'
+      - '.github/workflows/dogos-events-reward-authority-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: events-reward-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  JWT_SECRET: ci-only-events-reward-authority-secret
+  ML_SERVICE_ENABLED: 'false'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+
+jobs:
+  qualify:
+    name: Event participation + legacy reward retirement
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Validate and apply canonical database
+        run: |
+          pnpm --filter @woof/database exec prisma validate
+          pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Materialize canonical reward-authority formatting
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/events/events.service.ts
+          apps/api/src/events/events.module.ts
+          apps/api/src/events/events.reward-authority.spec.ts
+          apps/api/src/gamification/gamification.service.ts
+          apps/api/src/gamification/gamification.module.ts
+          apps/api/src/gamification/gamification.readonly.spec.ts
+          apps/api/src/care-events/care-events.service.ts
+          apps/api/src/care-events/care-events.integration.spec.ts
+          apps/web/src/app/profile/page.tsx
+          apps/web/src/lib/api.ts
+          apps/mobile/src/screens/ProfileScreen.tsx
+          docs/DOGOS_EVENTS_REWARD_AUTHORITY.md
+          .github/workflows/dogos-events-reward-authority-ci.yml
+
+      - name: Enforce committed reward-authority formatting
+        run: git diff --exit-code
+
+      - name: Validate reward authority source contract
+        run: |
+          python -m py_compile .github/scripts/assert-events-reward-authority.py
+          python .github/scripts/assert-events-reward-authority.py
+
+      - name: Lint owned API boundaries
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/events/events.service.ts
+          src/events/events.module.ts
+          src/events/events.reward-authority.spec.ts
+          src/gamification/gamification.service.ts
+          src/gamification/gamification.module.ts
+          src/gamification/gamification.readonly.spec.ts
+          src/care-events/care-events.service.ts
+          src/care-events/care-events.integration.spec.ts
+
+      - name: Lint Web reward-authority surfaces
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/profile/page.tsx
+          src/lib/api.ts
+
+      - name: Lint Mobile reward-authority surface
+        run: >-
+          pnpm --filter @woof/mobile exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/screens/ProfileScreen.tsx
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Type-check Mobile
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Run event participation and legacy compatibility contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/events/events.reward-authority.spec.ts
+          src/gamification/gamification.readonly.spec.ts
+          src/care-events/care-events.integration.spec.ts
+          src/social-adventure/social-adventure.policy.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
+
+      - name: Build Web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com/api/v1
+        run: pnpm --filter @woof/web build

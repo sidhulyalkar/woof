@@ -61,7 +61,7 @@ describe('CareEventsService integration', () => {
     return { userId: user.id, petId: pet.id };
   }
 
-  it('issues exactly one reward for simultaneous requests with the same dedupe key', async () => {
+  it('issues exactly one reward for simultaneous requests with the same dedupe key without mutating legacy points', async () => {
     const { userId, petId } = await fixture('dedupe');
     const input = {
       userId,
@@ -100,7 +100,8 @@ describe('CareEventsService integration', () => {
 
     expect(eventRows[0]?.count).toBe(1);
     expect(ledgerRows[0]?.count).toBe(1);
-    expect(user.totalPoints).toBe(newlyIssued[0]?.bondXp);
+    expect(newlyIssued[0]?.bondXp).toBeGreaterThan(0);
+    expect(user.totalPoints).toBe(0);
   });
 
   it('serializes distinct simultaneous rewards so a pathway cap cannot be raced', async () => {

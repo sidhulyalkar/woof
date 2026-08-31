@@ -226,15 +226,6 @@ export class CareEventsService {
         )
       `);
 
-      if (reward.bondXp > 0) {
-        // Keep the legacy aggregate synchronized for older surfaces while all new
-        // reward reads come from the immutable ledger.
-        await tx.user.update({
-          where: { id: input.userId },
-          data: { totalPoints: { increment: reward.bondXp } },
-        });
-      }
-
       return {
         careEventId: eventId,
         ledgerId,

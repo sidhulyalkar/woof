@@ -1,17 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationService } from '../gamification/gamification.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateRSVPDto, EventFeedbackDto } from './dto/rsvp-event.dto';
 
 @Injectable()
 export class EventsService {
-  constructor(
-    private prisma: PrismaService,
-    private gamificationService: GamificationService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async create(hostUserId: string, dto: CreateEventDto) {
     return this.prisma.communityEvent.create({
@@ -194,6 +190,16 @@ export class EventsService {
   }
 
   async checkIn(eventId: string, userId: string) {
+    const checkedInAt = new Date();
+    const transition = await this.prisma.eventRSVP.updateMany({
+      where: {
+        eventId,
+        userId,
+        checkedInAt: null,
+      },
+      data: { checkedInAt },
+    });
+
     const rsvp = await this.prisma.eventRSVP.findUnique({
       where: {
         eventId_userId: {
@@ -207,33 +213,16 @@ export class EventsService {
       throw new BadRequestException('You must RSVP to this event before checking in');
     }
 
-    if (rsvp.checkedInAt) {
-      throw new BadRequestException('You have already checked in to this event');
+    if (transition.count === 0) {
+      return {
+        ...rsvp,
+        message: 'Already checked in. Attendance is unchanged.',
+      };
     }
 
-    const updatedRSVP = await this.prisma.eventRSVP.update({
-      where: {
-        eventId_userId: {
-          eventId,
-          userId,
-        },
-      },
-      data: {
-        checkedInAt: new Date(),
-      },
-    });
-
-    await this.gamificationService.awardPoints({
-      userId,
-      points: 5,
-      reason: 'event_attended',
-      relatedEntityId: eventId,
-    });
-
     return {
-      ...updatedRSVP,
-      pointsAwarded: 5,
-      message: 'Checked in successfully! You earned 5 points.',
+      ...rsvp,
+      message: 'Checked in successfully. Thanks for joining the community event.',
     };
   }
 
@@ -251,68 +240,38 @@ export class EventsService {
       throw new BadRequestException('You must RSVP to this event to leave feedback');
     }
 
-    const existingFeedback = await this.prisma.eventFeedback.findUnique({
+    const feedback = await this.prisma.eventFeedback.upsert({
       where: {
         eventId_userId: {
           eventId,
           userId,
         },
       },
-    });
-
-    let feedback;
-    let isNewFeedback = false;
-
-    if (existingFeedback) {
-      feedback = await this.prisma.eventFeedback.update({
-        where: {
-          eventId_userId: {
-            eventId,
-            userId,
-          },
-        },
-        data: {
-          vibeScore: dto.vibeScore,
-          petDensity: dto.petDensity,
-          surfaceType: dto.surfaceType,
-          crowding: dto.crowding,
-          noiseLevel: dto.noiseLevel,
-          tags: dto.tags || [],
-          notes: dto.notes,
-        },
-      });
-    } else {
-      feedback = await this.prisma.eventFeedback.create({
-        data: {
-          eventId,
-          userId,
-          vibeScore: dto.vibeScore,
-          petDensity: dto.petDensity,
-          surfaceType: dto.surfaceType,
-          crowding: dto.crowding,
-          noiseLevel: dto.noiseLevel,
-          tags: dto.tags || [],
-          notes: dto.notes,
-        },
-      });
-      isNewFeedback = true;
-    }
-
-    if (isNewFeedback) {
-      await this.gamificationService.awardPoints({
+      create: {
+        eventId,
         userId,
-        points: 3,
-        reason: 'event_feedback',
-        relatedEntityId: eventId,
-      });
-    }
+        vibeScore: dto.vibeScore,
+        petDensity: dto.petDensity,
+        surfaceType: dto.surfaceType,
+        crowding: dto.crowding,
+        noiseLevel: dto.noiseLevel,
+        tags: dto.tags || [],
+        notes: dto.notes,
+      },
+      update: {
+        vibeScore: dto.vibeScore,
+        petDensity: dto.petDensity,
+        surfaceType: dto.surfaceType,
+        crowding: dto.crowding,
+        noiseLevel: dto.noiseLevel,
+        tags: dto.tags || [],
+        notes: dto.notes,
+      },
+    });
 
     return {
       ...feedback,
-      pointsAwarded: isNewFeedback ? 3 : 0,
-      message: isNewFeedback
-        ? 'Feedback submitted! You earned 3 points.'
-        : 'Feedback updated successfully.',
+      message: 'Feedback saved. Thanks for helping the community learn about this event.',
     };
   }
 
