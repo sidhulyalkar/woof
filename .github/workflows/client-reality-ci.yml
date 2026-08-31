@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/web/**'
       - '.github/scripts/assert-client-reality.py'
+      - '.github/scripts/assert-client-reality-artifact.py'
       - '.github/scripts/assert-web-csp-runtime.py'
       - '.github/scripts/client-reality-web-artifact.py'
       - '.github/scripts/playwright-production-web.sh'
@@ -147,6 +148,7 @@ jobs:
       - name: Validate client-reality source contract
         run: |
           python -m py_compile .github/scripts/assert-client-reality.py
+          python -m py_compile .github/scripts/assert-client-reality-artifact.py
           python -m py_compile .github/scripts/assert-web-csp-runtime.py
           python -m py_compile .github/scripts/client-reality-web-artifact.py
           python .github/scripts/client-reality-web-artifact.py self-test
@@ -155,6 +157,7 @@ jobs:
       - name: Enforce client-reality source contract
         run: |
           python .github/scripts/assert-client-reality.py
+          python .github/scripts/assert-client-reality-artifact.py
           python .github/scripts/assert-web-csp-runtime.py
 
       - name: Type-check web
@@ -193,7 +196,7 @@ jobs:
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Build Web client once for all browser engines
+      - name: Build Web client for production-server qualification
         run: pnpm --filter @woof/web build
 
       - name: Package SHA and config-bound Web artifact
