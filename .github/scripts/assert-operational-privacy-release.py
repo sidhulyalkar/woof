@@ -31,17 +31,19 @@ require(
     "apps/api/src/observability/release-identity.ts",
     "GIT_SHA_PATTERN",
     "UNKNOWN_RELEASE",
+    "resolveReleaseIdentity(value: string | undefined)",
+    "resolveProcessReleaseIdentity()",
     "process.env.WOOF_RELEASE_SHA",
 )
 require(
     "apps/api/src/observability/observability.service.ts",
-    "release: resolveReleaseIdentity()",
-    "const release = resolveReleaseIdentity()",
+    "release: resolveProcessReleaseIdentity()",
+    "const release = resolveProcessReleaseIdentity()",
     "release,",
 )
 require(
     "apps/api/src/sentry.ts",
-    "release: resolveReleaseIdentity()",
+    "release: resolveProcessReleaseIdentity()",
     "sendDefaultPii: false",
     "scrubSentryEvent",
 )
