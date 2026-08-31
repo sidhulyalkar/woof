@@ -215,10 +215,12 @@ for source in (WEB / "src").rglob("*"):
 for marker in [
     "serializePersistedAuthSession",
     "LEGACY_RAW_AUTH_TOKEN_KEY",
-    "await page.goto('/login')",
+    "await page.goto('/login', { waitUntil: 'networkidle' })",
     "window.localStorage.setItem(storageKey, persistedState)",
     "window.localStorage.removeItem(legacySessionKey)",
     "window.localStorage.removeItem(legacyRawTokenKey)",
+    "window.localStorage.getItem(storageKey)",
+    "Canonical authenticated session was not retained",
     "Every caller",
     "authenticated cold start",
 ]:
@@ -333,4 +335,4 @@ for marker in [
     require(release_polish_workflow, marker)
 reject(release_polish_workflow, "https://api.example.com/api/v1")
 
-print("Client reality contract preserves server-verified auth, real persistence hydration, side-effect-free fixture seeding, HTTPS policy, and build-identical browser evidence.")
+print("Client reality contract preserves server-verified auth, real persistence hydration, settled side-effect-free fixture seeding, HTTPS policy, and build-identical browser evidence.")
