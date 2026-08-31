@@ -173,7 +173,6 @@ jobs:
 
   web-build:
     name: Build exact production Web artifact once
-    needs: contract
     runs-on: ubuntu-24.04
 
     steps:
