@@ -73,7 +73,10 @@ export async function seedAuthenticatedSession(
     [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY, persisted] as const
   );
 
-  const stored = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), AUTH_STORAGE_KEY);
+  const stored = await page.evaluate(
+    (storageKey) => window.localStorage.getItem(storageKey),
+    AUTH_STORAGE_KEY
+  );
   if (stored !== persisted) {
     throw new Error('Canonical authenticated session was not retained by the settled seed page.');
   }
