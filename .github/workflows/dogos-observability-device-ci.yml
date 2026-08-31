@@ -14,8 +14,11 @@ on:
       - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/.env.example'
       - '.github/scripts/assert-database-ownership.py'
+      - '.github/scripts/woof-alert-policy.py'
       - '.github/workflows/dogos-observability-device-ci.yml'
+      - 'ops/alerts/**'
       - 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md'
+      - 'docs/operations/ALERT_POLICY_V1.md'
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ env:
 
 jobs:
   qualify:
-    name: Real readiness + private metrics + device contract qualification
+    name: Real readiness + private metrics + alert authority + device contract qualification
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -55,6 +58,7 @@ jobs:
       ENABLE_DOGOS_CONNECTORS: 'true'
       CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
       OPS_METRICS_TOKEN: ci-only-ops-metrics-secret-0123456789abcdef
+      WOOF_RELEASE_SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
     steps:
       - uses: actions/checkout@v7
@@ -76,7 +80,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject database ownership when observability or device source changes
+      - name: Reject database ownership when observability, alert, or device source changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -89,13 +93,16 @@ jobs:
             --enforce-if-changed 'apps/api/src/config/env.validation.ts' \
             --enforce-if-changed 'apps/api/src/config/env.validation.spec.ts' \
             --enforce-if-changed 'apps/api/.env.example' \
+            --enforce-if-changed '.github/scripts/woof-alert-policy.py' \
+            --enforce-if-changed 'ops/alerts/**' \
             --enforce-if-changed 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md' \
+            --enforce-if-changed 'docs/operations/ALERT_POLICY_V1.md' \
             --enforce-if-changed '.github/workflows/dogos-observability-device-ci.yml'
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Check Observability + Device formatting
+      - name: Check Observability + Alert + Device formatting
         run: >-
           pnpm exec prettier --check
           apps/api/src/observability
@@ -107,8 +114,34 @@ jobs:
           apps/api/src/app.service.ts
           apps/api/src/config/env.validation.ts
           apps/api/src/config/env.validation.spec.ts
+          ops/alerts/woof-api-alert-policy.v1.json
+          ops/alerts/fixtures/woof-api-alert-fixtures.v1.json
           .github/workflows/dogos-observability-device-ci.yml
           docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md
+          docs/operations/ALERT_POLICY_V1.md
+
+      - name: Validate deterministic alert policy authority
+        run: |
+          python -m py_compile .github/scripts/woof-alert-policy.py
+          python .github/scripts/woof-alert-policy.py --check
+          python .github/scripts/woof-alert-policy.py --verify-fixtures
+          grep -Fq 'histogram_quantile(0.95' ops/alerts/woof-api.rules.yml
+          grep -Fq 'absent(woof_process_uptime_seconds' ops/alerts/woof-api.rules.yml
+          grep -Fq 'operation_class: "today_read"' ops/alerts/woof-api.rules.yml
+          grep -Fq 'release: "unknown"' ops/alerts/woof-api.rules.yml
+          grep -Fq '"realtime_admission_error_rate"' ops/alerts/woof-api-alert-policy.v1.json
+          grep -Fq '"database_pool_saturation"' ops/alerts/woof-api-alert-policy.v1.json
+
+      - name: Enforce identifier-free alert labels and fixtures
+        run: |
+          if grep -REn '(userId|petId|externalObjectId|externalPetId|accountId|request_url|requestUrl|email|handle)' ops/alerts; then
+            echo 'Operational alert policy cannot contain user/pet/account/provider identifiers, request URLs, emails, or handles.'
+            exit 1
+          fi
+          if grep -REn '(request\.body|request\.query|request\.params|rawPayload|raw_payload)' ops/alerts; then
+            echo 'Operational alert policy cannot depend on private request or raw payload data.'
+            exit 1
+          fi
 
       - name: Lint Observability + Device API surface
         run: >-
@@ -145,6 +178,10 @@ jobs:
           grep -Fq 'providerExternalIdentifiersCollected: false' "$metrics"
           grep -Fq 'rawPayloadsCollected: false' "$metrics"
           grep -Fq 'requestUrlsCollected: false' "$metrics"
+          grep -Fq 'REQUEST_DURATION_BUCKETS_MS' "$metrics"
+          grep -Fq 'woof_http_request_duration_ms_bucket' "$metrics"
+          grep -Fq 'resolveReleaseIdentity' "$metrics"
+          grep -Fq 'woof_release_info' "$metrics"
 
       - name: Enforce fail-closed protected metrics access
         run: |
