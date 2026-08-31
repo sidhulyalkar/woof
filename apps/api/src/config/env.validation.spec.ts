@@ -126,7 +126,7 @@ describe('validateEnvironment', () => {
     ).toThrow(/CORS_ORIGIN.*HTTPS origins/i);
   });
 
-  it.each(['http://app.example.com', '*', 'null', 'https://app.example.com/path']) (
+  it.each(['http://app.example.com', '*', 'null', 'https://app.example.com/path'])(
     'rejects unsafe production CORS origin %s',
     (corsOrigin) => {
       expect(() =>
