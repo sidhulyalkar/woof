@@ -6,14 +6,18 @@ on:
     paths:
       - 'apps/api/src/caregiver/**'
       - 'apps/api/src/app.module.ts'
+      - 'apps/web/playwright.config.ts'
+      - 'apps/web/src/components/auth-guard.tsx'
       - 'apps/web/src/lib/api/caregiver.ts'
       - 'apps/web/src/components/caregiver/**'
       - 'apps/web/src/components/today/companion-today-page.tsx'
       - 'apps/web/src/app/caregiver/**'
+      - 'apps/web/e2e/support/session.ts'
       - 'apps/web/e2e/caregiver-authority.spec.ts'
       - 'packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/**'
       - '.github/workflows/dogos-caregiver-authority-ci.yml'
       - '.github/scripts/assert-database-ownership.py'
+      - '.github/scripts/playwright-production-web.sh'
       - 'docs/DOGOS_CAREGIVER_AUTHORITY_V1.md'
 
 permissions:
@@ -55,6 +59,7 @@ jobs:
       ENABLE_ADVENTURE_SYSTEM: 'true'
       PGPASSWORD: postgres
       NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      PLAYWRIGHT_EXTERNAL_SERVER: '1'
 
     steps:
       - uses: actions/checkout@v7
@@ -151,6 +156,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate production Web lifecycle script
+        run: bash -n .github/scripts/playwright-production-web.sh
+
       - name: Lint Caregiver API surface
         run: >-
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
@@ -178,8 +186,14 @@ jobs:
       - name: Lint Web
         run: pnpm --filter @woof/web lint
 
+      - name: Build production Web for browser authority qualification
+        run: pnpm --filter @woof/web build
+
       - name: Install Playwright Chromium
         run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Start and prove production Web server
+        run: bash .github/scripts/playwright-production-web.sh start
 
       - name: Run caregiver browser authority journey
         run: >-
@@ -188,5 +202,15 @@ jobs:
           --project=chromium
           --reporter=line
 
-      - name: Build production Web
-        run: pnpm --filter @woof/web build
+      - name: Upload production Web log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: caregiver-authority-web-${{ github.run_id }}
+          path: ${{ runner.temp }}/woof-playwright-web.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop production Web server
+        if: always()
+        run: bash .github/scripts/playwright-production-web.sh stop

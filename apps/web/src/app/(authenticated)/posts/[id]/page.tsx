@@ -8,13 +8,13 @@ import { AppImage } from '@/components/ui/app-image';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { useUIStore } from '@/store/ui';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { usePost, useComments, useCreateComment, useLikePost } from '@/lib/api/hooks';
 
 export default function PostDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { showToast } = useUIStore();
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const [comment, setComment] = useState('');
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
@@ -227,11 +227,11 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
                 <ProfileAvatar
-                  src={user?.avatar || getPlaceholderAvatar(user?.username || 'You', 'user')}
-                  alt={user?.username || 'You'}
+                  src={user?.avatarUrl || getPlaceholderAvatar(user?.handle || 'You', 'user')}
+                  alt={user?.handle || 'You'}
                   type="user"
                   size="sm"
-                  fallbackText={(user?.username || 'You').slice(0, 2).toUpperCase()}
+                  fallbackText={(user?.handle || 'You').slice(0, 2).toUpperCase()}
                 />
                 <Input
                   value={comment}

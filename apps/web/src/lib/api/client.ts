@@ -33,8 +33,12 @@ const axiosClient = axios.create({
   withCredentials: false,
 });
 
+export function getCanonicalAccessToken() {
+  return useAuthStore.getState().token;
+}
+
 axiosClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  const token = getCanonicalAccessToken();
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -45,9 +49,7 @@ export function clearStaleSessionAfterUnauthorized() {
   if (typeof window === 'undefined') return false;
 
   const auth = useAuthStore.getState();
-  const requestHadAuthToken = Boolean(
-    localStorage.getItem('authToken') || auth.token || auth.isAuthenticated
-  );
+  const requestHadAuthToken = Boolean(auth.token || auth.isAuthenticated);
   if (!requestHadAuthToken) return false;
 
   auth.logout();

@@ -26,8 +26,8 @@ import {
   type HandlerAction,
   behaviorVisionApi,
 } from '@/lib/api/behavior-vision';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { cn } from '@/lib/utils';
-import { useSessionStore } from '@/store/session';
 
 const contexts: Array<{ value: BehaviorContext; label: string }> = [
   { value: 'home', label: 'Home' },
@@ -74,7 +74,7 @@ function makeSessionKey() {
 }
 
 export default function BehaviorObservePage() {
-  const user = useSessionStore((state) => state.user);
+  const user = useAuthStore((state) => state.user);
   const pets = useMemo(() => user?.pets ?? [], [user?.pets]);
   const [petId, setPetId] = useState(pets[0]?.id ?? '');
   const [context, setContext] = useState<BehaviorContext>('street');

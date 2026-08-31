@@ -1,12 +1,15 @@
 import type { BrowserContext, Page, Route } from '@playwright/test';
 import {
   AUTH_STORAGE_KEY,
+  LEGACY_RAW_AUTH_TOKEN_KEY,
   LEGACY_SESSION_STORAGE_KEY,
   serializePersistedAuthSession,
 } from '../../src/lib/stores/auth-persist';
 import type { AuthUser } from '../../src/lib/stores/auth-store';
 
 export type { AuthUser };
+
+export const E2E_ORIGIN = 'http://127.0.0.1:3000';
 
 export interface SeedAuthenticatedSessionOptions {
   user: AuthUser;
@@ -17,7 +20,7 @@ export interface SeedAuthenticatedSessionOptions {
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
   return {
-    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-origin': requestHeaders.origin ?? E2E_ORIGIN,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers':
       requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
@@ -39,10 +42,17 @@ async function fulfillAuthMe(route: Route, user: AuthUser) {
 
 /**
  * Seeds exactly the persisted client session production owns from a real
- * same-origin page. No inline init script is used, so CSP behavior remains real.
- * Reload after the write so every engine boots the application from the same
- * persisted-state lifecycle instead of relying on an already-mounted store to
- * notice a same-document localStorage mutation.
+ * same-origin public page. No inline init script or duplicate raw-token mirror
+ * is used, so CSP behavior and token authority remain representative of
+ * production.
+ *
+ * The public document must finish its own production hydration before the
+ * fixture writes storage. Otherwise a late Zustand persist hydration from the
+ * login page can overwrite the newly seeded credential with its earlier
+ * unauthenticated snapshot. After that settled boundary, deliberately do not
+ * reload or redirect. Every caller installs its domain routes and performs one
+ * explicit navigation to the surface under test; that navigation is the
+ * authenticated cold start and exercises persistence plus /auth/me authority.
  */
 export async function seedAuthenticatedSession(
   page: Page,
@@ -53,27 +63,34 @@ export async function seedAuthenticatedSession(
   }
 
   const persisted = serializePersistedAuthSession(user, token);
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   await page.evaluate(
-    ([storageKey, legacyKey, authToken, persistedState]) => {
-      window.localStorage.setItem('authToken', authToken);
+    ([storageKey, legacySessionKey, legacyRawTokenKey, persistedState]) => {
       window.localStorage.setItem(storageKey, persistedState);
-      window.localStorage.removeItem(legacyKey);
+      window.localStorage.removeItem(legacySessionKey);
+      window.localStorage.removeItem(legacyRawTokenKey);
     },
-    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, token, persisted] as const
+    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY, persisted] as const
   );
-  await page.reload({ waitUntil: 'domcontentloaded' });
+
+  const stored = await page.evaluate(
+    (storageKey) => window.localStorage.getItem(storageKey),
+    AUTH_STORAGE_KEY
+  );
+  if (stored !== persisted) {
+    throw new Error('Canonical authenticated session was not retained by the settled seed page.');
+  }
 }
 
 export async function clearAuthenticatedSession(page: Page): Promise<void> {
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   await page.evaluate(
-    ([storageKey, legacyKey]) => {
-      window.localStorage.removeItem('authToken');
+    ([storageKey, legacySessionKey, legacyRawTokenKey]) => {
       window.localStorage.removeItem(storageKey);
-      window.localStorage.removeItem(legacyKey);
+      window.localStorage.removeItem(legacySessionKey);
+      window.localStorage.removeItem(legacyRawTokenKey);
     },
-    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY] as const
+    [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY] as const
   );
 }
 
@@ -87,7 +104,7 @@ export interface RoughLocation {
 /** Grants geolocation through Playwright's browser context, preserving CSP. */
 export async function grantRoughLocation(
   context: BrowserContext,
-  { latitude, longitude, accuracy = 100, origin = 'http://localhost:3000' }: RoughLocation
+  { latitude, longitude, accuracy = 100, origin = E2E_ORIGIN }: RoughLocation
 ): Promise<void> {
   await context.grantPermissions(['geolocation'], { origin });
   await context.setGeolocation({ latitude, longitude, accuracy });

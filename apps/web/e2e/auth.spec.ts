@@ -1,9 +1,10 @@
 import { expect, test, type Route } from '@playwright/test';
+import { E2E_ORIGIN } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
   return {
-    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-origin': requestHeaders.origin ?? E2E_ORIGIN,
     'access-control-allow-methods': 'POST,OPTIONS',
     'access-control-allow-headers':
       requestHeaders['access-control-request-headers'] ?? 'content-type',
@@ -15,6 +16,26 @@ test.describe('Authentication Flow', () => {
   test('redirects unauthenticated visitors to login', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL(/.*login/);
+  });
+
+  test('binds the response CSP nonce to the Next runtime script', async ({ page }) => {
+    const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    if (!response) {
+      throw new Error('Login navigation did not produce a document response.');
+    }
+
+    const csp = response.headers()['content-security-policy'];
+    expect(csp).toContain("'strict-dynamic'");
+
+    const nonceMatch = csp.match(/'nonce-([^']+)'/);
+    const responseNonce = nonceMatch?.[1];
+    if (!responseNonce) {
+      throw new Error('Production CSP did not contain a request nonce.');
+    }
+
+    const runtimeScript = page.locator('script[src^="/_next/static/"]').first();
+    const runtimeNonce = await runtimeScript.evaluate((script: HTMLScriptElement) => script.nonce);
+    expect(runtimeNonce).toBe(responseNonce);
   });
 
   test('displays the login form accessibly', async ({ page }) => {

@@ -2,14 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTH_PERSIST_VERSION,
   AUTH_STORAGE_KEY,
+  LEGACY_RAW_AUTH_TOKEN_KEY,
   LEGACY_SESSION_STORAGE_KEY,
   serializePersistedAuthSession,
 } from './auth-persist';
 
 describe('persisted auth contract', () => {
-  it('owns one canonical storage key and an explicit schema version', () => {
+  it('owns one canonical storage key and names historical cleanup keys explicitly', () => {
     expect(AUTH_STORAGE_KEY).toBe('woof-auth-storage');
     expect(LEGACY_SESSION_STORAGE_KEY).toBe('woof-session-storage');
+    expect(LEGACY_RAW_AUTH_TOKEN_KEY).toBe('authToken');
     expect(AUTH_PERSIST_VERSION).toBe(0);
   });
 

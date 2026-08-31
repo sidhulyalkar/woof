@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { formatDistanceToNow } from 'date-fns';
 
 export interface Comment {
@@ -31,9 +31,9 @@ export function CommentSection({
   comments,
   isLoading,
   onAddComment,
-  onDeleteComment
+  onDeleteComment,
 }: CommentSectionProps) {
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -75,7 +75,10 @@ export function CommentSection({
             <div key={comment.id} className="flex gap-3 group">
               <ProfileAvatar
                 type="user"
-                src={comment.author?.avatar || getPlaceholderAvatar(comment.author?.username || 'Anonymous', 'user')}
+                src={
+                  comment.author?.avatar ||
+                  getPlaceholderAvatar(comment.author?.username || 'Anonymous', 'user')
+                }
                 fallbackText={(comment.author?.username || 'Anonymous').slice(0, 2).toUpperCase()}
                 size="sm"
               />
@@ -103,17 +106,15 @@ export function CommentSection({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-500 text-center py-2">
-          No comments yet
-        </p>
+        <p className="text-xs text-gray-500 text-center py-2">No comments yet</p>
       )}
 
       {/* Premium Comment Input */}
       <form onSubmit={handleSubmit} className="flex gap-3 pt-3 border-t border-gray-100">
         <ProfileAvatar
           type="user"
-          src={user?.avatar || getPlaceholderAvatar(user?.username || 'User', 'user')}
-          fallbackText={(user?.username || 'User').slice(0, 2).toUpperCase()}
+          src={user?.avatarUrl || getPlaceholderAvatar(user?.handle || 'User', 'user')}
+          fallbackText={(user?.handle || 'User').slice(0, 2).toUpperCase()}
           size="sm"
         />
 

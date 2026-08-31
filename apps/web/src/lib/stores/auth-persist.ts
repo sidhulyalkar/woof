@@ -1,5 +1,6 @@
 export const AUTH_STORAGE_KEY = 'woof-auth-storage';
 export const LEGACY_SESSION_STORAGE_KEY = 'woof-session-storage';
+export const LEGACY_RAW_AUTH_TOKEN_KEY = 'authToken';
 export const AUTH_PERSIST_VERSION = 0 as const;
 
 export type PersistedAuthSnapshot<TUser> = {

@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import { GeistMono } from 'geist/font/mono';
 import { Analytics } from '@vercel/analytics/next';
@@ -57,11 +58,16 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // A nonce CSP is request-specific. Reading request headers at the root keeps
+  // every App Router page dynamically rendered so Next can apply the middleware
+  // nonce to framework, page, and inline runtime scripts during SSR.
+  await headers();
+
   return (
     <html lang="en">
       <body className={`font-sans ${inter.variable} ${GeistMono.variable} antialiased`}>

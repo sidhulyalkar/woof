@@ -5,13 +5,13 @@ import { Plus, Search, Loader2, Bell } from 'lucide-react';
 import { PostCard } from '@/components/feed/PostCard';
 import { StoryCircle } from '@/components/feed/StoryCircle';
 import { useFeed } from '@/lib/api/hooks';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { useUIStore } from '@/store/ui';
 
 export function FeedScreen() {
   const router = useRouter();
   const { data: posts, isLoading, error } = useFeed();
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const { showToast } = useUIStore();
 
   return (
@@ -44,8 +44,8 @@ export function FeedScreen() {
       <div className="border-b border-gray-200/30 bg-white/70 backdrop-blur-md">
         <div className="max-w-3xl mx-auto flex gap-4 overflow-x-auto scrollbar-hide px-6 py-4">
           <StoryCircle
-            username={user?.username || 'You'}
-            avatar={user?.avatar}
+            username={user?.handle || 'You'}
+            avatar={user?.avatarUrl ?? undefined}
             isOwn
             onClick={() => showToast({ message: 'Story creation coming soon!', type: 'info' })}
           />
@@ -76,8 +76,18 @@ export function FeedScreen() {
           {error && (
             <div className="p-12 text-center bg-white/90 backdrop-blur-xl border border-gray-200/40 rounded-3xl shadow-lg">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-8 h-8 text-red-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <p className="text-base font-semibold text-gray-900 mb-2">Failed to load feed</p>
@@ -112,7 +122,10 @@ export function FeedScreen() {
           {posts && posts.length > 0 && (
             <div className="space-y-6">
               {posts.map((post) => (
-                <div key={post.id} className="bg-white/90 backdrop-blur-xl border border-gray-200/40 rounded-3xl shadow-lg hover:shadow-xl overflow-hidden transition-all duration-300">
+                <div
+                  key={post.id}
+                  className="bg-white/90 backdrop-blur-xl border border-gray-200/40 rounded-3xl shadow-lg hover:shadow-xl overflow-hidden transition-all duration-300"
+                >
                   <PostCard post={post} />
                 </div>
               ))}

@@ -6,7 +6,7 @@ import type { QuizResponse, QuizSession } from '@/types/quiz';
 import { QUIZ_QUESTIONS, QUIZ_SECTIONS } from '@/data/quizQuestions';
 import { QuizQuestionCard } from './QuizQuestionCard';
 import { useUIStore } from '@/store/ui';
-import { useSessionStore } from '@/store/session';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 interface OnboardingQuizProps {
   petId?: string;
@@ -15,7 +15,7 @@ interface OnboardingQuizProps {
 }
 
 export function OnboardingQuiz({ petId, onComplete, onSkip }: OnboardingQuizProps) {
-  const { user } = useSessionStore();
+  const user = useAuthStore((state) => state.user);
   const { showToast } = useUIStore();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<QuizResponse[]>([]);

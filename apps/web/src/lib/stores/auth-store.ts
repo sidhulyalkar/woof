@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AUTH_PERSIST_VERSION, AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY } from './auth-persist';
+import {
+  AUTH_PERSIST_VERSION,
+  AUTH_STORAGE_KEY,
+  LEGACY_RAW_AUTH_TOKEN_KEY,
+  LEGACY_SESSION_STORAGE_KEY,
+} from './auth-persist';
 
 export interface AuthPet {
   id: string;
@@ -44,17 +49,18 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
-function retireLegacySessionStorage() {
+function retireLegacyBrowserAuth() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_RAW_AUTH_TOKEN_KEY);
   }
 }
 
-// Historical clients may still carry the retired second Zustand session snapshot.
-// It is never allowed to hydrate into authority again. Loading the canonical store
-// opportunistically retires it, while /auth/me remains the server-authoritative
-// recovery path for any still-valid raw bearer session.
-retireLegacySessionStorage();
+// Historical clients may still carry retired browser auth mirrors. They are
+// never allowed to hydrate into authority again. Loading the canonical store
+// opportunistically retires them, while the persisted canonical bearer session
+// remains the only client-side credential representation.
+retireLegacyBrowserAuth();
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -65,18 +71,12 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
 
       setAuth: (user, token) => {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('authToken', token);
-        }
-        retireLegacySessionStorage();
+        retireLegacyBrowserAuth();
         set({ user, token, isAuthenticated: true, isLoading: false });
       },
 
       logout: () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('authToken');
-        }
-        retireLegacySessionStorage();
+        retireLegacyBrowserAuth();
         set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       },
 
@@ -95,6 +95,9 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => () => {
+        retireLegacyBrowserAuth();
+      },
     }
   )
 );

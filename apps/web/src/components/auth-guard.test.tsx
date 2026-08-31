@@ -20,13 +20,28 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
+const persistedUser = {
+  id: '123',
+  handle: 'persisted-user',
+  email: 'test@example.com',
+};
+
+function seedCanonicalCandidate() {
+  useAuthStore.setState({
+    user: persistedUser,
+    token: 'persisted-token',
+    isAuthenticated: true,
+    isLoading: false,
+  });
+}
+
 describe('AuthGuard', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.clear();
     mockMe.mockResolvedValue({
       id: '123',
-      handle: 'testuser',
+      handle: 'verified-user',
       email: 'test@example.com',
     });
     useAuthStore.setState({
@@ -35,68 +50,97 @@ describe('AuthGuard', () => {
       isAuthenticated: false,
       isLoading: false,
     });
+    await useAuthStore.persist.rehydrate();
   });
 
-  it('shows a loading state while a persisted session is being hydrated', () => {
-    localStorage.setItem('authToken', 'persisted-token');
-    mockMe.mockImplementation(() => new Promise(() => undefined));
+  it('uses the real persistence lifecycle before deciding an unauthenticated protected route', async () => {
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
 
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>,
-    );
-
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-  });
-
-  it('redirects unauthenticated visitors to login', async () => {
-    render(
-      <AuthGuard>
-        <div>Protected Content</div>
-      </AuthGuard>,
+      </AuthGuard>
     );
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/login');
     });
     expect(mockMe).not.toHaveBeenCalled();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
-  it('hydrates a valid persisted session before rendering protected content', async () => {
-    localStorage.setItem('authToken', 'persisted-token');
+  it('keeps protected content closed while the canonical persisted token is verified', () => {
+    seedCanonicalCandidate();
+    mockMe.mockImplementation(() => new Promise(() => undefined));
 
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>,
+      </AuthGuard>
+    );
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    expect(mockMe).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects a hydrated protected route with no canonical token to login', async () => {
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
+    );
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/login');
+    });
+    expect(mockMe).not.toHaveBeenCalled();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  });
+
+  it('refreshes canonical user state only after the server accepts the persisted token', async () => {
+    seedCanonicalCandidate();
+
+    render(
+      <AuthGuard>
+        <div>Protected Content</div>
+      </AuthGuard>
     );
 
     await waitFor(() => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
     expect(mockMe).toHaveBeenCalledTimes(1);
-    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState()).toMatchObject({
+      user: {
+        id: '123',
+        handle: 'verified-user',
+        email: 'test@example.com',
+      },
+      token: 'persisted-token',
+      isAuthenticated: true,
+    });
+    expect(useAuthStore.persist.hasHydrated()).toBe(true);
   });
 
-  it('renders protected children for an authenticated session', async () => {
-    useAuthStore.setState({
-      user: { id: '123', handle: 'testuser', email: 'test@example.com' },
-      token: 'mock-token',
-      isAuthenticated: true,
-      isLoading: false,
-    });
+  it('fails closed and retires canonical authority when server verification rejects the token', async () => {
+    seedCanonicalCandidate();
+    mockMe.mockRejectedValue(new Error('revoked session'));
 
     render(
       <AuthGuard>
         <div>Protected Content</div>
-      </AuthGuard>,
+      </AuthGuard>
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Protected Content')).toBeInTheDocument();
+      expect(mockReplace).toHaveBeenCalledWith('/login');
     });
-    expect(mockMe).not.toHaveBeenCalled();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    expect(useAuthStore.getState()).toMatchObject({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+    });
   });
 });
