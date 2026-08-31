@@ -10,14 +10,13 @@ Repository workflows standardize on these action majors:
 - `actions/setup-node@v7`
 - `pnpm/action-setup@v6`
 - `actions/upload-artifact@v7`
+- `actions/download-artifact@v8`
 - `github/codeql-action/init@v4`
 - `github/codeql-action/analyze@v4`
 
 These maintained action lines use the current GitHub Actions execution generation rather than silently retaining deprecated action runtimes. CodeQL v4 is the qualified static-analysis action family for this repository; changing its major is an infrastructure release, not a Dependabot auto-merge assumption.
 
-The repository does not use removed `actions/setup-node` inputs such as `always-auth`, and it does not depend on an `actions/download-artifact@v4` workflow contract.
-
-The Fly CLI setup action is additionally pinned to immutable upstream commit `fc53c09e1bc3be6f54706524e3b82c4f462f77be`, while the installed `flyctl` binary remains pinned to `0.4.76`. Deployment workflows must not float this action independently of the qualification lane.
+The repository does not use removed `actions/setup-node` inputs such as `always-auth`, and it does not depend on the retired `actions/download-artifact@v4` workflow contract. Client Reality v2 uses `actions/download-artifact@v8` only to transport a separately SHA-256-checked Web bundle; the artifact action itself is not treated as integrity authority.
 
 ## Product toolchain remains unchanged
 
@@ -54,13 +53,15 @@ Production Slack notification is optional. `SLACK_WEBHOOK` may be omitted withou
 
 1. uses the maintained checkout, pnpm, setup-node, and artifact-upload actions itself;
 2. proves the project runtime resolves to Node `20.20.2` and pnpm `8.15.1`;
-3. scans every workflow and rejects an unapproved major for standardized action families, including CodeQL, or an unapproved Fly setup ref;
-4. requires the qualified CodeQL init and analyze action families to remain present;
+3. scans every workflow and rejects an unapproved major for standardized action families, including artifact download and CodeQL, or an unapproved Fly setup ref;
+4. requires the qualified artifact-download, CodeQL init/analyze, and Fly setup action families to remain present where repository workflows depend on them;
 5. checks staging and production for explicit Fly/Vercel credential preflight contracts;
 6. rejects the legacy Slack action and verifies notification failure cannot own production release success;
 7. runs Prettier over the complete workflow inventory so malformed YAML cannot pass silently;
 8. performs a frozen lockfile install; and
 9. uploads a one-day qualification artifact so `actions/upload-artifact@v7` is exercised on a successful path.
+
+Client Reality itself is the runtime exercise for `actions/download-artifact@v8`: all four browser consumers must successfully download the same producer artifact, verify its independent SHA-256 sidecar and manifest, restore the checked build tree, and then run their browser contract. A successful action return without those independent checks is not sufficient evidence.
 
 A future action-major, deployment-identity, or notification-contract change should be an explicit, qualified infrastructure release rather than silent version drift.
 
