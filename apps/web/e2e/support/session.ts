@@ -46,11 +46,13 @@ async function fulfillAuthMe(route: Route, user: AuthUser) {
  * is used, so CSP behavior and token authority remain representative of
  * production.
  *
- * Deliberately do not reload or redirect after the storage write. Every caller
- * installs its domain routes first and then performs one explicit navigation to
- * the surface under test. That navigation is the authenticated cold start and
- * therefore exercises Zustand hydration plus /auth/me verification without
- * allowing the fixture to boot protected UI before its authority mocks exist.
+ * The public document must finish its own production hydration before the
+ * fixture writes storage. Otherwise a late Zustand persist hydration from the
+ * login page can overwrite the newly seeded credential with its earlier
+ * unauthenticated snapshot. After that settled boundary, deliberately do not
+ * reload or redirect. Every caller installs its domain routes and performs one
+ * explicit navigation to the surface under test; that navigation is the
+ * authenticated cold start and exercises persistence plus /auth/me authority.
  */
 export async function seedAuthenticatedSession(
   page: Page,
@@ -61,7 +63,7 @@ export async function seedAuthenticatedSession(
   }
 
   const persisted = serializePersistedAuthSession(user, token);
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   await page.evaluate(
     ([storageKey, legacySessionKey, legacyRawTokenKey, persistedState]) => {
       window.localStorage.setItem(storageKey, persistedState);
@@ -70,10 +72,15 @@ export async function seedAuthenticatedSession(
     },
     [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY, persisted] as const
   );
+
+  const stored = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), AUTH_STORAGE_KEY);
+  if (stored !== persisted) {
+    throw new Error('Canonical authenticated session was not retained by the settled seed page.');
+  }
 }
 
 export async function clearAuthenticatedSession(page: Page): Promise<void> {
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   await page.evaluate(
     ([storageKey, legacySessionKey, legacyRawTokenKey]) => {
       window.localStorage.removeItem(storageKey);
