@@ -90,9 +90,7 @@ describe('OperationalMetricsService', () => {
 
     const metrics = service.prometheus();
 
-    expect(metrics).toContain(
-      `woof_release_info{service="woof-api",release="${RELEASE_SHA}"} 1`
-    );
+    expect(metrics).toContain(`woof_release_info{service="woof-api",release="${RELEASE_SHA}"} 1`);
     expect(metrics).toContain('operation="ConnectorsController.disconnect"');
     expect(metrics).toContain('status_class="4xx"');
     expect(metrics).toContain('woof_http_request_duration_ms_bucket');
