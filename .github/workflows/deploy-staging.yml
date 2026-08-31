@@ -127,26 +127,8 @@ jobs:
       - name: Verify deployed Web release and API integration
         env:
           WEB_URL: ${{ steps.deploy_web.outputs.url }}
+          EXPECTED_RELEASE: ${{ github.sha }}
         run: |
           html=$(curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 \
             "${WEB_URL}/demo")
-          WEB_HTML="$html" node - <<'NODE'
-          const html = process.env.WEB_HTML || '';
-          const expectedRelease = process.env.GITHUB_SHA;
-          const expectedApi = process.env.EXPECTED_API_URL;
-
-          function meta(name) {
-            const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const match = html.match(new RegExp(`<meta[^>]*name=["']${escaped}["'][^>]*content=["']([^"']+)["']`, 'i'));
-            return match?.[1] ?? null;
-          }
-
-          const release = meta('woof-release');
-          const apiOrigin = meta('woof-api-origin');
-          if (release !== expectedRelease) {
-            throw new Error(`Web release mismatch: expected ${expectedRelease}, received ${release}`);
-          }
-          if (apiOrigin !== expectedApi) {
-            throw new Error(`Web API origin mismatch: expected ${expectedApi}, received ${apiOrigin}`);
-          }
-          NODE
+          WEB_HTML="$html" node .github/scripts/verify-web-deployment-provenance.mjs
