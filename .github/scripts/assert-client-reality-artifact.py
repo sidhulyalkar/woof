@@ -15,7 +15,7 @@ workflow = WORKFLOW.read_text()
 artifact = ARTIFACT.read_text()
 
 required_workflow = [
-    "CLIENT_REALITY_API_URL: http://127.0.0.1:59999/api/v1",
+    "NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1",
     "web-build:",
     "name: Build exact production Web artifact once",
     "needs: contract",
@@ -23,7 +23,7 @@ required_workflow = [
     "python .github/scripts/client-reality-web-artifact.py create",
     '--event-head-sha "${{ github.event.pull_request.head.sha }}"',
     '--event-base-sha "${{ github.event.pull_request.base.sha }}"',
-    '--api-url "${CLIENT_REALITY_API_URL}"',
+    '--api-url "${NEXT_PUBLIC_API_URL}"',
     "uses: actions/upload-artifact@v7",
     "name: client-reality-web-${{ github.run_id }}",
     "browser-matrix:",
@@ -41,6 +41,12 @@ required_workflow = [
 missing = [marker for marker in required_workflow if marker not in workflow]
 if missing:
     raise SystemExit(f"Client Reality shared-artifact workflow is incomplete: {missing}")
+
+if "NEXT_PUBLIC_API_URL: ${{ env." in workflow:
+    raise SystemExit(
+        "Client Reality must not define a job env variable from another env value; "
+        "the workflow-level public API URL is the single build/runtime authority"
+    )
 
 build_command = "pnpm --filter @woof/web build"
 if workflow.count(build_command) != 1:
