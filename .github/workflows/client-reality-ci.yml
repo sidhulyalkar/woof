@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/web/**'
       - '.github/scripts/assert-client-reality.py'
+      - '.github/scripts/assert-web-csp-runtime.py'
       - '.github/scripts/playwright-production-web.sh'
       - '.github/workflows/client-reality-ci.yml'
       - 'package.json'
@@ -49,6 +50,7 @@ jobs:
           pnpm exec prettier --write \
             apps/web/playwright.config.ts \
             apps/web/src/middleware.ts \
+            apps/web/src/app/layout.tsx \
             apps/web/src/lib/security/transport.ts \
             apps/web/src/lib/security/transport.test.ts \
             apps/web/src/lib/stores/auth-store.ts \
@@ -69,6 +71,7 @@ jobs:
             apps/web/src/components/feed/CommentSection.tsx \
             apps/web/src/components/feed/CreatePostModal.tsx \
             apps/web/e2e/support/session.ts \
+            apps/web/e2e/auth.spec.ts \
             apps/web/e2e/companion-onramp.spec.ts \
             apps/web/e2e/navigation-spine.spec.ts \
             apps/web/e2e/caregiver-authority.spec.ts \
@@ -89,6 +92,7 @@ jobs:
           name: client-reality-formatted-${{ github.run_id }}
           path: |
             apps/web/src/middleware.ts
+            apps/web/src/app/layout.tsx
             apps/web/src/lib/security/transport.ts
             apps/web/src/lib/security/transport.test.ts
             apps/web/src/components/auth-guard.tsx
@@ -99,6 +103,7 @@ jobs:
             apps/web/src/components/feed/CommentSection.tsx
             apps/web/src/components/feed/CreatePostModal.tsx
             apps/web/e2e/support/session.ts
+            apps/web/e2e/auth.spec.ts
           if-no-files-found: error
           retention-days: 1
 
@@ -107,6 +112,7 @@ jobs:
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           playwright.config.ts
           src/middleware.ts
+          src/app/layout.tsx
           src/lib/security/transport.ts
           src/lib/security/transport.test.ts
           src/lib/stores/auth-store.ts
@@ -127,6 +133,7 @@ jobs:
           src/components/feed/CommentSection.tsx
           src/components/feed/CreatePostModal.tsx
           e2e/support/session.ts
+          e2e/auth.spec.ts
           e2e/companion-onramp.spec.ts
           e2e/navigation-spine.spec.ts
           e2e/caregiver-authority.spec.ts
@@ -138,10 +145,13 @@ jobs:
       - name: Validate client-reality source contract
         run: |
           python -m py_compile .github/scripts/assert-client-reality.py
+          python -m py_compile .github/scripts/assert-web-csp-runtime.py
           bash -n .github/scripts/playwright-production-web.sh
 
       - name: Enforce client-reality source contract
-        run: python .github/scripts/assert-client-reality.py
+        run: |
+          python .github/scripts/assert-client-reality.py
+          python .github/scripts/assert-web-csp-runtime.py
 
       - name: Type-check web
         run: pnpm --filter @woof/web type-check
