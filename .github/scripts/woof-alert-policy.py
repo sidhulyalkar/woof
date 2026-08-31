@@ -95,6 +95,18 @@ def validate_ratio_policy(name: str, config: dict[str, Any], minimum_key: str) -
     validate_duration(f"{name}.criticalFor", config.get("criticalFor"))
 
 
+def validate_count_policy(name: str, config: dict[str, Any]) -> None:
+    warning = config.get("warningCount")
+    critical = config.get("criticalCount")
+    if not isinstance(warning, int) or not isinstance(critical, int):
+        raise SystemExit(f"{name} warningCount and criticalCount must be integers")
+    if not 0 < warning < critical:
+        raise SystemExit(f"{name} warningCount must be positive and below criticalCount")
+    validate_duration(f"{name}.window", config.get("window"))
+    validate_duration(f"{name}.warningFor", config.get("warningFor"))
+    validate_duration(f"{name}.criticalFor", config.get("criticalFor"))
+
+
 def validate_policy(policy: dict[str, Any]) -> None:
     if policy.get("version") != "woof-api-alert-policy-v1":
         raise SystemExit("alert policy version must remain explicitly bound to woof-api-alert-policy-v1")
@@ -162,16 +174,8 @@ def validate_policy(policy: dict[str, Any]) -> None:
     validate_duration("todayReadP95Ms.warningFor", today.get("warningFor"))
     validate_duration("todayReadP95Ms.criticalFor", today.get("criticalFor"))
 
-    device = policy.get("deviceContractRejections", {})
-    if not isinstance(device.get("warningCount"), int) or not isinstance(
-        device.get("criticalCount"), int
-    ):
-        raise SystemExit("device contract rejection thresholds must be integers")
-    if not 0 < device["warningCount"] < device["criticalCount"]:
-        raise SystemExit("device warningCount must be positive and below criticalCount")
-    validate_duration("deviceContractRejections.window", device.get("window"))
-    validate_duration("deviceContractRejections.warningFor", device.get("warningFor"))
-    validate_duration("deviceContractRejections.criticalFor", device.get("criticalFor"))
+    validate_count_policy("requestDurationInvalid", policy.get("requestDurationInvalid", {}))
+    validate_count_policy("deviceContractRejections", policy.get("deviceContractRejections", {}))
 
     deferred = policy.get("deferredSignals")
     if not isinstance(deferred, list) or not deferred:
@@ -225,19 +229,23 @@ def ratio_expr(
     minimum: int,
     group_by: tuple[str, ...] = ("release",),
     selectors: tuple[str, ...] = (),
+    denominator_selector: str | None = None,
 ) -> str:
     grouping = ", ".join(group_by)
     selector_prefix = ",".join((f'service="{service}"', *selectors))
     bad = f"{selector_prefix},{bad_selector}"
+    denominator = selector_prefix
+    if denominator_selector is not None:
+        denominator = f"{denominator},{denominator_selector}"
     return "\n".join(
         [
             "(",
             f"  sum by ({grouping}) (rate({metric}{{{bad}}}[{window}]))",
             "  /",
-            f"  clamp_min(sum by ({grouping}) (rate({metric}{{{selector_prefix}}}[{window}])), 0.000001)",
+            f"  clamp_min(sum by ({grouping}) (rate({metric}{{{denominator}}}[{window}])), 0.000001)",
             f") >= {ratio}",
             f"and on ({grouping})",
-            f"sum by ({grouping}) (increase({metric}{{{selector_prefix}}}[{window}])) >= {minimum}",
+            f"sum by ({grouping}) (increase({metric}{{{denominator}}}[{window}])) >= {minimum}",
         ]
     )
 
@@ -287,7 +295,13 @@ def render_rules(policy: dict[str, Any]) -> str:
 
     readiness = policy["readinessFailures"]
     readiness_selector = f'service="{service}",operation="{readiness["operation"]}"'
-    readiness_missing_expr = f"absent(woof_http_requests_total{{{readiness_selector}}})"
+    readiness_missing_expr = "\n".join(
+        [
+            f'max by (release) (woof_release_info{{service="{service}"}})',
+            "unless on (release)",
+            f"count by (release) (woof_http_requests_total{{{readiness_selector}}})",
+        ]
+    )
     for severity, duration in [
         ("warning", missing["warningFor"]),
         ("critical", missing["criticalFor"]),
@@ -299,8 +313,7 @@ def render_rules(policy: dict[str, Any]) -> str:
             severity=severity,
             operation_class="readiness",
             summary=f"Woof API readiness probe telemetry is missing ({severity})",
-            description="The process may still export metrics, but no readiness probe series exists. Verify external probing before treating the service as healthy.",
-            static_release="unknown",
+            description="A scraped Woof release has no readiness-probe series. Verify external probing before treating that release as healthy.",
         )
     for severity, threshold, duration in [
         ("warning", readiness["warningFailures"], readiness["warningFor"]),
@@ -320,6 +333,7 @@ def render_rules(policy: dict[str, Any]) -> str:
             description="Database-backed readiness has returned server errors within the bounded alert window for release {{ $labels.release }}.",
         )
 
+    server_outcome_selector = 'status_class=~"2xx|3xx|5xx"'
     http = policy["http5xx"]
     http_selector = f'operation!~"{operation_regex(http["excludedOperations"])}"'
     for severity, ratio, duration in [
@@ -336,12 +350,13 @@ def render_rules(policy: dict[str, Any]) -> str:
                 ratio=ratio,
                 minimum=http["minimumRequests"],
                 selectors=(http_selector,),
+                denominator_selector=server_outcome_selector,
             ),
             duration=duration,
             severity=severity,
             operation_class="http_service",
             summary=f"Woof API application 5xx ratio is elevated ({severity})",
-            description="The bounded application-request 5xx ratio exceeded policy for release {{ $labels.release }} after the minimum request floor was met. Health and metrics endpoints are excluded from this ratio.",
+            description="The bounded application-request 5xx ratio exceeded policy for release {{ $labels.release }} after the minimum eligible-request floor was met. Health/metrics endpoints and 4xx client outcomes are excluded from this ratio.",
         )
 
     auth = policy["auth5xx"]
@@ -361,16 +376,19 @@ def render_rules(policy: dict[str, Any]) -> str:
                 minimum=auth["minimumRequests"],
                 group_by=("release", "operation"),
                 selectors=(auth_selector,),
+                denominator_selector=server_outcome_selector,
             ),
             duration=duration,
             severity=severity,
             operation_class="auth_session",
             summary=f"Woof authentication/session operation 5xx ratio is elevated ({severity})",
-            description="Auth/session operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}. Expected login 401s are intentionally excluded.",
+            description="Auth/session operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}. Expected 4xx authentication denials are excluded from both numerator and denominator.",
         )
 
     today = policy["todayReadP95Ms"]
-    today_selector = f'service="{service}",operation=~"{operation_regex(today["operations"])}"'
+    today_selector = (
+        f'service="{service}",operation=~"{operation_regex(today["operations"])}",status_class="2xx"'
+    )
     for severity, threshold, duration in [
         ("warning", today["warningMs"], today["warningFor"]),
         ("critical", today["criticalMs"], today["criticalFor"]),
@@ -395,7 +413,26 @@ def render_rules(policy: dict[str, Any]) -> str:
             severity=severity,
             operation_class="today_read",
             summary=f"Woof Today/read operation p95 latency is elevated ({severity})",
-            description="Histogram-derived p95 latency for {{ $labels.operation }} exceeded the initial operator guardrail for release {{ $labels.release }} after the minimum sample floor was met.",
+            description="Histogram-derived successful-response p95 handler latency for {{ $labels.operation }} exceeded the initial operator guardrail for release {{ $labels.release }} after the minimum sample floor was met.",
+        )
+
+    invalid_duration = policy["requestDurationInvalid"]
+    for severity, threshold, duration in [
+        ("warning", invalid_duration["warningCount"], invalid_duration["warningFor"]),
+        ("critical", invalid_duration["criticalCount"], invalid_duration["criticalFor"]),
+    ]:
+        expr = (
+            f'sum by (release, operation) (increase(woof_http_request_duration_invalid_total{{service="{service}"}}'
+            f'[{invalid_duration["window"]}])) >= {threshold}'
+        )
+        add(
+            name=f"WoofRequestDurationTelemetryInvalid{severity.title()}",
+            expr=expr,
+            duration=duration,
+            severity=severity,
+            operation_class="telemetry_quality",
+            summary=f"Woof request-duration telemetry is invalid ({severity})",
+            description="Request timing for {{ $labels.operation }} produced non-finite or negative samples for release {{ $labels.release }}. Invalid samples are excluded from latency histograms rather than recorded as fake zeroes.",
         )
 
     caregiver = policy["caregiverTransition5xx"]
@@ -415,12 +452,13 @@ def render_rules(policy: dict[str, Any]) -> str:
                 minimum=caregiver["minimumRequests"],
                 group_by=("release", "operation"),
                 selectors=(caregiver_selector,),
+                denominator_selector=server_outcome_selector,
             ),
             duration=duration,
             severity=severity,
             operation_class="caregiver_transition",
             summary=f"Woof caregiver transition operation 5xx ratio is elevated ({severity})",
-            description="Pet-scoped caregiver operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}.",
+            description="Pet-scoped caregiver operation {{ $labels.operation }} is returning server errors above policy for release {{ $labels.release }}. Client/authorization 4xx outcomes do not dilute the server-error ratio.",
         )
 
     connector = policy["connectorRejected"]
@@ -473,19 +511,23 @@ def render_rules(policy: dict[str, Any]) -> str:
 def validate_rendered_rules(rendered: str) -> None:
     required = [
         'operation!~"ObservabilityController[.]liveness|ObservabilityController[.]readiness|ObservabilityController[.]prometheus|ObservabilityController[.]snapshot"',
+        'status_class=~"2xx|3xx|5xx"',
+        'status_class="2xx"',
         "sum by (release, operation)",
         "sum by (le, release, operation)",
         "and on (release, operation)",
         "sum by (release, provider, kind)",
         "and on (release, provider, kind)",
+        "unless on (release)",
+        "woof_http_request_duration_invalid_total",
     ]
     for marker in required:
         if marker not in rendered:
             raise SystemExit(f"generated alert rules lost required grouping/exclusion contract: {marker}")
     if "\\." in rendered:
         raise SystemExit("generated PromQL must not rely on invalid backslash-dot Go string escapes")
-    if rendered.count("    - alert: ") != 19:
-        raise SystemExit("woof-api-alert-policy-v1 must render exactly 19 named alert rules")
+    if rendered.count("    - alert: ") != 21:
+        raise SystemExit("woof-api-alert-policy-v1 must render exactly 21 named alert rules")
 
 
 def classify_ratio(total: float, bad: float, minimum: int, warning: float, critical: float) -> str:
@@ -517,6 +559,7 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
             "http5xx": "UNKNOWN",
             "auth5xx": "UNKNOWN",
             "todayReadP95Ms": "UNKNOWN",
+            "requestDurationInvalid": "UNKNOWN",
             "caregiverTransition5xx": "UNKNOWN",
             "connectorRejected": "UNKNOWN",
             "deviceContractRejections": "UNKNOWN",
@@ -526,6 +569,7 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
     http = policy["http5xx"]
     auth = policy["auth5xx"]
     today = policy["todayReadP95Ms"]
+    invalid_duration = policy["requestDurationInvalid"]
     caregiver = policy["caregiverTransition5xx"]
     connector = policy["connectorRejected"]
     device = policy["deviceContractRejections"]
@@ -557,6 +601,11 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
             auth["criticalRatio"],
         ),
         "todayReadP95Ms": today_state,
+        "requestDurationInvalid": classify_count(
+            sample["requestDurationInvalid"],
+            invalid_duration["warningCount"],
+            invalid_duration["criticalCount"],
+        ),
         "caregiverTransition5xx": classify_ratio(
             sample["caregiverTransitions"],
             sample["caregiver5xx"],
