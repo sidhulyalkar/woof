@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ConnectorProvider } from '../connectors/connectors.types';
-import { resolveReleaseIdentity } from './release-identity';
+import { resolveProcessReleaseIdentity } from './release-identity';
 
 export const REQUEST_DURATION_BUCKETS_MS = [
   25, 50, 100, 250, 500, 750, 1000, 1500, 2500, 5000,
@@ -47,7 +47,7 @@ function validDurationMs(durationMs: number) {
 @Injectable()
 export class OperationalMetricsService {
   private readonly startedAt = new Date();
-  private readonly release = resolveReleaseIdentity();
+  private readonly release = resolveProcessReleaseIdentity();
   private readonly requests = new Map<string, RequestMetric>();
   private readonly connectorImports = new Map<string, ConnectorMetric>();
   private deviceContractRejections = 0;
