@@ -1,0 +1,81 @@
+{
+  "version": "woof-api-alert-policy-v1",
+  "service": "woof-api",
+  "evaluationInterval": "30s",
+  "telemetryMissing": {
+    "warningFor": "5m",
+    "criticalFor": "15m"
+  },
+  "unknownRelease": {
+    "warningFor": "5m"
+  },
+  "readinessFailures": {
+    "window": "5m",
+    "warningFailures": 1,
+    "criticalFailures": 3,
+    "warningFor": "1m",
+    "criticalFor": "1m",
+    "operation": "ObservabilityController.readiness"
+  },
+  "http5xx": {
+    "window": "5m",
+    "minimumRequests": 20,
+    "warningRatio": 0.02,
+    "criticalRatio": 0.05,
+    "warningFor": "5m",
+    "criticalFor": "2m"
+  },
+  "auth5xx": {
+    "window": "5m",
+    "minimumRequests": 10,
+    "warningRatio": 0.02,
+    "criticalRatio": 0.05,
+    "warningFor": "5m",
+    "criticalFor": "2m",
+    "operationRegex": "AuthController\\.(register|login|logout|logoutAll|getProfile)"
+  },
+  "todayReadP95Ms": {
+    "window": "10m",
+    "minimumRequests": 20,
+    "quantile": 0.95,
+    "warningMs": 750,
+    "criticalMs": 1500,
+    "warningFor": "10m",
+    "criticalFor": "5m",
+    "operationRegex": "AdventureController\\.getMine|CompanionController\\.(getState|getReadiness)|CaregiverController\\.getCaregiverToday"
+  },
+  "caregiverTransition5xx": {
+    "window": "5m",
+    "minimumRequests": 10,
+    "warningRatio": 0.02,
+    "criticalRatio": 0.05,
+    "warningFor": "5m",
+    "criticalFor": "2m",
+    "operationRegex": "CaregiverController\\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"
+  },
+  "connectorRejected": {
+    "window": "15m",
+    "minimumImports": 20,
+    "warningRatio": 0.1,
+    "criticalRatio": 0.25,
+    "warningFor": "10m",
+    "criticalFor": "5m"
+  },
+  "deviceContractRejections": {
+    "window": "15m",
+    "warningCount": 5,
+    "criticalCount": 20,
+    "warningFor": "10m",
+    "criticalFor": "5m"
+  },
+  "deferredSignals": [
+    {
+      "name": "realtime_admission_error_rate",
+      "reason": "No dedicated low-cardinality realtime admission/error metric exists yet; do not infer socket health from HTTP counters."
+    },
+    {
+      "name": "database_pool_saturation",
+      "reason": "No privacy-safe connection-pool saturation gauge exists yet; readiness is not a substitute for pool telemetry."
+    }
+  ]
+}
