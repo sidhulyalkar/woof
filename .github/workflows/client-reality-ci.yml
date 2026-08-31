@@ -7,6 +7,7 @@ on:
       - 'apps/web/**'
       - '.github/scripts/assert-client-reality.py'
       - '.github/scripts/assert-web-csp-runtime.py'
+      - '.github/scripts/client-reality-web-artifact.py'
       - '.github/scripts/playwright-production-web.sh'
       - '.github/workflows/client-reality-ci.yml'
       - 'package.json'
@@ -22,6 +23,7 @@ concurrency:
 env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
+  CLIENT_REALITY_API_URL: http://127.0.0.1:59999/api/v1
 
 jobs:
   contract:
@@ -146,6 +148,8 @@ jobs:
         run: |
           python -m py_compile .github/scripts/assert-client-reality.py
           python -m py_compile .github/scripts/assert-web-csp-runtime.py
+          python -m py_compile .github/scripts/client-reality-web-artifact.py
+          python .github/scripts/client-reality-web-artifact.py self-test
           bash -n .github/scripts/playwright-production-web.sh
 
       - name: Enforce client-reality source contract
@@ -165,9 +169,54 @@ jobs:
           src/lib/api/client.test.ts
           src/components/auth-guard.test.tsx
 
+  web-build:
+    name: Build exact production Web artifact once
+    needs: contract
+    runs-on: ubuntu-24.04
+    env:
+      NEXT_PUBLIC_API_URL: ${{ env.CLIENT_REALITY_API_URL }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web client once for all browser engines
+        run: pnpm --filter @woof/web build
+
+      - name: Package SHA and config-bound Web artifact
+        run: >-
+          python .github/scripts/client-reality-web-artifact.py create
+          --output-dir "${RUNNER_TEMP}/client-reality-artifact"
+          --event-head-sha "${{ github.event.pull_request.head.sha }}"
+          --event-base-sha "${{ github.event.pull_request.base.sha }}"
+          --api-url "${CLIENT_REALITY_API_URL}"
+          --node-version "${NODE_VERSION}"
+          --pnpm-version "${PNPM_VERSION}"
+
+      - name: Upload exact Web build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-reality-web-${{ github.run_id }}
+          path: ${{ runner.temp }}/client-reality-artifact
+          if-no-files-found: error
+          retention-days: 1
+
   browser-matrix:
     name: Critical path (${{ matrix.slug }})
-    needs: contract
+    needs: [contract, web-build]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -187,7 +236,7 @@ jobs:
             browser: webkit
 
     env:
-      NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
+      NEXT_PUBLIC_API_URL: ${{ env.CLIENT_REALITY_API_URL }}
       PLAYWRIGHT_EXTERNAL_SERVER: '1'
 
     steps:
@@ -207,8 +256,20 @@ jobs:
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Build Web client for production-server qualification
-        run: pnpm --filter @woof/web build
+      - name: Download exact Web build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: client-reality-web-${{ github.run_id }}
+          path: ${{ runner.temp }}/client-reality-artifact
+
+      - name: Verify and restore exact Web build artifact
+        run: >-
+          python .github/scripts/client-reality-web-artifact.py verify
+          --archive "${RUNNER_TEMP}/client-reality-artifact/client-reality-web.tar.gz"
+          --checksum "${RUNNER_TEMP}/client-reality-artifact/client-reality-web.tar.gz.sha256"
+          --event-head-sha "${{ github.event.pull_request.head.sha }}"
+          --event-base-sha "${{ github.event.pull_request.base.sha }}"
+          --api-url "${CLIENT_REALITY_API_URL}"
 
       - name: Install Playwright engine
         run: pnpm --filter @woof/web exec playwright install --with-deps ${{ matrix.browser }}
@@ -238,7 +299,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: client-reality-web-${{ matrix.slug }}-${{ github.run_id }}
+          name: client-reality-web-log-${{ matrix.slug }}-${{ github.run_id }}
           path: ${{ runner.temp }}/woof-playwright-web.log
           if-no-files-found: ignore
           retention-days: 7
