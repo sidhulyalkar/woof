@@ -1,0 +1,67 @@
+name: dogOS Operational Runbooks CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ops/runbooks/**'
+      - 'ops/alerts/woof-api-alert-policy.v1.json'
+      - '.github/scripts/assert-operational-runbooks.py'
+      - '.github/workflows/operational-runbooks-ci.yml'
+      - 'apps/api/src/auth/**'
+      - 'apps/api/src/chat/**'
+      - 'apps/api/src/connectors/**'
+      - 'apps/api/src/caregiver/**'
+      - 'apps/api/src/observability/**'
+      - 'apps/api/src/sentry.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'docs/EXTERNAL_INTEGRATION_INVENTORY.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operational-runbooks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Incident authority + runbook truth
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Reject whitespace damage
+        run: |
+          git diff --check HEAD^ HEAD -- . ':(exclude)ops/runbooks/*.md'
+          python - <<'PY'
+          from pathlib import Path
+
+          for path in Path('ops/runbooks').glob('*.md'):
+              for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+                  if not line.endswith((' ', '\t')):
+                      continue
+                  intentional_break = (
+                      line.endswith('  ')
+                      and not line.endswith('   ')
+                      and (
+                          line.startswith('Runbook ID: `')
+                          or line.startswith('Repository qualification: `')
+                      )
+                  )
+                  if not intentional_break:
+                      raise SystemExit(f'{path}:{line_number}: unexpected trailing whitespace')
+          PY
+
+      - name: Validate runbook and alert JSON
+        run: |
+          python -m json.tool ops/runbooks/runbook-registry.v1.json >/dev/null
+          python -m json.tool ops/alerts/woof-api-alert-policy.v1.json >/dev/null
+
+      - name: Validate operational runbook authority
+        run: |
+          python -m py_compile .github/scripts/assert-operational-runbooks.py
+          python .github/scripts/assert-operational-runbooks.py
