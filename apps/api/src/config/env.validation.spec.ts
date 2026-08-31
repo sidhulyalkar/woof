@@ -6,6 +6,12 @@ describe('validateEnvironment', () => {
     DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/woof_test',
     JWT_SECRET: 'test-secret-long-enough',
   };
+  const productionBase = {
+    ...base,
+    NODE_ENV: 'production',
+    JWT_SECRET: '8f3f89a744824fd99ee61797d67dc1023f6f7717762c4ab8',
+    CORS_ORIGIN: 'https://app.example.com',
+  };
   const behaviorReleasePin = {
     BEHAVIOR_VISION_RELEASE_ID: 'behavior-shadow-2026-08-27',
     BEHAVIOR_VISION_MODEL_VERSION: 'shadow-model-1',
@@ -95,8 +101,7 @@ describe('validateEnvironment', () => {
   it('requires stronger non-development secrets in production', () => {
     expect(() =>
       validateEnvironment({
-        ...base,
-        NODE_ENV: 'production',
+        ...productionBase,
         JWT_SECRET: 'dev-this-is-long-but-still-not-production-safe',
       })
     ).toThrow(/production/i);
@@ -105,22 +110,47 @@ describe('validateEnvironment', () => {
   it('requires an authenticated model service in production', () => {
     expect(() =>
       validateEnvironment({
-        ...base,
-        NODE_ENV: 'production',
-        JWT_SECRET: '8f3f89a744824fd99ee61797d67dc1023f6f7717762c4ab8',
+        ...productionBase,
         BEHAVIOR_VISION_SERVICE_URL: 'https://behavior.example.com',
         ...behaviorReleasePin,
       })
     ).toThrow(/BEHAVIOR_VISION_SERVICE_TOKEN/i);
   });
 
-  it('accepts a sufficiently strong production secret', () => {
+  it('fails closed when production CORS falls back to localhost', () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        CORS_ORIGIN: undefined,
+      })
+    ).toThrow(/CORS_ORIGIN.*HTTPS origins/i);
+  });
+
+  it.each(['http://app.example.com', '*', 'null', 'https://app.example.com/path'])(
+    'rejects unsafe production CORS origin %s',
+    (corsOrigin) => {
+      expect(() =>
+        validateEnvironment({
+          ...productionBase,
+          CORS_ORIGIN: corsOrigin,
+        })
+      ).toThrow(/CORS_ORIGIN.*HTTPS origins/i);
+    }
+  );
+
+  it('accepts multiple explicit HTTPS production browser origins', () => {
     const config = validateEnvironment({
-      ...base,
-      NODE_ENV: 'production',
-      JWT_SECRET: '8f3f89a744824fd99ee61797d67dc1023f6f7717762c4ab8',
+      ...productionBase,
+      CORS_ORIGIN: 'https://app.example.com, https://preview.example.com',
     });
 
+    expect(config.CORS_ORIGIN).toBe('https://app.example.com, https://preview.example.com');
+  });
+
+  it('accepts a sufficiently strong production configuration', () => {
+    const config = validateEnvironment(productionBase);
+
     expect(config.NODE_ENV).toBe('production');
+    expect(config.CORS_ORIGIN).toBe('https://app.example.com');
   });
 });

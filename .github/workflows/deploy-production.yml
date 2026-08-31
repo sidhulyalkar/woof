@@ -102,6 +102,7 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      EXPECTED_API_URL: https://woof-api-prod.fly.dev/api/v1
     steps:
       - uses: actions/checkout@v7
 
@@ -129,13 +130,29 @@ jobs:
         run: vercel build --prod --token="${VERCEL_TOKEN}"
         working-directory: apps/web
         env:
-          NEXT_PUBLIC_API_URL: https://woof-api-prod.fly.dev/api/v1
+          NEXT_PUBLIC_API_URL: ${{ env.EXPECTED_API_URL }}
           NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}
           NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'
 
       - name: Deploy to Vercel
-        run: vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}"
+        id: deploy_web
         working-directory: apps/web
+        run: |
+          deployment_url=$(vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}" | tail -n 1 | tr -d '\r')
+          if [[ ! "${deployment_url}" =~ ^https:// ]]; then
+            echo "::error title=Invalid Vercel deployment URL::Expected an HTTPS deployment URL, received '${deployment_url}'."
+            exit 1
+          fi
+          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify deployed Web release and API integration
+        env:
+          WEB_URL: ${{ steps.deploy_web.outputs.url }}
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: |
+          html=$(curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 \
+            "${WEB_URL}/demo")
+          WEB_HTML="$html" node .github/scripts/verify-web-deployment-provenance.mjs
 
       - name: Notify production Web deployment when configured
         if: ${{ always() }}

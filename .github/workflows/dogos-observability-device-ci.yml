@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'apps/api/src/observability/**'
+      - 'apps/api/src/auth/auth.controller.ts'
+      - 'apps/api/src/adventure/adventure.controller.ts'
+      - 'apps/api/src/companion/companion.controller.ts'
+      - 'apps/api/src/caregiver/caregiver.controller.ts'
       - 'apps/api/src/connectors/device-partner-contract*.ts'
       - 'apps/api/src/connectors/connectors.service.ts'
       - 'apps/api/src/connectors/connectors.service.spec.ts'
@@ -14,8 +18,12 @@ on:
       - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/.env.example'
       - '.github/scripts/assert-database-ownership.py'
+      - '.github/scripts/assert-alert-privacy.py'
+      - '.github/scripts/woof-alert-policy.py'
       - '.github/workflows/dogos-observability-device-ci.yml'
+      - 'ops/alerts/**'
       - 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md'
+      - 'docs/operations/ALERT_POLICY_V1.md'
 
 permissions:
   contents: read
@@ -27,10 +35,12 @@ concurrency:
 env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
+  PROMETHEUS_VERSION: '3.13.2'
+  PROMETHEUS_LINUX_AMD64_SHA256: '0e8c4d46101bd025ea8265e377d2caabc57f488fc1be1c367f37db69ea41be6f'
 
 jobs:
   qualify:
-    name: Real readiness + private metrics + device contract qualification
+    name: Real readiness + private metrics + alert authority + device contract qualification
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -55,6 +65,7 @@ jobs:
       ENABLE_DOGOS_CONNECTORS: 'true'
       CONNECTOR_CREDENTIALS_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
       OPS_METRICS_TOKEN: ci-only-ops-metrics-secret-0123456789abcdef
+      WOOF_RELEASE_SHA: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
     steps:
       - uses: actions/checkout@v7
@@ -76,7 +87,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Reject database ownership when observability or device source changes
+      - name: Reject database ownership when observability, alert, or device source changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -89,13 +100,17 @@ jobs:
             --enforce-if-changed 'apps/api/src/config/env.validation.ts' \
             --enforce-if-changed 'apps/api/src/config/env.validation.spec.ts' \
             --enforce-if-changed 'apps/api/.env.example' \
+            --enforce-if-changed '.github/scripts/assert-alert-privacy.py' \
+            --enforce-if-changed '.github/scripts/woof-alert-policy.py' \
+            --enforce-if-changed 'ops/alerts/**' \
             --enforce-if-changed 'docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md' \
+            --enforce-if-changed 'docs/operations/ALERT_POLICY_V1.md' \
             --enforce-if-changed '.github/workflows/dogos-observability-device-ci.yml'
 
       - name: Apply full database migration chain
         run: pnpm --filter @woof/database db:migrate:deploy
 
-      - name: Check Observability + Device formatting
+      - name: Check Observability + Alert + Device formatting
         run: >-
           pnpm exec prettier --check
           apps/api/src/observability
@@ -107,8 +122,40 @@ jobs:
           apps/api/src/app.service.ts
           apps/api/src/config/env.validation.ts
           apps/api/src/config/env.validation.spec.ts
+          ops/alerts/woof-api-alert-policy.v1.json
+          ops/alerts/fixtures/woof-api-alert-fixtures.v1.json
           .github/workflows/dogos-observability-device-ci.yml
           docs/DOGOS_OBSERVABILITY_DEVICE_CONTRACTS.md
+          docs/operations/ALERT_POLICY_V1.md
+
+      - name: Validate deterministic alert policy authority
+        run: |
+          python -m py_compile .github/scripts/woof-alert-policy.py .github/scripts/assert-alert-privacy.py
+          python .github/scripts/woof-alert-policy.py --check
+          python .github/scripts/woof-alert-policy.py --verify-fixtures
+          grep -Fq 'histogram_quantile(0.95' ops/alerts/woof-api.rules.yml
+          grep -Fq 'absent(woof_process_uptime_seconds' ops/alerts/woof-api.rules.yml
+          grep -Fq 'unless on (release)' ops/alerts/woof-api.rules.yml
+          grep -Fq 'operation_class: "today_read"' ops/alerts/woof-api.rules.yml
+          grep -Fq 'operation_class: "telemetry_quality"' ops/alerts/woof-api.rules.yml
+          grep -Fq 'release: "unknown"' ops/alerts/woof-api.rules.yml
+          grep -Fq '"realtime_admission_error_rate"' ops/alerts/woof-api-alert-policy.v1.json
+          grep -Fq '"database_pool_saturation"' ops/alerts/woof-api-alert-policy.v1.json
+
+      - name: Validate rendered rules with pinned Prometheus promtool
+        run: |
+          archive="/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "$archive" \
+            "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          echo "${PROMETHEUS_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
+          tar -xzf "$archive" -C /tmp
+          "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" \
+            check rules ops/alerts/woof-api.rules.yml
+
+      - name: Enforce identifier-free alert labels and fixtures
+        run: |
+          python .github/scripts/assert-alert-privacy.py --self-test
 
       - name: Lint Observability + Device API surface
         run: >-
@@ -125,7 +172,8 @@ jobs:
 
       - name: Enforce real database readiness
         run: |
-          if grep -EIn "database:[[:space:]]*['\"]connected['\"]" apps/api/src/app.service.ts apps/api/src/observability; then
+          if grep -REIn "database:[[:space:]]*['\"]connected['\"]" \
+            apps/api/src/app.service.ts apps/api/src/observability; then
             echo 'Health endpoints cannot hard-code database readiness.'
             exit 1
           fi
@@ -145,6 +193,13 @@ jobs:
           grep -Fq 'providerExternalIdentifiersCollected: false' "$metrics"
           grep -Fq 'rawPayloadsCollected: false' "$metrics"
           grep -Fq 'requestUrlsCollected: false' "$metrics"
+          grep -Fq 'REQUEST_DURATION_BUCKETS_MS' "$metrics"
+          grep -Fq 'woof_http_request_duration_ms_bucket' "$metrics"
+          grep -Fq 'woof_http_request_duration_invalid_total' "$metrics"
+          grep -Fq 'durationSampleCount' "$metrics"
+          grep -Fq 'durationInvalidCount' "$metrics"
+          grep -Fq 'resolveProcessReleaseIdentity' "$metrics"
+          grep -Fq 'woof_release_info' "$metrics"
 
       - name: Enforce fail-closed protected metrics access
         run: |

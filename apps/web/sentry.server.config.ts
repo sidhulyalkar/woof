@@ -1,13 +1,13 @@
 import * as Sentry from '@sentry/nextjs';
 import {
-  resolveWebReleaseIdentity,
+  resolveWebRuntimeReleaseIdentity,
   scrubBrowserSentryEvent,
 } from './src/lib/observability/sentry-policy';
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   environment: process.env.NODE_ENV || 'development',
-  release: resolveWebReleaseIdentity(),
+  release: resolveWebRuntimeReleaseIdentity(),
 
   // Performance Monitoring
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,

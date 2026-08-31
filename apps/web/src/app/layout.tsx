@@ -10,6 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Providers } from '@/components/providers';
 import { AuthGuard } from '@/components/auth-guard';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { resolveWebRuntimeReleaseIdentity } from '@/lib/observability/sentry-policy';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -45,6 +46,10 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+  },
+  other: {
+    'woof-release': resolveWebRuntimeReleaseIdentity(),
+    'woof-api-origin': process.env.NEXT_PUBLIC_API_URL ?? 'unknown',
   },
 };
 

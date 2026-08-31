@@ -69,6 +69,24 @@ function connectorKeyIsValid(encoded: string | undefined) {
   return Buffer.from(encoded, 'base64').length === 32;
 }
 
+function productionCorsOriginsAreValid(value: string) {
+  const origins = value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (origins.length === 0) return false;
+
+  return origins.every((origin) => {
+    if (origin === '*' || origin === 'null') return false;
+    try {
+      const url = new URL(origin);
+      return url.protocol === 'https:' && url.origin === origin && url.pathname === '/';
+    } catch {
+      return false;
+    }
+  });
+}
+
 export function validateEnvironment(config: Record<string, unknown>) {
   const parsed = envSchema.safeParse(config);
 
@@ -148,6 +166,12 @@ export function validateEnvironment(config: Record<string, unknown>) {
     ) {
       throw new Error(
         'CONNECTOR_CREDENTIALS_KEY is required and must decode to 32 bytes when connectors are enabled in production'
+      );
+    }
+
+    if (!productionCorsOriginsAreValid(env.CORS_ORIGIN)) {
+      throw new Error(
+        'CORS_ORIGIN must be explicitly configured as one or more comma-separated HTTPS origins in production'
       );
     }
   }

@@ -2,11 +2,13 @@ const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 
 export const UNKNOWN_RELEASE = 'unknown' as const;
 
-export function resolveWebReleaseIdentity(
-  value = process.env.NEXT_PUBLIC_WOOF_RELEASE_SHA
-): string {
+export function resolveWebReleaseIdentity(value: string | undefined): string {
   const normalized = value?.trim().toLowerCase() ?? '';
   return GIT_SHA_PATTERN.test(normalized) ? normalized : UNKNOWN_RELEASE;
+}
+
+export function resolveWebRuntimeReleaseIdentity(): string {
+  return resolveWebReleaseIdentity(process.env.NEXT_PUBLIC_WOOF_RELEASE_SHA);
 }
 
 export function resolveReplayPolicy(value = process.env.NEXT_PUBLIC_SENTRY_REPLAY_ENABLED) {
