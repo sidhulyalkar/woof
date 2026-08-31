@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
-import { resolveReleaseIdentity } from './observability/release-identity';
+import { resolveProcessReleaseIdentity } from './observability/release-identity';
 
 type StatusCarrier = {
   status?: unknown;
@@ -42,7 +42,7 @@ export function initSentry() {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.NODE_ENV || 'development',
-      release: resolveReleaseIdentity(),
+      release: resolveProcessReleaseIdentity(),
       sendDefaultPii: false,
       integrations: [
         nodeProfilingIntegration(),
