@@ -50,6 +50,8 @@ require(
 
 require(
     "apps/web/src/lib/observability/sentry-policy.ts",
+    "resolveWebReleaseIdentity(value: string | undefined)",
+    "resolveWebRuntimeReleaseIdentity()",
     "NEXT_PUBLIC_WOOF_RELEASE_SHA",
     "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED",
     "UNKNOWN_RELEASE",
@@ -57,8 +59,15 @@ require(
     "errorSampleRate: enabled ? 0.1 : 0",
 )
 require(
+    "apps/web/src/app/layout.tsx",
+    "resolveWebRuntimeReleaseIdentity()",
+    "'woof-release'",
+    "'woof-api-origin'",
+    "NEXT_PUBLIC_API_URL",
+)
+require(
     "apps/web/sentry.client.config.ts",
-    "release: resolveWebReleaseIdentity()",
+    "release: resolveWebRuntimeReleaseIdentity()",
     "maskAllText: true",
     "blockAllMedia: true",
     "scrubBrowserSentryEvent",
@@ -70,7 +79,17 @@ reject(
     "replaysOnErrorSampleRate: 1",
 )
 for path in ["apps/web/sentry.server.config.ts", "apps/web/sentry.edge.config.ts"]:
-    require(path, "release: resolveWebReleaseIdentity()")
+    require(path, "release: resolveWebRuntimeReleaseIdentity()")
+
+require(
+    ".github/scripts/verify-web-deployment-provenance.mjs",
+    "verifyWebDeploymentProvenance",
+    "woof-release",
+    "woof-api-origin",
+    "EXPECTED_RELEASE",
+    "EXPECTED_API_URL",
+    "--self-test",
+)
 
 require(
     "infra/docker/Dockerfile.api",
@@ -87,6 +106,8 @@ for path in [
         "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}",
         "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
         "Enforce deployed API release identity",
+        "Verify deployed Web release and API integration",
+        "verify-web-deployment-provenance.mjs",
     )
 
-print("Operational privacy contract preserves exact release identity and privacy-closed replay.")
+print("Operational privacy contract preserves exact release identity, Web/API provenance, and privacy-closed replay.")
