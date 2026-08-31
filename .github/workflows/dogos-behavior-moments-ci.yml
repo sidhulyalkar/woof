@@ -14,6 +14,7 @@ on:
       - 'apps/web/src/app/coach/observe/shadow/**'
       - 'apps/web/e2e/behavior-moments-shadow.spec.ts'
       - 'ml/behavior_vision/**'
+      - '.github/scripts/assert-behavior-vision-transport.py'
       - '.github/workflows/dogos-behavior-moments-ci.yml'
       - 'docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md'
       - 'docs/DOGOS_BEHAVIOR_VISION_RELEASE_AUTHORITY.md'
@@ -57,9 +58,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Check Behavior Moments formatting
+      - name: Materialize Behavior Moments formatting
         run: >-
-          pnpm exec prettier --check
+          pnpm exec prettier --write
           apps/api/src/behavior-vision
           apps/api/src/config/env.validation.ts
           apps/api/src/config/env.validation.spec.ts
@@ -71,6 +72,9 @@ jobs:
           .github/workflows/dogos-behavior-moments-ci.yml
           docs/DOGOS_BEHAVIOR_MOMENTS_SHADOW.md
           docs/DOGOS_BEHAVIOR_VISION_RELEASE_AUTHORITY.md
+
+      - name: Enforce committed Behavior Moments formatting
+        run: git diff --exit-code
 
       - name: Lint Behavior Moments API surface
         run: >-
@@ -87,6 +91,11 @@ jobs:
           src/app/coach/layout.tsx
           src/app/coach/observe/shadow/page.tsx
           e2e/behavior-moments-shadow.spec.ts
+
+      - name: Validate provider transport privacy contract
+        run: |
+          python -m py_compile .github/scripts/assert-behavior-vision-transport.py
+          python .github/scripts/assert-behavior-vision-transport.py
 
       - name: Reject canonical pet mutation from Behavior Vision
         run: |
