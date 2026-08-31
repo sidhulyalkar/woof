@@ -42,11 +42,15 @@ async function fulfillAuthMe(route: Route, user: AuthUser) {
 
 /**
  * Seeds exactly the persisted client session production owns from a real
- * same-origin page. No inline init script or duplicate raw-token mirror is used,
- * so CSP behavior and token authority remain representative of production.
- * Reload after the write so every engine boots the application from the same
- * persisted-state lifecycle instead of relying on an already-mounted store to
- * notice a same-document localStorage mutation.
+ * same-origin public page. No inline init script or duplicate raw-token mirror
+ * is used, so CSP behavior and token authority remain representative of
+ * production.
+ *
+ * Deliberately do not reload or redirect after the storage write. Every caller
+ * installs its domain routes first and then performs one explicit navigation to
+ * the surface under test. That navigation is the authenticated cold start and
+ * therefore exercises Zustand hydration plus /auth/me verification without
+ * allowing the fixture to boot protected UI before its authority mocks exist.
  */
 export async function seedAuthenticatedSession(
   page: Page,
@@ -66,7 +70,6 @@ export async function seedAuthenticatedSession(
     },
     [AUTH_STORAGE_KEY, LEGACY_SESSION_STORAGE_KEY, LEGACY_RAW_AUTH_TOKEN_KEY, persisted] as const
   );
-  await page.reload({ waitUntil: 'domcontentloaded' });
 }
 
 export async function clearAuthenticatedSession(page: Page): Promise<void> {

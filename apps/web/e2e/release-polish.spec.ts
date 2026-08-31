@@ -1,10 +1,10 @@
 import { expect, test, type Route } from '@playwright/test';
-import { seedAuthenticatedSession } from './support/session';
+import { E2E_ORIGIN, seedAuthenticatedSession, type AuthUser } from './support/session';
 
 function corsHeaders(route: Route) {
   const requestHeaders = route.request().headers();
   return {
-    'access-control-allow-origin': requestHeaders.origin ?? 'http://localhost:3000',
+    'access-control-allow-origin': requestHeaders.origin ?? E2E_ORIGIN,
     'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers':
       requestHeaders['access-control-request-headers'] ?? 'authorization,content-type',
@@ -24,15 +24,11 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   });
 }
 
-const releaseUser = {
-  id: 'user-1',
-  email: 'owner@example.com',
-  handle: 'dog-owner',
-  pets: [],
-};
-
-async function authenticate(page: Parameters<typeof seedAuthenticatedSession>[0]) {
-  await seedAuthenticatedSession(page, { user: releaseUser, token: 'browser-test-token' });
+async function authenticate(
+  page: Parameters<typeof seedAuthenticatedSession>[0],
+  user: AuthUser
+) {
+  await seedAuthenticatedSession(page, { user, token: 'browser-test-token' });
 }
 
 async function authorizePetToday(page: Parameters<typeof seedAuthenticatedSession>[0]) {
@@ -80,6 +76,26 @@ const pixel = {
   avatarUrl: null,
   createdAt: '2026-08-22T20:00:00.000Z',
   _count: { activities: 0, posts: 0 },
+};
+
+const guardianUser: AuthUser = {
+  id: 'user-1',
+  email: 'owner@example.com',
+  handle: 'dog-owner',
+  pets: pets.map(({ id, name, species, breed, avatarUrl }) => ({
+    id,
+    name,
+    species,
+    breed,
+    avatarUrl,
+  })),
+};
+
+const petlessUser: AuthUser = {
+  id: guardianUser.id,
+  email: guardianUser.email,
+  handle: guardianUser.handle,
+  pets: [],
 };
 
 function productPet(petId: string) {
@@ -156,7 +172,7 @@ test.describe('dogOS release polish', () => {
   test('Today leads with one recommendation while keeping Concierge and the selected dog aligned', async ({
     page,
   }) => {
-    await authenticate(page);
+    await authenticate(page, guardianUser);
     await authorizePetToday(page);
     await page.route('**/pets/me**', (route) =>
       fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
@@ -209,7 +225,7 @@ test.describe('dogOS release polish', () => {
   test('Activity reads canonical history, switches dogs, and quick-logs without fake route data', async ({
     page,
   }) => {
-    await authenticate(page);
+    await authenticate(page, guardianUser);
     await authorizePetToday(page);
     await page.route('**/pets/me**', (route) =>
       fulfillJson(route, { pets, total: 2, skip: 0, take: 100 })
@@ -276,7 +292,7 @@ test.describe('dogOS release polish', () => {
   });
 
   test('first-dog onboarding writes the minimum profile and makes it active', async ({ page }) => {
-    await authenticate(page);
+    await authenticate(page, petlessUser);
     let createdBody: Record<string, unknown> | null = null;
     let created = false;
     await page.route('**/companion/state', (route) =>

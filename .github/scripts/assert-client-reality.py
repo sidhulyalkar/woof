@@ -219,11 +219,13 @@ for marker in [
     "window.localStorage.setItem(storageKey, persistedState)",
     "window.localStorage.removeItem(legacySessionKey)",
     "window.localStorage.removeItem(legacyRawTokenKey)",
-    "await page.reload({ waitUntil: 'domcontentloaded' })",
+    "Every caller",
+    "authenticated cold start",
 ]:
     require(helper, marker)
 for marker in [
     "addInitScript",
+    "page.reload(",
     "localStorage.setItem('authToken'",
     'localStorage.setItem("authToken"',
 ]:
@@ -241,6 +243,9 @@ for suite in [*matrix_suites, *shared_fixture_suites]:
         reject(suite, marker)
 
 require(WEB / "e2e" / "trust-discovery.spec.ts", "grantRoughLocation")
+release_polish_spec = WEB / "e2e" / "release-polish.spec.ts"
+require(release_polish_spec, "E2E_ORIGIN")
+reject(release_polish_spec, "http://localhost:3000")
 
 for marker in [
     "name: 'chromium'",
@@ -328,4 +333,4 @@ for marker in [
     require(release_polish_workflow, marker)
 reject(release_polish_workflow, "https://api.example.com/api/v1")
 
-print("Client reality contract preserves server-verified auth, real persistence hydration, HTTPS policy, and build-identical browser evidence.")
+print("Client reality contract preserves server-verified auth, real persistence hydration, side-effect-free fixture seeding, HTTPS policy, and build-identical browser evidence.")
