@@ -1,0 +1,155 @@
+{
+  "policyVersion": "woof-api-alert-policy-v1",
+  "fixtures": [
+    {
+      "name": "healthy bounded windows",
+      "sample": {
+        "telemetryPresent": true,
+        "release": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "readinessFailures": 0,
+        "httpRequests": 100,
+        "http5xx": 1,
+        "authRequests": 50,
+        "auth5xx": 0,
+        "todayRequests": 100,
+        "todayP95Ms": 500,
+        "caregiverTransitions": 50,
+        "caregiver5xx": 0,
+        "connectorImports": 100,
+        "connectorRejected": 5,
+        "deviceContractRejections": 0
+      },
+      "expected": {
+        "telemetry": "OK",
+        "release": "OK",
+        "readiness": "OK",
+        "http5xx": "OK",
+        "auth5xx": "OK",
+        "todayReadP95Ms": "OK",
+        "caregiverTransition5xx": "OK",
+        "connectorRejected": "OK",
+        "deviceContractRejections": "OK"
+      }
+    },
+    {
+      "name": "warning guardrails",
+      "sample": {
+        "telemetryPresent": true,
+        "release": "unknown",
+        "readinessFailures": 1,
+        "httpRequests": 100,
+        "http5xx": 3,
+        "authRequests": 100,
+        "auth5xx": 3,
+        "todayRequests": 50,
+        "todayP95Ms": 900,
+        "caregiverTransitions": 100,
+        "caregiver5xx": 3,
+        "connectorImports": 100,
+        "connectorRejected": 15,
+        "deviceContractRejections": 7
+      },
+      "expected": {
+        "telemetry": "OK",
+        "release": "WARNING",
+        "readiness": "WARNING",
+        "http5xx": "WARNING",
+        "auth5xx": "WARNING",
+        "todayReadP95Ms": "WARNING",
+        "caregiverTransition5xx": "WARNING",
+        "connectorRejected": "WARNING",
+        "deviceContractRejections": "WARNING"
+      }
+    },
+    {
+      "name": "critical guardrails",
+      "sample": {
+        "telemetryPresent": true,
+        "release": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "readinessFailures": 3,
+        "httpRequests": 100,
+        "http5xx": 6,
+        "authRequests": 100,
+        "auth5xx": 6,
+        "todayRequests": 50,
+        "todayP95Ms": 1700,
+        "caregiverTransitions": 100,
+        "caregiver5xx": 6,
+        "connectorImports": 100,
+        "connectorRejected": 30,
+        "deviceContractRejections": 25
+      },
+      "expected": {
+        "telemetry": "OK",
+        "release": "OK",
+        "readiness": "CRITICAL",
+        "http5xx": "CRITICAL",
+        "auth5xx": "CRITICAL",
+        "todayReadP95Ms": "CRITICAL",
+        "caregiverTransition5xx": "CRITICAL",
+        "connectorRejected": "CRITICAL",
+        "deviceContractRejections": "CRITICAL"
+      }
+    },
+    {
+      "name": "missing telemetry is unknown",
+      "sample": {
+        "telemetryPresent": false,
+        "release": "unknown",
+        "readinessFailures": 0,
+        "httpRequests": 0,
+        "http5xx": 0,
+        "authRequests": 0,
+        "auth5xx": 0,
+        "todayRequests": 0,
+        "todayP95Ms": 0,
+        "caregiverTransitions": 0,
+        "caregiver5xx": 0,
+        "connectorImports": 0,
+        "connectorRejected": 0,
+        "deviceContractRejections": 0
+      },
+      "expected": {
+        "telemetry": "UNKNOWN",
+        "release": "UNKNOWN",
+        "readiness": "UNKNOWN",
+        "http5xx": "UNKNOWN",
+        "auth5xx": "UNKNOWN",
+        "todayReadP95Ms": "UNKNOWN",
+        "caregiverTransition5xx": "UNKNOWN",
+        "connectorRejected": "UNKNOWN",
+        "deviceContractRejections": "UNKNOWN"
+      }
+    },
+    {
+      "name": "low volume stays insufficient rather than healthy",
+      "sample": {
+        "telemetryPresent": true,
+        "release": "cccccccccccccccccccccccccccccccccccccccc",
+        "readinessFailures": 0,
+        "httpRequests": 10,
+        "http5xx": 0,
+        "authRequests": 5,
+        "auth5xx": 0,
+        "todayRequests": 10,
+        "todayP95Ms": 200,
+        "caregiverTransitions": 5,
+        "caregiver5xx": 0,
+        "connectorImports": 10,
+        "connectorRejected": 0,
+        "deviceContractRejections": 0
+      },
+      "expected": {
+        "telemetry": "OK",
+        "release": "OK",
+        "readiness": "OK",
+        "http5xx": "INSUFFICIENT_DATA",
+        "auth5xx": "INSUFFICIENT_DATA",
+        "todayReadP95Ms": "INSUFFICIENT_DATA",
+        "caregiverTransition5xx": "INSUFFICIENT_DATA",
+        "connectorRejected": "INSUFFICIENT_DATA",
+        "deviceContractRejections": "OK"
+      }
+    }
+  ]
+}
