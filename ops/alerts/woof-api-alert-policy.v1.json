@@ -61,6 +61,13 @@
       "CaregiverController.getCaregiverToday"
     ]
   },
+  "requestDurationInvalid": {
+    "window": "15m",
+    "warningCount": 1,
+    "criticalCount": 5,
+    "warningFor": "5m",
+    "criticalFor": "2m"
+  },
   "caregiverTransition5xx": {
     "window": "5m",
     "minimumRequests": 25,
