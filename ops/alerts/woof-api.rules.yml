@@ -131,12 +131,12 @@ groups:
     - alert: WoofAuth5xxRatioWarning
       expr: >-
         (
-          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)",status_class="5xx"}[5m]))
+          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)",status_class="5xx"}[5m]))
           /
-          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)"}[5m])), 0.000001)
+          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)"}[5m])), 0.000001)
         ) >= 0.02
         and on (release)
-        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)"}[5m])) >= 10
+        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)"}[5m])) >= 10
       for: 5m
       labels:
         severity: "warning"
@@ -149,12 +149,12 @@ groups:
     - alert: WoofAuth5xxRatioCritical
       expr: >-
         (
-          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)",status_class="5xx"}[5m]))
+          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)",status_class="5xx"}[5m]))
           /
-          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)"}[5m])), 0.000001)
+          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)"}[5m])), 0.000001)
         ) >= 0.05
         and on (release)
-        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"AuthController\.(register|login|logout|logoutAll|getProfile)"}[5m])) >= 10
+        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"AuthController[.](register|login|logout|logoutAll|getProfile)"}[5m])) >= 10
       for: 2m
       labels:
         severity: "critical"
@@ -169,12 +169,12 @@ groups:
         (
           histogram_quantile(0.95,
             sum by (le, release) (
-              rate(woof_http_request_duration_ms_bucket{service="woof-api",operation=~"AdventureController\.getMine|CompanionController\.(getState|getReadiness)|CaregiverController\.getCaregiverToday"}[10m])
+              rate(woof_http_request_duration_ms_bucket{service="woof-api",operation=~"AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"}[10m])
             )
           )
         ) >= 750
         and on (release)
-        sum by (release) (increase(woof_http_request_duration_ms_count{service="woof-api",operation=~"AdventureController\.getMine|CompanionController\.(getState|getReadiness)|CaregiverController\.getCaregiverToday"}[10m])) >= 20
+        sum by (release) (increase(woof_http_request_duration_ms_count{service="woof-api",operation=~"AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"}[10m])) >= 20
       for: 10m
       labels:
         severity: "warning"
@@ -189,12 +189,12 @@ groups:
         (
           histogram_quantile(0.95,
             sum by (le, release) (
-              rate(woof_http_request_duration_ms_bucket{service="woof-api",operation=~"AdventureController\.getMine|CompanionController\.(getState|getReadiness)|CaregiverController\.getCaregiverToday"}[10m])
+              rate(woof_http_request_duration_ms_bucket{service="woof-api",operation=~"AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"}[10m])
             )
           )
         ) >= 1500
         and on (release)
-        sum by (release) (increase(woof_http_request_duration_ms_count{service="woof-api",operation=~"AdventureController\.getMine|CompanionController\.(getState|getReadiness)|CaregiverController\.getCaregiverToday"}[10m])) >= 20
+        sum by (release) (increase(woof_http_request_duration_ms_count{service="woof-api",operation=~"AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"}[10m])) >= 20
       for: 5m
       labels:
         severity: "critical"
@@ -207,12 +207,12 @@ groups:
     - alert: WoofCaregiverTransition5xxRatioWarning
       expr: >-
         (
-          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)",status_class="5xx"}[5m]))
+          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)",status_class="5xx"}[5m]))
           /
-          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])), 0.000001)
+          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])), 0.000001)
         ) >= 0.02
         and on (release)
-        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])) >= 10
+        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])) >= 10
       for: 5m
       labels:
         severity: "warning"
@@ -225,12 +225,12 @@ groups:
     - alert: WoofCaregiverTransition5xxRatioCritical
       expr: >-
         (
-          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)",status_class="5xx"}[5m]))
+          sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)",status_class="5xx"}[5m]))
           /
-          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])), 0.000001)
+          clamp_min(sum by (release) (rate(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])), 0.000001)
         ) >= 0.05
         and on (release)
-        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"CaregiverController\.(issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])) >= 10
+        sum by (release) (increase(woof_http_requests_total{service="woof-api",operation=~"CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"}[5m])) >= 10
       for: 2m
       labels:
         severity: "critical"
