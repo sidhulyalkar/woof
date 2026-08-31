@@ -1,0 +1,109 @@
+name: dogOS External Integration Truth CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/health-lens/**'
+      - 'apps/api/src/storage/**'
+      - 'apps/api/src/notifications/**'
+      - 'apps/api/src/media-library/media-derivative.worker.ts'
+      - 'apps/api/src/media-library/media-derivative.worker.spec.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/config/env.validation.spec.ts'
+      - 'apps/api/.env.example'
+      - 'n8n-workflows/**'
+      - 'docs/EXTERNAL_INTEGRATION_INVENTORY.json'
+      - '.github/scripts/assert-integration-truth.py'
+      - '.github/workflows/integration-truth-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-truth-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  NODE_ENV: test
+  JWT_SECRET: ci-only-test-secret
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Runtime truth + private failure boundaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Materialize integration-truth formatting
+        run: >-
+          pnpm exec prettier --write
+          .github/workflows/integration-truth-ci.yml
+          apps/api/src/health-lens/health-ai.service.ts
+          apps/api/src/health-lens/health-ai.service.spec.ts
+          apps/api/src/storage/storage.service.ts
+          apps/api/src/storage/storage.service.spec.ts
+          apps/api/src/notifications/notifications.service.ts
+          apps/api/src/notifications/notifications.service.spec.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/src/config/env.validation.spec.ts
+          n8n-workflows/README.md
+          docs/EXTERNAL_INTEGRATION_INVENTORY.json
+
+      - name: Enforce committed integration-truth formatting
+        run: git diff --exit-code
+
+      - name: Validate integration authority and privacy source contract
+        run: |
+          python -m py_compile .github/scripts/assert-integration-truth.py
+          python .github/scripts/assert-integration-truth.py
+
+      - name: Lint owned API boundaries
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/health-lens/health-ai.service.ts
+          src/health-lens/health-ai.service.spec.ts
+          src/storage/storage.service.ts
+          src/storage/storage.service.spec.ts
+          src/notifications/notifications.service.ts
+          src/notifications/notifications.service.spec.ts
+          src/config/env.validation.ts
+          src/config/env.validation.spec.ts
+          src/media-library/media-derivative.worker.ts
+          src/media-library/media-derivative.worker.spec.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run integration privacy and lifecycle contracts
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/health-lens/health-ai.service.spec.ts
+          src/storage/storage.service.spec.ts
+          src/notifications/notifications.service.spec.ts
+          src/config/env.validation.spec.ts
+          src/media-library/media-derivative.worker.spec.ts
+
+      - name: Build API
+        run: pnpm --filter @woof/api build

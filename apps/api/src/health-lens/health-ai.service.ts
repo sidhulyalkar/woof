@@ -50,8 +50,9 @@ export type PetHealthModelInput = {
 };
 
 type VetHandoffTiming = PetHealthModelResult['vetHandoff']['timing'];
-
 type ModelRecord = Record<string, unknown>;
+type HealthProviderFailureReason =
+  'provider_http_error' | 'invalid_json' | 'timeout' | 'transport_error';
 
 const TRIAGE_LEVELS = new Set<HealthTriageLevel>([
   'emergency_now',
@@ -404,16 +405,22 @@ export class HealthAiService {
       });
 
       if (!response.ok) {
-        const body = await response.text();
-        this.logger.warn(
-          `Health model request failed with ${response.status}: ${body.slice(0, 500)}`
-        );
+        this.warnFailure('provider_http_error', response.status);
         throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
       }
 
-      const payload = (await response.json()) as {
+      let payload: {
         output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
       };
+      try {
+        payload = (await response.json()) as {
+          output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+        };
+      } catch {
+        this.warnFailure('invalid_json');
+        throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
+      }
+
       const text = payload.output
         ?.flatMap((item) => item.content ?? [])
         .find((item) => item.type === 'output_text' && typeof item.text === 'string')?.text;
@@ -424,15 +431,22 @@ export class HealthAiService {
         );
       }
 
-      return normalizeHealthModelResult(JSON.parse(text) as unknown);
+      let assessment: unknown;
+      try {
+        assessment = JSON.parse(text) as unknown;
+      } catch {
+        this.warnFailure('invalid_json');
+        throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
+      }
+
+      return normalizeHealthModelResult(assessment);
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
+        this.warnFailure('timeout');
         throw new ServiceUnavailableException('Health screening model timed out');
       }
-      this.logger.error(
-        `Health model analysis failed: ${error instanceof Error ? error.message : 'unknown error'}`
-      );
+      this.errorFailure('transport_error');
       throw new ServiceUnavailableException('Health screening model is temporarily unavailable');
     } finally {
       clearTimeout(timeout);
@@ -456,5 +470,14 @@ export class HealthAiService {
       recentContext: [],
       priorHealthObservations: [],
     });
+  }
+
+  private warnFailure(reason: HealthProviderFailureReason, status?: number) {
+    const statusSuffix = status === undefined ? '' : ` status=${status}`;
+    this.logger.warn(`Health model provider failure reason=${reason}${statusSuffix}`);
+  }
+
+  private errorFailure(reason: HealthProviderFailureReason) {
+    this.logger.error(`Health model provider failure reason=${reason}`);
   }
 }

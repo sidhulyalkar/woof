@@ -117,6 +117,33 @@ describe('validateEnvironment', () => {
     ).toThrow(/BEHAVIOR_VISION_SERVICE_TOKEN/i);
   });
 
+  it('requires Web Push VAPID keys to be configured as a pair in production', () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        VAPID_PUBLIC_KEY: 'public-key-only',
+      })
+    ).toThrow(/VAPID_PUBLIC_KEY.*VAPID_PRIVATE_KEY.*together/i);
+
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        VAPID_PRIVATE_KEY: 'private-key-only',
+      })
+    ).toThrow(/VAPID_PUBLIC_KEY.*VAPID_PRIVATE_KEY.*together/i);
+  });
+
+  it('accepts a complete non-development Web Push VAPID keypair in production', () => {
+    const config = validateEnvironment({
+      ...productionBase,
+      VAPID_PUBLIC_KEY: 'public-production-key',
+      VAPID_PRIVATE_KEY: 'private-production-key',
+    });
+
+    expect(config.VAPID_PUBLIC_KEY).toBe('public-production-key');
+    expect(config.VAPID_PRIVATE_KEY).toBe('private-production-key');
+  });
+
   it('fails closed when production CORS falls back to localhost', () => {
     expect(() =>
       validateEnvironment({

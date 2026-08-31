@@ -47,7 +47,6 @@ const envSchema = z.object({
   MEDIA_FFPROBE_PATH: z.string().min(1).default('ffprobe'),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  N8N_WEBHOOK_SECRET: z.string().optional(),
   OPENAI_API_KEY: z.string().min(20).optional(),
   OPENAI_HEALTH_MODEL: z.string().default('gpt-5.6-luna'),
   OPENAI_HEALTH_TIMEOUT_MS: z.coerce.number().int().min(3000).max(30000).default(12000),
@@ -138,6 +137,10 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
     if (env.VAPID_PRIVATE_KEY && knownDevelopmentSecret.test(env.VAPID_PRIVATE_KEY)) {
       throw new Error('VAPID_PRIVATE_KEY must be replaced with a production key before startup');
+    }
+
+    if (Boolean(env.VAPID_PUBLIC_KEY) !== Boolean(env.VAPID_PRIVATE_KEY)) {
+      throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be configured together');
     }
 
     if (env.BEHAVIOR_VISION_SERVICE_URL && !env.BEHAVIOR_VISION_SERVICE_TOKEN) {

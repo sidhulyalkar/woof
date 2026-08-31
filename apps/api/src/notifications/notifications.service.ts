@@ -16,8 +16,6 @@ type StoredPushSubscription = {
 
 type PushDeliveryError = {
   statusCode?: number;
-  message?: string;
-  stack?: string;
 };
 
 function toStoredSubscription(subscription: PushSubscriptionDto): Prisma.InputJsonObject {
@@ -57,8 +55,6 @@ function readPushError(error: unknown): PushDeliveryError {
   const candidate = error as Record<string, unknown>;
   return {
     statusCode: typeof candidate.statusCode === 'number' ? candidate.statusCode : undefined,
-    message: typeof candidate.message === 'string' ? candidate.message : undefined,
-    stack: typeof candidate.stack === 'string' ? candidate.stack : undefined,
   };
 }
 
@@ -69,7 +65,7 @@ export class NotificationsService {
 
   constructor(
     private prisma: PrismaService,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {
     const publicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
     const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
@@ -110,7 +106,7 @@ export class NotificationsService {
       },
     });
 
-    this.logger.log(`Push subscription saved for user ${userId}`);
+    this.logger.log('Push subscription saved');
     return token;
   }
 
@@ -131,7 +127,7 @@ export class NotificationsService {
       await this.prisma.integrationToken.delete({
         where: { id: subscription.id },
       });
-      this.logger.log(`Push subscription removed for user ${userId}`);
+      this.logger.log('Push subscription removed');
     }
 
     return { success: true };
@@ -141,7 +137,7 @@ export class NotificationsService {
     const { userId, title, body, icon, url, data: payload } = data;
 
     if (!this.pushConfigured) {
-      this.logger.debug(`Push skipped for user ${userId}: VAPID not configured`);
+      this.logger.debug('Push delivery skipped reason=not_configured');
       return { success: false, reason: 'push_not_configured' };
     }
 
@@ -153,13 +149,13 @@ export class NotificationsService {
     });
 
     if (!subscription) {
-      this.logger.debug(`No push subscription found for user ${userId}`);
+      this.logger.debug('Push delivery skipped reason=no_subscription');
       return { success: false, reason: 'no_subscription' };
     }
 
     const pushSubscription = readStoredSubscription(subscription.data);
     if (!pushSubscription) {
-      this.logger.warn(`Invalid stored push subscription removed for user ${userId}`);
+      this.logger.warn('Invalid stored push subscription removed');
       await this.unsubscribePushNotification(userId);
       return { success: false, reason: 'invalid_subscription' };
     }
@@ -177,27 +173,26 @@ export class NotificationsService {
 
     try {
       await webPush.sendNotification(pushSubscription, notificationPayload);
-      this.logger.log(`Push notification sent to user ${userId}: ${title}`);
+      this.logger.log('Push notification delivered');
       return { success: true };
     } catch (error: unknown) {
       const pushError = readPushError(error);
       if (pushError.statusCode === 410 || pushError.statusCode === 404) {
-        this.logger.warn(`Expired push subscription removed for user ${userId}`);
+        this.logger.warn(`Expired push subscription removed status=${pushError.statusCode}`);
         await this.unsubscribePushNotification(userId);
         return { success: false, reason: 'subscription_expired' };
       }
 
-      this.logger.error(
-        `Failed to send push notification: ${pushError.message || 'unknown error'}`,
-        pushError.stack,
-      );
+      const statusSuffix =
+        pushError.statusCode === undefined ? '' : ` status=${pushError.statusCode}`;
+      this.logger.error(`Push delivery failed${statusSuffix}`);
       return { success: false, reason: 'delivery_failed' };
     }
   }
 
   async sendBulkPushNotifications(userIds: string[], data: Omit<SendPushDto, 'userId'>) {
     const results = await Promise.all(
-      userIds.map((userId) => this.sendPushNotification({ ...data, userId })),
+      userIds.map((userId) => this.sendPushNotification({ ...data, userId }))
     );
 
     const successful = results.filter((result) => result.success).length;
@@ -211,7 +206,7 @@ export class NotificationsService {
     userId: string,
     nudgeType: string,
     message: string,
-    data?: Record<string, unknown>,
+    data?: Record<string, unknown>
   ) {
     return this.sendPushNotification({
       userId,
