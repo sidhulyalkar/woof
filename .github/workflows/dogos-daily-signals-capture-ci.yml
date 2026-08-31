@@ -26,6 +26,7 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
   SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
   JWT_SECRET: ci-only-daily-signals-secret-12345678901234567890
+  CORS_ORIGIN: 'https://daily-signals-ci.example.test'
   NODE_ENV: test
   ML_SERVICE_ENABLED: 'false'
 
@@ -265,6 +266,7 @@ jobs:
             -e DATABASE_URL="$DATABASE_URL" \
             -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
             -e JWT_SECRET="$JWT_SECRET" \
+            -e CORS_ORIGIN="$CORS_ORIGIN" \
             -e NODE_ENV=production \
             -e API_DOCS_ENABLED=false \
             -e ML_SERVICE_ENABLED=false \

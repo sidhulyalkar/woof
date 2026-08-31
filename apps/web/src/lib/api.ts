@@ -244,13 +244,6 @@ export const eventsApi = {
   checkIn: (eventId: string) => apiClient.post<unknown>(`/events/${eventId}/check-in`, {}),
 };
 
-export const gamificationApi = {
-  getProfile: (userId: string) => apiClient.get<unknown>(`/gamification/profile/${userId}`),
-  getLeaderboard: () => apiClient.get<unknown[]>('/gamification/leaderboard'),
-  awardPoints: (data: { userId: string; points: number; reason: string }) =>
-    apiClient.post<unknown>('/gamification/points', data),
-};
-
 export const servicesApi = {
   getServices: (params?: Record<string, unknown>) =>
     apiClient.get<ServiceProvider[]>('/services', { params }),
