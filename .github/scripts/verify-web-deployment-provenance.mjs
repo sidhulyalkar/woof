@@ -40,7 +40,9 @@ export function metaValue(html, name) {
 export function verifyWebDeploymentProvenance({ html, expectedRelease, expectedApiUrl }) {
   const normalizedRelease = expectedRelease.trim().toLowerCase();
   if (!GIT_SHA_PATTERN.test(normalizedRelease)) {
-    throw new Error(`Expected release must be one exact 40-hex Git SHA, received '${expectedRelease}'.`);
+    throw new Error(
+      `Expected release must be one exact 40-hex Git SHA, received '${expectedRelease}'.`
+    );
   }
 
   let apiUrl;
@@ -79,9 +81,26 @@ function selfTest() {
   }
 
   for (const [label, input] of [
-    ['wrong release', { html: variants[0].replace(release, 'f'.repeat(40)), expectedRelease: release, expectedApiUrl: api }],
-    ['wrong API', { html: variants[0].replace(api, 'https://wrong.example.com/api/v1'), expectedRelease: release, expectedApiUrl: api }],
-    ['missing markers', { html: '<html></html>', expectedRelease: release, expectedApiUrl: api }],
+    [
+      'wrong release',
+      {
+        html: variants[0].replace(release, 'f'.repeat(40)),
+        expectedRelease: release,
+        expectedApiUrl: api,
+      },
+    ],
+    [
+      'wrong API',
+      {
+        html: variants[0].replace(api, 'https://wrong.example.com/api/v1'),
+        expectedRelease: release,
+        expectedApiUrl: api,
+      },
+    ],
+    [
+      'missing markers',
+      { html: '<html></html>', expectedRelease: release, expectedApiUrl: api },
+    ],
   ]) {
     let rejected = false;
     try {
