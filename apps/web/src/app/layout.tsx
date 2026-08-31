@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Providers } from '@/components/providers';
 import { AuthGuard } from '@/components/auth-guard';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { resolveWebReleaseIdentity } from '@/lib/observability/sentry-policy';
+import { resolveWebRuntimeReleaseIdentity } from '@/lib/observability/sentry-policy';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     follow: true,
   },
   other: {
-    'woof-release': resolveWebReleaseIdentity(),
+    'woof-release': resolveWebRuntimeReleaseIdentity(),
     'woof-api-origin': process.env.NEXT_PUBLIC_API_URL ?? 'unknown',
   },
 };
