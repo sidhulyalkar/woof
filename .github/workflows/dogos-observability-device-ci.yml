@@ -172,7 +172,8 @@ jobs:
 
       - name: Enforce real database readiness
         run: |
-          if grep -EIn "database:[[:space:]]*['\"]connected['\"]" apps/api/src/app.service.ts apps/api/src/observability; then
+          if grep -REIn "database:[[:space:]]*['\"]connected['\"]" \
+            apps/api/src/app.service.ts apps/api/src/observability; then
             echo 'Health endpoints cannot hard-code database readiness.'
             exit 1
           fi
@@ -197,7 +198,7 @@ jobs:
           grep -Fq 'woof_http_request_duration_invalid_total' "$metrics"
           grep -Fq 'durationSampleCount' "$metrics"
           grep -Fq 'durationInvalidCount' "$metrics"
-          grep -Fq 'resolveReleaseIdentity' "$metrics"
+          grep -Fq 'resolveProcessReleaseIdentity' "$metrics"
           grep -Fq 'woof_release_info' "$metrics"
 
       - name: Enforce fail-closed protected metrics access
