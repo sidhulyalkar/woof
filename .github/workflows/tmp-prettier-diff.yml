@@ -1,4 +1,4 @@
-name: TEMP Exact Prettier Diff
+name: TEMP Exact Generated Diff
 
 on:
   pull_request:
@@ -6,6 +6,8 @@ on:
     paths:
       - 'apps/api/src/observability/operational-metrics.service.ts'
       - 'apps/api/src/observability/operational-metrics.service.spec.ts'
+      - '.github/scripts/woof-alert-policy.py'
+      - 'ops/alerts/**'
       - '.github/workflows/tmp-prettier-diff.yml'
 
 permissions:
@@ -24,17 +26,21 @@ jobs:
           node-version: '20.20.2'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Print exact Prettier diff
+      - name: Print exact generated diffs
         run: |
           pnpm exec prettier --write \
             apps/api/src/observability/operational-metrics.service.ts \
             apps/api/src/observability/operational-metrics.service.spec.ts
+          python .github/scripts/woof-alert-policy.py > /tmp/woof-api.rules.yml
+          cp /tmp/woof-api.rules.yml ops/alerts/woof-api.rules.yml
           git diff -- \
             apps/api/src/observability/operational-metrics.service.ts \
-            apps/api/src/observability/operational-metrics.service.spec.ts
+            apps/api/src/observability/operational-metrics.service.spec.ts \
+            ops/alerts/woof-api.rules.yml
           if ! git diff --quiet -- \
             apps/api/src/observability/operational-metrics.service.ts \
-            apps/api/src/observability/operational-metrics.service.spec.ts; then
-            echo 'TEMP_FORMAT_DIFF_PRESENT'
+            apps/api/src/observability/operational-metrics.service.spec.ts \
+            ops/alerts/woof-api.rules.yml; then
+            echo 'TEMP_GENERATED_DIFF_PRESENT'
             exit 1
           fi
