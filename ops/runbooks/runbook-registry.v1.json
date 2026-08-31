@@ -1,0 +1,100 @@
+{
+  "version": "woof-operational-runbooks-v1",
+  "alertPolicy": "ops/alerts/woof-api-alert-policy.v1.json",
+  "liveRehearsalStatus": "NOT_YET_PROVEN",
+  "authority": {
+    "repositoryQualified": true,
+    "productionQualified": false,
+    "productionQualificationRequires": [
+      "real production deployment authority",
+      "target-environment credentials and networking",
+      "at least one recorded live or production-like incident drill per runbook",
+      "evidence that recovery and rollback commands work against the deployed platform",
+      "explicit operator ownership and escalation path"
+    ]
+  },
+  "runbooks": [
+    {
+      "id": "deployment-readiness",
+      "path": "ops/runbooks/deployment-readiness.md",
+      "alerts": [
+        "telemetryMissing",
+        "unknownRelease",
+        "readinessFailures",
+        "http5xx",
+        "application5xxBurst",
+        "requestDurationInvalid"
+      ],
+      "manualSignals": [],
+      "owner": "production-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "database-migration",
+      "path": "ops/runbooks/database-migration.md",
+      "alerts": ["readinessFailures", "http5xx", "application5xxBurst"],
+      "manualSignals": ["database_pool_saturation"],
+      "owner": "database-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "auth-session",
+      "path": "ops/runbooks/auth-session.md",
+      "alerts": ["auth5xx", "http5xx", "application5xxBurst"],
+      "manualSignals": [],
+      "owner": "auth-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "api-degradation",
+      "path": "ops/runbooks/api-degradation.md",
+      "alerts": [
+        "todayReadP95Ms",
+        "caregiverTransition5xx",
+        "deviceContractRejections",
+        "http5xx",
+        "application5xxBurst",
+        "requestDurationInvalid"
+      ],
+      "manualSignals": [],
+      "owner": "api-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "connector-ingestion",
+      "path": "ops/runbooks/connector-ingestion.md",
+      "alerts": ["connectorRejected", "http5xx", "application5xxBurst"],
+      "manualSignals": [],
+      "owner": "connectors-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "privacy-telemetry",
+      "path": "ops/runbooks/privacy-telemetry.md",
+      "alerts": [],
+      "manualSignals": ["privacy_or_secret_exposure"],
+      "owner": "security-privacy",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    },
+    {
+      "id": "realtime",
+      "path": "ops/runbooks/realtime.md",
+      "alerts": [],
+      "manualSignals": ["realtime_admission_error_rate"],
+      "owner": "realtime-runtime",
+      "liveRehearsalStatus": "NOT_YET_PROVEN"
+    }
+  ],
+  "deferredSignals": {
+    "realtime_admission_error_rate": {
+      "detectionMode": "manual_deferred",
+      "runbook": "realtime",
+      "reason": "No dedicated low-cardinality realtime admission/error metric exists yet. HTTP counters must not be used as a substitute for socket health."
+    },
+    "database_pool_saturation": {
+      "detectionMode": "manual_deferred",
+      "runbook": "database-migration",
+      "reason": "No privacy-safe connection-pool saturation gauge exists yet. Readiness must not be described as pool telemetry."
+    }
+  }
+}
