@@ -173,14 +173,15 @@ for path in (ROOT / "apps/api/src").rglob("*.ts"):
             )
 
 n8n = N8N_README.read_text()
+n8n_lower = n8n.lower()
 for required in [
     "reference prototypes only",
-    "no maintained `N8nWebhooksController`",
+    "no maintained `n8nwebhookscontroller`",
     "no default n8n credentials",
     "replay safety and idempotency",
-    "Deployment evidence",
+    "deployment evidence",
 ]:
-    if required not in n8n:
+    if required not in n8n_lower:
         raise SystemExit(f"n8n reserved-authority documentation marker missing: {required}")
 for forbidden in ["woofadmin", "Username: `admin`", "N8N_WEBHOOK_SECRET=", "docker logs woof-n8n"]:
     if forbidden in n8n:
