@@ -24,7 +24,7 @@ concurrency:
 env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
-  CLIENT_REALITY_API_URL: http://127.0.0.1:59999/api/v1
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1
 
 jobs:
   contract:
@@ -95,7 +95,6 @@ jobs:
           name: client-reality-formatted-${{ github.run_id }}
           path: |
             apps/web/src/middleware.ts
-            apps/web/src/app/layout.tsx
             apps/web/src/lib/security/transport.ts
             apps/web/src/lib/security/transport.test.ts
             apps/web/src/components/auth-guard.tsx
@@ -176,8 +175,6 @@ jobs:
     name: Build exact production Web artifact once
     needs: contract
     runs-on: ubuntu-24.04
-    env:
-      NEXT_PUBLIC_API_URL: ${{ env.CLIENT_REALITY_API_URL }}
 
     steps:
       - uses: actions/checkout@v7
@@ -205,7 +202,7 @@ jobs:
           --output-dir "${RUNNER_TEMP}/client-reality-artifact"
           --event-head-sha "${{ github.event.pull_request.head.sha }}"
           --event-base-sha "${{ github.event.pull_request.base.sha }}"
-          --api-url "${CLIENT_REALITY_API_URL}"
+          --api-url "${NEXT_PUBLIC_API_URL}"
           --node-version "${NODE_VERSION}"
           --pnpm-version "${PNPM_VERSION}"
 
@@ -239,7 +236,6 @@ jobs:
             browser: webkit
 
     env:
-      NEXT_PUBLIC_API_URL: ${{ env.CLIENT_REALITY_API_URL }}
       PLAYWRIGHT_EXTERNAL_SERVER: '1'
 
     steps:
@@ -272,7 +268,7 @@ jobs:
           --checksum "${RUNNER_TEMP}/client-reality-artifact/client-reality-web.tar.gz.sha256"
           --event-head-sha "${{ github.event.pull_request.head.sha }}"
           --event-base-sha "${{ github.event.pull_request.base.sha }}"
-          --api-url "${CLIENT_REALITY_API_URL}"
+          --api-url "${NEXT_PUBLIC_API_URL}"
 
       - name: Install Playwright engine
         run: pnpm --filter @woof/web exec playwright install --with-deps ${{ matrix.browser }}
