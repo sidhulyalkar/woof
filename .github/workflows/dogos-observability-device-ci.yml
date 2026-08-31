@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'apps/api/src/observability/**'
+      - 'apps/api/src/auth/auth.controller.ts'
+      - 'apps/api/src/adventure/adventure.controller.ts'
+      - 'apps/api/src/companion/companion.controller.ts'
+      - 'apps/api/src/caregiver/caregiver.controller.ts'
       - 'apps/api/src/connectors/device-partner-contract*.ts'
       - 'apps/api/src/connectors/connectors.service.ts'
       - 'apps/api/src/connectors/connectors.service.spec.ts'
@@ -30,6 +34,8 @@ concurrency:
 env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
+  PROMETHEUS_VERSION: '3.13.2'
+  PROMETHEUS_LINUX_AMD64_SHA256: '0e8c4d46101bd025ea8265e377d2caabc57f488fc1be1c367f37db69ea41be6f'
 
 jobs:
   qualify:
@@ -127,10 +133,23 @@ jobs:
           python .github/scripts/woof-alert-policy.py --verify-fixtures
           grep -Fq 'histogram_quantile(0.95' ops/alerts/woof-api.rules.yml
           grep -Fq 'absent(woof_process_uptime_seconds' ops/alerts/woof-api.rules.yml
+          grep -Fq 'unless on (release)' ops/alerts/woof-api.rules.yml
           grep -Fq 'operation_class: "today_read"' ops/alerts/woof-api.rules.yml
+          grep -Fq 'operation_class: "telemetry_quality"' ops/alerts/woof-api.rules.yml
           grep -Fq 'release: "unknown"' ops/alerts/woof-api.rules.yml
           grep -Fq '"realtime_admission_error_rate"' ops/alerts/woof-api-alert-policy.v1.json
           grep -Fq '"database_pool_saturation"' ops/alerts/woof-api-alert-policy.v1.json
+
+      - name: Validate rendered rules with pinned Prometheus promtool
+        run: |
+          archive="/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "$archive" \
+            "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          echo "${PROMETHEUS_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check -
+          tar -xzf "$archive" -C /tmp
+          "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" \
+            check rules ops/alerts/woof-api.rules.yml
 
       - name: Enforce identifier-free alert labels and fixtures
         run: |
@@ -180,6 +199,9 @@ jobs:
           grep -Fq 'requestUrlsCollected: false' "$metrics"
           grep -Fq 'REQUEST_DURATION_BUCKETS_MS' "$metrics"
           grep -Fq 'woof_http_request_duration_ms_bucket' "$metrics"
+          grep -Fq 'woof_http_request_duration_invalid_total' "$metrics"
+          grep -Fq 'durationSampleCount' "$metrics"
+          grep -Fq 'durationInvalidCount' "$metrics"
           grep -Fq 'resolveReleaseIdentity' "$metrics"
           grep -Fq 'woof_release_info' "$metrics"
 
