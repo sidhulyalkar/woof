@@ -19,20 +19,32 @@
   },
   "http5xx": {
     "window": "5m",
-    "minimumRequests": 20,
-    "warningRatio": 0.02,
-    "criticalRatio": 0.05,
-    "warningFor": "5m",
-    "criticalFor": "2m"
-  },
-  "auth5xx": {
-    "window": "5m",
-    "minimumRequests": 10,
+    "minimumRequests": 50,
     "warningRatio": 0.02,
     "criticalRatio": 0.05,
     "warningFor": "5m",
     "criticalFor": "2m",
-    "operationRegex": "AuthController[.](register|login|logout|logoutAll|getProfile)"
+    "excludedOperations": [
+      "ObservabilityController.liveness",
+      "ObservabilityController.readiness",
+      "ObservabilityController.prometheus",
+      "ObservabilityController.snapshot"
+    ]
+  },
+  "auth5xx": {
+    "window": "5m",
+    "minimumRequests": 50,
+    "warningRatio": 0.02,
+    "criticalRatio": 0.05,
+    "warningFor": "5m",
+    "criticalFor": "2m",
+    "operations": [
+      "AuthController.register",
+      "AuthController.login",
+      "AuthController.logout",
+      "AuthController.logoutAll",
+      "AuthController.getProfile"
+    ]
   },
   "todayReadP95Ms": {
     "window": "10m",
@@ -42,16 +54,26 @@
     "criticalMs": 1500,
     "warningFor": "10m",
     "criticalFor": "5m",
-    "operationRegex": "AdventureController[.]getMine|CompanionController[.](getState|getReadiness)|CaregiverController[.]getCaregiverToday"
+    "operations": [
+      "AdventureController.getMine",
+      "CompanionController.getState",
+      "CompanionController.getReadiness",
+      "CaregiverController.getCaregiverToday"
+    ]
   },
   "caregiverTransition5xx": {
     "window": "5m",
-    "minimumRequests": 10,
+    "minimumRequests": 25,
     "warningRatio": 0.02,
     "criticalRatio": 0.05,
     "warningFor": "5m",
     "criticalFor": "2m",
-    "operationRegex": "CaregiverController[.](issueGrant|acceptGrant|declineGrant|revokeGrant)"
+    "operations": [
+      "CaregiverController.issueGrant",
+      "CaregiverController.acceptGrant",
+      "CaregiverController.declineGrant",
+      "CaregiverController.revokeGrant"
+    ]
   },
   "connectorRejected": {
     "window": "15m",
