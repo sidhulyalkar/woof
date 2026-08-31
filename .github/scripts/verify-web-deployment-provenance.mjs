@@ -97,10 +97,7 @@ function selfTest() {
         expectedApiUrl: api,
       },
     ],
-    [
-      'missing markers',
-      { html: '<html></html>', expectedRelease: release, expectedApiUrl: api },
-    ],
+    ['missing markers', { html: '<html></html>', expectedRelease: release, expectedApiUrl: api }],
   ]) {
     let rejected = false;
     try {
