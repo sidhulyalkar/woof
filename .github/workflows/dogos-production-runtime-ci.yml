@@ -7,6 +7,8 @@ on:
       - 'apps/api/src/main.ts'
       - 'apps/api/src/sentry.ts'
       - 'apps/api/src/sentry.spec.ts'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/src/common/filters/**'
       - 'apps/api/src/common/http/**'
       - 'apps/api/.env.example'
@@ -36,6 +38,7 @@ env:
   JWT_SECRET: ci-only-production-runtime-secret-12345678901234567890
   NODE_ENV: test
   ML_SERVICE_ENABLED: 'false'
+  TEST_BROWSER_ORIGIN: https://app.example.com
 
 jobs:
   qualify:
@@ -95,6 +98,8 @@ jobs:
           apps/api/src/main.ts
           apps/api/src/sentry.ts
           apps/api/src/sentry.spec.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/src/config/env.validation.spec.ts
           apps/api/src/common/filters/all-exceptions.filter.ts
           apps/api/src/common/filters/all-exceptions.filter.spec.ts
           apps/api/src/common/http/request-context.ts
@@ -113,6 +118,8 @@ jobs:
           src/main.ts
           src/sentry.ts
           src/sentry.spec.ts
+          src/config/env.validation.ts
+          src/config/env.validation.spec.ts
           src/common/filters/all-exceptions.filter.ts
           src/common/filters/all-exceptions.filter.spec.ts
           src/common/http/request-context.ts
@@ -328,6 +335,7 @@ jobs:
             -e JWT_SECRET="$JWT_SECRET" \
             -e NODE_ENV=production \
             -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN="$TEST_BROWSER_ORIGIN" \
             woof-api-runtime:ci \
             pnpm --filter @woof/database db:migrate:deploy
 
@@ -340,7 +348,7 @@ jobs:
             -e JWT_SECRET="$JWT_SECRET" \
             -e NODE_ENV=production \
             -e API_DOCS_ENABLED=false \
-            -e CORS_ORIGIN=http://localhost:3000 \
+            -e CORS_ORIGIN="$TEST_BROWSER_ORIGIN" \
             woof-api-runtime:ci
 
           live=0
@@ -375,6 +383,7 @@ jobs:
           ready_status=$(curl --silent --show-error --dump-header /tmp/ready-headers \
             --output /tmp/ready.json --write-out '%{http_code}' \
             --header 'X-Request-ID: ci-request-12345678' \
+            --header "Origin: $TEST_BROWSER_ORIGIN" \
             http://127.0.0.1:4000/api/v1/ops/health/ready || true)
           if [ "$ready_status" != '200' ]; then
             echo "Production image failed readiness; status=$ready_status"
@@ -384,6 +393,11 @@ jobs:
           fi
           tr -d '\r' < /tmp/ready-headers | grep -Fxi 'X-Request-ID: ci-request-12345678' || {
             echo 'Readiness response did not preserve X-Request-ID.'
+            cat /tmp/ready-headers
+            exit 1
+          }
+          tr -d '\r' < /tmp/ready-headers | grep -Fxi "Access-Control-Allow-Origin: $TEST_BROWSER_ORIGIN" || {
+            echo 'Readiness response did not authorize the configured browser origin.'
             cat /tmp/ready-headers
             exit 1
           }
