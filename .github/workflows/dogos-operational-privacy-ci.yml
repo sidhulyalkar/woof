@@ -11,11 +11,13 @@ on:
       - 'apps/web/sentry.client.config.ts'
       - 'apps/web/sentry.server.config.ts'
       - 'apps/web/sentry.edge.config.ts'
+      - 'apps/web/src/app/layout.tsx'
       - 'apps/web/src/lib/observability/**'
       - 'infra/docker/Dockerfile.api'
       - '.github/workflows/deploy-production.yml'
       - '.github/workflows/deploy-staging.yml'
       - '.github/scripts/assert-operational-privacy-release.py'
+      - '.github/scripts/verify-web-deployment-provenance.mjs'
       - '.github/workflows/dogos-operational-privacy-ci.yml'
 
 permissions:
@@ -29,10 +31,11 @@ env:
   NODE_VERSION: '20.20.2'
   PNPM_VERSION: '8.15.1'
   TEST_RELEASE_SHA: '0123456789abcdef0123456789abcdef01234567'
+  TEST_API_URL: 'https://api.example.com/api/v1'
 
 jobs:
   qualify:
-    name: Release identity + telemetry privacy qualification
+    name: Release identity + telemetry privacy + Web/API provenance qualification
     runs-on: ubuntu-24.04
 
     steps:
@@ -65,8 +68,10 @@ jobs:
           apps/web/sentry.client.config.ts
           apps/web/sentry.server.config.ts
           apps/web/sentry.edge.config.ts
+          apps/web/src/app/layout.tsx
           apps/web/src/lib/observability/sentry-policy.ts
           apps/web/src/lib/observability/sentry-policy.test.ts
+          .github/scripts/verify-web-deployment-provenance.mjs
           .github/workflows/deploy-production.yml
           .github/workflows/deploy-staging.yml
           .github/workflows/dogos-operational-privacy-ci.yml
@@ -79,17 +84,21 @@ jobs:
           src/observability/observability.service.ts
           src/sentry.ts
 
-      - name: Lint Web telemetry privacy surface
+      - name: Lint Web telemetry privacy and provenance surface
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
           sentry.client.config.ts
           sentry.server.config.ts
           sentry.edge.config.ts
+          src/app/layout.tsx
           src/lib/observability/sentry-policy.ts
           src/lib/observability/sentry-policy.test.ts
 
-      - name: Validate source contract
-        run: python -m py_compile .github/scripts/assert-operational-privacy-release.py
+      - name: Validate source contracts and deployment verifier
+        run: |
+          python -m py_compile .github/scripts/assert-operational-privacy-release.py
+          node --check .github/scripts/verify-web-deployment-provenance.mjs
+          node .github/scripts/verify-web-deployment-provenance.mjs --self-test
 
       - name: Enforce source contract
         run: python .github/scripts/assert-operational-privacy-release.py
@@ -110,9 +119,9 @@ jobs:
           WOOF_RELEASE_SHA: ${{ env.TEST_RELEASE_SHA }}
         run: pnpm --filter @woof/api build
 
-      - name: Build Web with replay privacy closed
+      - name: Build Web with exact provenance and replay privacy closed
         env:
           NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.TEST_RELEASE_SHA }}
           NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:4000/api/v1
+          NEXT_PUBLIC_API_URL: ${{ env.TEST_API_URL }}
         run: pnpm --filter @woof/web build
