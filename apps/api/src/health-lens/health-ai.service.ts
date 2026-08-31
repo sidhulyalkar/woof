@@ -52,10 +52,7 @@ export type PetHealthModelInput = {
 type VetHandoffTiming = PetHealthModelResult['vetHandoff']['timing'];
 type ModelRecord = Record<string, unknown>;
 type HealthProviderFailureReason =
-  | 'provider_http_error'
-  | 'invalid_json'
-  | 'timeout'
-  | 'transport_error';
+  'provider_http_error' | 'invalid_json' | 'timeout' | 'transport_error';
 
 const TRIAGE_LEVELS = new Set<HealthTriageLevel>([
   'emergency_now',

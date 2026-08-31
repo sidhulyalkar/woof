@@ -16,11 +16,7 @@
         ".github/workflows/dogos-health-lens-ci.yml",
         ".github/workflows/integration-truth-ci.yml"
       ],
-      "configuration": [
-        "OPENAI_API_KEY",
-        "OPENAI_HEALTH_MODEL",
-        "OPENAI_HEALTH_TIMEOUT_MS"
-      ],
+      "configuration": ["OPENAI_API_KEY", "OPENAI_HEALTH_MODEL", "OPENAI_HEALTH_TIMEOUT_MS"],
       "repositoryEvidence": [
         "Bearer-authenticated Responses API client",
         "store=false request policy",
@@ -41,9 +37,7 @@
       "id": "behavior_vision",
       "status": "OPTIONAL_QUALIFIED",
       "runtimeOwner": "apps/api/src/behavior-vision/behavior-vision.model.ts",
-      "ciOwners": [
-        ".github/workflows/dogos-behavior-moments-ci.yml"
-      ],
+      "ciOwners": [".github/workflows/dogos-behavior-moments-ci.yml"],
       "configuration": [
         "BEHAVIOR_VISION_SERVICE_URL",
         "BEHAVIOR_VISION_SERVICE_TOKEN",
@@ -71,9 +65,7 @@
       "id": "s3_private_storage",
       "status": "OPTIONAL_QUALIFIED",
       "runtimeOwner": "apps/api/src/storage/storage.service.ts",
-      "ciOwners": [
-        ".github/workflows/integration-truth-ci.yml"
-      ],
+      "ciOwners": [".github/workflows/integration-truth-ci.yml"],
       "configuration": [
         "S3_ENDPOINT",
         "S3_BUCKET",
@@ -102,14 +94,8 @@
       "id": "media_derivatives",
       "status": "OPTIONAL_QUALIFIED",
       "runtimeOwner": "apps/api/src/media-library/media-derivative.worker.ts",
-      "ciOwners": [
-        ".github/workflows/integration-truth-ci.yml"
-      ],
-      "configuration": [
-        "MEDIA_DERIVATIVES_ENABLED",
-        "MEDIA_FFMPEG_PATH",
-        "MEDIA_FFPROBE_PATH"
-      ],
+      "ciOwners": [".github/workflows/integration-truth-ci.yml"],
+      "configuration": ["MEDIA_DERIVATIVES_ENABLED", "MEDIA_FFMPEG_PATH", "MEDIA_FFPROBE_PATH"],
       "repositoryEvidence": [
         "maintained derivative worker",
         "deterministic worker contracts",
@@ -128,13 +114,8 @@
       "id": "web_push",
       "status": "OPTIONAL_QUALIFIED",
       "runtimeOwner": "apps/api/src/notifications/notifications.service.ts",
-      "ciOwners": [
-        ".github/workflows/integration-truth-ci.yml"
-      ],
-      "configuration": [
-        "VAPID_PUBLIC_KEY",
-        "VAPID_PRIVATE_KEY"
-      ],
+      "ciOwners": [".github/workflows/integration-truth-ci.yml"],
+      "configuration": ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"],
       "repositoryEvidence": [
         "subscription persistence and unsubscribe lifecycle",
         "VAPID delivery runtime",
@@ -154,13 +135,9 @@
       "id": "n8n",
       "status": "RESERVED",
       "runtimeOwner": null,
-      "ciOwners": [
-        ".github/workflows/integration-truth-ci.yml"
-      ],
+      "ciOwners": [".github/workflows/integration-truth-ci.yml"],
       "configuration": [],
-      "prototypePaths": [
-        "n8n-workflows/"
-      ],
+      "prototypePaths": ["n8n-workflows/"],
       "repositoryEvidence": [
         "prototype workflow JSON only",
         "no maintained N8nWebhooksController or webhook authentication runtime"

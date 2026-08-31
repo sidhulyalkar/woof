@@ -38,10 +38,12 @@ function prisma(row: ReturnType<typeof storedSubscription> | null = storedSubscr
   };
 }
 
-function service(options: {
-  configured?: boolean;
-  prisma?: ReturnType<typeof prisma>;
-} = {}) {
+function service(
+  options: {
+    configured?: boolean;
+    prisma?: ReturnType<typeof prisma>;
+  } = {}
+) {
   const configured = options.configured ?? true;
   const values: Record<string, string | undefined> = {
     VAPID_PUBLIC_KEY: configured ? 'test-public-vapid-key' : undefined,
@@ -153,29 +155,32 @@ describe('NotificationsService Web Push privacy boundary', () => {
     expect(logs).not.toContain(endpoint);
   });
 
-  it.each([404, 410])('removes stale subscriptions on provider status %s without identifier leakage', async (statusCode) => {
-    const privateMarker = `PRIVATE_EXPIRED_PUSH_${statusCode}`;
-    const spies = loggerSpies();
-    sendNotification.mockRejectedValue(
-      Object.assign(new Error(privateMarker), { statusCode, stack: privateMarker })
-    );
-    const database = prisma();
-    const { notifications } = service({ prisma: database });
+  it.each([404, 410])(
+    'removes stale subscriptions on provider status %s without identifier leakage',
+    async (statusCode) => {
+      const privateMarker = `PRIVATE_EXPIRED_PUSH_${statusCode}`;
+      const spies = loggerSpies();
+      sendNotification.mockRejectedValue(
+        Object.assign(new Error(privateMarker), { statusCode, stack: privateMarker })
+      );
+      const database = prisma();
+      const { notifications } = service({ prisma: database });
 
-    const result = await notifications.sendPushNotification({ userId, title, body });
+      const result = await notifications.sendPushNotification({ userId, title, body });
 
-    expect(result).toEqual({ success: false, reason: 'subscription_expired' });
-    expect(database.integrationToken.delete).toHaveBeenCalledWith({
-      where: { id: 'push-token-row-1' },
-    });
-    expect(spies.warn).toHaveBeenCalledWith(
-      `Expired push subscription removed status=${statusCode}`
-    );
-    const logs = serializedLogCalls(spies);
-    expect(logs).not.toContain(privateMarker);
-    expect(logs).not.toContain(userId);
-    expect(logs).not.toContain(endpoint);
-  });
+      expect(result).toEqual({ success: false, reason: 'subscription_expired' });
+      expect(database.integrationToken.delete).toHaveBeenCalledWith({
+        where: { id: 'push-token-row-1' },
+      });
+      expect(spies.warn).toHaveBeenCalledWith(
+        `Expired push subscription removed status=${statusCode}`
+      );
+      const logs = serializedLogCalls(spies);
+      expect(logs).not.toContain(privateMarker);
+      expect(logs).not.toContain(userId);
+      expect(logs).not.toContain(endpoint);
+    }
+  );
 
   it('returns a truthful disabled state before database/provider access when VAPID is unconfigured', async () => {
     const spies = loggerSpies();

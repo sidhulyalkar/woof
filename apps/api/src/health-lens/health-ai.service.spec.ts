@@ -267,7 +267,9 @@ describe('HealthAiService provider privacy boundary', () => {
   it('classifies malformed provider JSON without logging response content', async () => {
     const privateMarker = 'PRIVATE_MALFORMED_HEALTH_RESPONSE';
     const spies = loggerSpies();
-    jest.spyOn(global, 'fetch').mockResolvedValue(new Response(`{${privateMarker}`, { status: 200 }));
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(`{${privateMarker}`, { status: 200 }));
 
     await expect(service().analyze(input)).rejects.toThrow(
       'Health screening model is temporarily unavailable'

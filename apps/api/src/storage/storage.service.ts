@@ -224,10 +224,7 @@ export class StorageService {
     return { key, uploadUrl, expiresIn, requiredHeaders };
   }
 
-  async uploadFiles(
-    files: Express.Multer.File[],
-    folder = 'uploads'
-  ): Promise<UploadResult[]> {
+  async uploadFiles(files: Express.Multer.File[], folder = 'uploads'): Promise<UploadResult[]> {
     return Promise.all(files.map((file) => this.uploadFile(file, folder)));
   }
 
@@ -401,9 +398,7 @@ export class StorageService {
 
   private requireClient(): S3Client {
     if (!this.s3Client || !this.configured) {
-      throw new ServiceUnavailableException(
-        'Media storage is not configured in this environment'
-      );
+      throw new ServiceUnavailableException('Media storage is not configured in this environment');
     }
     return this.s3Client;
   }
@@ -411,7 +406,10 @@ export class StorageService {
   private generateKey(filename: string, folder: string): string {
     const safeFolder =
       folder.replace(/[^a-zA-Z0-9/_-]/g, '').replace(/^\/+|\/+$/g, '') || 'uploads';
-    const ext = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/g, '');
+    const ext = path
+      .extname(filename)
+      .toLowerCase()
+      .replace(/[^.a-z0-9]/g, '');
     const hash = crypto.randomBytes(16).toString('hex');
     return `${safeFolder}/${Date.now()}-${hash}${ext}`;
   }
