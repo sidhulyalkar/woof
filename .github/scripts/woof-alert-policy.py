@@ -68,8 +68,12 @@ def validate_operation_source(operation: str) -> None:
     source = source_path.read_text()
     if re.search(rf"\bclass\s+{re.escape(controller)}\b", source) is None:
         raise SystemExit(f"alert controller {controller} no longer exists in {source_path}")
-    if re.search(rf"\b(?:async\s+)?{re.escape(method)}\s*\(", source) is None:
-        raise SystemExit(f"alert operation {operation} no longer exists in {source_path}")
+    declaration = re.compile(
+        rf"^\s*(?:(?:public|protected|private)\s+)?(?:async\s+)?{re.escape(method)}\s*\(",
+        re.MULTILINE,
+    )
+    if declaration.search(source) is None:
+        raise SystemExit(f"alert operation {operation} no longer exists as a method in {source_path}")
 
 
 def validate_ratio_policy(name: str, config: dict[str, Any], minimum_key: str) -> None:
@@ -140,6 +144,7 @@ def validate_policy(policy: dict[str, Any]) -> None:
     validate_ratio_policy("auth5xx", auth, "minimumRequests")
     validate_ratio_policy("caregiverTransition5xx", caregiver, "minimumRequests")
     validate_ratio_policy("connectorRejected", connector, "minimumImports")
+    validate_count_policy("application5xxBurst", policy.get("application5xxBurst", {}))
 
     operation_sets = {
         "http5xx.excludedOperations": http.get("excludedOperations"),
@@ -359,6 +364,25 @@ def render_rules(policy: dict[str, Any]) -> str:
             description="The bounded application-request 5xx ratio exceeded policy for release {{ $labels.release }} after the minimum eligible-request floor was met. Health/metrics endpoints and 4xx client outcomes are excluded from this ratio.",
         )
 
+    burst = policy["application5xxBurst"]
+    for severity, threshold, duration in [
+        ("warning", burst["warningCount"], burst["warningFor"]),
+        ("critical", burst["criticalCount"], burst["criticalFor"]),
+    ]:
+        expr = (
+            f'sum by (release, operation) (increase(woof_http_requests_total{{service="{service}",{http_selector},status_class="5xx"}}'
+            f'[{burst["window"]}])) >= {threshold}'
+        )
+        add(
+            name=f"WoofApplication5xxBurst{severity.title()}",
+            expr=expr,
+            duration=duration,
+            severity=severity,
+            operation_class="http_operation_burst",
+            summary=f"Woof API operation has repeated 5xx responses ({severity})",
+            description="Application operation {{ $labels.operation }} has repeated server errors for release {{ $labels.release }}. This low-volume fallback remains active even when ratio sample floors are not met.",
+        )
+
     auth = policy["auth5xx"]
     auth_selector = f'operation=~"{operation_regex(auth["operations"])}"'
     for severity, ratio, duration in [
@@ -520,14 +544,16 @@ def validate_rendered_rules(rendered: str) -> None:
         "and on (release, provider, kind)",
         "unless on (release)",
         "woof_http_request_duration_invalid_total",
+        "WoofApplication5xxBurstWarning",
+        "WoofApplication5xxBurstCritical",
     ]
     for marker in required:
         if marker not in rendered:
             raise SystemExit(f"generated alert rules lost required grouping/exclusion contract: {marker}")
     if "\\." in rendered:
         raise SystemExit("generated PromQL must not rely on invalid backslash-dot Go string escapes")
-    if rendered.count("    - alert: ") != 21:
-        raise SystemExit("woof-api-alert-policy-v1 must render exactly 21 named alert rules")
+    if rendered.count("    - alert: ") != 23:
+        raise SystemExit("woof-api-alert-policy-v1 must render exactly 23 named alert rules")
 
 
 def classify_ratio(total: float, bad: float, minimum: int, warning: float, critical: float) -> str:
@@ -557,6 +583,7 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
             "release": "UNKNOWN",
             "readiness": "UNKNOWN",
             "http5xx": "UNKNOWN",
+            "application5xxBurst": "UNKNOWN",
             "auth5xx": "UNKNOWN",
             "todayReadP95Ms": "UNKNOWN",
             "requestDurationInvalid": "UNKNOWN",
@@ -567,6 +594,7 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
 
     readiness = policy["readinessFailures"]
     http = policy["http5xx"]
+    burst = policy["application5xxBurst"]
     auth = policy["auth5xx"]
     today = policy["todayReadP95Ms"]
     invalid_duration = policy["requestDurationInvalid"]
@@ -592,6 +620,11 @@ def classify_fixture(policy: dict[str, Any], fixture: dict[str, Any]) -> dict[st
             http["minimumRequests"],
             http["warningRatio"],
             http["criticalRatio"],
+        ),
+        "application5xxBurst": classify_count(
+            sample["http5xx"],
+            burst["warningCount"],
+            burst["criticalCount"],
         ),
         "auth5xx": classify_ratio(
             sample["authRequests"],
