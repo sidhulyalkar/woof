@@ -1,0 +1,40 @@
+name: TEMP Exact Prettier Diff
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/observability/operational-metrics.service.ts'
+      - 'apps/api/src/observability/operational-metrics.service.spec.ts'
+      - '.github/workflows/tmp-prettier-diff.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '8.15.1'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20.20.2'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Print exact Prettier diff
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/observability/operational-metrics.service.ts \
+            apps/api/src/observability/operational-metrics.service.spec.ts
+          git diff -- \
+            apps/api/src/observability/operational-metrics.service.ts \
+            apps/api/src/observability/operational-metrics.service.spec.ts
+          if ! git diff --quiet -- \
+            apps/api/src/observability/operational-metrics.service.ts \
+            apps/api/src/observability/operational-metrics.service.spec.ts; then
+            echo 'TEMP_FORMAT_DIFF_PRESENT'
+            exit 1
+          fi
