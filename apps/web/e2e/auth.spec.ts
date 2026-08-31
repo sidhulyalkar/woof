@@ -18,6 +18,26 @@ test.describe('Authentication Flow', () => {
     await expect(page).toHaveURL(/.*login/);
   });
 
+  test('binds the response CSP nonce to the Next runtime script', async ({ page }) => {
+    const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    if (!response) {
+      throw new Error('Login navigation did not produce a document response.');
+    }
+
+    const csp = response.headers()['content-security-policy'];
+    expect(csp).toContain("'strict-dynamic'");
+
+    const nonceMatch = csp.match(/'nonce-([^']+)'/);
+    const responseNonce = nonceMatch?.[1];
+    if (!responseNonce) {
+      throw new Error('Production CSP did not contain a request nonce.');
+    }
+
+    const runtimeScript = page.locator('script[src^="/_next/static/"]').first();
+    const runtimeNonce = await runtimeScript.evaluate((script: HTMLScriptElement) => script.nonce);
+    expect(runtimeNonce).toBe(responseNonce);
+  });
+
   test('displays the login form accessibly', async ({ page }) => {
     await page.goto('/login');
 
