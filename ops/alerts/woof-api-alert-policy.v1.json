@@ -31,6 +31,13 @@
       "ObservabilityController.snapshot"
     ]
   },
+  "application5xxBurst": {
+    "window": "15m",
+    "warningCount": 3,
+    "criticalCount": 10,
+    "warningFor": "5m",
+    "criticalFor": "2m"
+  },
   "auth5xx": {
     "window": "5m",
     "minimumRequests": 50,
