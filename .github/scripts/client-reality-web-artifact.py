@@ -148,6 +148,8 @@ def verify_bundle(
     expected_head_sha: str,
     expected_base_sha: str,
     expected_api_url: str,
+    expected_node_version: str,
+    expected_pnpm_version: str,
     extract: bool,
 ) -> dict[str, object]:
     expected_checksum = read_checksum(checksum)
@@ -164,6 +166,8 @@ def verify_bundle(
         "eventHeadSha": expected_head_sha,
         "eventBaseSha": expected_base_sha,
         "apiUrl": expected_api_url,
+        "nodeVersion": expected_node_version,
+        "pnpmVersion": expected_pnpm_version,
     }
     for key, value in expected.items():
         if manifest.get(key) != value:
@@ -223,6 +227,8 @@ def verify_command(args: argparse.Namespace) -> None:
         expected_head_sha=args.event_head_sha,
         expected_base_sha=args.event_base_sha,
         expected_api_url=args.api_url,
+        expected_node_version=args.node_version,
+        expected_pnpm_version=args.pnpm_version,
         extract=True,
     )
     print(
@@ -244,6 +250,8 @@ def self_test() -> None:
         head = "b" * 40
         base = "c" * 40
         api = "http://127.0.0.1:59999/api/v1"
+        node = "20.20.2"
+        pnpm = "8.15.1"
         out = root / "out"
         archive, checksum = create_bundle(
             root,
@@ -253,6 +261,8 @@ def self_test() -> None:
                 "eventHeadSha": head,
                 "eventBaseSha": base,
                 "apiUrl": api,
+                "nodeVersion": node,
+                "pnpmVersion": pnpm,
             },
         )
         shutil.rmtree(next_dir)
@@ -264,6 +274,8 @@ def self_test() -> None:
             expected_head_sha=head,
             expected_base_sha=base,
             expected_api_url=api,
+            expected_node_version=node,
+            expected_pnpm_version=pnpm,
             extract=True,
         )
         if (next_dir / "cache").exists():
@@ -279,12 +291,33 @@ def self_test() -> None:
                 expected_head_sha="d" * 40,
                 expected_base_sha=base,
                 expected_api_url=api,
+                expected_node_version=node,
+                expected_pnpm_version=pnpm,
                 extract=False,
             )
         except SystemExit:
             rejected = True
         if not rejected:
             raise SystemExit("Self-test failed to reject a mismatched PR head SHA")
+
+        rejected = False
+        try:
+            verify_bundle(
+                root,
+                archive,
+                checksum,
+                expected_checkout_sha=checkout,
+                expected_head_sha=head,
+                expected_base_sha=base,
+                expected_api_url=api,
+                expected_node_version="99.0.0",
+                expected_pnpm_version=pnpm,
+                extract=False,
+            )
+        except SystemExit:
+            rejected = True
+        if not rejected:
+            raise SystemExit("Self-test failed to reject a mismatched Node version")
 
         data = bytearray(archive.read_bytes())
         data[-1] ^= 1
@@ -299,6 +332,8 @@ def self_test() -> None:
                 expected_head_sha=head,
                 expected_base_sha=base,
                 expected_api_url=api,
+                expected_node_version=node,
+                expected_pnpm_version=pnpm,
                 extract=False,
             )
         except SystemExit:
@@ -329,6 +364,8 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("--event-head-sha", required=True)
     verify.add_argument("--event-base-sha", required=True)
     verify.add_argument("--api-url", required=True)
+    verify.add_argument("--node-version", required=True)
+    verify.add_argument("--pnpm-version", required=True)
     verify.set_defaults(func=verify_command)
 
     sub.add_parser("self-test").set_defaults(func=lambda _args: self_test())
