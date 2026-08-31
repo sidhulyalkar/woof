@@ -39,6 +39,9 @@ type ActiveReleasePin = {
   artifactSha256: string;
 };
 
+type BehaviorVisionFailureReason =
+  'provider_http_error' | 'invalid_json' | 'timeout' | 'transport_error';
+
 @Injectable()
 export class BehaviorVisionModelService {
   private readonly logger = new Logger(BehaviorVisionModelService.name);
@@ -134,23 +137,26 @@ export class BehaviorVisionModelService {
       });
 
       if (!response.ok) {
-        const body = await response.text();
-        this.logger.warn(
-          `Behavior vision service failed with ${response.status}: ${body.slice(0, 500)}`
-        );
+        this.warnFailure('provider_http_error', response.status);
         throw new ServiceUnavailableException('Behavior-video analysis is temporarily unavailable');
       }
 
-      const payload = (await response.json()) as BehaviorVisionModelAnalysis;
+      let payload: BehaviorVisionModelAnalysis;
+      try {
+        payload = (await response.json()) as BehaviorVisionModelAnalysis;
+      } catch {
+        this.warnFailure('invalid_json');
+        throw new ServiceUnavailableException('Behavior-video analysis is temporarily unavailable');
+      }
+
       return this.validate(payload, audioAllowed, this.activeRelease);
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
+        this.warnFailure('timeout');
         throw new ServiceUnavailableException('Behavior-video analysis timed out');
       }
-      this.logger.error(
-        `Behavior vision analysis failed: ${error instanceof Error ? error.message : 'unknown error'}`
-      );
+      this.errorFailure('transport_error');
       throw new ServiceUnavailableException('Behavior-video analysis is temporarily unavailable');
     } finally {
       clearTimeout(timeout);
@@ -252,6 +258,15 @@ export class BehaviorVisionModelService {
           : [],
       })),
     };
+  }
+
+  private warnFailure(reason: BehaviorVisionFailureReason, status?: number) {
+    const statusSuffix = status === undefined ? '' : ` status=${status}`;
+    this.logger.warn(`Behavior vision provider failure reason=${reason}${statusSuffix}`);
+  }
+
+  private errorFailure(reason: BehaviorVisionFailureReason) {
+    this.logger.error(`Behavior vision provider failure reason=${reason}`);
   }
 
   private qualifyRelease(release: ActiveReleasePin): BehaviorVisionReleaseQualification {
