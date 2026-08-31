@@ -18,7 +18,6 @@ required_workflow = [
     "NEXT_PUBLIC_API_URL: http://127.0.0.1:59999/api/v1",
     "web-build:",
     "name: Build exact production Web artifact once",
-    "needs: contract",
     "Build Web client for production-server qualification",
     "python .github/scripts/client-reality-web-artifact.py create",
     '--event-head-sha "${{ github.event.pull_request.head.sha }}"',
@@ -55,13 +54,19 @@ if workflow.count(build_command) != 1:
     raise SystemExit(
         "Client Reality must compile the production Web exactly once per workflow run"
     )
+producer_start = workflow.index("  web-build:")
 browser_start = workflow.index("  browser-matrix:")
+producer_section = workflow[producer_start:browser_start]
+if "\n    needs:" in producer_section:
+    raise SystemExit(
+        "Client Reality contract and Web producer must execute independently in parallel; "
+        "only browser consumers wait for both gates"
+    )
 if build_command in workflow[browser_start:]:
     raise SystemExit("browser consumers must never rebuild the shared production Web artifact")
 if "pnpm --filter @woof/web dev" in workflow:
     raise SystemExit("Client Reality release evidence must never fall back to next dev")
 
-producer_start = workflow.index("  web-build:")
 if not producer_start < workflow.index(build_command) < browser_start:
     raise SystemExit("the only production Web build must belong to the artifact producer")
 
@@ -103,7 +108,7 @@ for forbidden in [
         raise SystemExit(f"forbidden shared-artifact shortcut detected: {forbidden!r}")
 
 print(
-    "Client Reality artifact contract preserves one build, checked transfer bytes, "
+    "Client Reality artifact contract preserves one parallelized build, checked transfer bytes, "
     "actual checkout identity, PR head/base provenance, build config, toolchain identity, "
     "and four independent engines."
 )
