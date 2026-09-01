@@ -12,6 +12,7 @@ describe('validateEnvironment', () => {
     JWT_SECRET: '8f3f89a744824fd99ee61797d67dc1023f6f7717762c4ab8',
     CORS_ORIGIN: 'https://app.example.com',
   };
+  const credentialEncryptionKey = Buffer.alloc(32, 11).toString('base64');
   const behaviorReleasePin = {
     BEHAVIOR_VISION_RELEASE_ID: 'behavior-shadow-2026-08-27',
     BEHAVIOR_VISION_MODEL_VERSION: 'shadow-model-1',
@@ -133,15 +134,66 @@ describe('validateEnvironment', () => {
     ).toThrow(/VAPID_PUBLIC_KEY.*VAPID_PRIVATE_KEY.*together/i);
   });
 
-  it('accepts a complete non-development Web Push VAPID keypair in production', () => {
+  it('requires encrypted credential storage when Web Push is configured in production', () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        VAPID_PUBLIC_KEY: 'public-production-key',
+        VAPID_PRIVATE_KEY: 'private-production-key',
+      })
+    ).toThrow(/CONNECTOR_CREDENTIALS_KEY.*Web Push/i);
+  });
+
+  it('accepts a complete encrypted Web Push configuration in production', () => {
     const config = validateEnvironment({
       ...productionBase,
       VAPID_PUBLIC_KEY: 'public-production-key',
       VAPID_PRIVATE_KEY: 'private-production-key',
+      CONNECTOR_CREDENTIALS_KEY: credentialEncryptionKey,
     });
 
     expect(config.VAPID_PUBLIC_KEY).toBe('public-production-key');
     expect(config.VAPID_PRIVATE_KEY).toBe('private-production-key');
+    expect(config.CONNECTOR_CREDENTIALS_KEY).toBe(credentialEncryptionKey);
+  });
+
+  it('rejects malformed Web Push legacy plaintext compatibility cutoffs', () => {
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        PUSH_LEGACY_PLAINTEXT_READS_UNTIL: 'next-month',
+      })
+    ).toThrow(/PUSH_LEGACY_PLAINTEXT_READS_UNTIL.*ISO-8601/i);
+  });
+
+  it('rejects Web Push legacy plaintext compatibility windows beyond 30 production days', () => {
+    const tooFar = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
+
+    expect(() =>
+      validateEnvironment({
+        ...productionBase,
+        PUSH_LEGACY_PLAINTEXT_READS_UNTIL: tooFar,
+      })
+    ).toThrow(/PUSH_LEGACY_PLAINTEXT_READS_UNTIL.*at most 30 days/i);
+  });
+
+  it('accepts a bounded Web Push legacy plaintext compatibility window in production', () => {
+    const cutoff = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const config = validateEnvironment({
+      ...productionBase,
+      PUSH_LEGACY_PLAINTEXT_READS_UNTIL: cutoff,
+    });
+
+    expect(config.PUSH_LEGACY_PLAINTEXT_READS_UNTIL).toBe(cutoff);
+  });
+
+  it('accepts an already-expired Push legacy cutoff as an explicit disabled state', () => {
+    const config = validateEnvironment({
+      ...productionBase,
+      PUSH_LEGACY_PLAINTEXT_READS_UNTIL: '2000-01-01T00:00:00Z',
+    });
+
+    expect(config.PUSH_LEGACY_PLAINTEXT_READS_UNTIL).toBe('2000-01-01T00:00:00Z');
   });
 
   it('fails closed when production CORS falls back to localhost', () => {

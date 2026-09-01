@@ -1,54 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@woof/database';
 import * as webPush from 'web-push';
-import { PrismaService } from '../prisma/prisma.service';
-import { PushSubscriptionDto, SendPushDto } from './dto/push-subscription.dto';
-
-type StoredPushSubscription = {
-  endpoint: string;
-  expirationTime?: number | null;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-};
+import { PushSubscriptionDto } from './dto/push-subscription.dto';
+import { pushSubscriptionFingerprint, PushSubscriptionStore } from './push-subscription.store';
 
 type PushDeliveryError = {
   statusCode?: number;
 };
 
-function toStoredSubscription(subscription: PushSubscriptionDto): Prisma.InputJsonObject {
-  return {
-    endpoint: subscription.endpoint,
-    expirationTime: subscription.expirationTime ?? null,
-    keys: {
-      p256dh: subscription.keys.p256dh,
-      auth: subscription.keys.auth,
-    },
-  };
-}
-
-function readStoredSubscription(value: Prisma.JsonValue): StoredPushSubscription | null {
-  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
-  const endpoint = value.endpoint;
-  const keys = value.keys;
-  if (
-    typeof endpoint !== 'string' ||
-    !keys ||
-    Array.isArray(keys) ||
-    typeof keys !== 'object' ||
-    typeof keys.p256dh !== 'string' ||
-    typeof keys.auth !== 'string'
-  ) {
-    return null;
-  }
-  return {
-    endpoint,
-    expirationTime: typeof value.expirationTime === 'number' ? value.expirationTime : null,
-    keys: { p256dh: keys.p256dh, auth: keys.auth },
-  };
-}
+type PushNotificationInput = {
+  userId: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  icon?: string;
+  url?: string;
+};
 
 function readPushError(error: unknown): PushDeliveryError {
   if (!error || typeof error !== 'object') return {};
@@ -61,103 +28,117 @@ function readPushError(error: unknown): PushDeliveryError {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly pushConfigured: boolean;
+  private readonly vapidConfigured: boolean;
+  private readonly encryptionConfigured: boolean;
 
   constructor(
-    private prisma: PrismaService,
-    private configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly subscriptions: PushSubscriptionStore
   ) {
     const publicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
     const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
 
-    this.pushConfigured = Boolean(publicKey && privateKey);
+    this.vapidConfigured = Boolean(publicKey && privateKey);
+    this.encryptionConfigured = this.subscriptions.encryptionConfigured();
 
-    if (this.pushConfigured) {
+    if (this.vapidConfigured && this.encryptionConfigured) {
       webPush.setVapidDetails('mailto:support@woof.app', publicKey!, privateKey!);
-      this.logger.log('Web Push configured');
-    } else {
+      this.logger.log('Web Push configured with encrypted subscription storage');
+    } else if (!this.vapidConfigured) {
       this.logger.warn('VAPID keys not configured; push delivery is disabled');
+    } else {
+      this.logger.warn('Push subscription encryption not configured; push delivery is disabled');
     }
+  }
+
+  async getPushSubscriptionStatus(userId: string) {
+    if (!this.vapidConfigured || !this.encryptionConfigured) {
+      return { subscribed: false };
+    }
+
+    const stored = await this.subscriptions.get(userId);
+    if (stored.state === 'INVALID') {
+      await this.subscriptions.removeInvalidCurrent(userId);
+      return { subscribed: false };
+    }
+    if (stored.state !== 'USABLE') {
+      return { subscribed: false };
+    }
+
+    return {
+      subscribed: true,
+      subscriptionFingerprint: pushSubscriptionFingerprint(stored.subscription),
+    };
   }
 
   async subscribePushNotification(userId: string, subscription: PushSubscriptionDto) {
-    if (!this.pushConfigured) {
+    if (!this.vapidConfigured) {
       return { success: false, reason: 'push_not_configured' };
     }
-
-    const subscriptionData = toStoredSubscription(subscription);
-    const token = await this.prisma.integrationToken.upsert({
-      where: {
-        userId_provider: {
-          userId,
-          provider: 'push_subscription',
-        },
-      },
-      create: {
-        userId,
-        provider: 'push_subscription',
-        data: subscriptionData,
-        scopes: ['notifications'],
-        expiresAt: subscription.expirationTime ? new Date(subscription.expirationTime) : null,
-      },
-      update: {
-        data: subscriptionData,
-        expiresAt: subscription.expirationTime ? new Date(subscription.expirationTime) : null,
-      },
-    });
-
-    this.logger.log('Push subscription saved');
-    return token;
-  }
-
-  async unsubscribePushNotification(userId: string, endpoint?: string) {
-    const subscription = await this.prisma.integrationToken.findFirst({
-      where: {
-        userId,
-        provider: 'push_subscription',
-      },
-    });
-
-    if (!subscription) {
-      return { success: true };
+    if (!this.encryptionConfigured) {
+      return { success: false, reason: 'push_encryption_not_configured' };
     }
 
-    const subscriptionData = readStoredSubscription(subscription.data);
-    if (!endpoint || subscriptionData?.endpoint === endpoint) {
-      await this.prisma.integrationToken.delete({
-        where: { id: subscription.id },
-      });
-      this.logger.log('Push subscription removed');
-    }
-
+    await this.subscriptions.put(userId, subscription);
+    this.logger.log('Push subscription saved in encrypted storage');
     return { success: true };
   }
 
-  async sendPushNotification(data: SendPushDto) {
+  async removeCurrentPushSubscription(userId: string, subscriptionFingerprint: string) {
+    const removed = await this.subscriptions.removeIfFingerprint(userId, subscriptionFingerprint);
+    if (removed) {
+      this.logger.log('Current browser push subscription removed');
+    }
+    return { success: true, removed };
+  }
+
+  async unsubscribePushNotification(userId: string) {
+    await this.subscriptions.remove(userId);
+    this.logger.log('Push subscription removed');
+    return { success: true };
+  }
+
+  async sendPushNotification(data: PushNotificationInput) {
     const { userId, title, body, icon, url, data: payload } = data;
 
-    if (!this.pushConfigured) {
+    if (!this.vapidConfigured) {
       this.logger.debug('Push delivery skipped reason=not_configured');
       return { success: false, reason: 'push_not_configured' };
     }
+    if (!this.encryptionConfigured) {
+      this.logger.debug('Push delivery skipped reason=encryption_not_configured');
+      return { success: false, reason: 'push_encryption_not_configured' };
+    }
 
-    const subscription = await this.prisma.integrationToken.findFirst({
-      where: {
-        userId,
-        provider: 'push_subscription',
-      },
-    });
-
-    if (!subscription) {
+    const stored = await this.subscriptions.get(userId);
+    if (stored.state === 'MISSING') {
       this.logger.debug('Push delivery skipped reason=no_subscription');
       return { success: false, reason: 'no_subscription' };
     }
-
-    const pushSubscription = readStoredSubscription(subscription.data);
-    if (!pushSubscription) {
-      this.logger.warn('Invalid stored push subscription removed');
-      await this.unsubscribePushNotification(userId);
+    if (stored.state === 'ENCRYPTION_UNAVAILABLE') {
+      this.logger.debug('Push delivery skipped reason=encryption_unavailable');
+      return { success: false, reason: 'push_encryption_not_configured' };
+    }
+    if (stored.state === 'LEGACY_MIGRATION_REQUIRED') {
+      this.logger.warn('Legacy push subscription requires operator migration');
+      return { success: false, reason: 'legacy_migration_required' };
+    }
+    if (stored.state === 'CONCURRENT_CHANGE') {
+      this.logger.debug('Push delivery skipped reason=subscription_changed');
+      return { success: false, reason: 'subscription_changed' };
+    }
+    if (stored.state === 'INVALID') {
+      const removed = await this.subscriptions.removeInvalidCurrent(userId);
+      this.logger.warn(
+        removed
+          ? 'Invalid stored push subscription removed'
+          : 'Invalid stored push subscription cleanup skipped'
+      );
       return { success: false, reason: 'invalid_subscription' };
+    }
+
+    if (stored.migratedLegacy) {
+      this.logger.log('Legacy push subscription migrated to encrypted storage');
     }
 
     const notificationPayload = JSON.stringify({
@@ -172,14 +153,19 @@ export class NotificationsService {
     });
 
     try {
-      await webPush.sendNotification(pushSubscription, notificationPayload);
+      await webPush.sendNotification(stored.subscription, notificationPayload);
       this.logger.log('Push notification delivered');
       return { success: true };
     } catch (error: unknown) {
       const pushError = readPushError(error);
       if (pushError.statusCode === 410 || pushError.statusCode === 404) {
-        this.logger.warn(`Expired push subscription removed status=${pushError.statusCode}`);
-        await this.unsubscribePushNotification(userId);
+        const removed = await this.subscriptions.removeIfFingerprint(
+          userId,
+          pushSubscriptionFingerprint(stored.subscription)
+        );
+        this.logger.warn(
+          `Expired push subscription cleanup status=${pushError.statusCode} removed=${removed ? 'yes' : 'no'}`
+        );
         return { success: false, reason: 'subscription_expired' };
       }
 
@@ -190,7 +176,7 @@ export class NotificationsService {
     }
   }
 
-  async sendBulkPushNotifications(userIds: string[], data: Omit<SendPushDto, 'userId'>) {
+  async sendBulkPushNotifications(userIds: string[], data: Omit<PushNotificationInput, 'userId'>) {
     const results = await Promise.all(
       userIds.map((userId) => this.sendPushNotification({ ...data, userId }))
     );

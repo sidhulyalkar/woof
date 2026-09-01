@@ -1,35 +1,33 @@
-name: dogOS External Integration Truth CI
+name: dogOS Web Push Encryption CI
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - 'apps/api/src/health-lens/**'
-      - 'apps/api/src/storage/**'
       - 'apps/api/src/notifications/**'
       - 'apps/api/scripts/migrate-push-subscriptions.ts'
-      - 'apps/api/src/media-library/media-derivative.worker.ts'
-      - 'apps/api/src/media-library/media-derivative.worker.spec.ts'
+      - 'apps/api/src/connectors/connector-crypto.service.ts'
+      - 'apps/api/src/connectors/connector-crypto.service.spec.ts'
       - 'apps/api/src/config/env.validation.ts'
       - 'apps/api/src/config/env.validation.spec.ts'
       - 'apps/api/.env.example'
       - 'apps/api/package.json'
+      - 'apps/api/tsconfig.eslint.json'
       - 'apps/mobile/src/api/notifications.ts'
       - 'apps/web/src/hooks/use-push-notifications.ts'
       - 'apps/web/src/lib/api.ts'
-      - 'n8n-workflows/**'
       - 'docs/DOGOS_WEB_PUSH_ENCRYPTION.md'
       - 'docs/EXTERNAL_INTEGRATION_INVENTORY.json'
-      - '.github/scripts/assert-integration-truth.py'
       - '.github/scripts/assert-push-subscription-encryption.py'
-      - '.github/workflows/integration-truth-ci.yml'
+      - '.github/scripts/assert-integration-truth.py'
       - '.github/workflows/dogos-push-encryption-ci.yml'
+      - '.github/workflows/integration-truth-ci.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: integration-truth-${{ github.event.pull_request.number || github.ref }}
+  group: push-encryption-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -37,11 +35,10 @@ env:
   PNPM_VERSION: '8.15.1'
   NODE_ENV: test
   JWT_SECRET: ci-only-test-secret
-  ML_SERVICE_ENABLED: 'false'
 
 jobs:
   qualify:
-    name: Runtime truth + private failure boundaries
+    name: Encrypted storage + migration + recipient authority
     runs-on: ubuntu-latest
 
     steps:
@@ -64,14 +61,16 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Materialize integration-truth formatting
+      - name: Materialize Web Push authority formatting
         run: >-
           pnpm exec prettier --write
+          .github/workflows/dogos-push-encryption-ci.yml
           .github/workflows/integration-truth-ci.yml
-          apps/api/src/health-lens/health-ai.service.ts
-          apps/api/src/health-lens/health-ai.service.spec.ts
-          apps/api/src/storage/storage.service.ts
-          apps/api/src/storage/storage.service.spec.ts
+          apps/api/package.json
+          apps/api/tsconfig.eslint.json
+          apps/api/scripts/migrate-push-subscriptions.ts
+          apps/api/src/config/env.validation.ts
+          apps/api/src/config/env.validation.spec.ts
           apps/api/src/notifications/dto/push-subscription.dto.ts
           apps/api/src/notifications/notifications.controller.ts
           apps/api/src/notifications/notifications.controller.spec.ts
@@ -80,26 +79,29 @@ jobs:
           apps/api/src/notifications/notifications.service.spec.ts
           apps/api/src/notifications/push-subscription.store.ts
           apps/api/src/notifications/push-subscription.store.spec.ts
-          apps/api/src/config/env.validation.ts
-          apps/api/src/config/env.validation.spec.ts
-          n8n-workflows/README.md
+          apps/web/src/hooks/use-push-notifications.ts
+          apps/web/src/lib/api.ts
+          docs/DOGOS_WEB_PUSH_ENCRYPTION.md
           docs/EXTERNAL_INTEGRATION_INVENTORY.json
 
-      - name: Enforce committed integration-truth formatting
+      - name: Enforce committed Web Push authority formatting
         run: git diff --exit-code
 
-      - name: Validate integration authority and privacy source contract
+      - name: Validate encrypted Push authority source contract
         run: |
+          python -m py_compile .github/scripts/assert-push-subscription-encryption.py
           python -m py_compile .github/scripts/assert-integration-truth.py
+          python .github/scripts/assert-push-subscription-encryption.py
           python .github/scripts/assert-integration-truth.py
 
       - name: Lint owned API boundaries
         run: >-
           pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
-          src/health-lens/health-ai.service.ts
-          src/health-lens/health-ai.service.spec.ts
-          src/storage/storage.service.ts
-          src/storage/storage.service.spec.ts
+          scripts/migrate-push-subscriptions.ts
+          src/config/env.validation.ts
+          src/config/env.validation.spec.ts
+          src/connectors/connector-crypto.service.ts
+          src/connectors/connector-crypto.service.spec.ts
           src/notifications/dto/push-subscription.dto.ts
           src/notifications/notifications.controller.ts
           src/notifications/notifications.controller.spec.ts
@@ -108,24 +110,33 @@ jobs:
           src/notifications/notifications.service.spec.ts
           src/notifications/push-subscription.store.ts
           src/notifications/push-subscription.store.spec.ts
-          src/config/env.validation.ts
-          src/config/env.validation.spec.ts
-          src/media-library/media-derivative.worker.ts
-          src/media-library/media-derivative.worker.spec.ts
+
+      - name: Lint owned Web boundaries
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/hooks/use-push-notifications.ts
+          src/lib/api.ts
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
 
-      - name: Run integration privacy and lifecycle contracts
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run encrypted Push defining contracts
         run: >-
           pnpm --filter @woof/api exec jest --runInBand
-          src/health-lens/health-ai.service.spec.ts
-          src/storage/storage.service.spec.ts
+          src/connectors/connector-crypto.service.spec.ts
           src/notifications/push-subscription.store.spec.ts
           src/notifications/notifications.service.spec.ts
           src/notifications/notifications.controller.spec.ts
           src/config/env.validation.spec.ts
-          src/media-library/media-derivative.worker.spec.ts
 
       - name: Build API
         run: pnpm --filter @woof/api build
+
+      - name: Build Web
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.invalid/api/v1
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ci-only-public-vapid-key
+        run: pnpm --filter @woof/web build

@@ -114,21 +114,42 @@
       "id": "web_push",
       "status": "OPTIONAL_QUALIFIED",
       "runtimeOwner": "apps/api/src/notifications/notifications.service.ts",
-      "ciOwners": [".github/workflows/integration-truth-ci.yml"],
-      "configuration": ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"],
+      "ciOwners": [
+        ".github/workflows/dogos-push-encryption-ci.yml",
+        ".github/workflows/integration-truth-ci.yml"
+      ],
+      "configuration": [
+        "VAPID_PUBLIC_KEY",
+        "VAPID_PRIVATE_KEY",
+        "CONNECTOR_CREDENTIALS_KEY",
+        "PUSH_LEGACY_PLAINTEXT_READS_UNTIL"
+      ],
       "repositoryEvidence": [
-        "subscription persistence and unsubscribe lifecycle",
+        "authenticated encrypted subscription storage",
+        "session-owned subscribe/unsubscribe authority",
+        "bounded opt-in legacy plaintext runtime compatibility",
+        "explicit migration remains available after runtime compatibility sunset",
+        "compare-and-swap legacy plaintext migration",
+        "deletion-safe id-range migration scanning",
+        "full-material subscription fingerprint reconciliation",
+        "atomic fingerprint-bound current-browser revocation",
+        "exact invalid-row cleanup under concurrent replacement",
+        "exact provider-expiry cleanup under concurrent replacement",
+        "decrypt-free account-wide recovery revocation",
+        "public arbitrary-recipient sender retired",
         "VAPID delivery runtime",
-        "404/410 stale-subscription cleanup",
         "identifier- and content-free delivery telemetry"
       ],
       "productionQualified": false,
       "liveEvidenceRequired": [
-        "deployed VAPID keypair",
+        "deployed VAPID keypair and credential-encryption key",
+        "counts-only production legacy-row migration report",
+        "observed removal or expiry of the temporary plaintext compatibility window",
         "browser permission/consent validation",
-        "real subscription creation",
+        "real encrypted subscription creation",
         "provider delivery black-box observation",
-        "revocation and expiry cleanup observation"
+        "revocation and expiry cleanup observation",
+        "reviewed rollback and coordinated key-rotation procedure"
       ]
     },
     {

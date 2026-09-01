@@ -246,7 +246,7 @@ for marker in [
     "acknowledgement-only participation signals",
     "Legacy total-points freeze",
     "Bond XP is no longer mirrored into `users.totalPoints`",
-    "The profile labels this field **Legacy points**",
+    "The Web profile labels this field **Legacy points**",
     "Historical rows are not deleted or migrated by this release",
     "phantom Web and Mobile gamification clients",
 ]:

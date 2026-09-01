@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const PUSH_LEGACY_MAX_FUTURE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -47,6 +49,7 @@ const envSchema = z.object({
   MEDIA_FFPROBE_PATH: z.string().min(1).default('ffprobe'),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
+  PUSH_LEGACY_PLAINTEXT_READS_UNTIL: z.string().optional(),
   OPENAI_API_KEY: z.string().min(20).optional(),
   OPENAI_HEALTH_MODEL: z.string().default('gpt-5.6-luna'),
   OPENAI_HEALTH_TIMEOUT_MS: z.coerce.number().int().min(3000).max(30000).default(12000),
@@ -66,6 +69,15 @@ const envSchema = z.object({
 function connectorKeyIsValid(encoded: string | undefined) {
   if (!encoded) return false;
   return Buffer.from(encoded, 'base64').length === 32;
+}
+
+function pushLegacyReadCutoffMillis(value: string | undefined) {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return null;
+  }
+  const millis = Date.parse(value);
+  return Number.isFinite(millis) ? millis : null;
 }
 
 function productionCorsOriginsAreValid(value: string) {
@@ -100,6 +112,23 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (env.CONNECTOR_CREDENTIALS_KEY && !connectorKeyIsValid(env.CONNECTOR_CREDENTIALS_KEY)) {
     throw new Error('CONNECTOR_CREDENTIALS_KEY must decode to exactly 32 bytes');
+  }
+
+  if (env.PUSH_LEGACY_PLAINTEXT_READS_UNTIL) {
+    const cutoffMillis = pushLegacyReadCutoffMillis(env.PUSH_LEGACY_PLAINTEXT_READS_UNTIL);
+    if (cutoffMillis === null) {
+      throw new Error(
+        'PUSH_LEGACY_PLAINTEXT_READS_UNTIL must be an ISO-8601 timestamp with an explicit timezone'
+      );
+    }
+    if (
+      env.NODE_ENV === 'production' &&
+      cutoffMillis > Date.now() + PUSH_LEGACY_MAX_FUTURE_WINDOW_MS
+    ) {
+      throw new Error(
+        'PUSH_LEGACY_PLAINTEXT_READS_UNTIL may be at most 30 days in the future in production'
+      );
+    }
   }
 
   if (env.OPS_METRICS_TOKEN && env.OPS_METRICS_TOKEN.length < 32) {
@@ -141,6 +170,12 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
     if (Boolean(env.VAPID_PUBLIC_KEY) !== Boolean(env.VAPID_PRIVATE_KEY)) {
       throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be configured together');
+    }
+
+    if (env.VAPID_PUBLIC_KEY && !connectorKeyIsValid(env.CONNECTOR_CREDENTIALS_KEY)) {
+      throw new Error(
+        'CONNECTOR_CREDENTIALS_KEY is required and must decode to 32 bytes when Web Push is configured in production'
+      );
     }
 
     if (env.BEHAVIOR_VISION_SERVICE_URL && !env.BEHAVIOR_VISION_SERVICE_TOKEN) {
