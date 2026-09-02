@@ -68,7 +68,7 @@ jobs:
             apps/mobile/README.md \
             docs/IOS_DOGOS_CONVERGENCE_V1.md \
             .github/workflows/dogos-mobile-convergence-ci.yml
-          if ! git diff --quiet -- \
+          if git diff --quiet -- \
             apps/mobile/src/api/adventure.ts \
             apps/mobile/src/api/households.ts \
             apps/mobile/src/api/intelligence.ts \
@@ -84,6 +84,9 @@ jobs:
             docs/IOS_DOGOS_CONVERGENCE_V1.md \
             .github/workflows/dogos-mobile-convergence-ci.yml
           then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
             git diff -- \
               apps/mobile/src/api/adventure.ts \
               apps/mobile/src/api/households.ts \
@@ -99,11 +102,10 @@ jobs:
               apps/mobile/README.md \
               docs/IOS_DOGOS_CONVERGENCE_V1.md \
               .github/workflows/dogos-mobile-convergence-ci.yml | head -c 60000
-            exit 1
           fi
 
       - name: Upload canonical native Prettier output
-        if: failure() && steps.formatting.outcome == 'failure'
+        if: steps.formatting.outputs.drift == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: mobile-convergence-prettier-output-${{ github.run_id }}
@@ -129,3 +131,9 @@ jobs:
 
       - name: Lint native client
         run: pnpm --filter @woof/mobile lint
+
+      - name: Reject uncommitted canonical formatting
+        if: steps.formatting.outputs.drift == 'true'
+        run: |
+          echo "Native convergence files differ from canonical Prettier output."
+          exit 1
