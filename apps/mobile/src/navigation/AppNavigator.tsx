@@ -114,18 +114,50 @@ export const AppNavigator = () => {
         {!isAuthenticated ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+            <Stack.Screen
+              name="Register"
+              component={RegisterScreen}
+              options={{ headerShown: false }}
+            />
           </>
         ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="DailySignals" component={DailySignalsScreen} options={{ ...secondaryScreenOptions, title: 'Daily Signals' }} />
-            <Stack.Screen name="Pets" component={PetsListScreen} options={{ ...secondaryScreenOptions, title: 'Pets' }} />
-            <Stack.Screen name="Goals" component={GoalsScreen} options={{ ...secondaryScreenOptions, title: 'Goals' }} />
-            <Stack.Screen name="Library" component={MediaLibraryScreen} options={{ ...secondaryScreenOptions, title: 'Library' }} />
-            <Stack.Screen name="Events" component={EventsScreen} options={{ ...secondaryScreenOptions, title: 'Events' }} />
-            <Stack.Screen name="Map" component={MapScreen} options={{ ...secondaryScreenOptions, title: 'Map' }} />
-            <Stack.Screen name="Profile" component={ProfileScreen} options={{ ...secondaryScreenOptions, title: 'You' }} />
+            <Stack.Screen
+              name="DailySignals"
+              component={DailySignalsScreen}
+              options={{ ...secondaryScreenOptions, title: 'Daily Signals' }}
+            />
+            <Stack.Screen
+              name="Pets"
+              component={PetsListScreen}
+              options={{ ...secondaryScreenOptions, title: 'Pets' }}
+            />
+            <Stack.Screen
+              name="Goals"
+              component={GoalsScreen}
+              options={{ ...secondaryScreenOptions, title: 'Goals' }}
+            />
+            <Stack.Screen
+              name="Library"
+              component={MediaLibraryScreen}
+              options={{ ...secondaryScreenOptions, title: 'Library' }}
+            />
+            <Stack.Screen
+              name="Events"
+              component={EventsScreen}
+              options={{ ...secondaryScreenOptions, title: 'Events' }}
+            />
+            <Stack.Screen
+              name="Map"
+              component={MapScreen}
+              options={{ ...secondaryScreenOptions, title: 'Map' }}
+            />
+            <Stack.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={{ ...secondaryScreenOptions, title: 'You' }}
+            />
           </>
         )}
       </Stack.Navigator>
