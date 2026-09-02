@@ -29,7 +29,11 @@ function PathwayCard({ item }: { item: CompassPathway }) {
     <View style={styles.pathwayCard}>
       <View style={styles.pathwayHeader}>
         <View style={styles.pathwayIcon}>
-          <Ionicons name={pathwayIcon[item.pathway] ?? 'paw-outline'} size={20} color={colors.primary[700]} />
+          <Ionicons
+            name={pathwayIcon[item.pathway] ?? 'paw-outline'}
+            size={20}
+            color={colors.primary[700]}
+          />
         </View>
         <View style={styles.pathwayCopy}>
           <Text style={styles.pathwayLabel}>{item.label}</Text>
@@ -41,9 +45,7 @@ function PathwayCard({ item }: { item: CompassPathway }) {
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${coverage * 100}%` }]} />
       </View>
-      <Text style={styles.coverageText}>
-        {Math.round(coverage * 100)}% recent pathway coverage
-      </Text>
+      <Text style={styles.coverageText}>{Math.round(coverage * 100)}% recent pathway coverage</Text>
     </View>
   );
 }
@@ -71,7 +73,7 @@ export default function CompassScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+    }, [load])
   );
 
   if (loading && !dashboard) {
@@ -92,7 +94,8 @@ export default function CompassScreen() {
       <Text style={styles.eyebrow}>RELATIONSHIP CONTEXT</Text>
       <Text style={styles.title}>Compass</Text>
       <Text style={styles.subtitle}>
-        What you have been exploring together. This is context for better choices, not a score for your dog.
+        What you have been exploring together. This is context for better choices, not a score for
+        your dog.
       </Text>
 
       {error && (
@@ -111,7 +114,9 @@ export default function CompassScreen() {
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{dashboard.rhythm.activeWeeks}/{dashboard.rhythm.windowWeeks}</Text>
+              <Text style={styles.summaryValue}>
+                {dashboard.rhythm.activeWeeks}/{dashboard.rhythm.windowWeeks}
+              </Text>
               <Text style={styles.summaryLabel}>Active weeks</Text>
             </View>
           </View>
@@ -208,10 +213,21 @@ const styles = StyleSheet.create({
   pathwayCopy: { flex: 1 },
   pathwayLabel: { color: colors.text.primary, fontSize: 15, fontWeight: '800' },
   pathwayMeta: { marginTop: 2, color: colors.text.secondary, fontSize: 12 },
-  track: { marginTop: 13, height: 7, borderRadius: 999, backgroundColor: colors.gray[100], overflow: 'hidden' },
+  track: {
+    marginTop: 13,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: colors.gray[100],
+    overflow: 'hidden',
+  },
   fill: { height: '100%', borderRadius: 999, backgroundColor: colors.primary[500] },
   coverageText: { marginTop: 7, color: colors.text.secondary, fontSize: 11 },
-  learningCard: { marginTop: 24, padding: 18, borderRadius: 20, backgroundColor: colors.primary[50] },
+  learningCard: {
+    marginTop: 24,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: colors.primary[50],
+  },
   learningRow: { marginTop: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   learningText: { flex: 1, color: colors.gray[700], fontSize: 14, lineHeight: 20 },
   disclaimer: { marginTop: 22, color: colors.text.secondary, fontSize: 11, lineHeight: 17 },
