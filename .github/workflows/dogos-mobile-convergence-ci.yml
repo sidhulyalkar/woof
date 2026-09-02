@@ -64,6 +64,7 @@ jobs:
             apps/mobile/src/screens/StoryScreen.tsx \
             apps/mobile/src/screens/DailySignalsScreen.tsx \
             apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/ProfileScreen.tsx \
             apps/mobile/README.md \
             docs/IOS_DOGOS_CONVERGENCE_V1.md \
             .github/workflows/dogos-mobile-convergence-ci.yml
@@ -78,6 +79,7 @@ jobs:
             apps/mobile/src/screens/StoryScreen.tsx \
             apps/mobile/src/screens/DailySignalsScreen.tsx \
             apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/ProfileScreen.tsx \
             apps/mobile/README.md \
             docs/IOS_DOGOS_CONVERGENCE_V1.md \
             .github/workflows/dogos-mobile-convergence-ci.yml
@@ -93,6 +95,7 @@ jobs:
               apps/mobile/src/screens/StoryScreen.tsx \
               apps/mobile/src/screens/DailySignalsScreen.tsx \
               apps/mobile/src/screens/FeedScreen.tsx \
+              apps/mobile/src/screens/ProfileScreen.tsx \
               apps/mobile/README.md \
               docs/IOS_DOGOS_CONVERGENCE_V1.md \
               .github/workflows/dogos-mobile-convergence-ci.yml | head -c 60000
@@ -116,6 +119,7 @@ jobs:
             apps/mobile/src/screens/StoryScreen.tsx
             apps/mobile/src/screens/DailySignalsScreen.tsx
             apps/mobile/src/screens/FeedScreen.tsx
+            apps/mobile/src/screens/ProfileScreen.tsx
             apps/mobile/README.md
             docs/IOS_DOGOS_CONVERGENCE_V1.md
             .github/workflows/dogos-mobile-convergence-ci.yml
