@@ -1,0 +1,75 @@
+name: dogOS Mobile Convergence CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - '.github/scripts/assert-mobile-dogos-convergence.py'
+      - '.github/workflows/dogos-mobile-convergence-ci.yml'
+      - 'docs/IOS_DOGOS_CONVERGENCE_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - '.github/scripts/assert-mobile-dogos-convergence.py'
+      - '.github/workflows/dogos-mobile-convergence-ci.yml'
+      - 'docs/IOS_DOGOS_CONVERGENCE_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-convergence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native relationship loop authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce mobile dogOS source contract
+        run: python3 .github/scripts/assert-mobile-dogos-convergence.py
+
+      - name: Check native tranche formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/mobile/src/api/adventure.ts
+          apps/mobile/src/api/households.ts
+          apps/mobile/src/api/intelligence.ts
+          apps/mobile/src/api/story.ts
+          apps/mobile/src/navigation/AppNavigator.tsx
+          apps/mobile/src/screens/TodayScreen.tsx
+          apps/mobile/src/screens/CompassScreen.tsx
+          apps/mobile/src/screens/StoryScreen.tsx
+          apps/mobile/src/screens/DailySignalsScreen.tsx
+          apps/mobile/src/screens/FeedScreen.tsx
+          apps/mobile/README.md
+          docs/IOS_DOGOS_CONVERGENCE_V1.md
+          .github/scripts/assert-mobile-dogos-convergence.py
+          .github/workflows/dogos-mobile-convergence-ci.yml
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
