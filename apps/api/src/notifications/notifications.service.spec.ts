@@ -1,7 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as webPush from 'web-push';
-import { PrismaService } from '../prisma/prisma.service';
+import {
+  pushSubscriptionFingerprint,
+  PushSubscriptionReadResult,
+  PushSubscriptionStore,
+} from './push-subscription.store';
 import { NotificationsService } from './notifications.service';
 
 jest.mock('web-push', () => ({
@@ -13,51 +17,67 @@ const userId = 'user-private-123';
 const endpoint = 'https://push.example.com/private-subscription-endpoint';
 const title = 'Private achievement title';
 const body = 'Private notification body';
+const subscription = {
+  endpoint,
+  expirationTime: null,
+  keys: {
+    p256dh: 'private-p256dh-key',
+    auth: 'private-auth-key',
+  },
+};
+const subscriptionFingerprint = pushSubscriptionFingerprint(subscription);
 
-function storedSubscription() {
-  return {
-    id: 'push-token-row-1',
-    data: {
-      endpoint,
-      expirationTime: null,
-      keys: {
-        p256dh: 'private-p256dh-key',
-        auth: 'private-auth-key',
-      },
-    },
+function pushStore(
+  options: {
+    encryptionConfigured?: boolean;
+    readState?: PushSubscriptionReadResult;
+    conditionalRemove?: boolean;
+    invalidRemove?: boolean;
+  } = {}
+) {
+  const readState: PushSubscriptionReadResult = options.readState ?? {
+    state: 'USABLE',
+    subscription,
+    migratedLegacy: false,
   };
-}
-
-function prisma(row: ReturnType<typeof storedSubscription> | null = storedSubscription()) {
   return {
-    integrationToken: {
-      findFirst: jest.fn().mockResolvedValue(row),
-      delete: jest.fn().mockResolvedValue(row),
-      upsert: jest.fn().mockResolvedValue(row),
-    },
+    encryptionConfigured: jest.fn(() => options.encryptionConfigured ?? true),
+    put: jest.fn().mockResolvedValue(undefined),
+    get: jest.fn().mockResolvedValue(readState),
+    remove: jest.fn().mockResolvedValue(undefined),
+    removeIfFingerprint: jest.fn().mockResolvedValue(options.conditionalRemove ?? true),
+    removeInvalidCurrent: jest.fn().mockResolvedValue(options.invalidRemove ?? true),
   };
 }
 
 function service(
   options: {
-    configured?: boolean;
-    prisma?: ReturnType<typeof prisma>;
+    vapidConfigured?: boolean;
+    encryptionConfigured?: boolean;
+    readState?: PushSubscriptionReadResult;
+    conditionalRemove?: boolean;
+    invalidRemove?: boolean;
   } = {}
 ) {
-  const configured = options.configured ?? true;
+  const vapidConfigured = options.vapidConfigured ?? true;
   const values: Record<string, string | undefined> = {
-    VAPID_PUBLIC_KEY: configured ? 'test-public-vapid-key' : undefined,
-    VAPID_PRIVATE_KEY: configured ? 'test-private-vapid-key' : undefined,
+    VAPID_PUBLIC_KEY: vapidConfigured ? 'test-public-vapid-key' : undefined,
+    VAPID_PRIVATE_KEY: vapidConfigured ? 'test-private-vapid-key' : undefined,
   };
   const config = {
     get: jest.fn((key: string) => values[key]),
   };
-  const database = options.prisma ?? prisma();
+  const subscriptions = pushStore({
+    encryptionConfigured: options.encryptionConfigured,
+    readState: options.readState,
+    conditionalRemove: options.conditionalRemove,
+    invalidRemove: options.invalidRemove,
+  });
   return {
-    database,
+    subscriptions,
     notifications: new NotificationsService(
-      database as unknown as PrismaService,
-      config as unknown as ConfigService
+      config as unknown as ConfigService,
+      subscriptions as unknown as PushSubscriptionStore
     ),
   };
 }
@@ -80,7 +100,7 @@ function serializedLogCalls(spies: ReturnType<typeof loggerSpies>) {
   ]);
 }
 
-describe('NotificationsService Web Push privacy boundary', () => {
+describe('NotificationsService Web Push privacy and encrypted storage boundary', () => {
   const sendNotification = webPush.sendNotification as jest.Mock;
   const setVapidDetails = webPush.setVapidDetails as jest.Mock;
 
@@ -91,6 +111,87 @@ describe('NotificationsService Web Push privacy boundary', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('reports subscription status with a full-material fingerprint, not private Push material', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service();
+
+    await expect(notifications.getPushSubscriptionStatus(userId)).resolves.toEqual({
+      subscribed: true,
+      subscriptionFingerprint,
+    });
+    expect(subscriptions.get).toHaveBeenCalledWith(userId);
+    expect(subscriptionFingerprint).not.toContain(endpoint);
+    expect(subscriptionFingerprint).not.toContain(subscription.keys.p256dh);
+    expect(subscriptionFingerprint).not.toContain(subscription.keys.auth);
+    expect(serializedLogCalls(spies)).not.toContain(subscriptionFingerprint);
+  });
+
+  it('cleans invalid server state with exact-row authority while reporting unsubscribed', async () => {
+    const { notifications, subscriptions } = service({ readState: { state: 'INVALID' } });
+
+    await expect(notifications.getPushSubscriptionStatus(userId)).resolves.toEqual({
+      subscribed: false,
+    });
+    expect(subscriptions.removeInvalidCurrent).toHaveBeenCalledWith(userId);
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+  });
+
+  it('reports legacy migration required as unsubscribed without deleting plaintext state', async () => {
+    const { notifications, subscriptions } = service({
+      readState: { state: 'LEGACY_MIGRATION_REQUIRED' },
+    });
+
+    await expect(notifications.getPushSubscriptionStatus(userId)).resolves.toEqual({
+      subscribed: false,
+    });
+    expect(subscriptions.removeInvalidCurrent).not.toHaveBeenCalled();
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+  });
+
+  it('reports unsubscribed without reading credentials when Push configuration is unavailable', async () => {
+    const { notifications, subscriptions } = service({ encryptionConfigured: false });
+
+    await expect(notifications.getPushSubscriptionStatus(userId)).resolves.toEqual({
+      subscribed: false,
+    });
+    expect(subscriptions.get).not.toHaveBeenCalled();
+  });
+
+  it('stores subscriptions through the encrypted store and exposes no credential row', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service();
+
+    const result = await notifications.subscribePushNotification(userId, subscription);
+
+    expect(result).toEqual({ success: true });
+    expect(subscriptions.put).toHaveBeenCalledWith(userId, subscription);
+    expect(spies.log).toHaveBeenCalledWith('Push subscription saved in encrypted storage');
+    expect(serializedLogCalls(spies)).not.toContain(endpoint);
+  });
+
+  it('uses fingerprint-bound removal for current-browser revocation', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service();
+
+    await expect(
+      notifications.removeCurrentPushSubscription(userId, subscriptionFingerprint)
+    ).resolves.toEqual({ success: true, removed: true });
+    expect(subscriptions.removeIfFingerprint).toHaveBeenCalledWith(userId, subscriptionFingerprint);
+    expect(spies.log).toHaveBeenCalledWith('Current browser push subscription removed');
+    expect(serializedLogCalls(spies)).not.toContain(subscriptionFingerprint);
+  });
+
+  it('treats a fingerprint mismatch as a safe no-op instead of account-wide deletion', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({ conditionalRemove: false });
+
+    await expect(
+      notifications.removeCurrentPushSubscription(userId, subscriptionFingerprint)
+    ).resolves.toEqual({ success: true, removed: false });
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+    expect(spies.log).not.toHaveBeenCalledWith('Current browser push subscription removed');
   });
 
   it('configures VAPID delivery and sends the intended payload without logging private content', async () => {
@@ -126,10 +227,27 @@ describe('NotificationsService Web Push privacy boundary', () => {
       'private-p256dh-key',
       'private-auth-key',
       'only-for-device-payload',
+      subscriptionFingerprint,
     ]) {
       expect(logs).not.toContain(privateValue);
     }
     expect(spies.log).toHaveBeenCalledWith('Push notification delivered');
+  });
+
+  it('fails delivery closed when legacy plaintext compatibility has ended', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({
+      readState: { state: 'LEGACY_MIGRATION_REQUIRED' },
+    });
+
+    await expect(notifications.sendPushNotification({ userId, title, body })).resolves.toEqual({
+      success: false,
+      reason: 'legacy_migration_required',
+    });
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+    expect(subscriptions.removeInvalidCurrent).not.toHaveBeenCalled();
+    expect(spies.warn).toHaveBeenCalledWith('Legacy push subscription requires operator migration');
   });
 
   it('reduces arbitrary provider failures to status-only telemetry', async () => {
@@ -156,46 +274,138 @@ describe('NotificationsService Web Push privacy boundary', () => {
   });
 
   it.each([404, 410])(
-    'removes stale subscriptions on provider status %s without identifier leakage',
+    'removes only the exact expired subscription on provider status %s without identifier leakage',
     async (statusCode) => {
       const privateMarker = `PRIVATE_EXPIRED_PUSH_${statusCode}`;
       const spies = loggerSpies();
       sendNotification.mockRejectedValue(
         Object.assign(new Error(privateMarker), { statusCode, stack: privateMarker })
       );
-      const database = prisma();
-      const { notifications } = service({ prisma: database });
+      const { notifications, subscriptions } = service();
 
       const result = await notifications.sendPushNotification({ userId, title, body });
 
       expect(result).toEqual({ success: false, reason: 'subscription_expired' });
-      expect(database.integrationToken.delete).toHaveBeenCalledWith({
-        where: { id: 'push-token-row-1' },
-      });
+      expect(subscriptions.removeIfFingerprint).toHaveBeenCalledWith(
+        userId,
+        subscriptionFingerprint
+      );
+      expect(subscriptions.remove).not.toHaveBeenCalled();
       expect(spies.warn).toHaveBeenCalledWith(
-        `Expired push subscription removed status=${statusCode}`
+        `Expired push subscription cleanup status=${statusCode} removed=yes`
       );
       const logs = serializedLogCalls(spies);
       expect(logs).not.toContain(privateMarker);
       expect(logs).not.toContain(userId);
       expect(logs).not.toContain(endpoint);
+      expect(logs).not.toContain(subscriptionFingerprint);
     }
   );
 
-  it('returns a truthful disabled state before database/provider access when VAPID is unconfigured', async () => {
+  it('does not erase a replacement when provider-expiry cleanup loses the conditional race', async () => {
     const spies = loggerSpies();
-    const database = prisma();
-    const { notifications } = service({ configured: false, prisma: database });
+    sendNotification.mockRejectedValue(Object.assign(new Error('expired'), { statusCode: 410 }));
+    const { notifications, subscriptions } = service({ conditionalRemove: false });
+
+    await expect(notifications.sendPushNotification({ userId, title, body })).resolves.toEqual({
+      success: false,
+      reason: 'subscription_expired',
+    });
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+    expect(spies.warn).toHaveBeenCalledWith(
+      'Expired push subscription cleanup status=410 removed=no'
+    );
+  });
+
+  it('removes invalid encrypted rows only through exact invalid-row cleanup', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({ readState: { state: 'INVALID' } });
+
+    const result = await notifications.sendPushNotification({ userId, title, body });
+
+    expect(result).toEqual({ success: false, reason: 'invalid_subscription' });
+    expect(subscriptions.removeInvalidCurrent).toHaveBeenCalledWith(userId);
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(spies.warn).toHaveBeenCalledWith('Invalid stored push subscription removed');
+  });
+
+  it('does not claim invalid-row removal when a concurrent replacement wins', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({
+      readState: { state: 'INVALID' },
+      invalidRemove: false,
+    });
+
+    await expect(notifications.sendPushNotification({ userId, title, body })).resolves.toEqual({
+      success: false,
+      reason: 'invalid_subscription',
+    });
+    expect(subscriptions.remove).not.toHaveBeenCalled();
+    expect(spies.warn).toHaveBeenCalledWith('Invalid stored push subscription cleanup skipped');
+  });
+
+  it('records legacy migration without credential or owner leakage', async () => {
+    const spies = loggerSpies();
+    sendNotification.mockResolvedValue({ statusCode: 201 });
+    const { notifications } = service({
+      readState: { state: 'USABLE', subscription, migratedLegacy: true },
+    });
+
+    await notifications.sendPushNotification({ userId, title, body });
+
+    expect(spies.log).toHaveBeenCalledWith(
+      'Legacy push subscription migrated to encrypted storage'
+    );
+    const logs = serializedLogCalls(spies);
+    expect(logs).not.toContain(userId);
+    expect(logs).not.toContain(endpoint);
+    expect(logs).not.toContain(subscription.keys.p256dh);
+    expect(logs).not.toContain(subscription.keys.auth);
+  });
+
+  it('returns a truthful disabled state before storage/provider access when VAPID is unconfigured', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({ vapidConfigured: false });
 
     const result = await notifications.sendPushNotification({ userId, title, body });
 
     expect(result).toEqual({ success: false, reason: 'push_not_configured' });
-    expect(database.integrationToken.findFirst).not.toHaveBeenCalled();
+    expect(subscriptions.get).not.toHaveBeenCalled();
     expect(sendNotification).not.toHaveBeenCalled();
     expect(spies.debug).toHaveBeenCalledWith('Push delivery skipped reason=not_configured');
-    const logs = serializedLogCalls(spies);
-    expect(logs).not.toContain(userId);
-    expect(logs).not.toContain(title);
-    expect(logs).not.toContain(body);
+  });
+
+  it('fails closed before storage/provider access when subscription encryption is unconfigured', async () => {
+    const spies = loggerSpies();
+    const { notifications, subscriptions } = service({ encryptionConfigured: false });
+
+    const result = await notifications.sendPushNotification({ userId, title, body });
+    const subscribeResult = await notifications.subscribePushNotification(userId, subscription);
+
+    expect(result).toEqual({ success: false, reason: 'push_encryption_not_configured' });
+    expect(subscribeResult).toEqual({
+      success: false,
+      reason: 'push_encryption_not_configured',
+    });
+    expect(subscriptions.get).not.toHaveBeenCalled();
+    expect(subscriptions.put).not.toHaveBeenCalled();
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(setVapidDetails).not.toHaveBeenCalled();
+    expect(spies.debug).toHaveBeenCalledWith(
+      'Push delivery skipped reason=encryption_not_configured'
+    );
+  });
+
+  it('keeps account-wide unsubscribe available when VAPID and encryption are unavailable', async () => {
+    const { notifications, subscriptions } = service({
+      vapidConfigured: false,
+      encryptionConfigured: false,
+    });
+
+    await expect(notifications.unsubscribePushNotification(userId)).resolves.toEqual({
+      success: true,
+    });
+    expect(subscriptions.remove).toHaveBeenCalledWith(userId);
   });
 });

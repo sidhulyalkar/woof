@@ -22,6 +22,17 @@ type StorageObject = {
   bucket: string;
 };
 
+type PushSubscriptionResult = {
+  success: boolean;
+  reason?: string;
+  removed?: boolean;
+};
+
+type PushSubscriptionStatus = {
+  subscribed: boolean;
+  subscriptionFingerprint?: string;
+};
+
 export type Nudge = {
   id: string;
   type: 'meetup' | 'service' | 'event' | 'achievement';
@@ -289,16 +300,14 @@ export const nudgesApi = {
 };
 
 export const notificationsApi = {
+  status: () => apiClient.get<PushSubscriptionStatus>('/notifications/subscription'),
   subscribe: (subscription: PushSubscriptionJSON) =>
-    apiClient.post<void>('/notifications/subscribe', { subscription }),
-  unsubscribe: () => apiClient.post<void>('/notifications/unsubscribe', {}),
-  sendPush: (data: {
-    userId: string;
-    title: string;
-    body: string;
-    url?: string;
-    data?: Record<string, unknown>;
-  }) => apiClient.post<void>('/notifications/send', data),
+    apiClient.post<PushSubscriptionResult>('/notifications/subscribe', { subscription }),
+  unsubscribeCurrent: (subscriptionFingerprint: string) =>
+    apiClient.post<PushSubscriptionResult>('/notifications/subscription/revoke', {
+      subscriptionFingerprint,
+    }),
+  unsubscribeAccount: () => apiClient.delete<PushSubscriptionResult>('/notifications/unsubscribe'),
 };
 
 export const analyticsApi = {

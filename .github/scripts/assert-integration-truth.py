@@ -12,6 +12,10 @@ STORAGE = ROOT / "apps/api/src/storage/storage.service.ts"
 STORAGE_TEST = ROOT / "apps/api/src/storage/storage.service.spec.ts"
 PUSH = ROOT / "apps/api/src/notifications/notifications.service.ts"
 PUSH_TEST = ROOT / "apps/api/src/notifications/notifications.service.spec.ts"
+PUSH_STORE = ROOT / "apps/api/src/notifications/push-subscription.store.ts"
+PUSH_STORE_TEST = ROOT / "apps/api/src/notifications/push-subscription.store.spec.ts"
+PUSH_CONTROLLER = ROOT / "apps/api/src/notifications/notifications.controller.ts"
+PUSH_CONTROLLER_TEST = ROOT / "apps/api/src/notifications/notifications.controller.spec.ts"
 ENV = ROOT / "apps/api/src/config/env.validation.ts"
 ENV_EXAMPLE = ROOT / "apps/api/.env.example"
 N8N_README = ROOT / "n8n-workflows/README.md"
@@ -27,6 +31,10 @@ required_files = [
     STORAGE_TEST,
     PUSH,
     PUSH_TEST,
+    PUSH_STORE,
+    PUSH_STORE_TEST,
+    PUSH_CONTROLLER,
+    PUSH_CONTROLLER_TEST,
     ENV,
     ENV_EXAMPLE,
     N8N_README,
@@ -130,38 +138,152 @@ for required in [
         raise SystemExit(f"Storage defining privacy test missing: {required}")
 
 push = PUSH.read_text()
-for forbidden in ["pushError.message", "pushError.stack", "candidate.message", "candidate.stack"]:
+for forbidden in [
+    "PrismaService",
+    "integrationToken",
+    "pushError.message",
+    "pushError.stack",
+    "candidate.message",
+    "candidate.stack",
+]:
     if forbidden in push:
-        raise SystemExit(f"Web Push contains forbidden provider diagnostic marker: {forbidden}")
+        raise SystemExit(f"Web Push contains forbidden storage/provider diagnostic marker: {forbidden}")
 for line in push.splitlines():
     if "this.logger." in line and any(
-        marker in line for marker in ["${userId}", "${title}", "${body}", "endpoint", "p256dh", "auth"]
+        marker in line
+        for marker in [
+            "${userId}",
+            "${title}",
+            "${body}",
+            "endpoint",
+            "p256dh",
+            "auth",
+            "subscriptionFingerprint",
+        ]
     ):
         raise SystemExit(f"Web Push logger contains a private identifier/content marker: {line.strip()}")
 for required in [
+    "PushSubscriptionStore",
+    "pushSubscriptionFingerprint(stored.subscription)",
+    "this.subscriptions.removeInvalidCurrent(userId)",
+    "stored.state === 'LEGACY_MIGRATION_REQUIRED'",
+    "reason: 'legacy_migration_required'",
     "Push notification delivered",
     "Push delivery failed${statusSuffix}",
-    "Expired push subscription removed status=${pushError.statusCode}",
+    "Expired push subscription cleanup status=${pushError.statusCode}",
+    "push_encryption_not_configured",
 ]:
     if required not in push:
-        raise SystemExit(f"Web Push bounded telemetry marker missing: {required}")
+        raise SystemExit(f"Web Push bounded/encrypted authority marker missing: {required}")
+
+push_store = PUSH_STORE.read_text()
+for required in [
+    "dogos-push-subscription-v1",
+    "ConnectorCryptoService",
+    "PUSH_LEGACY_PLAINTEXT_READS_UNTIL",
+    "state: 'LEGACY_MIGRATION_REQUIRED'",
+    "private legacyPlaintextReadsEnabled()",
+    "this.crypto.encrypt(",
+    "this.crypto.decrypt(",
+    "function canonicalSubscription(subscription: PushSubscriptionMaterial)",
+    "pushSubscriptionFingerprint(subscription: PushSubscriptionMaterial)",
+    "async removeIfFingerprint(userId: string, expectedFingerprint: string)",
+    "async removeInvalidCurrent(userId: string)",
+    "private async deleteExactRow(userId: string, row: StoredRow)",
+    "data: { equals: expectedData as Prisma.InputJsonValue }",
+    "async migrateLegacyRows(",
+]:
+    if required not in push_store:
+        raise SystemExit(f"Web Push encrypted-store marker missing: {required}")
+if "Logger" in push_store or "console." in push_store:
+    raise SystemExit("Web Push encrypted credential store must remain free of credential telemetry")
 
 push_test = PUSH_TEST.read_text()
 for required in [
-    "sends the intended payload without logging private content",
+    "stores subscriptions through the encrypted store and exposes no credential row",
+    "reports subscription status with a full-material fingerprint, not private Push material",
+    "reports legacy migration required as unsubscribed without deleting plaintext state",
+    "fails delivery closed when legacy plaintext compatibility has ended",
     "reduces arbitrary provider failures to status-only telemetry",
-    "removes stale subscriptions on provider status %s without identifier leakage",
-    "returns a truthful disabled state before database/provider access when VAPID is unconfigured",
+    "removes only the exact expired subscription on provider status %s without identifier leakage",
+    "does not erase a replacement when provider-expiry cleanup loses the conditional race",
+    "removes invalid encrypted rows only through exact invalid-row cleanup",
+    "returns a truthful disabled state before storage/provider access when VAPID is unconfigured",
+    "fails closed before storage/provider access when subscription encryption is unconfigured",
 ]:
     if required not in push_test:
         raise SystemExit(f"Web Push defining privacy test missing: {required}")
+
+push_store_test = PUSH_STORE_TEST.read_text()
+for required in [
+    "writes only an authenticated encryption envelope for new subscriptions",
+    "fingerprints the complete subscription so rotated keys at one endpoint are distinct",
+    "rejects an encrypted subscription copied into the wrong user context",
+    "rejects tampered ciphertext and never falls back to plaintext interpretation",
+    "lazily migrates a valid legacy plaintext row only inside the configured compatibility window",
+    "fails closed after the legacy plaintext compatibility window without deleting the row",
+    "migrates legacy rows explicitly even after runtime compatibility is closed",
+    "does not delete rotated keys at the same endpoint when the fingerprint is stale",
+    "removes only the exact invalid row snapshot it inspected",
+    "does not remove a concurrently replaced row after invalid-state verification",
+    "does not resurrect stale legacy material when a concurrent subscription update wins",
+]:
+    if required not in push_store_test:
+        raise SystemExit(f"Web Push encrypted-store defining test missing: {required}")
+
+push_controller = PUSH_CONTROLLER.read_text()
+if "req.user.sub" not in push_controller:
+    raise SystemExit("Web Push subscription ownership must derive from authenticated session")
+for forbidden in ["subscribeDto.userId", "@Post('send')", "sendPush(", "SendPushDto"]:
+    if forbidden in push_controller:
+        raise SystemExit(f"Web Push controller regained client-selected recipient authority: {forbidden}")
+
+push_controller_test = PUSH_CONTROLLER_TEST.read_text()
+for required in [
+    "derives subscription ownership from the authenticated session",
+    "binds current-browser conditional revocation to the authenticated session",
+    "does not expose the retired arbitrary-target send method",
+]:
+    if required not in push_controller_test:
+        raise SystemExit(f"Web Push controller defining test missing: {required}")
+
+web_push = entries["web_push"]
+for configuration in [
+    "VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+    "CONNECTOR_CREDENTIALS_KEY",
+    "PUSH_LEGACY_PLAINTEXT_READS_UNTIL",
+]:
+    if configuration not in web_push.get("configuration", []):
+        raise SystemExit(f"Web Push integration inventory missing configuration: {configuration}")
+for evidence in [
+    "authenticated encrypted subscription storage",
+    "session-owned subscribe/unsubscribe authority",
+    "bounded opt-in legacy plaintext runtime compatibility",
+    "explicit migration remains available after runtime compatibility sunset",
+    "compare-and-swap legacy plaintext migration",
+    "full-material subscription fingerprint reconciliation",
+    "atomic fingerprint-bound current-browser revocation",
+    "exact invalid-row cleanup under concurrent replacement",
+    "exact provider-expiry cleanup under concurrent replacement",
+    "public arbitrary-recipient sender retired",
+]:
+    if evidence not in web_push.get("repositoryEvidence", []):
+        raise SystemExit(f"Web Push integration inventory evidence missing: {evidence}")
 
 env = ENV.read_text()
 env_example = ENV_EXAMPLE.read_text()
 if "N8N_WEBHOOK_SECRET" in env or "N8N_WEBHOOK_SECRET" in env_example:
     raise SystemExit("n8n is RESERVED and must not expose a runtime secret/configuration knob")
-if "VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be configured together" not in env:
-    raise SystemExit("production Web Push keypair contract is missing")
+for marker in [
+    "VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be configured together",
+    "CONNECTOR_CREDENTIALS_KEY is required and must decode to 32 bytes when Web Push is configured in production",
+    "PUSH_LEGACY_PLAINTEXT_READS_UNTIL may be at most 30 days in the future in production",
+]:
+    if marker not in env:
+        raise SystemExit(f"production Web Push environment contract is missing: {marker}")
+if "PUSH_LEGACY_PLAINTEXT_READS_UNTIL=" not in env_example:
+    raise SystemExit("Web Push legacy compatibility cutoff is missing from operator configuration")
 
 runtime_markers = ["N8N_WEBHOOK_SECRET", "webhooks/n8n", "localhost:5678"]
 for path in (ROOT / "apps/api/src").rglob("*.ts"):
@@ -193,6 +315,8 @@ for required in [
     "docs/EXTERNAL_INTEGRATION_INVENTORY.json",
     "apps/api/src/storage/storage.service.spec.ts",
     "apps/api/src/notifications/notifications.service.spec.ts",
+    "apps/api/src/notifications/push-subscription.store.spec.ts",
+    "apps/api/src/notifications/notifications.controller.spec.ts",
     "apps/api/src/media-library/media-derivative.worker.spec.ts",
     "python .github/scripts/assert-integration-truth.py",
 ]:
@@ -200,6 +324,7 @@ for required in [
         raise SystemExit(f"integration-truth CI ownership marker missing: {required}")
 
 print(
-    "External integration truth is explicit: implemented optional runtimes are repository-qualified, "
-    "n8n remains reserved, private provider diagnostics are suppressed, and production claims require live evidence."
+    "External integration truth is explicit: optional runtimes are repository-qualified, Web Push credentials are "
+    "encrypted with bounded legacy compatibility and race-safe cleanup, n8n remains reserved, and production "
+    "claims require live evidence."
 )

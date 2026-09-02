@@ -1,13 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { petsApi } from '../api/pets';
@@ -66,9 +58,7 @@ export default function ProfileScreen({ navigation }: { navigation: ProfileNavig
           source={{ uri: user?.avatarUrl || 'https://via.placeholder.com/100' }}
           style={styles.avatar}
         />
-        <Text style={styles.displayName}>
-          {user?.displayName || user?.handle || 'Woof member'}
-        </Text>
+        <Text style={styles.displayName}>{user?.displayName || user?.handle || 'Woof member'}</Text>
         {user?.handle ? <Text style={styles.handle}>@{user.handle}</Text> : null}
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
       </View>

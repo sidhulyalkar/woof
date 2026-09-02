@@ -397,7 +397,7 @@ jobs:
             -e JWT_SECRET="$JWT_SECRET" \
             -e NODE_ENV=production \
             -e API_DOCS_ENABLED=false \
-            -e CORS_ORIGIN=http://localhost:3000 \
+            -e CORS_ORIGIN=https://session-authority-ci.example.test \
             woof-api-session-authority:ci
 
           live=0

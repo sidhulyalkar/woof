@@ -1,17 +1,9 @@
-import {
-  Controller,
-  Post,
-  Delete,
-  Body,
-  UseGuards,
-  Request,
-  Param,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Post, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentPushSubscriptionDto, SubscribeDto } from './dto/push-subscription.dto';
 import { NotificationsService } from './notifications.service';
-import { SubscribeDto, SendPushDto } from './dto/push-subscription.dto';
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -20,27 +12,36 @@ import { SubscribeDto, SendPushDto } from './dto/push-subscription.dto';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  @Get('subscription')
+  @ApiOperation({ summary: 'Read the authenticated session owner push subscription status' })
+  async subscriptionStatus(@Request() req: AuthenticatedRequest) {
+    return this.notificationsService.getPushSubscriptionStatus(req.user.sub);
+  }
+
   @Post('subscribe')
-  @ApiOperation({ summary: 'Subscribe to push notifications' })
-  async subscribe(@Body() subscribeDto: SubscribeDto) {
+  @ApiOperation({ summary: 'Subscribe the authenticated session owner to push notifications' })
+  async subscribe(@Body() subscribeDto: SubscribeDto, @Request() req: AuthenticatedRequest) {
     return this.notificationsService.subscribePushNotification(
-      subscribeDto.userId,
-      subscribeDto.subscription,
+      req.user.sub,
+      subscribeDto.subscription
     );
   }
 
-  @Delete('unsubscribe/:endpoint')
-  @ApiOperation({ summary: 'Unsubscribe from push notifications' })
-  async unsubscribe(
-    @Param('endpoint') endpoint: string,
-    @Request() req: AuthenticatedRequest,
+  @Post('subscription/revoke')
+  @ApiOperation({ summary: 'Remove only the authenticated current-browser push subscription' })
+  async removeCurrent(
+    @Body() current: CurrentPushSubscriptionDto,
+    @Request() req: AuthenticatedRequest
   ) {
-    return this.notificationsService.unsubscribePushNotification(req.user.sub, endpoint);
+    return this.notificationsService.removeCurrentPushSubscription(
+      req.user.sub,
+      current.subscriptionFingerprint
+    );
   }
 
-  @Post('send')
-  @ApiOperation({ summary: 'Send a push notification (admin/testing)' })
-  async sendPush(@Body() sendPushDto: SendPushDto) {
-    return this.notificationsService.sendPushNotification(sendPushDto);
+  @Delete('unsubscribe')
+  @ApiOperation({ summary: 'Remove the authenticated account push row for recovery/revocation' })
+  async unsubscribe(@Request() req: AuthenticatedRequest) {
+    return this.notificationsService.unsubscribePushNotification(req.user.sub);
   }
 }
