@@ -216,19 +216,19 @@ describe('AccountDeletionService integration', () => {
     await expect(
       prisma.meetupProposal.count({
         where: { OR: [{ proposerId: user.id }, { recipientId: user.id }] },
-      }),
+      })
     ).resolves.toBe(0);
     await expect(
       prisma.coActivitySegment.count({
         where: { OR: [{ userId: user.id }, { otherUserId: user.id }] },
-      }),
+      })
     ).resolves.toBe(0);
     await expect(prisma.pointTransaction.count({ where: { userId: user.id } })).resolves.toBe(0);
     await expect(prisma.proactiveNudge.count({ where: { userId: user.id } })).resolves.toBe(0);
     await expect(prisma.blockedUser.count({ where: { userId: user.id } })).resolves.toBe(0);
     await expect(prisma.household.findUnique({ where: { id: household.id } })).resolves.toBeNull();
     await expect(
-      prisma.conversation.findUnique({ where: { id: conversation.id } }),
+      prisma.conversation.findUnique({ where: { id: conversation.id } })
     ).resolves.toBeNull();
 
     const detachedReward = await prisma.reward.findUnique({ where: { id: reward.id } });
@@ -284,7 +284,7 @@ describe('AccountDeletionService integration', () => {
     (storage.deleteFile as jest.Mock).mockRejectedValueOnce(new Error('provider unavailable'));
 
     await expect(service.deleteCurrentAccount(user.id)).rejects.toThrow(
-      'Account deletion could not remove private media',
+      'Account deletion could not remove private media'
     );
     await expect(prisma.user.findUnique({ where: { id: user.id } })).resolves.toMatchObject({
       id: user.id,

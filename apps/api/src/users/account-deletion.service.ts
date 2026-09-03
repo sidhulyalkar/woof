@@ -7,7 +7,7 @@ import { StorageService } from '../storage/storage.service';
 export class AccountDeletionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: StorageService,
+    private readonly storage: StorageService
   ) {}
 
   async deleteCurrentAccount(userId: string): Promise<void> {
@@ -33,10 +33,7 @@ export class AccountDeletionService {
 
     const mediaAssets = await this.prisma.mediaAsset.findMany({
       where: {
-        OR: [
-          { ownerId: userId },
-          ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : []),
-        ],
+        OR: [{ ownerId: userId }, ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : [])],
       },
       select: {
         storageKey: true,
@@ -49,7 +46,7 @@ export class AccountDeletionService {
         mediaAssets.flatMap((asset) => [
           asset.storageKey,
           ...asset.derivatives.map((derivative) => derivative.storageKey),
-        ]),
+        ])
       ),
     ];
 
@@ -70,10 +67,7 @@ export class AccountDeletionService {
       // their identifier-bearing rows explicitly before the canonical user cascade.
       await tx.telemetry.deleteMany({
         where: {
-          OR: [
-            { userId },
-            ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : []),
-          ],
+          OR: [{ userId }, ...(petIds.length > 0 ? [{ petId: { in: petIds } }] : [])],
         },
       });
 
@@ -149,7 +143,7 @@ export class AccountDeletionService {
                OR "dataPoint"->'candidateFeatures'->>'userId' = ${userId}
                OR "dataPoint"->'userFeatures'->>'petId' IN (${Prisma.join(petIds)})
                OR "dataPoint"->'candidateFeatures'->>'petId' IN (${Prisma.join(petIds)})
-          `,
+          `
         );
       } else {
         await tx.$executeRaw(
@@ -157,7 +151,7 @@ export class AccountDeletionService {
             DELETE FROM "ml_training_data"
             WHERE "dataPoint"->'userFeatures'->>'userId' = ${userId}
                OR "dataPoint"->'candidateFeatures'->>'userId' = ${userId}
-          `,
+          `
         );
       }
 

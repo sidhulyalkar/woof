@@ -23,7 +23,7 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(
     private usersService: UsersService,
-    private accountDeletionService: AccountDeletionService,
+    private accountDeletionService: AccountDeletionService
   ) {}
 
   @Get()
