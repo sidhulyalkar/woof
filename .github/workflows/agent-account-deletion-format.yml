@@ -1,0 +1,67 @@
+name: Temporary account deletion canonical formatting
+
+on:
+  push:
+    branches:
+      - agent/account-deletion-authority-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-account-deletion-format
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  canonicalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/account-deletion-authority-v1
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply canonical Prettier output
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/users/account-deletion.service.ts
+          apps/api/src/users/account-deletion.integration.spec.ts
+          apps/api/src/users/users.controller.ts
+
+      - name: Recheck source authority after formatting
+        run: python3 .github/scripts/assert-account-deletion-authority.py
+
+      - name: Commit exact toolchain output
+        run: |
+          if git diff --quiet -- \
+            apps/api/src/users/account-deletion.service.ts \
+            apps/api/src/users/account-deletion.integration.spec.ts \
+            apps/api/src/users/users.controller.ts
+          then
+            echo 'No formatting changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/api/src/users/account-deletion.service.ts \
+            apps/api/src/users/account-deletion.integration.spec.ts \
+            apps/api/src/users/users.controller.ts
+          git commit -m 'Canonicalize account deletion authority'
+          git push origin HEAD:agent/account-deletion-authority-v1
