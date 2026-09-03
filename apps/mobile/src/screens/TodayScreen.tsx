@@ -24,34 +24,48 @@ type Props = CompositeScreenProps<
 type DogExperience = 'loved_it' | 'comfortable' | 'not_their_thing';
 type OwnerExperience = 'great' | 'fine' | 'a_lot_today';
 
-const dogChoices: Array<{ value: DogExperience; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const dogChoices: {
+  value: DogExperience;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
   { value: 'loved_it', label: 'Loved it', icon: 'happy-outline' },
   { value: 'comfortable', label: 'Comfortable', icon: 'checkmark-circle-outline' },
   { value: 'not_their_thing', label: 'Not their thing', icon: 'remove-circle-outline' },
 ];
 
-const ownerChoices: Array<{
+const ownerChoices: {
   value: OwnerExperience;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
+}[] = [
   { value: 'great', label: 'Great', icon: 'sparkles-outline' },
   { value: 'fine', label: 'Fine', icon: 'thumbs-up-outline' },
   { value: 'a_lot_today', label: 'A lot today', icon: 'battery-half-outline' },
 ];
 
-const toolLinks: Array<{
+const toolLinks: {
   route: keyof RootStackParamList;
   label: string;
   caption: string;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
-  { route: 'DailySignals', label: 'Daily Signals', caption: 'A quick check-in', icon: 'pulse-outline' },
+}[] = [
+  {
+    route: 'DailySignals',
+    label: 'Daily Signals',
+    caption: 'A quick check-in',
+    icon: 'pulse-outline',
+  },
   { route: 'Pets', label: 'Pets', caption: 'Profiles and context', icon: 'paw-outline' },
   { route: 'Goals', label: 'Goals', caption: 'Shared intentions', icon: 'flag-outline' },
   { route: 'Library', label: 'Library', caption: 'Photos and memories', icon: 'images-outline' },
   { route: 'Events', label: 'Events', caption: 'Community plans', icon: 'calendar-outline' },
-  { route: 'Profile', label: 'You', caption: 'Account and settings', icon: 'person-circle-outline' },
+  {
+    route: 'Profile',
+    label: 'You',
+    caption: 'Account and settings',
+    icon: 'person-circle-outline',
+  },
 ];
 
 export default function TodayScreen({ navigation }: Props) {
@@ -75,7 +89,9 @@ export default function TodayScreen({ navigation }: Props) {
       setDashboard(next);
       setError(null);
     } catch {
-      setError('Woof could not load a recommendation right now. Your existing relationship data is unchanged.');
+      setError(
+        'Woof could not load a recommendation right now. Your existing relationship data is unchanged.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -85,7 +101,7 @@ export default function TodayScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+    }, [load])
   );
 
   const startQuest = async (quest: AdventureQuest) => {
@@ -178,7 +194,11 @@ export default function TodayScreen({ navigation }: Props) {
         <View style={styles.noticeCard}>
           <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
           <Text style={styles.noticeText}>{error}</Text>
-          <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => void load()}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryButton}
+            onPress={() => void load()}
+          >
             <Text style={styles.secondaryButtonText}>Try again</Text>
           </Pressable>
         </View>
@@ -198,7 +218,9 @@ export default function TodayScreen({ navigation }: Props) {
               <Ionicons name="compass-outline" size={22} color={colors.primary[700]} />
             </View>
             <View style={styles.questHeaderCopy}>
-              <Text style={styles.eyebrow}>A GOOD PLACE TO START WITH {dashboard.pet.name.toUpperCase()}</Text>
+              <Text style={styles.eyebrow}>
+                A GOOD PLACE TO START WITH {dashboard.pet.name.toUpperCase()}
+              </Text>
               <Text style={styles.questTitle}>{primaryQuest.title}</Text>
             </View>
           </View>
@@ -213,28 +235,45 @@ export default function TodayScreen({ navigation }: Props) {
               <Ionicons name="walk-outline" size={22} color={colors.success.dark} />
               <View style={styles.startedCopy}>
                 <Text style={styles.startedTitle}>Go be together.</Text>
-                <Text style={styles.startedText}>The phone can wait. Come back when you want to close the loop.</Text>
+                <Text style={styles.startedText}>
+                  The phone can wait. Come back when you want to close the loop.
+                </Text>
               </View>
             </View>
           ) : (
-            <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={() => void startQuest(primaryQuest)}>
-              <Text style={styles.primaryButtonText}>{primaryQuest.actionLabel || 'Start together'}</Text>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.primaryButton}
+              onPress={() => void startQuest(primaryQuest)}
+            >
+              <Text style={styles.primaryButtonText}>
+                {primaryQuest.actionLabel || 'Start together'}
+              </Text>
             </Pressable>
           )}
 
           <View style={styles.actionRow}>
-            <Pressable accessibilityRole="button" style={styles.outlineButton} onPress={() => openOutcome(primaryQuest)}>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.outlineButton}
+              onPress={() => openOutcome(primaryQuest)}
+            >
               <Ionicons name="checkmark-circle-outline" size={18} color={colors.gray[800]} />
               <Text style={styles.outlineButtonText}>Close the loop</Text>
             </Pressable>
             {primaryQuest.safeStopEligible && (
-              <Pressable accessibilityRole="button" style={styles.ghostButton} onPress={() => openOutcome(primaryQuest, true)}>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.ghostButton}
+                onPress={() => openOutcome(primaryQuest, true)}
+              >
                 <Text style={styles.ghostButtonText}>I listened and stopped</Text>
               </Pressable>
             )}
           </View>
           <Text style={styles.permissionText}>
-            Making it easier, changing your mind, or stopping when your dog is done can all be the right outcome.
+            Making it easier, changing your mind, or stopping when your dog is done can all be the
+            right outcome.
           </Text>
         </View>
       )}
@@ -252,14 +291,24 @@ export default function TodayScreen({ navigation }: Props) {
           <Text style={styles.sectionTitle}>Different kind of day?</Text>
           {alternatives.map((quest) => (
             <View key={quest.id} style={styles.alternativeCard}>
-              <Text style={styles.alternativeKind}>{quest.primaryPathway} · {quest.variant}</Text>
+              <Text style={styles.alternativeKind}>
+                {quest.primaryPathway} · {quest.variant}
+              </Text>
               <Text style={styles.alternativeTitle}>{quest.title}</Text>
               <Text style={styles.alternativeText}>{quest.description}</Text>
               <View style={styles.actionRow}>
-                <Pressable accessibilityRole="button" style={styles.smallButton} onPress={() => void startQuest(quest)}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.smallButton}
+                  onPress={() => void startQuest(quest)}
+                >
                   <Text style={styles.smallButtonText}>{quest.actionLabel || 'Start'}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" style={styles.ghostButton} onPress={() => openOutcome(quest)}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.ghostButton}
+                  onPress={() => openOutcome(quest)}
+                >
                   <Text style={styles.ghostButtonText}>Close loop</Text>
                 </Pressable>
               </View>
@@ -282,7 +331,9 @@ export default function TodayScreen({ navigation }: Props) {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Relationship tools</Text>
-        <Text style={styles.sectionSubtitle}>Useful when you need them. They are not extra assignments.</Text>
+        <Text style={styles.sectionSubtitle}>
+          Useful when you need them. They are not extra assignments.
+        </Text>
         <View style={styles.toolsGrid}>
           {toolLinks.map((tool) => (
             <Pressable
@@ -433,7 +484,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[100],
   },
   questHeaderCopy: { flex: 1 },
-  questTitle: { marginTop: 4, color: colors.text.primary, fontSize: 25, lineHeight: 30, fontWeight: '800' },
+  questTitle: {
+    marginTop: 4,
+    color: colors.text.primary,
+    fontSize: 25,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
   questDescription: { marginTop: 14, color: colors.gray[800], fontSize: 16, lineHeight: 23 },
   whyCard: { marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: colors.gray[50] },
   whyLabel: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
@@ -493,7 +550,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray[200],
   },
-  alternativeKind: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 0.9 },
+  alternativeKind: {
+    color: colors.text.secondary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+  },
   alternativeTitle: { marginTop: 4, color: colors.text.primary, fontSize: 17, fontWeight: '800' },
   alternativeText: { marginTop: 6, color: colors.text.secondary, fontSize: 13, lineHeight: 19 },
   smallButton: {
@@ -504,7 +566,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[100],
   },
   smallButtonText: { color: colors.primary[800], fontWeight: '700' },
-  learningCard: { marginTop: 22, padding: 18, borderRadius: 20, backgroundColor: colors.primary[50] },
+  learningCard: {
+    marginTop: 22,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: colors.primary[50],
+  },
   learningRow: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   learningText: { flex: 1, color: colors.gray[700], fontSize: 14, lineHeight: 20 },
   toolsGrid: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -528,7 +595,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary[200],
   },
   outcomeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  outcomeTitle: { flex: 1, color: colors.text.primary, fontSize: 21, lineHeight: 27, fontWeight: '800' },
+  outcomeTitle: {
+    flex: 1,
+    color: colors.text.primary,
+    fontSize: 21,
+    lineHeight: 27,
+    fontWeight: '800',
+  },
   safeStopBanner: {
     marginTop: 14,
     padding: 12,
@@ -539,7 +612,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success.light,
   },
   safeStopText: { flex: 1, color: colors.success.dark, fontSize: 13, fontWeight: '600' },
-  questionLabel: { marginTop: 18, marginBottom: 8, color: colors.gray[800], fontSize: 14, fontWeight: '800' },
+  questionLabel: {
+    marginTop: 18,
+    marginBottom: 8,
+    color: colors.gray[800],
+    fontSize: 14,
+    fontWeight: '800',
+  },
   choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: {
     minHeight: 44,

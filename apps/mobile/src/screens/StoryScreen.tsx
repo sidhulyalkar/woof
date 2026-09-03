@@ -53,15 +53,15 @@ export default function StoryScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+    }, [load])
   );
 
   const moments = useMemo(
     () =>
       [...(dashboard?.moments ?? [])].sort(
-        (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+        (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
       ),
-    [dashboard],
+    [dashboard]
   );
 
   if (loading && !dashboard) {
@@ -112,7 +112,11 @@ export default function StoryScreen() {
           {dashboard.milestones.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Milestones</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.milestonesRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.milestonesRow}
+              >
                 {dashboard.milestones.slice(0, 8).map((milestone) => (
                   <View key={milestone.id} style={styles.milestoneCard}>
                     <View style={styles.milestoneIcon}>
@@ -129,14 +133,17 @@ export default function StoryScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What you have lived</Text>
-            <Text style={styles.sectionSubtitle}>Recent moments from activity, care, and memories.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Recent moments from activity, care, and memories.
+            </Text>
 
             {moments.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="paw-outline" size={28} color={colors.primary[600]} />
                 <Text style={styles.emptyTitle}>Your story is just beginning.</Text>
                 <Text style={styles.emptyText}>
-                  Complete a shared activity or add a memory. Woof will keep the useful parts without turning everyday life into homework.
+                  Complete a shared activity or add a memory. Woof will keep the useful parts
+                  without turning everyday life into homework.
                 </Text>
               </View>
             ) : (
@@ -167,7 +174,8 @@ export default function StoryScreen() {
           </View>
 
           <Text style={styles.coverageNote}>
-            Story coverage: {dashboard.stats.coverage.toLowerCase()}. Woof may intentionally show a bounded recent history rather than pretending this is every moment you have shared.
+            Story coverage: {dashboard.stats.coverage.toLowerCase()}. Woof may intentionally show a
+            bounded recent history rather than pretending this is every moment you have shared.
           </Text>
         </>
       )}
@@ -234,7 +242,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   milestoneTitle: { marginTop: 10, color: colors.text.primary, fontSize: 15, fontWeight: '800' },
-  milestoneDescription: { marginTop: 4, color: colors.text.secondary, fontSize: 12, lineHeight: 17 },
+  milestoneDescription: {
+    marginTop: 4,
+    color: colors.text.secondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   milestoneDate: { marginTop: 10, color: colors.primary[700], fontSize: 11, fontWeight: '700' },
   emptyCard: {
     marginTop: 12,
@@ -246,7 +259,13 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[200],
   },
   emptyTitle: { marginTop: 10, color: colors.text.primary, fontSize: 17, fontWeight: '800' },
-  emptyText: { marginTop: 6, color: colors.text.secondary, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  emptyText: {
+    marginTop: 6,
+    color: colors.text.secondary,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
   momentCard: {
     marginTop: 11,
     padding: 15,

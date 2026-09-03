@@ -68,8 +68,8 @@ export default function FeedScreen({ navigation }: Props) {
                   isLiked: false,
                   likesCount: Math.max(0, candidate.likesCount - 1),
                 }
-              : candidate,
-          ),
+              : candidate
+          )
         );
       } else {
         await socialApi.likePost(postId);
@@ -77,8 +77,8 @@ export default function FeedScreen({ navigation }: Props) {
           previous.map((candidate) =>
             candidate.id === postId
               ? { ...candidate, isLiked: true, likesCount: candidate.likesCount + 1 }
-              : candidate,
-          ),
+              : candidate
+          )
         );
       }
     } catch {
@@ -97,7 +97,9 @@ export default function FeedScreen({ navigation }: Props) {
           </View>
         )}
         <View style={styles.postHeaderInfo}>
-          <Text style={styles.displayName}>{item.user?.displayName || item.user?.handle || 'Woof member'}</Text>
+          <Text style={styles.displayName}>
+            {item.user?.displayName || item.user?.handle || 'Woof member'}
+          </Text>
           {item.user?.handle && <Text style={styles.handle}>@{item.user.handle}</Text>}
         </View>
       </View>
@@ -152,14 +154,23 @@ export default function FeedScreen({ navigation }: Props) {
             <Text style={styles.eyebrow}>PEOPLE AROUND YOUR DOG LIFE</Text>
             <Text style={styles.headerTitle}>Community</Text>
             <Text style={styles.headerSubtitle}>
-              Real friends, local plans, and shared moments. Community should help you get back to life together, not keep you scrolling.
+              Real friends, local plans, and shared moments. Community should help you get back to
+              life together, not keep you scrolling.
             </Text>
             <View style={styles.quickLinks}>
-              <Pressable style={styles.quickLink} onPress={() => navigation.navigate('Events')} accessibilityRole="button">
+              <Pressable
+                style={styles.quickLink}
+                onPress={() => navigation.navigate('Events')}
+                accessibilityRole="button"
+              >
                 <Ionicons name="calendar-outline" size={18} color={colors.primary[700]} />
                 <Text style={styles.quickLinkText}>Events</Text>
               </Pressable>
-              <Pressable style={styles.quickLink} onPress={() => navigation.navigate('Map')} accessibilityRole="button">
+              <Pressable
+                style={styles.quickLink}
+                onPress={() => navigation.navigate('Map')}
+                accessibilityRole="button"
+              >
                 <Ionicons name="map-outline" size={18} color={colors.primary[700]} />
                 <Text style={styles.quickLinkText}>Nearby</Text>
               </Pressable>
@@ -177,7 +188,8 @@ export default function FeedScreen({ navigation }: Props) {
             <Ionicons name="people-outline" size={44} color={colors.primary[500]} />
             <Text style={styles.emptyText}>A quieter community is okay.</Text>
             <Text style={styles.emptySubtext}>
-              Woof can still be useful through Today, Story, and your real relationship even when there is nothing new to browse.
+              Woof can still be useful through Today, Story, and your real relationship even when
+              there is nothing new to browse.
             </Text>
           </View>
         }
@@ -259,11 +271,23 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.gray[200],
   },
-  actionButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, paddingRight: 18 },
+  actionButton: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingRight: 18,
+  },
   actionText: { fontSize: 13, color: colors.text.secondary },
   contextOnly: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   contextOnlyText: { fontSize: 13, color: colors.gray[400] },
   emptyContainer: { alignItems: 'center', paddingHorizontal: 38, paddingVertical: 56 },
   emptyText: { marginTop: 12, fontSize: 17, fontWeight: '700', color: colors.text.primary },
-  emptySubtext: { marginTop: 7, fontSize: 13, lineHeight: 19, color: colors.text.secondary, textAlign: 'center' },
+  emptySubtext: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
 });

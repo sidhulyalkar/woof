@@ -124,11 +124,16 @@ export default function ProfileScreen({ navigation }: Props) {
         <Text style={styles.eyebrow}>dogOS</Text>
         <Text style={styles.sectionTitle}>Relationship tools</Text>
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DailySignals')}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('DailySignals')}
+        >
           <Ionicons name="pulse-outline" size={24} color="#6b7280" />
           <View style={styles.menuCopy}>
             <Text style={styles.menuItemText}>Daily Signals</Text>
-            <Text style={styles.menuItemDetail}>A quick private check-in for longitudinal context.</Text>
+            <Text style={styles.menuItemDetail}>
+              A quick private check-in for longitudinal context.
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
         </TouchableOpacity>

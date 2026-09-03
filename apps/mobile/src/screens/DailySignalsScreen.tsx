@@ -18,20 +18,32 @@ import {
 } from '../api/intelligence';
 import { colors } from '../theme/tokens';
 
-const dimensions: Array<{
+const dimensions: {
   key: keyof DailySignalsAnswers;
   label: string;
   prompt: string;
-}> = [
+}[] = [
   { key: 'appetite', label: 'Appetite', prompt: 'How was eating compared with usual?' },
   { key: 'energy', label: 'Energy', prompt: 'How was energy compared with usual?' },
-  { key: 'bathroomRoutine', label: 'Bathroom / routine', prompt: 'Did bathroom habits or routine feel different?' },
-  { key: 'mobilityComfort', label: 'Mobility / comfort', prompt: 'How comfortable did movement seem?' },
-  { key: 'engagementSocialComfort', label: 'Engagement', prompt: 'How engaged or socially comfortable did they seem?' },
+  {
+    key: 'bathroomRoutine',
+    label: 'Bathroom / routine',
+    prompt: 'Did bathroom habits or routine feel different?',
+  },
+  {
+    key: 'mobilityComfort',
+    label: 'Mobility / comfort',
+    prompt: 'How comfortable did movement seem?',
+  },
+  {
+    key: 'engagementSocialComfort',
+    label: 'Engagement',
+    prompt: 'How engaged or socially comfortable did they seem?',
+  },
   { key: 'sleepRest', label: 'Sleep / rest', prompt: 'How restful did rest seem?' },
 ];
 
-const choices: Array<{ value: DailySignalChoice; label: string }> = [
+const choices: { value: DailySignalChoice; label: string }[] = [
   { value: 'LESS', label: 'Less' },
   { value: 'USUAL', label: 'Usual' },
   { value: 'MORE', label: 'More' },
@@ -56,7 +68,7 @@ function contextsFromHouseholds(households: HouseholdSnapshot[]): HouseholdPetCo
         timezone: household.timezone,
         petId: membership.pet.id,
         petName: membership.pet.name,
-      })),
+      }))
   );
 }
 
@@ -88,13 +100,13 @@ export default function DailySignalsScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load]),
+    }, [load])
   );
 
   const selected = contexts[selectedIndex] ?? null;
   const answeredCount = useMemo(
     () => Object.values(answers).filter((value) => value !== undefined).length,
-    [answers],
+    [answers]
   );
 
   const setChoice = (key: keyof DailySignalsAnswers, value: DailySignalChoice) => {
@@ -114,14 +126,18 @@ export default function DailySignalsScreen() {
         signals: answers,
         ...(note.trim() ? { note: note.trim() } : {}),
       });
-      const duplicateCopy = receipt.duplicate ? ' This was the same check-in Woof already had for today.' : '';
+      const duplicateCopy = receipt.duplicate
+        ? ' This was the same check-in Woof already had for today.'
+        : '';
       setSuccess(`Saved for ${selected.petName} on ${receipt.localDate}.${duplicateCopy}`);
       setAnswers({});
       setNote('');
     } catch (caught: any) {
       const status = caught?.response?.status;
       if (status === 409) {
-        setError('A different Daily Signals check-in is already recorded for this dog and household day. Woof will not silently overwrite it.');
+        setError(
+          'A different Daily Signals check-in is already recorded for this dog and household day. Woof will not silently overwrite it.'
+        );
       } else {
         setError('Woof could not save this check-in. Nothing was partially replaced.');
       }
@@ -140,24 +156,35 @@ export default function DailySignalsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.eyebrow}>PRIVATE CHECK-IN</Text>
       <Text style={styles.title}>Daily Signals</Text>
       <Text style={styles.subtitle}>
-        A few owner-observable signals can help Woof learn what is normal for this individual dog. This is not a diagnosis or health score.
+        A few owner-observable signals can help Woof learn what is normal for this individual dog.
+        This is not a diagnosis or health score.
       </Text>
 
       {contexts.length === 0 ? (
         <View style={styles.noticeCard}>
           <Ionicons name="paw-outline" size={22} color={colors.primary[700]} />
           <Text style={styles.noticeTitle}>No active household pet context yet</Text>
-          <Text style={styles.noticeText}>Create or join an authorized pet household before recording Daily Signals.</Text>
+          <Text style={styles.noticeText}>
+            Create or join an authorized pet household before recording Daily Signals.
+          </Text>
         </View>
       ) : (
         <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Who is this for?</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.contextRow}
+            >
               {contexts.map((context, index) => {
                 const selectedContext = index === selectedIndex;
                 return (
@@ -173,7 +200,11 @@ export default function DailySignalsScreen() {
                       setSuccess(null);
                     }}
                   >
-                    <Ionicons name="paw-outline" size={18} color={selectedContext ? colors.primary[800] : colors.gray[700]} />
+                    <Ionicons
+                      name="paw-outline"
+                      size={18}
+                      color={selectedContext ? colors.primary[800] : colors.gray[700]}
+                    />
                     <View>
                       <Text style={styles.contextPet}>{context.petName}</Text>
                       <Text style={styles.contextHousehold}>{context.householdName}</Text>
@@ -183,7 +214,9 @@ export default function DailySignalsScreen() {
               })}
             </ScrollView>
             {selected && !selected.timezone && (
-              <Text style={styles.timezoneWarning}>This household needs a timezone before Daily Signals can be recorded.</Text>
+              <Text style={styles.timezoneWarning}>
+                This household needs a timezone before Daily Signals can be recorded.
+              </Text>
             )}
           </View>
 
@@ -202,7 +235,9 @@ export default function DailySignalsScreen() {
                       style={[styles.choice, isSelected && styles.choiceSelected]}
                       onPress={() => setChoice(dimension.key, choice.value)}
                     >
-                      <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>{choice.label}</Text>
+                      <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
+                        {choice.label}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -212,7 +247,9 @@ export default function DailySignalsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Something else you noticed?</Text>
-            <Text style={styles.sectionSubtitle}>Optional, private, and limited to 500 characters.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Optional, private, and limited to 500 characters.
+            </Text>
             <TextInput
               value={note}
               onChangeText={(value) => setNote(value.slice(0, 500))}
@@ -250,11 +287,17 @@ export default function DailySignalsScreen() {
             ]}
             onPress={() => void save()}
           >
-            {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.saveButtonText}>Save check-in</Text>}
+            {saving ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save check-in</Text>
+            )}
           </Pressable>
 
           <Text style={styles.privacyNote}>
-            Skipping is allowed. “Not sure” remains missing evidence. A saved check-in is canonical for that household-local day and is not silently overwritten by a later different answer.
+            Skipping is allowed. “Not sure” remains missing evidence. A saved check-in is canonical
+            for that household-local day and is not silently overwritten by a later different
+            answer.
           </Text>
         </>
       )}
