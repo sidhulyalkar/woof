@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { StackScreenProps } from '@react-navigation/stack';
 import { petsApi } from '../api/pets';
 import { useAuth } from '../contexts/AuthContext';
-import type { MainTabParamList } from '../navigation/AppNavigator';
+import type { RootStackParamList } from '../navigation/AppNavigator';
 import type { Pet } from '../types';
 
-type ProfileNavigation = BottomTabNavigationProp<MainTabParamList, 'Profile'>;
+type Props = StackScreenProps<RootStackParamList, 'Profile'>;
 
-export default function ProfileScreen({ navigation }: { navigation: ProfileNavigation }) {
+export default function ProfileScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [petsLoading, setPetsLoading] = useState(true);
@@ -54,10 +54,13 @@ export default function ProfileScreen({ navigation }: { navigation: ProfileNavig
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.profileSection}>
-        <Image
-          source={{ uri: user?.avatarUrl || 'https://via.placeholder.com/100' }}
-          style={styles.avatar}
-        />
+        {user?.avatarUrl ? (
+          <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarFallback}>
+            <Ionicons name="person-outline" size={38} color="#6b7280" />
+          </View>
+        )}
         <Text style={styles.displayName}>{user?.displayName || user?.handle || 'Woof member'}</Text>
         {user?.handle ? <Text style={styles.handle}>@{user.handle}</Text> : null}
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
@@ -80,14 +83,14 @@ export default function ProfileScreen({ navigation }: { navigation: ProfileNavig
           <View style={styles.noticeCard}>
             <Text style={styles.noticeTitle}>Pets are temporarily unavailable</Text>
             <Text style={styles.mutedText}>
-              Your account profile is still available. You can retry the pet list from the Pets tab.
+              Your account profile is still available. You can retry from Pets.
             </Text>
           </View>
         ) : pets.length === 0 ? (
           <View style={styles.noticeCard}>
             <Text style={styles.noticeTitle}>No pet profile yet</Text>
             <Text style={styles.mutedText}>
-              Add your first pet from the Pets tab to unlock dog-specific experiences.
+              Add your first pet to unlock dog-specific experiences.
             </Text>
           </View>
         ) : (
@@ -98,10 +101,13 @@ export default function ProfileScreen({ navigation }: { navigation: ProfileNavig
                 style={styles.petCard}
                 onPress={() => navigation.navigate('Pets')}
               >
-                <Image
-                  source={{ uri: pet.avatarUrl || 'https://via.placeholder.com/80' }}
-                  style={styles.petImage}
-                />
+                {pet.avatarUrl ? (
+                  <Image source={{ uri: pet.avatarUrl }} style={styles.petImage} />
+                ) : (
+                  <View style={styles.petImageFallback}>
+                    <Ionicons name="paw-outline" size={28} color="#7c3aed" />
+                  </View>
+                )}
                 <Text style={styles.petName} numberOfLines={1}>
                   {pet.name}
                 </Text>
@@ -116,15 +122,27 @@ export default function ProfileScreen({ navigation }: { navigation: ProfileNavig
 
       <View style={styles.section}>
         <Text style={styles.eyebrow}>dogOS</Text>
-        <Text style={styles.sectionTitle}>Explore</Text>
+        <Text style={styles.sectionTitle}>Relationship tools</Text>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => navigation.navigate('DailySignals')}
+        >
+          <Ionicons name="pulse-outline" size={24} color="#6b7280" />
+          <View style={styles.menuCopy}>
+            <Text style={styles.menuItemText}>Daily Signals</Text>
+            <Text style={styles.menuItemDetail}>
+              A quick private check-in for longitudinal context.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Goals')}>
-          <Ionicons name="trophy-outline" size={24} color="#6b7280" />
+          <Ionicons name="flag-outline" size={24} color="#6b7280" />
           <View style={styles.menuCopy}>
             <Text style={styles.menuItemText}>Goals</Text>
-            <Text style={styles.menuItemDetail}>
-              Open your maintained goal and activity planning tools.
-            </Text>
+            <Text style={styles.menuItemDetail}>Shared intentions and activity planning.</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
         </TouchableOpacity>
@@ -169,6 +187,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
     marginBottom: 16,
   },
+  avatarFallback: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e5e7eb',
+    marginBottom: 16,
+  },
   displayName: { fontSize: 24, fontWeight: 'bold', color: '#1f2937', marginBottom: 4 },
   handle: { fontSize: 16, color: '#6b7280', marginBottom: 8 },
   bio: { fontSize: 14, color: '#6b7280', textAlign: 'center', marginTop: 4 },
@@ -198,6 +225,15 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: '#e5e7eb',
+    marginBottom: 8,
+  },
+  petImageFallback: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ede9fe',
     marginBottom: 8,
   },
   petName: { fontSize: 13, fontWeight: '600', color: '#1f2937' },
