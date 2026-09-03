@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -16,6 +17,7 @@ export class AccountDeletionService {
         id: true,
         pets: { select: { id: true } },
         householdMemberships: { select: { householdId: true } },
+        conversationParticipants: { select: { conversationId: true } },
       },
     });
 
@@ -25,6 +27,9 @@ export class AccountDeletionService {
 
     const petIds = user.pets.map((pet) => pet.id);
     const householdIds = [...new Set(user.householdMemberships.map((item) => item.householdId))];
+    const conversationIds = [
+      ...new Set(user.conversationParticipants.map((item) => item.conversationId)),
+    ];
 
     const mediaAssets = await this.prisma.mediaAsset.findMany({
       where: {
@@ -50,7 +55,8 @@ export class AccountDeletionService {
 
     // Private object deletion happens before the database transaction. If the object
     // store is unavailable, fail closed and leave relational account state intact so
-    // the user can retry instead of creating durable orphaned private media.
+    // the user can retry instead of creating durable orphaned private media. S3-style
+    // DeleteObject is idempotent, so retry remains safe after a partial provider pass.
     try {
       for (const key of storageKeys) {
         await this.storage.deleteFile(key);
@@ -133,29 +139,50 @@ export class AccountDeletionService {
       await tx.communityEvent.deleteMany({ where: { hostUserId: userId } });
 
       // Legacy training exports embed identity inside JSON rather than foreign keys.
-      // Delete only the known versioned MLTrainingDataPoint identity locations.
-      await tx.$executeRaw`
-        DELETE FROM "ml_training_data"
-        WHERE "dataPoint"->'userFeatures'->>'userId' = ${userId}
-           OR "dataPoint"->'candidateFeatures'->>'userId' = ${userId}
-           OR "dataPoint"->'userFeatures'->>'petId' = ANY(${petIds}::text[])
-           OR "dataPoint"->'candidateFeatures'->>'petId' = ANY(${petIds}::text[])
-      `;
+      // Delete only the known versioned MLTrainingDataPoint identity locations. Keep
+      // the zero-pet case separate so the query never depends on array parameter casts.
+      if (petIds.length > 0) {
+        await tx.$executeRaw(
+          Prisma.sql`
+            DELETE FROM "ml_training_data"
+            WHERE "dataPoint"->'userFeatures'->>'userId' = ${userId}
+               OR "dataPoint"->'candidateFeatures'->>'userId' = ${userId}
+               OR "dataPoint"->'userFeatures'->>'petId' IN (${Prisma.join(petIds)})
+               OR "dataPoint"->'candidateFeatures'->>'petId' IN (${Prisma.join(petIds)})
+          `,
+        );
+      } else {
+        await tx.$executeRaw(
+          Prisma.sql`
+            DELETE FROM "ml_training_data"
+            WHERE "dataPoint"->'userFeatures'->>'userId' = ${userId}
+               OR "dataPoint"->'candidateFeatures'->>'userId' = ${userId}
+          `,
+        );
+      }
 
-      // The canonical delete now owns the modern cascades: pets, sessions, household
+      // The canonical delete now owns modern cascades: pets, sessions, household
       // memberships, activity/social rows, integrations, media metadata, dogOS
       // operational schemas, CareEvents, rewards, Story evidence, and projections.
       await tx.user.delete({ where: { id: userId } });
 
-      // Households are relationship containers, not historical tombstones. Remove
-      // containers that became empty only because this account and its owned pets
-      // disappeared; shared households remain intact.
+      // Relationship containers are not historical tombstones. Remove only containers
+      // this user participated in that became truly empty after the canonical cascade.
       if (householdIds.length > 0) {
         await tx.household.deleteMany({
           where: {
             id: { in: householdIds },
             members: { none: {} },
             pets: { none: {} },
+          },
+        });
+      }
+
+      if (conversationIds.length > 0) {
+        await tx.conversation.deleteMany({
+          where: {
+            id: { in: conversationIds },
+            participants: { none: {} },
           },
         });
       }
