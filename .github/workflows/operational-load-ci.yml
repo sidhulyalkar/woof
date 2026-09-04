@@ -1,0 +1,248 @@
+name: dogOS Bounded Operational Load CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ops/load/**'
+      - 'ops/alerts/woof-api-alert-policy.v1.json'
+      - 'docs/operations/BOUNDED_LOAD_QUALIFICATION_V1.md'
+      - '.github/scripts/assert-bounded-load-qualification.py'
+      - '.github/scripts/assert-pet-identifier-contract.py'
+      - '.github/workflows/operational-load-ci.yml'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/common/http/**'
+      - 'apps/api/src/common/validation/pet-identifier.ts'
+      - 'apps/api/src/common/validation/pet-identifier.spec.ts'
+      - 'apps/api/src/auth/**'
+      - 'apps/api/src/pets/**'
+      - 'apps/api/src/households/**'
+      - 'apps/api/src/adventure/**'
+      - 'apps/api/src/companion/**'
+      - 'apps/api/src/intelligence/**'
+      - 'apps/api/src/care-events/**'
+      - 'apps/api/src/caregiver/**'
+      - 'apps/api/src/observability/**'
+      - 'apps/api/src/trust-safety/**'
+      - 'apps/api/src/chat/**'
+      - 'apps/api/src/config/env.validation.ts'
+      - 'apps/api/src/config/env.validation.spec.ts'
+      - 'apps/web/package.json'
+      - 'infra/docker/Dockerfile.api'
+      - 'packages/database/prisma/**'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Bounded load profile
+        required: true
+        default: prelaunch
+        type: choice
+        options:
+          - ci
+          - prelaunch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bounded-operational-load-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_load_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_load_test
+  JWT_SECRET: ci-only-bounded-load-secret-12345678901234567890
+  OPS_METRICS_TOKEN: ci-only-bounded-load-ops-token-1234567890abcdef
+  LOAD_PROFILE: ${{ inputs.profile || 'ci' }}
+  LOAD_REPORT_PATH: artifacts/operational-load/report.json
+  QUALIFIED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  qualify:
+    name: Synthetic production-image authority under bounded load
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_load_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_load_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.QUALIFIED_SHA }}
+
+      - name: Prove literal qualified checkout
+        run: test "$(git rev-parse HEAD)" = "$QUALIFIED_SHA"
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate and validate Prisma client
+        run: |
+          pnpm --filter @woof/database db:generate
+          pnpm --filter @woof/database exec prisma validate
+
+      - name: Apply full database migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Materialize bounded-load formatting
+        run: >-
+          pnpm exec prettier --write
+          ops/load/woof-bounded-load.v1.json
+          ops/load/run-bounded-load.mjs
+          ops/load/load-support.mjs
+          ops/load/load-scenarios.mjs
+          ops/load/load-telemetry.mjs
+          apps/api/src/common/validation/pet-identifier.ts
+          apps/api/src/common/validation/pet-identifier.spec.ts
+          apps/api/src/intelligence/dto/daily-signals.dto.ts
+          apps/api/src/intelligence/dto/daily-signals.dto.spec.ts
+          .github/workflows/operational-load-ci.yml
+          docs/operations/BOUNDED_LOAD_QUALIFICATION_V1.md
+
+      - name: Enforce committed bounded-load formatting
+        run: git diff --exit-code
+
+      - name: Validate bounded-load source contract
+        run: |
+          python -m py_compile .github/scripts/assert-bounded-load-qualification.py
+          python -m py_compile .github/scripts/assert-pet-identifier-contract.py
+          python .github/scripts/assert-bounded-load-qualification.py
+          python .github/scripts/assert-pet-identifier-contract.py
+          node --check ops/load/run-bounded-load.mjs
+          node --check ops/load/load-support.mjs
+          node --check ops/load/load-scenarios.mjs
+          node --check ops/load/load-telemetry.mjs
+
+      - name: Prove canonical pet identifier validation
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/common/validation/pet-identifier.spec.ts
+          src/intelligence/dto/daily-signals.dto.spec.ts
+          --runInBand
+
+      - name: Type-check API and Web socket dependency owner
+        run: |
+          pnpm --filter @woof/api type-check
+          pnpm --filter @woof/web type-check
+
+      - name: Build exact production API image
+        run: |
+          docker build --pull \
+            --build-arg WOOF_RELEASE_SHA="${QUALIFIED_SHA}" \
+            -f infra/docker/Dockerfile.api \
+            -t woof-api-bounded-load:ci .
+
+      - name: Apply migrations through production image
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            woof-api-bounded-load:ci \
+            pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Boot resource-bounded production image
+        run: |
+          docker rm -f woof-api-bounded-load-ci >/dev/null 2>&1 || true
+          docker run -d --name woof-api-bounded-load-ci --network host \
+            --memory=1g \
+            --cpus=2 \
+            --pids-limit=256 \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SHADOW_DATABASE_URL="$SHADOW_DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e OPS_METRICS_TOKEN="$OPS_METRICS_TOKEN" \
+            -e NODE_ENV=production \
+            -e API_DOCS_ENABLED=false \
+            -e CORS_ORIGIN=https://bounded-load-ci.example.test \
+            -e ENABLE_ADVENTURE_SYSTEM=true \
+            -e ML_SERVICE_ENABLED=false \
+            -e FLY_APP_NAME=woof-load-ci \
+            -e FLY_MACHINE_ID=bounded-load-machine \
+            woof-api-bounded-load:ci
+
+          test "$(docker inspect -f '{{.HostConfig.Memory}}' woof-api-bounded-load-ci)" = '1073741824'
+          test "$(docker inspect -f '{{.HostConfig.NanoCpus}}' woof-api-bounded-load-ci)" = '2000000000'
+          test "$(docker inspect -f '{{.HostConfig.PidsLimit}}' woof-api-bounded-load-ci)" = '256'
+
+          live=0
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --show-error --output /tmp/bounded-load-live.json --write-out '%{http_code}' \
+              http://127.0.0.1:4000/api/v1/ops/health/live || true)
+            if [ "$status" = '200' ]; then
+              live=1
+              break
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -Fxq woof-api-bounded-load-ci; then
+              echo "Production image exited before liveness; status=$status"
+              docker logs woof-api-bounded-load-ci || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$live" -ne 1 ]; then
+            echo 'Production image never reached liveness.'
+            docker logs woof-api-bounded-load-ci || true
+            exit 1
+          fi
+
+      - name: Run bounded synthetic load
+        id: load
+        continue-on-error: true
+        run: |
+          WOOF_LOAD_EXPECTED_SHA="${QUALIFIED_SHA}" \
+          WOOF_LOAD_PROFILE="$LOAD_PROFILE" \
+          WOOF_LOAD_API_ORIGIN=http://127.0.0.1:4000 \
+          WOOF_LOAD_SOCKET_ORIGIN=http://127.0.0.1:4000 \
+          WOOF_LOAD_REPORT_PATH="$LOAD_REPORT_PATH" \
+          OPS_METRICS_TOKEN="$OPS_METRICS_TOKEN" \
+          node ops/load/run-bounded-load.mjs
+
+      - name: Validate retained bounded-load evidence
+        if: always()
+        run: |
+          test -f "$LOAD_REPORT_PATH"
+          python .github/scripts/assert-bounded-load-qualification.py --report "$LOAD_REPORT_PATH"
+
+      - name: Retain privacy-safe bounded-load evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: operational-load-${{ github.run_id }}
+          path: ${{ env.LOAD_REPORT_PATH }}
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce bounded-load qualification result
+        if: always() && steps.load.outcome != 'success'
+        run: |
+          echo 'Bounded operational load harness did not qualify.'
+          exit 1
+
+      - name: Cleanup production image
+        if: always()
+        run: |
+          docker rm -f woof-api-bounded-load-ci >/dev/null 2>&1 || true

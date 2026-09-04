@@ -7,11 +7,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export const TRAINING_REWARD_TYPES = [
   'food',
@@ -36,7 +36,7 @@ export const TRAINING_STRESS_SIGNALS = [
 ] as const;
 
 export class CreateTrainingPlanDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()

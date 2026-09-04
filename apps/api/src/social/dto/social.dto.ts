@@ -10,6 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export class CreatePostDto {
   @ApiPropertyOptional({ example: 'Golden-hour trail walk with Shasta.' })
@@ -27,7 +28,7 @@ export class CreatePostDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUUID()
+  @IsPetIdentifier()
   petId?: string;
 
   @ApiPropertyOptional()

@@ -13,10 +13,11 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import { MEDIA_SOURCES, type MediaSource } from '../media-library.types';
 
 export class CreateMediaUploadIntentDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -70,7 +71,7 @@ export class CompleteMediaUploadDto {
 }
 
 export class MediaLibraryQueryDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsOptional()
@@ -92,7 +93,7 @@ export class MediaLibraryQueryDto {
 }
 
 export class CreateMediaAlbumDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -125,7 +126,7 @@ export class UpdateMediaAssetDto {
 }
 
 export class GooglePhotosPickerStartDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -141,7 +142,7 @@ export class GooglePhotosPickerStartDto {
 }
 
 export class GooglePhotosPickerImportDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -160,7 +161,7 @@ export class GooglePhotosPickerImportDto {
 }
 
 export class GooglePhotosExportDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -174,7 +175,7 @@ export class GooglePhotosExportDto {
 }
 
 export class MediaExportManifestDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsOptional()
