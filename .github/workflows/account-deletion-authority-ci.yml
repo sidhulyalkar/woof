@@ -1,0 +1,120 @@
+name: Account Deletion Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/users/**'
+      - 'apps/api/src/storage/storage.service.ts'
+      - 'packages/database/prisma/**'
+      - '.github/scripts/assert-account-deletion-authority.py'
+      - '.github/workflows/account-deletion-authority-ci.yml'
+      - 'docs/ACCOUNT_DELETION_AUTHORITY_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/src/users/**'
+      - 'apps/api/src/storage/storage.service.ts'
+      - 'packages/database/prisma/**'
+      - '.github/scripts/assert-account-deletion-authority.py'
+      - '.github/workflows/account-deletion-authority-ci.yml'
+      - 'docs/ACCOUNT_DELETION_AUTHORITY_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-deletion-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Privacy-owned deletion authority
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-account-deletion-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce account deletion source contract
+        run: python3 .github/scripts/assert-account-deletion-authority.py
+
+      - name: Validate and generate Prisma authority
+        run: |
+          pnpm --filter @woof/database exec prisma validate
+          pnpm --filter @woof/database db:generate
+
+      - name: Apply full migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Verify migrated database matches Prisma datamodel
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Check account deletion formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/users/account-deletion.service.ts
+          apps/api/src/users/account-deletion.integration.spec.ts
+          apps/api/src/users/users.controller.ts
+          apps/api/src/users/users.module.ts
+          .github/workflows/account-deletion-authority-ci.yml
+          docs/ACCOUNT_DELETION_AUTHORITY_V1.md
+
+      - name: Lint account deletion API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/users/account-deletion.service.ts
+          src/users/account-deletion.integration.spec.ts
+          src/users/users.controller.ts
+          src/users/users.module.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run migrated PostgreSQL deletion contract
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/users/account-deletion.integration.spec.ts
+          --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
