@@ -14,9 +14,18 @@ function validPayload(householdId: string) {
   return dto;
 }
 
-describe('Daily Signals DTO household identity', () => {
+describe('Daily Signals DTO identity', () => {
   it('accepts legacy deterministic UUID-shaped household identifiers', async () => {
     const errors = await validate(validPayload('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'));
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts replay-safe canonical pet identifiers created by onboarding', async () => {
+    const dto = validPayload('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    dto.petId = 'pet_0123456789abcdef0123456789abcdef';
+
+    const errors = await validate(dto);
 
     expect(errors).toHaveLength(0);
   });

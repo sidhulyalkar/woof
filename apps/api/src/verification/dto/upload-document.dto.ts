@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export enum DocumentType {
   VACCINATION_RECORD = 'vaccination_record',
@@ -16,7 +17,7 @@ export class UploadDocumentDto {
 
   @ApiProperty({ description: 'Pet ID (if document is pet-specific)', required: false })
   @IsOptional()
-  @IsString()
+  @IsPetIdentifier()
   petId?: string;
 
   @ApiProperty({ description: 'Additional notes about the document', required: false })

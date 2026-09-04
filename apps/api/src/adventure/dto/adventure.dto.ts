@@ -1,12 +1,13 @@
 import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export class QuestInteractionDto {
-  @IsString()
+  @IsPetIdentifier()
   petId!: string;
 }
 
 export class CompleteQuestDto {
-  @IsString()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsIn(['loved_it', 'comfortable', 'not_their_thing'])

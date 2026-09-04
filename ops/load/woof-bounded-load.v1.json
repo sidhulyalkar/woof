@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "woof-bounded-load-config-v1",
+  "harnessVersion": "bounded-load-v1",
+  "environmentClass": "github-actions-production-image",
+  "alertPolicyPath": "ops/alerts/woof-api-alert-policy.v1.json",
+  "resourceLimits": {
+    "memoryBytes": 1073741824,
+    "nanoCpus": 2000000000,
+    "pidsLimit": 256
+  },
+  "profiles": {
+    "ci": {
+      "workers": 7,
+      "durationMs": 24000,
+      "requestIntervalMs": 700,
+      "setupPaceMs": 500,
+      "concurrencyResetMs": 1100,
+      "transitionWaveSize": 2,
+      "transitionWaves": 2,
+      "minimumAuthSamples": 20,
+      "minimumReadinessSamples": 20
+    },
+    "prelaunch": {
+      "workers": 14,
+      "durationMs": 45000,
+      "requestIntervalMs": 700,
+      "setupPaceMs": 500,
+      "concurrencyResetMs": 1100,
+      "transitionWaveSize": 2,
+      "transitionWaves": 2,
+      "minimumAuthSamples": 40,
+      "minimumReadinessSamples": 40
+    }
+  }
+}

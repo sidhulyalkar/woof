@@ -10,6 +10,7 @@ import {
   Length,
   MaxLength,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import {
   CAREGIVER_CAPABILITIES,
   CAREGIVER_OBSERVATION_KINDS,
@@ -19,8 +20,7 @@ import {
 
 export class IssueCaregiverGrantDto {
   @ApiProperty()
-  @IsString()
-  @Length(1, 128)
+  @IsPetIdentifier()
   petId!: string;
 
   @ApiProperty()
