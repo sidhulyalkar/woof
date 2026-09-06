@@ -29,11 +29,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "package": "com.woof.app",
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "CAMERA"
-      ]
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -60,10 +56,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://localhost:4000/api/v1",
-      "eas": {
-        "projectId": "your-project-id-here"
-      }
+      "apiUrl": "http://localhost:4000/api/v1"
     }
   }
 }

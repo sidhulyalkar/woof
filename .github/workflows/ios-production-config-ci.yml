@@ -1,0 +1,131 @@
+name: iOS Production Config CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/app.config.ts'
+      - 'apps/mobile/eas.json'
+      - 'apps/mobile/src/api/client.ts'
+      - '.github/scripts/assert-ios-production-config.py'
+      - '.github/workflows/ios-production-config-ci.yml'
+      - 'docs/IOS_PRODUCTION_CONFIG_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/app.config.ts'
+      - 'apps/mobile/eas.json'
+      - 'apps/mobile/src/api/client.ts'
+      - '.github/scripts/assert-ios-production-config.py'
+      - '.github/workflows/ios-production-config-ci.yml'
+      - 'docs/IOS_PRODUCTION_CONFIG_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-production-config-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  QUALIFIED_PRODUCTION_API_URL: 'https://woof-api-prod.fly.dev/api/v1'
+  TEST_EAS_PROJECT_ID: '00000000-0000-4000-8000-000000000001'
+
+jobs:
+  qualify:
+    name: Fail-closed iOS production config
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce iOS production config source contract
+        run: python3 .github/scripts/assert-ios-production-config.py
+
+      - name: Check tranche formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/mobile/app.json
+          apps/mobile/app.config.ts
+          apps/mobile/eas.json
+          apps/mobile/src/api/client.ts
+          .github/workflows/ios-production-config-ci.yml
+          docs/IOS_PRODUCTION_CONFIG_V1.md
+
+      - name: Development config preserves local iteration
+        run: |
+          env -u EXPO_PUBLIC_API_URL -u EAS_PROJECT_ID -u EAS_BUILD_PROJECT_ID \
+            WOOF_BUILD_PROFILE=development \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/woof-development-config.txt
+          grep -F 'http://localhost:4000/api/v1' /tmp/woof-development-config.txt
+          grep -F 'development' /tmp/woof-development-config.txt
+
+      - name: Production config rejects missing API authority
+        run: |
+          if env -u EXPO_PUBLIC_API_URL \
+            WOOF_BUILD_PROFILE=production \
+            EAS_PROJECT_ID="$TEST_EAS_PROJECT_ID" \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/missing-api.txt 2>&1
+          then
+            cat /tmp/missing-api.txt
+            echo 'Production config unexpectedly accepted a missing API URL.'
+            exit 1
+          fi
+          grep -F 'require EXPO_PUBLIC_API_URL' /tmp/missing-api.txt
+
+      - name: Production config rejects loopback API authority
+        run: |
+          if WOOF_BUILD_PROFILE=production \
+            EXPO_PUBLIC_API_URL='http://localhost:4000/api/v1' \
+            EAS_PROJECT_ID="$TEST_EAS_PROJECT_ID" \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/loopback-api.txt 2>&1
+          then
+            cat /tmp/loopback-api.txt
+            echo 'Production config unexpectedly accepted a loopback API URL.'
+            exit 1
+          fi
+          grep -E 'must use HTTPS|must not target a loopback host' /tmp/loopback-api.txt
+
+      - name: Production config rejects missing EAS project authority
+        run: |
+          if env -u EAS_PROJECT_ID -u EAS_BUILD_PROJECT_ID \
+            WOOF_BUILD_PROFILE=production \
+            EXPO_PUBLIC_API_URL="$QUALIFIED_PRODUCTION_API_URL" \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/missing-project.txt 2>&1
+          then
+            cat /tmp/missing-project.txt
+            echo 'Production config unexpectedly accepted a missing EAS project id.'
+            exit 1
+          fi
+          grep -F 'require a real EAS project id' /tmp/missing-project.txt
+
+      - name: Production config resolves qualified authority
+        run: |
+          WOOF_BUILD_PROFILE=production \
+            EXPO_PUBLIC_API_URL="$QUALIFIED_PRODUCTION_API_URL" \
+            EAS_PROJECT_ID="$TEST_EAS_PROJECT_ID" \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/woof-production-config.txt
+          grep -F "$QUALIFIED_PRODUCTION_API_URL" /tmp/woof-production-config.txt
+          grep -F "$TEST_EAS_PROJECT_ID" /tmp/woof-production-config.txt
+          grep -F 'production' /tmp/woof-production-config.txt
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
