@@ -1,0 +1,77 @@
+name: Native First Adventure CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'apps/web/src/lib/onboarding/first-adventure.ts'
+      - 'apps/api/src/auth/dto/register.dto.ts'
+      - '.github/scripts/assert-native-first-adventure.py'
+      - '.github/workflows/native-first-adventure-ci.yml'
+      - 'docs/NATIVE_FIRST_ADVENTURE_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'apps/web/src/lib/onboarding/first-adventure.ts'
+      - 'apps/api/src/auth/dto/register.dto.ts'
+      - '.github/scripts/assert-native-first-adventure.py'
+      - '.github/workflows/native-first-adventure-ci.yml'
+      - 'docs/NATIVE_FIRST_ADVENTURE_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-first-adventure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native onboarding authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native First Adventure source contract
+        run: python3 .github/scripts/assert-native-first-adventure.py
+
+      - name: Check native First Adventure formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/api/auth.ts \
+            apps/mobile/src/api/adaptive-profile.ts \
+            apps/mobile/src/api/companion.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/mobile/src/onboarding/first-adventure.ts \
+            apps/mobile/src/onboarding/recovery.ts \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/CompanionModeScreen.tsx \
+            apps/mobile/src/screens/FirstAdventureScreen.tsx \
+            .github/workflows/native-first-adventure-ci.yml \
+            docs/NATIVE_FIRST_ADVENTURE_V1.md
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
