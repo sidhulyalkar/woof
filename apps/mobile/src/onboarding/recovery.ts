@@ -24,7 +24,7 @@ function registrationReplayKey() {
   // cryptography dependency solely for replay-key generation.
   let entropy = Date.now();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (slot) => {
-    const nibble = (entropy + Math.random() * 16) % 16 | 0;
+    const nibble = ((entropy + Math.random() * 16) % 16) | 0;
     entropy = Math.floor(entropy / 16);
     const value = slot === 'x' ? nibble : (nibble & 0x3) | 0x8;
     return value.toString(16);

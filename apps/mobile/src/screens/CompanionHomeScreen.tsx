@@ -10,12 +10,12 @@ type Props = StackScreenProps<RootStackParamList, 'CompanionHome'> & {
   onResolved?: (state: CompanionState) => void;
 };
 
-const links: Array<{
+const links: {
   route: 'CommunityStandalone' | 'Events' | 'Profile';
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
+}[] = [
   {
     route: 'CommunityStandalone',
     title: 'Community',
@@ -118,7 +118,11 @@ export default function CompanionHomeScreen({ navigation, onResolved }: Props) {
         </Pressable>
       </View>
 
-      {error && <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>}
+      {error && (
+        <Text style={styles.errorText} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
     </ScrollView>
   );
 }
@@ -135,26 +139,88 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[100],
     marginBottom: 24,
   },
-  eyebrow: { color: colors.primary[700], fontSize: 11, fontWeight: '800', letterSpacing: 1.3, marginBottom: 8 },
+  eyebrow: {
+    color: colors.primary[700],
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    marginBottom: 8,
+  },
   title: { color: colors.gray[900], fontSize: 31, lineHeight: 38, fontWeight: '800' },
   intro: { color: colors.gray[600], fontSize: 15, lineHeight: 23, marginTop: 12 },
-  truthCard: { marginTop: 24, borderRadius: 18, backgroundColor: colors.success.light, padding: 16, flexDirection: 'row', gap: 11 },
+  truthCard: {
+    marginTop: 24,
+    borderRadius: 18,
+    backgroundColor: colors.success.light,
+    padding: 16,
+    flexDirection: 'row',
+    gap: 11,
+  },
   truthCopy: { flex: 1 },
   truthTitle: { color: colors.success.dark, fontSize: 14, fontWeight: '800' },
   truthText: { color: colors.success.dark, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  sectionTitle: { color: colors.gray[900], fontSize: 18, fontWeight: '800', marginTop: 30, marginBottom: 12 },
+  sectionTitle: {
+    color: colors.gray[900],
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 30,
+    marginBottom: 12,
+  },
   linkList: { gap: 10 },
-  linkCard: { minHeight: 88, borderWidth: 1, borderColor: colors.gray[200], borderRadius: 18, padding: 14, backgroundColor: '#ffffff', flexDirection: 'row', alignItems: 'center' },
-  linkIcon: { width: 43, height: 43, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[50], marginRight: 12 },
+  linkCard: {
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  linkIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary[50],
+    marginRight: 12,
+  },
   linkCopy: { flex: 1, paddingRight: 8 },
   linkTitle: { color: colors.gray[900], fontSize: 15, fontWeight: '800' },
   linkText: { color: colors.gray[600], fontSize: 12, lineHeight: 18, marginTop: 3 },
   guardianCard: { marginTop: 28, borderRadius: 20, padding: 18, backgroundColor: colors.gray[900] },
-  guardianEyebrow: { color: colors.primary[300], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  guardianTitle: { color: '#ffffff', fontSize: 20, lineHeight: 26, fontWeight: '800', marginTop: 7 },
+  guardianEyebrow: {
+    color: colors.primary[300],
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  guardianTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '800',
+    marginTop: 7,
+  },
   guardianText: { color: colors.gray[300], fontSize: 13, lineHeight: 20, marginTop: 8 },
-  primaryButton: { minHeight: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[600], marginTop: 16 },
+  primaryButton: {
+    minHeight: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary[600],
+    marginTop: 16,
+  },
   primaryButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '800' },
   disabled: { opacity: 0.55 },
-  errorText: { color: colors.error.dark, backgroundColor: colors.error.light, borderRadius: 12, padding: 12, fontSize: 12, lineHeight: 18, marginTop: 16 },
+  errorText: {
+    color: colors.error.dark,
+    backgroundColor: colors.error.light,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 16,
+  },
 });

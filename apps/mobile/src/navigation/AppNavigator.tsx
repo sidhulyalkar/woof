@@ -166,11 +166,7 @@ function GuardianNavigator() {
   );
 }
 
-function CompanionNavigator({
-  onResolved,
-}: {
-  onResolved: (state: CompanionState) => void;
-}) {
+function CompanionNavigator({ onResolved }: { onResolved: (state: CompanionState) => void }) {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ cardStyle: { backgroundColor: '#ffffff' } }}>
@@ -255,7 +251,11 @@ function AuthenticatedEntry() {
         <Ionicons name="shield-outline" size={34} color={colors.primary[700]} />
         <Text style={styles.errorTitle}>Woof mode needs server verification.</Text>
         <Text style={styles.errorCopy}>{error}</Text>
-        <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void load()}>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.retryButton}
+          onPress={() => void load()}
+        >
           <Text style={styles.retryButtonText}>Try again</Text>
         </Pressable>
         <Pressable
