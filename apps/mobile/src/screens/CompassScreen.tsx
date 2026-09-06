@@ -198,7 +198,9 @@ export default function CompassScreen() {
                 <Text style={styles.rhythmTitle}>Rolling Rhythm</Text>
                 <Text style={styles.rhythmSubtitle}>Meaningful weeks, not perfect days.</Text>
               </View>
-              <Text style={styles.rhythmValue}>{trail.activeWeeks}/{trail.windowWeeks}</Text>
+              <Text style={styles.rhythmValue}>
+                {trail.activeWeeks}/{trail.windowWeeks}
+              </Text>
             </View>
             <View style={styles.rhythmSlots}>
               {Array.from({ length: trail.windowWeeks }, (_, index) => (
