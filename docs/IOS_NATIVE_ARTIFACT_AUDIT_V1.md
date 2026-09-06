@@ -31,28 +31,44 @@ The audit requires the generated native project to preserve:
 
 The test reads the generated plist/project files rather than merely rereading `app.json`. Metadata discrepancies are collected into the report instead of aborting evidence collection at the first mismatch.
 
-## Privacy manifest inventory
+## Native-linkage-aware privacy inventory
 
-Apple privacy-manifest correctness cannot be inferred from package names alone.
+Apple privacy-manifest correctness cannot be inferred from every file present under `node_modules`.
 
-The audit inventories:
+The audit therefore retains both Expo Apple autolinking and React Native iOS autolinking resolver output, derives the candidate native package roots from those resolvers, reads the generated Podfile, and inventories `PrivacyInfo.xcprivacy` only from that pre-Pods candidate graph.
 
-- app-target `PrivacyInfo.xcprivacy` files generated under `apps/mobile/ios`;
-- parseable `PrivacyInfo.xcprivacy` files shipped by installed dependency packages;
-- the union of dependency `NSPrivacyAccessedAPITypes` and their declared required reasons;
-- manifest parse failures, which fail the lane rather than being ignored.
+For `react-native-maps`, the generated Podfile does not enable the separate Google Maps subspec, so the `AirGoogleMaps` privacy bundle is explicitly excluded from the candidate union. This prevents an optional native implementation that Woof does not configure from broadening the app declaration.
 
-The machine-readable report is retained as a GitHub Actions artifact for 14 days even when the audit fails.
+The machine-readable report and resolver evidence are retained as GitHub Actions artifacts for 14 days even when the audit fails.
 
-The audit intentionally **does not invent or broaden required-reason declarations**. A missing generated app privacy manifest is only a hard failure when the installed dependency inventory declares required-reason API categories. In that case the report becomes the evidence for the next minimal repair.
+## Evidence-backed required reasons
 
-This is intentionally conservative for Expo projects because Expo documents that Apple does not correctly parse every `PrivacyInfo.xcprivacy` shipped through static CocoaPods dependencies and may require those dependency reasons to be repeated in the app-level privacy manifest.
+The linkage-aware candidate graph declares these required-reason APIs:
 
-## First audit finding
+- `NSPrivacyAccessedAPICategoryDiskSpace`: `85F4.1`, `E174.1`
+- `NSPrivacyAccessedAPICategoryFileTimestamp`: `0A2A.1`, `3B52.1`, `C617.1`
+- `NSPrivacyAccessedAPICategorySystemBootTime`: `35F9.1`
+- `NSPrivacyAccessedAPICategoryUserDefaults`: `CA92.1`
 
-The first generated prebuild showed that Woof had two different source copies for the same iOS permission descriptions: older strings under `ios.infoPlist` and newer strings in the Expo camera, image-picker and location plugin options. Expo prebuild materialized the plugin strings.
+Woof repeats exactly that candidate set through `expo.ios.privacyManifests` because Expo documents that Apple does not correctly parse every privacy manifest shipped through static CocoaPods dependencies and may require dependency reasons to be repeated at app level.
 
-The tranche now converges those source values before continuing privacy-manifest analysis.
+A production-shaped prebuild now materializes one app-target `apps/mobile/ios/Woof/PrivacyInfo.xcprivacy` containing those categories and reasons. The generated manifest also declares `NSPrivacyTracking=false`, no tracking domains, and no app-level collected-data types.
+
+The successful generated-native evidence artifact for the evidence-backed manifest had digest:
+
+`sha256:3a3eafec1e539be962d5cf375c8a75b9bc4d81d43b67f683ab0203bda2239f98`
+
+## Findings resolved during this tranche
+
+### Permission source split
+
+The first generated prebuild showed two different source copies for the same iOS permission descriptions: older strings under `ios.infoPlist` and newer strings in the Expo camera, image-picker and location plugin options. Expo prebuild materialized the plugin strings.
+
+The source values now converge on the generated wording.
+
+### Raw dependency overcount
+
+A raw scan of installed packages found multiple transitive Expo module versions and the optional `react-native-maps` Google privacy bundle. The native-linkage-aware resolver reduced this to the actual pre-Pods candidate graph and removed the unsupported Google Maps `1C8F.1` UserDefaults reason from Woof's app-level declaration.
 
 ## Why this is stricter than source inspection
 
@@ -60,11 +76,20 @@ Expo config plugins modify `Info.plist`, Xcode project settings, privacy manifes
 
 This lane moves Woof's release evidence one layer closer to what Apple actually receives.
 
+## Remaining authority boundary
+
+This is still a **pre-Pods** audit. Autolinking plus the generated Podfile is much stronger than scanning the install graph, but it is not equivalent to a resolved `Podfile.lock` or a compiled app bundle.
+
+The next native tranche must run on macOS with CocoaPods and Xcode, inspect the actually resolved pods and privacy resources, and build the generated project without claiming signing. Any difference between that resolved native graph and this candidate set must update the app manifest before TestFlight.
+
+The dependency manifests may also contain collected-data declarations that Apple/Xcode merges independently. This tranche does not copy those declarations into Woof's app manifest merely because they exist in a package; the resolved CocoaPods/archive gate should determine the final merged evidence.
+
 ## Explicit non-claims
 
 Passing this audit does not claim:
 
-- CocoaPods installation or static-pod manifest aggregation;
+- CocoaPods installation or `Podfile.lock` authority;
+- final static-pod manifest aggregation;
 - a compiled `.app` or `.ipa`;
 - Xcode 26 compilation;
 - code signing or provisioning;
@@ -80,4 +105,4 @@ Those remain later release gates.
 
 This tranche is complete when Woof can truthfully say:
 
-> Production-shaped Expo prebuild deterministically produces the expected iOS bundle/permission metadata, and Woof has a machine-readable inventory of the privacy manifests and required-reason declarations present in its generated app and installed native dependencies.
+> Production-shaped Expo prebuild deterministically produces the expected iOS bundle and permission metadata, generates an app-level privacy manifest covering the linkage-aware required-reason candidate set, and retains machine-readable native-linkage evidence for the next CocoaPods/Xcode qualification stage.
