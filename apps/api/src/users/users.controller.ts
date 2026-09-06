@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AccountDeletionService } from './account-deletion.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 
@@ -10,7 +21,10 @@ import { UsersService } from './users.service';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(
+    private usersService: UsersService,
+    private accountDeletionService: AccountDeletionService
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get users (paginated)' })
@@ -24,6 +38,15 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Profile updated' })
   async updateMe(@Request() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.sub, dto);
+  }
+
+  @Delete('me')
+  @ApiOperation({ summary: 'Permanently delete the authenticated account and owned Woof data' })
+  @ApiResponse({ status: 200, description: 'Account deletion completed' })
+  @ApiResponse({ status: 503, description: 'Private media deletion could not be completed safely' })
+  async deleteMe(@Request() req: AuthenticatedRequest) {
+    await this.accountDeletionService.deleteCurrentAccount(req.user.sub);
+    return { deleted: true };
   }
 
   @Get(':id')
