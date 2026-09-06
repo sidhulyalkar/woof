@@ -13,18 +13,35 @@ context = read("apps/mobile/src/contexts/AuthContext.tsx")
 profile = read("apps/mobile/src/screens/ProfileScreen.tsx")
 
 endpoint = "await apiClient.delete<void>('/users/me');"
+cleanup_call = "await clearDeletedAccountCredentialBestEffort();"
 clear_token = "await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);"
 if endpoint not in auth:
     raise SystemExit("mobile account deletion must call canonical DELETE /users/me")
+
+cleanup_method = auth.split("async function clearDeletedAccountCredentialBestEffort() {", 1)
+if len(cleanup_method) != 2:
+    raise SystemExit("best-effort deleted-account credential cleanup helper missing")
+cleanup_body = cleanup_method[1].split("\n}", 1)[0]
+for marker in [
+    "try {",
+    clear_token,
+    "catch (error)",
+    "Server deletion is already authoritative",
+    "token is rejected by server-side session authority",
+]:
+    if marker not in cleanup_body:
+        raise SystemExit(f"post-delete credential cleanup marker missing: {marker}")
 
 delete_method = auth.split("async deleteAccount(): Promise<void> {", 1)
 if len(delete_method) != 2:
     raise SystemExit("authApi.deleteAccount method missing")
 delete_body = delete_method[1].split("},", 1)[0]
-if endpoint not in delete_body or clear_token not in delete_body:
-    raise SystemExit("account deletion method must delete remotely then clear the access token")
-if delete_body.index(endpoint) > delete_body.index(clear_token):
-    raise SystemExit("local token must not be cleared before server confirms account deletion")
+if endpoint not in delete_body or cleanup_call not in delete_body:
+    raise SystemExit("account deletion method must delete remotely then run best-effort credential cleanup")
+if delete_body.index(endpoint) > delete_body.index(cleanup_call):
+    raise SystemExit("local credential cleanup must not run before server confirms account deletion")
+if clear_token in delete_body:
+    raise SystemExit("raw SecureStore cleanup must stay behind the post-success best-effort helper")
 
 for marker in [
     "deleteAccount: () => Promise<void>;",
