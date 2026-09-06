@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, type StackScreenProps } from '@react-navigation/stack';
 import { companionApi, type CompanionState } from '../api/companion';
 import { useAuth } from '../contexts/AuthContext';
 import { clearPetCreationRecovery } from '../onboarding/recovery';
@@ -57,6 +57,9 @@ export type MainTabParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const StandaloneFeedScreen = FeedScreen as unknown as React.ComponentType<
+  StackScreenProps<RootStackParamList, 'CommunityStandalone'>
+>;
 
 const tabIcons: Record<
   keyof MainTabParamList,
@@ -176,7 +179,7 @@ function CompanionNavigator({
         </Stack.Screen>
         <Stack.Screen
           name="CommunityStandalone"
-          component={FeedScreen}
+          component={StandaloneFeedScreen}
           options={{ ...secondaryScreenOptions, title: 'Community' }}
         />
         <Stack.Screen
@@ -255,7 +258,11 @@ function AuthenticatedEntry() {
         <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void load()}>
           <Text style={styles.retryButtonText}>Try again</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" style={styles.signOutButton} onPress={() => void logout()}>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.signOutButton}
+          onPress={() => void logout()}
+        >
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </View>
