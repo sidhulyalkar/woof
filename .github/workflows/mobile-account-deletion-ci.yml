@@ -1,0 +1,68 @@
+name: Mobile Account Deletion CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/src/api/auth.ts'
+      - 'apps/mobile/src/contexts/AuthContext.tsx'
+      - 'apps/mobile/src/screens/ProfileScreen.tsx'
+      - '.github/scripts/assert-mobile-account-deletion.py'
+      - '.github/workflows/mobile-account-deletion-ci.yml'
+      - 'docs/MOBILE_ACCOUNT_DELETION_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/auth.ts'
+      - 'apps/mobile/src/contexts/AuthContext.tsx'
+      - 'apps/mobile/src/screens/ProfileScreen.tsx'
+      - '.github/scripts/assert-mobile-account-deletion.py'
+      - '.github/workflows/mobile-account-deletion-ci.yml'
+      - 'docs/MOBILE_ACCOUNT_DELETION_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-account-deletion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native destructive account UX authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native deletion source contract
+        run: python3 .github/scripts/assert-mobile-account-deletion.py
+
+      - name: Check deletion tranche formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/mobile/src/api/auth.ts
+          apps/mobile/src/contexts/AuthContext.tsx
+          apps/mobile/src/screens/ProfileScreen.tsx
+          docs/MOBILE_ACCOUNT_DELETION_V1.md
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
