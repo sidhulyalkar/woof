@@ -10,6 +10,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { adventureApi, type AdventureDashboard, type CompassPathway } from '../api/adventure';
+import {
+  deriveAdventureTrail,
+  TRAIL_PATHWAYS,
+  type TrailPathway,
+} from '../game/adventure-trail';
 import { colors } from '../theme/tokens';
 
 const pathwayIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -21,6 +26,16 @@ const pathwayIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
   CARE: 'shield-checkmark-outline',
   RECOVER: 'moon-outline',
   BOND: 'heart-outline',
+};
+
+const pathwayShortLabel: Record<TrailPathway, string> = {
+  MOVE: 'Move',
+  EXPLORE: 'Explore',
+  ENRICH: 'Enrich',
+  LEARN: 'Learn',
+  CONNECT: 'Connect',
+  RECOVER: 'Recover',
+  BOND: 'Bond',
 };
 
 function PathwayCard({ item }: { item: CompassPathway }) {
@@ -46,6 +61,29 @@ function PathwayCard({ item }: { item: CompassPathway }) {
         <View style={[styles.fill, { width: `${coverage * 100}%` }]} />
       </View>
       <Text style={styles.coverageText}>{Math.round(coverage * 100)}% recent pathway coverage</Text>
+    </View>
+  );
+}
+
+function DiscoveryStamp({
+  pathway,
+  discovered,
+}: {
+  pathway: TrailPathway;
+  discovered: boolean;
+}) {
+  return (
+    <View style={[styles.stamp, !discovered && styles.stampUndiscovered]}>
+      <View style={[styles.stampIcon, !discovered && styles.stampIconUndiscovered]}>
+        <Ionicons
+          name={discovered ? (pathwayIcon[pathway] ?? 'paw-outline') : 'lock-closed-outline'}
+          size={17}
+          color={discovered ? colors.primary[700] : colors.gray[500]}
+        />
+      </View>
+      <Text style={[styles.stampLabel, !discovered && styles.stampLabelUndiscovered]}>
+        {pathwayShortLabel[pathway]}
+      </Text>
     </View>
   );
 }
@@ -76,6 +114,8 @@ export default function CompassScreen() {
     }, [load])
   );
 
+  const trail = dashboard ? deriveAdventureTrail(dashboard) : null;
+
   if (loading && !dashboard) {
     return (
       <View style={styles.centered}>
@@ -102,6 +142,92 @@ export default function CompassScreen() {
         <View style={styles.noticeCard}>
           <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
           <Text style={styles.noticeText}>{error}</Text>
+        </View>
+      )}
+
+      {dashboard && trail && (
+        <View style={styles.trailCard}>
+          <View style={styles.trailHeader}>
+            <View style={styles.trailIcon}>
+              <Ionicons name="map-outline" size={22} color={colors.primary[700]} />
+            </View>
+            <View style={styles.trailHeaderCopy}>
+              <Text style={styles.eyebrow}>ADVENTURE TRAIL</Text>
+              <Text style={styles.trailTitle}>{trail.chapter.label}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.trailDescription}>{trail.chapter.description}</Text>
+
+          <View style={styles.trailTrack}>
+            <View
+              style={[styles.trailFill, { width: `${Math.round(trail.chapterProgress * 100)}%` }]}
+            />
+          </View>
+          <View style={styles.trailProgressRow}>
+            <Text style={styles.trailProgressValue}>{dashboard.bondXp} Bond XP</Text>
+            <Text style={styles.trailProgressHint}>
+              {trail.nextChapter
+                ? `${trail.xpToNextChapter} to ${trail.nextChapter.label}`
+                : 'The trail keeps unfolding'}
+            </Text>
+          </View>
+          <Text style={styles.trailAuthorityCopy}>
+            Chapters are a playful view of server-earned Bond XP. They never unlock care or change
+            what Woof recommends.
+          </Text>
+
+          <View style={styles.discoveryHeader}>
+            <View>
+              <Text style={styles.discoveryTitle}>Discovery stamps</Text>
+              <Text style={styles.discoverySubtitle}>Different kinds of good days leave a mark.</Text>
+            </View>
+            <Text style={styles.discoveryCount}>
+              {trail.discoveryCount}/{trail.discoveryTotal}
+            </Text>
+          </View>
+          <View style={styles.stampsRow}>
+            {TRAIL_PATHWAYS.map((pathway) => (
+              <DiscoveryStamp
+                key={pathway}
+                pathway={pathway}
+                discovered={trail.discoveredPathways.includes(pathway)}
+              />
+            ))}
+          </View>
+          <Text style={styles.collectionBoundary}>
+            CARE stays visible in the Compass below, but it is intentionally outside this collection
+            game.
+          </Text>
+
+          <View style={styles.rhythmPanel}>
+            <View style={styles.rhythmHeader}>
+              <View>
+                <Text style={styles.rhythmTitle}>Rolling Rhythm</Text>
+                <Text style={styles.rhythmSubtitle}>Meaningful weeks, not perfect days.</Text>
+              </View>
+              <Text style={styles.rhythmValue}>
+                {trail.activeWeeks}/{trail.windowWeeks}
+              </Text>
+            </View>
+            <View style={styles.rhythmSlots}>
+              {Array.from({ length: trail.windowWeeks }, (_, index) => (
+                <View
+                  key={index}
+                  style={[styles.rhythmSlot, index < trail.activeWeeks && styles.rhythmSlotActive]}
+                >
+                  <Ionicons
+                    name={index < trail.activeWeeks ? 'paw' : 'paw-outline'}
+                    size={16}
+                    color={index < trail.activeWeeks ? colors.primary[700] : colors.gray[400]}
+                  />
+                </View>
+              ))}
+            </View>
+            <Text style={styles.rhythmBoundary}>
+              Missing a day never resets Rhythm. Recovery and listening can be real progress too.
+            </Text>
+          </View>
         </View>
       )}
 
@@ -175,6 +301,137 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   noticeText: { flex: 1, color: colors.text.secondary, fontSize: 14, lineHeight: 20 },
+  trailCard: {
+    marginTop: 20,
+    padding: 18,
+    borderRadius: 24,
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  trailHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  trailIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+  },
+  trailHeaderCopy: { flex: 1 },
+  trailTitle: { marginTop: 2, color: colors.text.primary, fontSize: 21, fontWeight: '800' },
+  trailDescription: {
+    marginTop: 12,
+    color: colors.gray[700],
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  trailTrack: {
+    marginTop: 16,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+  },
+  trailFill: { height: '100%', borderRadius: 999, backgroundColor: colors.primary[500] },
+  trailProgressRow: {
+    marginTop: 7,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  trailProgressValue: { color: colors.primary[800], fontSize: 12, fontWeight: '800' },
+  trailProgressHint: {
+    flex: 1,
+    color: colors.text.secondary,
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  trailAuthorityCopy: {
+    marginTop: 10,
+    color: colors.text.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  discoveryHeader: {
+    marginTop: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  discoveryTitle: { color: colors.text.primary, fontSize: 15, fontWeight: '800' },
+  discoverySubtitle: { marginTop: 2, color: colors.text.secondary, fontSize: 11 },
+  discoveryCount: { color: colors.primary[700], fontSize: 16, fontWeight: '800' },
+  stampsRow: { marginTop: 11, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stamp: {
+    width: 72,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+  },
+  stampUndiscovered: { backgroundColor: colors.gray[50], borderColor: colors.gray[200] },
+  stampIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary[50],
+  },
+  stampIconUndiscovered: { backgroundColor: colors.gray[100] },
+  stampLabel: { marginTop: 6, color: colors.text.primary, fontSize: 10, fontWeight: '700' },
+  stampLabelUndiscovered: { color: colors.text.secondary },
+  collectionBoundary: {
+    marginTop: 9,
+    color: colors.text.secondary,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  rhythmPanel: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 17,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+  },
+  rhythmHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  rhythmTitle: { color: colors.text.primary, fontSize: 14, fontWeight: '800' },
+  rhythmSubtitle: { marginTop: 2, color: colors.text.secondary, fontSize: 11 },
+  rhythmValue: { color: colors.primary[700], fontSize: 16, fontWeight: '800' },
+  rhythmSlots: { marginTop: 11, flexDirection: 'row', gap: 7 },
+  rhythmSlot: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.gray[50],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  rhythmSlotActive: {
+    backgroundColor: colors.primary[50],
+    borderColor: colors.primary[200],
+  },
+  rhythmBoundary: {
+    marginTop: 10,
+    color: colors.text.secondary,
+    fontSize: 10,
+    lineHeight: 15,
+  },
   summaryCard: {
     marginTop: 20,
     padding: 18,
