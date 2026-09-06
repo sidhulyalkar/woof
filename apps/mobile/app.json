@@ -16,9 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.woof.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Woof uses the camera only when you choose to take a pet photo.",
-        "NSPhotoLibraryUsageDescription": "Woof uses your photo library only when you choose a pet or profile photo.",
-        "NSLocationWhenInUseUsageDescription": "Woof can use your location while the app is open to find nearby pet-friendly places and matches."
+        "NSCameraUsageDescription": "Allow Woof to use the camera when you choose to take a pet photo.",
+        "NSPhotoLibraryUsageDescription": "Allow Woof to use photos you explicitly select.",
+        "NSLocationWhenInUseUsageDescription": "Allow Woof to use your location while the app is open to find nearby pet-friendly places and matches."
       }
     },
     "android": {
