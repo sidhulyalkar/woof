@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const REGISTRATION_RECOVERY_KEY = 'woof:native-onboarding:registration:v1';
 const PET_CREATION_RECOVERY_KEY = 'woof:native-onboarding:pet-create:v1';
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RegistrationRecovery = {
   registrationKey: string;
@@ -17,10 +18,22 @@ export type PetCreationRecovery = {
   ambiguous?: boolean;
 };
 
+function registrationReplayKey() {
+  // RegisterDto requires a UUID. This value is only an idempotency identity,
+  // never an authentication credential, so native does not need to add a new
+  // cryptography dependency solely for replay-key generation.
+  let entropy = Date.now();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (slot) => {
+    const nibble = (entropy + Math.random() * 16) % 16 | 0;
+    entropy = Math.floor(entropy / 16);
+    const value = slot === 'x' ? nibble : (nibble & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
 function replayKey(prefix: string) {
-  // This is an idempotency identity, not an authentication credential. Two
-  // independent random components plus the device clock keep collisions
-  // negligible without adding another native dependency to the release graph.
+  // Pet creation accepts an opaque bounded string. This remains separate from
+  // the stricter UUID-shaped registration replay contract.
   const random = () => Math.random().toString(36).slice(2, 14);
   return `${prefix}:${Date.now().toString(36)}:${random()}:${random()}`;
 }
@@ -45,6 +58,7 @@ export async function getOrCreateRegistrationRecovery(
 
   if (
     current?.registrationKey &&
+    UUID_V4.test(current.registrationKey) &&
     current.email === canonicalEmail &&
     current.handle === canonicalHandle
   ) {
@@ -52,7 +66,7 @@ export async function getOrCreateRegistrationRecovery(
   }
 
   const next: RegistrationRecovery = {
-    registrationKey: replayKey('native-register-v1'),
+    registrationKey: registrationReplayKey(),
     email: canonicalEmail,
     handle: canonicalHandle,
   };
