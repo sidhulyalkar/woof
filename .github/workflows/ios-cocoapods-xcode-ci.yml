@@ -1,0 +1,124 @@
+name: iOS CocoaPods + Xcode Qualification CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - 'pnpm-lock.yaml'
+      - '.github/scripts/audit-ios-cocoapods-build.py'
+      - '.github/workflows/ios-cocoapods-xcode-ci.yml'
+      - 'docs/IOS_COCOAPODS_XCODE_QUALIFICATION_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'pnpm-lock.yaml'
+      - '.github/scripts/audit-ios-cocoapods-build.py'
+      - '.github/workflows/ios-cocoapods-xcode-ci.yml'
+      - 'docs/IOS_COCOAPODS_XCODE_QUALIFICATION_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-cocoapods-xcode-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  CI: '1'
+  WOOF_BUILD_PROFILE: 'production'
+  EXPO_PUBLIC_API_URL: 'https://woof-api-prod.fly.dev/api/v1'
+  EAS_PROJECT_ID: '00000000-0000-4000-8000-000000000001'
+
+jobs:
+  qualify:
+    name: Resolve Pods and compile unsigned iOS Simulator app
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Capture Apple toolchain authority
+        run: |
+          {
+            sw_vers
+            echo
+            xcodebuild -version
+            echo
+            xcode-select -p
+            echo
+            pod --version
+          } | tee ios-apple-toolchain.txt
+          xcode_major=$(xcodebuild -version | awk '/Xcode/{split($2, parts, "."); print parts[1]}')
+          if [[ "${xcode_major}" -ne 26 ]]; then
+            echo "::error title=Unexpected Xcode authority::Expected Xcode 26.x, received $(xcodebuild -version | head -n 1)"
+            exit 1
+          fi
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate production-shaped native iOS project
+        run: pnpm --filter @woof/mobile exec expo prebuild --clean --platform ios --no-install
+
+      - name: Resolve CocoaPods authority
+        working-directory: apps/mobile/ios
+        run: |
+          pod install --repo-update | tee ../../../ios-pod-install.log
+          test -f Podfile.lock
+          test -d Woof.xcworkspace
+
+      - name: Inventory Xcode workspace
+        working-directory: apps/mobile/ios
+        run: >-
+          xcodebuild -list -json -workspace Woof.xcworkspace
+          | tee ../../../ios-xcode-workspace.json
+
+      - name: Compile Release iOS Simulator app without signing
+        working-directory: apps/mobile/ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace Woof.xcworkspace \
+            -scheme Woof \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build | tee ../../../ios-xcodebuild.log
+
+      - name: Audit resolved Pods and built app bundle
+        run: python3 .github/scripts/audit-ios-cocoapods-build.py
+
+      - name: Upload CocoaPods and Xcode evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-cocoapods-xcode-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ios-apple-toolchain.txt
+            ios-pod-install.log
+            ios-xcode-workspace.json
+            ios-xcodebuild.log
+            ios-cocoapods-build-report.json
+            apps/mobile/ios/Podfile
+            apps/mobile/ios/Podfile.lock
+            apps/mobile/ios/Pods/Pods.xcodeproj/project.pbxproj
+            apps/mobile/ios/build/DerivedData/Build/Products/*-iphonesimulator/Woof.app/Info.plist
+            apps/mobile/ios/build/DerivedData/Build/Products/*-iphonesimulator/Woof.app/PrivacyInfo.xcprivacy
