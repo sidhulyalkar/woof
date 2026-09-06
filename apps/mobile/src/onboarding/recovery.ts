@@ -14,6 +14,7 @@ export type PetCreationRecovery = {
   ownerId: string;
   name: string;
   breed?: string;
+  ambiguous?: boolean;
 };
 
 function replayKey(prefix: string) {
@@ -86,9 +87,24 @@ export async function getOrCreatePetCreationRecovery(
     ownerId,
     name: canonicalName,
     breed: canonicalBreed,
+    ambiguous: false,
   };
   await SecureStore.setItemAsync(PET_CREATION_RECOVERY_KEY, JSON.stringify(next));
   return next;
+}
+
+export async function markPetCreationAmbiguous(ambiguous: boolean) {
+  const current = await readJson<PetCreationRecovery>(PET_CREATION_RECOVERY_KEY);
+  if (!current) return;
+  await SecureStore.setItemAsync(
+    PET_CREATION_RECOVERY_KEY,
+    JSON.stringify({ ...current, ambiguous })
+  );
+}
+
+export async function hasAmbiguousPetCreationRecovery() {
+  const current = await readJson<PetCreationRecovery>(PET_CREATION_RECOVERY_KEY);
+  return current?.ambiguous === true;
 }
 
 export async function readPetCreationRecovery(ownerId: string) {
