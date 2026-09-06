@@ -40,7 +40,12 @@ jobs:
 
       - name: Align managed dependencies to installed Expo SDK
         working-directory: apps/mobile
-        run: pnpm exec expo install --fix --pnpm
+        run: |
+          pnpm exec expo install --fix --pnpm
+          # Upgrading one managed package can change compatibility expectations
+          # for another package (for example expo-router -> React Navigation).
+          # A second pass converges the dependency validator to a fixed point.
+          pnpm exec expo install --fix --pnpm
 
       - name: Prove Expo dependency validation is clean
         working-directory: apps/mobile
