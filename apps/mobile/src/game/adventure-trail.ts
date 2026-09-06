@@ -97,19 +97,14 @@ export function deriveAdventureTrail(dashboard: AdventureDashboard): AdventureTr
   const chapter = ADVENTURE_TRAIL_CHAPTERS[chapterIndex];
   const nextChapter = ADVENTURE_TRAIL_CHAPTERS[chapterIndex + 1] ?? null;
   const chapterProgress = nextChapter
-    ? clamp01(
-        (bondXp - chapter.minBondXp) / (nextChapter.minBondXp - chapter.minBondXp)
-      )
+    ? clamp01((bondXp - chapter.minBondXp) / (nextChapter.minBondXp - chapter.minBondXp))
     : 1;
   const discovered = new Set(
     dashboard.compass.filter((item) => item.xp > 0).map((item) => item.pathway)
   );
   const discoveredPathways = TRAIL_PATHWAYS.filter((pathway) => discovered.has(pathway));
   const windowWeeks = Math.max(0, Math.floor(dashboard.rhythm.windowWeeks));
-  const activeWeeks = Math.min(
-    windowWeeks,
-    Math.max(0, Math.floor(dashboard.rhythm.activeWeeks))
-  );
+  const activeWeeks = Math.min(windowWeeks, Math.max(0, Math.floor(dashboard.rhythm.activeWeeks)));
 
   return {
     policyVersion: ADVENTURE_TRAIL_POLICY_VERSION,
