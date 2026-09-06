@@ -69,6 +69,16 @@ jobs:
       - name: Generate production-shaped iOS project without signing or Pods
         run: pnpm --filter @woof/mobile exec expo prebuild --clean --platform ios --no-install
 
+      - name: Resolve native autolinking graph used by Expo CocoaPods integration
+        working-directory: apps/mobile
+        run: |
+          node --no-warnings --eval "require('expo/bin/autolinking')" \
+            expo-modules-autolinking resolve --platform apple --json \
+            > ../../expo-autolinking-apple.json
+          node --no-warnings --eval "require('expo/bin/autolinking')" \
+            expo-modules-autolinking react-native-config --platform ios --json \
+            > ../../react-native-autolinking-ios.json
+
       - name: Audit generated metadata and privacy manifests
         run: python3 .github/scripts/audit-ios-native-artifact.py
 
@@ -81,6 +91,9 @@ jobs:
           retention-days: 14
           path: |
             ios-native-artifact-report.json
+            expo-autolinking-apple.json
+            react-native-autolinking-ios.json
+            apps/mobile/ios/Podfile
             apps/mobile/ios/*/Info.plist
             apps/mobile/ios/*/PrivacyInfo.xcprivacy
             apps/mobile/ios/*.xcodeproj/project.pbxproj
