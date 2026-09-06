@@ -2,12 +2,35 @@ import { create, type AxiosInstance, type InternalAxiosRequestConfig } from 'axi
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
+const DEVELOPMENT_API_URL = 'http://localhost:4000/api/v1';
+const NON_REMOTE_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+const configuredBuildProfile = Constants.expoConfig?.extra?.buildProfile;
+const BUILD_PROFILE =
+  typeof configuredBuildProfile === 'string' && configuredBuildProfile.trim()
+    ? configuredBuildProfile.trim()
+    : 'development';
 const configuredApiUrl =
-  process.env.EXPO_PUBLIC_API_URL ||
-  Constants.expoConfig?.extra?.apiUrl ||
-  'http://localhost:4000/api/v1';
+  process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl || DEVELOPMENT_API_URL;
 
-const API_URL = configuredApiUrl.replace(/\/$/, '');
+function validateApiUrl(value: string): string {
+  const normalized = value.replace(/\/$/, '');
+  if (BUILD_PROFILE === 'development') return normalized;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`Woof ${BUILD_PROFILE} API URL is not a valid absolute URL`);
+  }
+
+  if (parsed.protocol !== 'https:' || NON_REMOTE_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`Woof ${BUILD_PROFILE} API URL must be a remote HTTPS endpoint`);
+  }
+
+  return normalized;
+}
+
+const API_URL = validateApiUrl(configuredApiUrl);
 const ACCESS_TOKEN_KEY = 'woofAccessToken';
 
 class ApiClient {
@@ -78,6 +101,6 @@ class ApiClient {
   }
 }
 
-export { ACCESS_TOKEN_KEY, API_URL };
+export { ACCESS_TOKEN_KEY, API_URL, BUILD_PROFILE };
 const apiClient = new ApiClient();
 export default apiClient;
