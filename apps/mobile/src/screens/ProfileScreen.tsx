@@ -62,7 +62,7 @@ export default function ProfileScreen({ navigation }: Props) {
       Alert.alert(
         'Account was not deleted',
         'Woof could not complete deletion. Your account remains active so you can retry. No local logout was performed.',
-        [{ text: 'OK' }],
+        [{ text: 'OK' }]
       );
     } finally {
       setDeletingAccount(false);
@@ -89,11 +89,11 @@ export default function ProfileScreen({ navigation }: Props) {
                   style: 'destructive',
                   onPress: () => void performAccountDeletion(),
                 },
-              ],
+              ]
             );
           },
         },
-      ],
+      ]
     );
   };
 
@@ -224,8 +224,8 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.dangerZone}>
           <Text style={styles.dangerTitle}>Delete account</Text>
           <Text style={styles.dangerDetail}>
-            Permanently delete your Woof account and Woof-owned relationship data. This action cannot
-            be undone.
+            Permanently delete your Woof account and Woof-owned relationship data. This action
+            cannot be undone.
           </Text>
           <TouchableOpacity
             accessibilityRole="button"
