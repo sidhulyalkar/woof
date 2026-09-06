@@ -52,9 +52,10 @@ jobs:
       - name: Enforce native First Adventure source contract
         run: python3 .github/scripts/assert-native-first-adventure.py
 
-      - name: Check native First Adventure formatting
+      - name: Materialize canonical native First Adventure formatting
+        id: formatting
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/api/auth.ts \
             apps/mobile/src/api/adaptive-profile.ts \
             apps/mobile/src/api/companion.ts \
@@ -67,9 +68,67 @@ jobs:
             apps/mobile/src/screens/FirstAdventureScreen.tsx \
             .github/workflows/native-first-adventure-ci.yml \
             docs/NATIVE_FIRST_ADVENTURE_V1.md
+          if git diff --quiet -- \
+            apps/mobile/src/api/auth.ts \
+            apps/mobile/src/api/adaptive-profile.ts \
+            apps/mobile/src/api/companion.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/mobile/src/onboarding/first-adventure.ts \
+            apps/mobile/src/onboarding/recovery.ts \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/CompanionModeScreen.tsx \
+            apps/mobile/src/screens/FirstAdventureScreen.tsx \
+            .github/workflows/native-first-adventure-ci.yml \
+            docs/NATIVE_FIRST_ADVENTURE_V1.md
+          then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload canonical native First Adventure output
+        if: steps.formatting.outputs.drift == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-first-adventure-prettier-${{ github.run_id }}
+          retention-days: 1
+          path: |
+            apps/mobile/src/api/auth.ts
+            apps/mobile/src/api/adaptive-profile.ts
+            apps/mobile/src/api/companion.ts
+            apps/mobile/src/api/pets.ts
+            apps/mobile/src/navigation/AppNavigator.tsx
+            apps/mobile/src/onboarding/first-adventure.ts
+            apps/mobile/src/onboarding/recovery.ts
+            apps/mobile/src/screens/CompanionHomeScreen.tsx
+            apps/mobile/src/screens/CompanionModeScreen.tsx
+            apps/mobile/src/screens/FirstAdventureScreen.tsx
+            .github/workflows/native-first-adventure-ci.yml
+            docs/NATIVE_FIRST_ADVENTURE_V1.md
 
       - name: Type-check native client
         run: pnpm --filter @woof/mobile type-check
 
       - name: Lint native client
-        run: pnpm --filter @woof/mobile lint
+        id: lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @woof/mobile lint 2>&1 | tee native-first-adventure-lint.txt
+
+      - name: Upload native lint diagnostics
+        if: steps.lint.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-first-adventure-lint-${{ github.run_id }}
+          retention-days: 1
+          path: native-first-adventure-lint.txt
+
+      - name: Reject native lint failure
+        if: steps.lint.outcome == 'failure'
+        run: exit 1
+
+      - name: Reject uncommitted canonical formatting
+        if: steps.formatting.outputs.drift == 'true'
+        run: exit 1
