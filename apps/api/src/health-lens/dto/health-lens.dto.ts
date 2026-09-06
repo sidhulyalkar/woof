@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export const HEALTH_BODY_AREAS = [
   'general',
@@ -28,7 +29,7 @@ export const HEALTH_BODY_AREAS = [
 export const HEALTH_CHANGE_LEVELS = ['normal', 'mild-change', 'major-change', 'unknown'] as const;
 
 export class AnalyzePetHealthDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -81,7 +82,7 @@ export class FollowUpHealthDto {
 }
 
 export class HealthTimelineQueryDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsOptional()
