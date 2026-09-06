@@ -1,5 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
 import apiClient, { ACCESS_TOKEN_KEY } from './client';
+import {
+  clearRegistrationRecovery,
+  getOrCreateRegistrationRecovery,
+} from '../onboarding/recovery';
 
 export interface RegisterDto {
   email: string;
@@ -50,8 +54,21 @@ async function clearDeletedAccountCredentialBestEffort() {
 
 export const authApi = {
   async register(data: RegisterDto): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/register', data);
-    return persist(response);
+    const recovery = await getOrCreateRegistrationRecovery(data.email, data.handle);
+    const response = await apiClient.post<AuthResponse>('/auth/register', {
+      ...data,
+      email: data.email.trim().toLowerCase(),
+      handle: data.handle.trim().toLowerCase(),
+      registrationKey: recovery.registrationKey,
+    });
+
+    // Keep the replay key until both server registration and local credential
+    // persistence succeed. If either response edge is lost, the next exact
+    // retry can converge on the same canonical account and request a fresh
+    // server-owned session.
+    const persisted = await persist(response);
+    await clearRegistrationRecovery();
+    return persisted;
   },
 
   async login(data: LoginDto): Promise<AuthResponse> {
