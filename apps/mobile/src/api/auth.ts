@@ -35,6 +35,19 @@ function authHeader(token: string) {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
+async function clearDeletedAccountCredentialBestEffort() {
+  try {
+    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+  } catch (error) {
+    // Server deletion is already authoritative and removes the canonical session.
+    // Do not turn a successful account deletion into a false client failure if
+    // the device credential store cannot be cleaned immediately. Any retained
+    // token is rejected by server-side session authority and cleared on a later
+    // 401/session restoration attempt.
+    console.warn('Woof account was deleted, but local credential cleanup must retry', error);
+  }
+}
+
 export const authApi = {
   async register(data: RegisterDto): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/register', data);
@@ -68,7 +81,7 @@ export const authApi = {
 
   async deleteAccount(): Promise<void> {
     await apiClient.delete<void>('/users/me');
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    await clearDeletedAccountCredentialBestEffort();
   },
 
   async getProfile() {
