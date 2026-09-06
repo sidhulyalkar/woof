@@ -54,15 +54,12 @@ jobs:
       - name: Enforce native Adventure Trail source contract
         run: python3 .github/scripts/assert-native-adventure-trail.py
 
-      - name: Print canonical Adventure Trail formatting diff
+      - name: Check native Adventure Trail formatting
         run: |
-          pnpm exec prettier --write \
+          pnpm exec prettier --check \
             apps/mobile/src/game/adventure-trail.ts \
             apps/mobile/src/screens/CompassScreen.tsx \
-            docs/NATIVE_ADVENTURE_TRAIL_V1.md
-          git diff --exit-code -- \
-            apps/mobile/src/game/adventure-trail.ts \
-            apps/mobile/src/screens/CompassScreen.tsx \
+            .github/workflows/native-adventure-trail-ci.yml \
             docs/NATIVE_ADVENTURE_TRAIL_V1.md
 
       - name: Type-check native client
