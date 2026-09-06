@@ -10,11 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { adventureApi, type AdventureDashboard, type CompassPathway } from '../api/adventure';
-import {
-  deriveAdventureTrail,
-  TRAIL_PATHWAYS,
-  type TrailPathway,
-} from '../game/adventure-trail';
+import { deriveAdventureTrail, TRAIL_PATHWAYS, type TrailPathway } from '../game/adventure-trail';
 import { colors } from '../theme/tokens';
 
 const pathwayIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -65,13 +61,7 @@ function PathwayCard({ item }: { item: CompassPathway }) {
   );
 }
 
-function DiscoveryStamp({
-  pathway,
-  discovered,
-}: {
-  pathway: TrailPathway;
-  discovered: boolean;
-}) {
+function DiscoveryStamp({ pathway, discovered }: { pathway: TrailPathway; discovered: boolean }) {
   return (
     <View style={[styles.stamp, !discovered && styles.stampUndiscovered]}>
       <View style={[styles.stampIcon, !discovered && styles.stampIconUndiscovered]}>
@@ -180,7 +170,9 @@ export default function CompassScreen() {
           <View style={styles.discoveryHeader}>
             <View>
               <Text style={styles.discoveryTitle}>Discovery stamps</Text>
-              <Text style={styles.discoverySubtitle}>Different kinds of good days leave a mark.</Text>
+              <Text style={styles.discoverySubtitle}>
+                Different kinds of good days leave a mark.
+              </Text>
             </View>
             <Text style={styles.discoveryCount}>
               {trail.discoveryCount}/{trail.discoveryTotal}
@@ -206,9 +198,7 @@ export default function CompassScreen() {
                 <Text style={styles.rhythmTitle}>Rolling Rhythm</Text>
                 <Text style={styles.rhythmSubtitle}>Meaningful weeks, not perfect days.</Text>
               </View>
-              <Text style={styles.rhythmValue}>
-                {trail.activeWeeks}/{trail.windowWeeks}
-              </Text>
+              <Text style={styles.rhythmValue}>{trail.activeWeeks}/{trail.windowWeeks}</Text>
             </View>
             <View style={styles.rhythmSlots}>
               {Array.from({ length: trail.windowWeeks }, (_, index) => (
