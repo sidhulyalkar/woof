@@ -1,0 +1,84 @@
+name: Native First Adventure Canonicalize
+
+on:
+  push:
+    branches: [agent/native-first-adventure-canonicalize-v1]
+    paths:
+      - '.github/workflows/native-first-adventure-canonicalize.yml'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  canonicalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/native-first-adventure-canonicalize-v1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore permanent qualification lane
+        run: |
+          echo 'bmFtZTogTmF0aXZlIEZpcnN0IEFkdmVudHVyZSBDSQoKb246CiAgcHVsbF9yZXF1ZXN0OgogICAgYnJhbmNoZXM6IFttYWluXQogICAgcGF0aHM6CiAgICAgIC0gJ2FwcHMvbW9iaWxlLyoqJwogICAgICAtICdhcHBzL3dlYi9zcmMvbGliL29uYm9hcmRpbmcvZmlyc3QtYWR2ZW50dXJlLnRzJwogICAgICAtICdhcHBzL2FwaS9zcmMvYXV0aC9kdG8vcmVnaXN0ZXIuZHRvLnRzJwogICAgICAtICcuZ2l0aHViL3NjcmlwdHMvYXNzZXJ0LW5hdGl2ZS1maXJzdC1hZHZlbnR1cmUucHknCiAgICAgIC0gJy5naXRodWIvd29ya2Zsb3dzL25hdGl2ZS1maXJzdC1hZHZlbnR1cmUtY2kueW1sJwogICAgICAtICdkb2NzL05BVElWRV9GSVJTVF9BRFZFTlRVUkVfVjEubWQnCiAgcHVzaDoKICAgIGJyYW5jaGVzOiBbbWFpbl0KICAgIHBhdGhzOgogICAgICAtICdhcHBzL21vYmlsZS8qKicKICAgICAgLSAnYXBwcy93ZWIvc3JjL2xpYi9vbmJvYXJkaW5nL2ZpcnN0LWFkdmVudHVyZS50cycKICAgICAgLSAnYXBwcy9hcGkvc3JjL2F1dGgvZHRvL3JlZ2lzdGVyLmR0by50cycKICAgICAgLSAnLmdpdGh1Yi9zY3JpcHRzL2Fzc2VydC1uYXRpdmUtZmlyc3QtYWR2ZW50dXJlLnB5JwogICAgICAtICcuZ2l0aHViL3dvcmtmbG93cy9uYXRpdmUtZmlyc3QtYWR2ZW50dXJlLWNpLnltbCcKICAgICAgLSAnZG9jcy9OQVRJVkVfRklSU1RfQURWRU5UVVJFX1YxLm1kJwoKcGVybWlzc2lvbnM6CiAgY29udGVudHM6IHJlYWQKCmNvbmN1cnJlbmN5OgogIGdyb3VwOiBuYXRpdmUtZmlyc3QtYWR2ZW50dXJlLSR7eyBnaXRodWIuZXZlbnQucHVsbF9yZXF1ZXN0Lm51bWJlciB8fCBnaXRodWIucmVmIH19CiAgY2FuY2VsLWluLXByb2dyZXNzOiB0cnVlCgplbnY6CiAgTk9ERV9WRVJTSU9OOiAnMjAuMjAuMicKICBQTlBNX1ZFUlNJT046ICc4LjE1LjEnCgpqb2JzOgogIHF1YWxpZnk6CiAgICBuYW1lOiBOYXRpdmUgb25ib2FyZGluZyBhdXRob3JpdHkKICAgIHJ1bnMtb246IHVidW50dS0yNC4wNAoKICAgIHN0ZXBzOgogICAgICAtIHVzZXM6IGFjdGlvbnMvY2hlY2tvdXRAdjcKCiAgICAgIC0gdXNlczogcG5wbS9hY3Rpb24tc2V0dXBAdjYKICAgICAgICB3aXRoOgogICAgICAgICAgdmVyc2lvbjogJHt7IGVudi5QTlBNX1ZFUlNJT04gfX0KCiAgICAgIC0gdXNlczogYWN0aW9ucy9zZXR1cC1ub2RlQHY3CiAgICAgICAgd2l0aDoKICAgICAgICAgIG5vZGUtdmVyc2lvbjogJHt7IGVudi5OT0RFX1ZFUlNJT04gfX0KICAgICAgICAgIGNhY2hlOiBwbnBtCgogICAgICAtIG5hbWU6IEluc3RhbGwgZnJvbSBjb21taXR0ZWQgbG9ja2ZpbGUKICAgICAgICBydW46IHBucG0gaW5zdGFsbCAtLWZyb3plbi1sb2NrZmlsZQoKICAgICAgLSBuYW1lOiBFbmZvcmNlIG5hdGl2ZSBGaXJzdCBBZHZlbnR1cmUgc291cmNlIGNvbnRyYWN0CiAgICAgICAgcnVuOiBweXRob24zIC5naXRodWIvc2NyaXB0cy9hc3NlcnQtbmF0aXZlLWZpcnN0LWFkdmVudHVyZS5weQoKICAgICAgLSBuYW1lOiBDaGVjayBuYXRpdmUgRmlyc3QgQWR2ZW50dXJlIGZvcm1hdHRpbmcKICAgICAgICBydW46IHwKICAgICAgICAgIHBucG0gZXhlYyBwcmV0dGllciAtLWNoZWNrIFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL2FwaS9hdXRoLnRzIFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL2FwaS9hZGFwdGl2ZS1wcm9maWxlLnRzIFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL2FwaS9jb21wYW5pb24udHMgXAogICAgICAgICAgICBhcHBzL21vYmlsZS9zcmMvYXBpL3BldHMudHMgXAogICAgICAgICAgICBhcHBzL21vYmlsZS9zcmMvbmF2aWdhdGlvbi9BcHBOYXZpZ2F0b3IudHN4IFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL29uYm9hcmRpbmcvZmlyc3QtYWR2ZW50dXJlLnRzIFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL29uYm9hcmRpbmcvcmVjb3ZlcnkudHMgXAogICAgICAgICAgICBhcHBzL21vYmlsZS9zcmMvc2NyZWVucy9Db21wYW5pb25Ib21lU2NyZWVuLnRzeCBcCiAgICAgICAgICAgIGFwcHMvbW9iaWxlL3NyYy9zY3JlZW5zL0NvbXBhbmlvbk1vZGVTY3JlZW4udHN4IFwKICAgICAgICAgICAgYXBwcy9tb2JpbGUvc3JjL3NjcmVlbnMvRmlyc3RBZHZlbnR1cmVTY3JlZW4udHN4IFwKICAgICAgICAgICAgLmdpdGh1Yi93b3JrZmxvd3MvbmF0aXZlLWZpcnN0LWFkdmVudHVyZS1jaS55bWwgXAogICAgICAgICAgICBkb2NzL05BVElWRV9GSVJTVF9BRFZFTlRVUkVfVjEubWQKCiAgICAgIC0gbmFtZTogVHlwZS1jaGVjayBuYXRpdmUgY2xpZW50CiAgICAgICAgcnVuOiBwbnBtIC0tZmlsdGVyIEB3b29mL21vYmlsZSB0eXBlLWNoZWNrCgogICAgICAtIG5hbWU6IExpbnQgbmF0aXZlIGNsaWVudAogICAgICAgIHJ1bjogcG5wbSAtLWZpbHRlciBAd29vZi9tb2JpbGUgbGludAo=' | base64 -d > .github/workflows/native-first-adventure-ci.yml
+
+      - name: Canonicalize tranche
+        run: |
+          pnpm exec prettier --write \
+            apps/mobile/src/api/auth.ts \
+            apps/mobile/src/api/adaptive-profile.ts \
+            apps/mobile/src/api/companion.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/mobile/src/onboarding/first-adventure.ts \
+            apps/mobile/src/onboarding/recovery.ts \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/CompanionModeScreen.tsx \
+            apps/mobile/src/screens/FirstAdventureScreen.tsx \
+            .github/workflows/native-first-adventure-ci.yml \
+            docs/NATIVE_FIRST_ADVENTURE_V1.md
+          pnpm --filter @woof/mobile exec expo lint --fix
+
+      - name: Verify canonical native client
+        run: |
+          python3 .github/scripts/assert-native-first-adventure.py
+          pnpm --filter @woof/mobile type-check
+          pnpm --filter @woof/mobile lint
+          pnpm exec prettier --check \
+            apps/mobile/src/api/auth.ts \
+            apps/mobile/src/api/adaptive-profile.ts \
+            apps/mobile/src/api/companion.ts \
+            apps/mobile/src/api/pets.ts \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/mobile/src/onboarding/first-adventure.ts \
+            apps/mobile/src/onboarding/recovery.ts \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/CompanionModeScreen.tsx \
+            apps/mobile/src/screens/FirstAdventureScreen.tsx \
+            .github/workflows/native-first-adventure-ci.yml \
+            docs/NATIVE_FIRST_ADVENTURE_V1.md
+
+      - name: Commit canonical tree and remove helper
+        run: |
+          rm .github/workflows/native-first-adventure-canonicalize.yml
+          git config user.name 'woof-ci'
+          git config user.email 'woof-ci@users.noreply.github.com'
+          git add apps/mobile .github/workflows/native-first-adventure-ci.yml docs/NATIVE_FIRST_ADVENTURE_V1.md .github/workflows/native-first-adventure-canonicalize.yml
+          git diff --cached --check
+          git commit -m 'Canonicalize native First Adventure tranche'
+          git push origin HEAD:agent/native-first-adventure-canonicalize-v1
