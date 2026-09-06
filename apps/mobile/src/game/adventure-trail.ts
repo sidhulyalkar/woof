@@ -25,7 +25,7 @@ type AdventureTrailChapterId =
 export type AdventureTrailChapter = {
   id: AdventureTrailChapterId;
   label: string;
-  minBondXp: number;
+  minTrailXp: number;
   description: string;
 };
 
@@ -33,43 +33,44 @@ export const ADVENTURE_TRAIL_CHAPTERS = [
   {
     id: 'FIRST_PAWPRINTS',
     label: 'First Pawprints',
-    minBondXp: 0,
+    minTrailXp: 0,
     description: 'Start noticing what fits instead of chasing a perfect routine.',
   },
   {
     id: 'FINDING_RHYTHM',
     label: 'Finding Rhythm',
-    minBondXp: 100,
+    minTrailXp: 100,
     description: 'Useful moments are beginning to form a pattern you can return to.',
   },
   {
     id: 'READING_EACH_OTHER',
     label: 'Reading Each Other',
-    minBondXp: 250,
+    minTrailXp: 250,
     description: 'Outcomes are becoming clues for making the next shared choice easier.',
   },
   {
     id: 'WIDER_WORLD',
     label: 'A Wider World',
-    minBondXp: 500,
+    minTrailXp: 500,
     description: 'Your shared trail now holds more than one kind of good day.',
   },
   {
     id: 'FAMILIAR_TRAIL',
     label: 'The Familiar Trail',
-    minBondXp: 900,
+    minTrailXp: 900,
     description: 'You have a growing library of what works, what does not, and when to stop.',
   },
   {
     id: 'SHARED_LANGUAGE',
     label: 'Shared Language',
-    minBondXp: 1500,
+    minTrailXp: 1500,
     description: 'The story is richer because listening, adapting, and recovery all count.',
   },
 ] as const satisfies readonly AdventureTrailChapter[];
 
 export type AdventureTrailState = {
   policyVersion: typeof ADVENTURE_TRAIL_POLICY_VERSION;
+  trailXp: number;
   chapter: AdventureTrailChapter;
   nextChapter: AdventureTrailChapter | null;
   chapterProgress: number;
@@ -86,32 +87,38 @@ function clamp01(value: number) {
 }
 
 export function deriveAdventureTrail(dashboard: AdventureDashboard): AdventureTrailState {
-  const bondXp = Math.max(0, Math.floor(dashboard.bondXp));
+  const xpByPathway = new Map(
+    dashboard.compass.map((item) => [item.pathway, Math.max(0, Math.floor(item.xp))] as const)
+  );
+  const trailXp = TRAIL_PATHWAYS.reduce(
+    (total, pathway) => total + (xpByPathway.get(pathway) ?? 0),
+    0
+  );
   let chapterIndex = 0;
 
   for (let index = 1; index < ADVENTURE_TRAIL_CHAPTERS.length; index += 1) {
-    if (bondXp < ADVENTURE_TRAIL_CHAPTERS[index].minBondXp) break;
+    if (trailXp < ADVENTURE_TRAIL_CHAPTERS[index].minTrailXp) break;
     chapterIndex = index;
   }
 
   const chapter = ADVENTURE_TRAIL_CHAPTERS[chapterIndex];
   const nextChapter = ADVENTURE_TRAIL_CHAPTERS[chapterIndex + 1] ?? null;
   const chapterProgress = nextChapter
-    ? clamp01((bondXp - chapter.minBondXp) / (nextChapter.minBondXp - chapter.minBondXp))
+    ? clamp01((trailXp - chapter.minTrailXp) / (nextChapter.minTrailXp - chapter.minTrailXp))
     : 1;
-  const discovered = new Set(
-    dashboard.compass.filter((item) => item.xp > 0).map((item) => item.pathway)
+  const discoveredPathways = TRAIL_PATHWAYS.filter(
+    (pathway) => (xpByPathway.get(pathway) ?? 0) > 0
   );
-  const discoveredPathways = TRAIL_PATHWAYS.filter((pathway) => discovered.has(pathway));
   const windowWeeks = Math.max(0, Math.floor(dashboard.rhythm.windowWeeks));
   const activeWeeks = Math.min(windowWeeks, Math.max(0, Math.floor(dashboard.rhythm.activeWeeks)));
 
   return {
     policyVersion: ADVENTURE_TRAIL_POLICY_VERSION,
+    trailXp,
     chapter,
     nextChapter,
     chapterProgress,
-    xpToNextChapter: nextChapter ? Math.max(0, nextChapter.minBondXp - bondXp) : 0,
+    xpToNextChapter: nextChapter ? Math.max(0, nextChapter.minTrailXp - trailXp) : 0,
     discoveredPathways,
     discoveryCount: discoveredPathways.length,
     discoveryTotal: TRAIL_PATHWAYS.length,
