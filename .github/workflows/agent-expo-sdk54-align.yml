@@ -38,6 +38,16 @@ jobs:
       - name: Install current frozen graph
         run: pnpm install --frozen-lockfile
 
+      - name: Pin Expo-managed navigation manifest range
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'apps/mobile/package.json';
+          const packageJson = JSON.parse(fs.readFileSync(path, 'utf8'));
+          packageJson.dependencies['@react-navigation/bottom-tabs'] = '^7.4.0';
+          fs.writeFileSync(path, JSON.stringify(packageJson, null, 2) + '\n');
+          NODE
+
       - name: Align managed dependencies to installed Expo SDK
         working-directory: apps/mobile
         run: |
