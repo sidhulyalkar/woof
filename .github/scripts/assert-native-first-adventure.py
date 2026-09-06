@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Static release contract for native First Adventure v1.
 
-This intentionally verifies authority boundaries and Web/native ontology parity.
-Runtime/typing/lint/build qualification belongs to the workflow that invokes it.
+This verifies authority boundaries and Web/native ontology parity. Runtime,
+typing, lint, and native-build qualification belong to the workflows that
+invoke or accompany this contract.
 """
 
 from pathlib import Path
@@ -45,7 +46,9 @@ companion_home = read("apps/mobile/src/screens/CompanionHomeScreen.tsx")
 # Server-owned landing authority. Authentication alone must never unlock pet UI.
 for landing in ("NEEDS_MODE", "NEEDS_PET_SETUP", "PET_TODAY", "COMPANION_TODAY"):
     require(companion, f"'{landing}'", f"Companion landing {landing}")
+for landing in ("NEEDS_MODE", "NEEDS_PET_SETUP", "COMPANION_TODAY"):
     require(nav, f"state.landing === '{landing}'", f"native router branch {landing}")
+require(nav, "next.landing === 'PET_TODAY'", "server-confirmed guardian landing")
 require(nav, "companionApi.state()", "server Companion-state resolution")
 require(nav, "Pet-specific surfaces stay closed", "fail-closed pet-surface copy")
 
@@ -61,11 +64,16 @@ require(first_adventure, "if (ambiguousCreate)", "ambiguous-create mode guard")
 require(first_adventure, "Retry exact create", "exact-retry user path")
 require(first_adventure, "Check server state first", "authority recheck user path")
 require(first_adventure, "editable={!creating && !ambiguousCreate}", "frozen ambiguous identity fields")
+require(first_adventure, "modeSwitchDisabled", "ambiguous mode-switch lock")
 
 # Optional profile evidence cannot become an access gate or a reward surface.
 require(first_adventure, "Promise.allSettled", "non-blocking optional evidence writes")
 require(first_adventure, "Skip personalization and open Today", "skip personalization path")
-require(first_adventure, "Skipping never reduces access, rewards, or relationship status", "no-skip-penalty law")
+require(
+    first_adventure,
+    "Skipping never reduces access, rewards, or relationship status",
+    "no-skip-penalty law",
+)
 require(profile, "/questions/respond", "canonical Adaptive Profile response endpoint")
 require(native_questions, "outcome: 'NOT_SURE'", "explicit uncertainty semantics")
 require(native_questions, "outcome: 'SKIPPED'", "explicit skip semantics")
@@ -93,7 +101,8 @@ for question_id in question_ids:
     require(web_questions, question_id, f"web question id {question_id}")
 
 # Petless Companion mode is a truthful first-class route, not a broken pet Today.
-require(companion_home, "You do not need to invent a pet", "petless Companion framing")
+require(companion_home, "You do not need to invent a dog", "petless Companion framing")
 require(companion_home, "CommunityStandalone", "petless Community route")
+require(companion_home, "Presentation is not authority", "mode/authority separation")
 
 print("native First Adventure authority contract: PASS")
