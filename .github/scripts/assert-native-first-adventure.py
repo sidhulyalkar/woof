@@ -47,10 +47,10 @@ companion_home = read("apps/mobile/src/screens/CompanionHomeScreen.tsx")
 # Server-owned landing authority. Authentication alone must never unlock pet UI.
 for landing in ("NEEDS_MODE", "NEEDS_PET_SETUP", "PET_TODAY", "COMPANION_TODAY"):
     require(companion, f"'{landing}'", f"Companion landing {landing}")
-for landing in ("NEEDS_MODE", "NEEDS_PET_SETUP", "COMPANION_TODAY"):
     require(nav, f"state.landing === '{landing}'", f"native router branch {landing}")
-require(nav, "next.landing === 'PET_TODAY'", "server-confirmed guardian landing")
+require(nav, "next.landing === 'PET_TODAY'", "server-confirmed guardian recovery cleanup")
 require(nav, "companionApi.state()", "server Companion-state resolution")
+require(nav, "unsupported account mode", "unknown landing fail-closed path")
 require(nav, "Pet-specific surfaces stay closed", "fail-closed pet-surface copy")
 
 # Registration and first-pet creation reuse the existing server replay contracts.
