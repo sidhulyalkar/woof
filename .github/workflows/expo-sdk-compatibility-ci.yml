@@ -1,0 +1,85 @@
+name: Expo SDK Compatibility CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/package.json'
+      - 'apps/mobile/app.json'
+      - 'apps/web/package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/expo-sdk-compatibility-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/package.json'
+      - 'apps/mobile/app.json'
+      - 'apps/web/package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/expo-sdk-compatibility-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expo-sdk-compatibility-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  CI: '1'
+
+jobs:
+  sdk-compatibility:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install frozen dependency graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Expo-managed dependency compatibility
+        working-directory: apps/mobile
+        run: pnpm exec expo install --check --pnpm
+
+      - name: Verify shared React type authority
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const mobile = JSON.parse(fs.readFileSync('apps/mobile/package.json', 'utf8'));
+          const web = JSON.parse(fs.readFileSync('apps/web/package.json', 'utf8'));
+          const mobileTypes = mobile.devDependencies?.['@types/react'];
+          const webTypes = web.devDependencies?.['@types/react'];
+          if (!mobileTypes || !webTypes || mobileTypes !== webTypes) {
+            console.error(`React type authority diverged: mobile=${mobileTypes} web=${webTypes}`);
+            process.exit(1);
+          }
+          console.log(`Shared React type authority: ${mobileTypes}`);
+          NODE
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Type-check Web client against shared lockfile
+        run: pnpm --filter @woof/web type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
+
+      - name: Prove compatibility checks are read-only
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo 'Expo SDK compatibility checks mutated the repository:'
+            git status --short
+            exit 1
+          fi
