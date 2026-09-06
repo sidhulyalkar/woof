@@ -27,7 +27,9 @@ The audit requires the generated native project to preserve:
 - selected-photo-library usage description;
 - location-while-in-use description.
 
-The test reads the generated plist/project files rather than merely rereading `app.json`.
+`app.json` is also required to keep the `ios.infoPlist` permission strings identical to the corresponding Expo plugin permission options. This prevents two source authorities from silently disagreeing while prebuild lets the plugin override win.
+
+The test reads the generated plist/project files rather than merely rereading `app.json`. Metadata discrepancies are collected into the report instead of aborting evidence collection at the first mismatch.
 
 ## Privacy manifest inventory
 
@@ -40,9 +42,17 @@ The audit inventories:
 - the union of dependency `NSPrivacyAccessedAPITypes` and their declared required reasons;
 - manifest parse failures, which fail the lane rather than being ignored.
 
-The machine-readable report is retained as a GitHub Actions artifact for 14 days.
+The machine-readable report is retained as a GitHub Actions artifact for 14 days even when the audit fails.
 
-The first version intentionally **does not invent or broaden required-reason declarations**. If the generated app target lacks a privacy manifest, the lane fails after writing/uploading the dependency inventory. That failure is evidence for the next minimal repair: configure only the reasons supported by installed native dependency manifests and Woof's actual app behavior.
+The audit intentionally **does not invent or broaden required-reason declarations**. A missing generated app privacy manifest is only a hard failure when the installed dependency inventory declares required-reason API categories. In that case the report becomes the evidence for the next minimal repair.
+
+This is intentionally conservative for Expo projects because Expo documents that Apple does not correctly parse every `PrivacyInfo.xcprivacy` shipped through static CocoaPods dependencies and may require those dependency reasons to be repeated in the app-level privacy manifest.
+
+## First audit finding
+
+The first generated prebuild showed that Woof had two different source copies for the same iOS permission descriptions: older strings under `ios.infoPlist` and newer strings in the Expo camera, image-picker and location plugin options. Expo prebuild materialized the plugin strings.
+
+The tranche now converges those source values before continuing privacy-manifest analysis.
 
 ## Why this is stricter than source inspection
 
