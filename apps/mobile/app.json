@@ -60,10 +60,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://localhost:4000/api/v1",
-      "eas": {
-        "projectId": "your-project-id-here"
-      }
+      "apiUrl": "http://localhost:4000/api/v1"
     }
   }
 }
