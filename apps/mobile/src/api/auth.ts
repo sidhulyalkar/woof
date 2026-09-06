@@ -66,6 +66,11 @@ export const authApi = {
     await apiClient.post('/auth/logout-all', {}, authHeader(token));
   },
 
+  async deleteAccount(): Promise<void> {
+    await apiClient.delete<void>('/users/me');
+    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+  },
+
   async getProfile() {
     return apiClient.get('/auth/me');
   },
