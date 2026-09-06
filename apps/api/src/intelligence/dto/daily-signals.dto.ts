@@ -4,11 +4,11 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import { DAILY_SIGNAL_CHOICES, type DailySignalChoice } from '../daily-signals.types';
 
 const HOUSEHOLD_IDENTIFIER_PATTERN =
@@ -49,7 +49,7 @@ export class CreateDailySignalsDto {
   })
   householdId!: string;
 
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsOptional()

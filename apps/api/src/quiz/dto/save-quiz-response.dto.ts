@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export class SaveQuizResponseDto {
   @ApiProperty({ example: 'onboarding-1724131200000' })
@@ -9,7 +10,7 @@ export class SaveQuizResponseDto {
 
   @ApiPropertyOptional({ description: 'Pet this preference session primarily describes.' })
   @IsOptional()
-  @IsUUID()
+  @IsPetIdentifier()
   petId?: string;
 
   @ApiProperty({

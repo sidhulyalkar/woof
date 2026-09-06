@@ -6,15 +6,15 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import { AUTOPILOT_OBSERVATION_KINDS, CARE_REMINDER_KINDS } from '../autopilot.types';
 
 export class IngestTrackerObservationDto {
-  @IsUUID('4')
+  @IsPetIdentifier()
   petId!: string;
 
   @IsString()
@@ -34,7 +34,7 @@ export class IngestTrackerObservationDto {
 
 export class CreateCareReminderDto {
   @IsOptional()
-  @IsUUID('4')
+  @IsPetIdentifier()
   petId?: string;
 
   @Transform(({ value }) => String(value).toUpperCase())

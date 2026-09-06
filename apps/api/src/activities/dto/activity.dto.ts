@@ -10,6 +10,7 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 const ACTIVITY_TYPES = [
   'WALK',
@@ -34,14 +35,14 @@ const ACTIVITY_TYPES = [
 export class CreateActivityDto {
   /** Legacy single-pet field. dogOS clients should prefer petIds. */
   @IsOptional()
-  @IsUUID()
+  @IsPetIdentifier()
   petId?: string;
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
   @ArrayMaxSize(16)
-  @IsUUID('4', { each: true })
+  @IsPetIdentifier({ each: true })
   petIds?: string[];
 
   @IsOptional()
@@ -80,14 +81,14 @@ export class CreateActivityDto {
 
 export class UpdateActivityDto {
   @IsOptional()
-  @IsUUID()
+  @IsPetIdentifier()
   petId?: string;
 
   @IsOptional()
   @IsArray()
   @ArrayUnique()
   @ArrayMaxSize(16)
-  @IsUUID('4', { each: true })
+  @IsPetIdentifier({ each: true })
   petIds?: string[];
 
   @IsOptional()

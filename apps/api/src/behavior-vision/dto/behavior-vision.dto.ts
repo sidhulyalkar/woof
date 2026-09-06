@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import {
   BEHAVIOR_CONTEXTS,
   BEHAVIOR_PHASES,
@@ -23,7 +24,7 @@ import {
 const LEASH_STATES = ['off-leash', 'loose', 'tight', 'unknown'] as const;
 
 export class AnalyzeBehaviorMediaDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsIn(BEHAVIOR_CONTEXTS)
@@ -98,7 +99,7 @@ export class BehaviorObservationFeedbackDto {
 }
 
 export class BehaviorTimelineQueryDto {
-  @IsUUID()
+  @IsPetIdentifier()
   petId!: string;
 
   @IsOptional()

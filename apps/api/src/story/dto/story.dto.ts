@@ -9,11 +9,12 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 import { STORY_SOURCE_TYPES } from '../story.types';
 
 export class StoryQueryDto {
   @IsOptional()
-  @IsUUID()
+  @IsPetIdentifier()
   petId?: string;
 
   @IsOptional()

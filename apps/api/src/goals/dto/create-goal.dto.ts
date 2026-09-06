@@ -1,4 +1,13 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsDateString, IsEnum, IsObject } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export enum GoalType {
   DISTANCE = 'DISTANCE',
@@ -17,7 +26,7 @@ export enum GoalPeriod {
 }
 
 export class CreateGoalDto {
-  @IsString()
+  @IsPetIdentifier()
   petId: string;
 
   @IsEnum(GoalType)

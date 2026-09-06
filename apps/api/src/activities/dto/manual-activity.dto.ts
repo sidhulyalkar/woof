@@ -1,5 +1,6 @@
-import { IsString, IsNumber, IsOptional, IsDateString, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsPetIdentifier } from '../../common/validation/pet-identifier';
 
 export enum ActivityType {
   WALK = 'walk',
@@ -13,7 +14,7 @@ export enum ActivityType {
 
 export class ManualActivityDto {
   @ApiProperty({ description: 'Pet ID' })
-  @IsString()
+  @IsPetIdentifier()
   petId: string;
 
   @ApiProperty({ enum: ActivityType, description: 'Type of activity' })
