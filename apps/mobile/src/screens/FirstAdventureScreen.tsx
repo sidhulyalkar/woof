@@ -26,6 +26,7 @@ import {
 import {
   clearPetCreationRecovery,
   getOrCreatePetCreationRecovery,
+  markPetCreationAmbiguous,
   readPetCreationRecovery,
 } from '../onboarding/recovery';
 import { colors } from '../theme/tokens';
@@ -93,6 +94,12 @@ export default function FirstAdventureScreen({
       if (!recovery) return;
       setName(recovery.name);
       setBreed(recovery.breed ?? '');
+      setAmbiguousCreate(recovery.ambiguous === true);
+      if (recovery.ambiguous) {
+        setError(
+          'Woof still has an unresolved pet-creation attempt. Retry the exact create or check server state before changing anything.'
+        );
+      }
     });
   }, [user?.id]);
 
@@ -120,9 +127,10 @@ export default function FirstAdventureScreen({
       const status = isAxiosError(caught) ? caught.response?.status : undefined;
       const ambiguous = status === undefined || status >= 500;
       setAmbiguousCreate(ambiguous);
+      await markPetCreationAmbiguous(ambiguous);
       setError(
         ambiguous
-          ? 'Woof could not confirm whether that create reached the server. Keep these details unchanged and retry, or check server state before doing anything else.'
+          ? 'Woof could not confirm whether that create reached the server. These exact details are now frozen: retry the same create or check server state before doing anything else.'
           : 'Woof rejected those pet details. Nothing new was created. Check the fields and try again.'
       );
     } finally {
@@ -131,13 +139,22 @@ export default function FirstAdventureScreen({
   };
 
   const changeMode = async (mode: CompanionMode) => {
+    if (ambiguousCreate) {
+      setError(
+        'Resolve the uncertain pet-creation attempt first. Woof will not change account mode while a durable write may already exist.'
+      );
+      return;
+    }
+
     setSwitchingMode(mode);
     setError(null);
     try {
       const state = await companionApi.updateMode(mode);
       onModeResolved(state);
     } catch {
-      setError('Woof could not change your starting role. Pet access and relationship state did not change.');
+      setError(
+        'Woof could not change your starting role. Pet access and relationship state did not change.'
+      );
     } finally {
       setSwitchingMode(null);
     }
@@ -184,8 +201,14 @@ export default function FirstAdventureScreen({
   );
 
   if (phase === 'pet') {
+    const modeSwitchDisabled = switchingMode !== null || ambiguousCreate;
+
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {header}
         <Text style={styles.title}>Start with the dog you actually care for.</Text>
         <Text style={styles.intro}>
@@ -235,7 +258,24 @@ export default function FirstAdventureScreen({
           </Pressable>
 
           {ambiguousCreate && (
-            <Pressable accessibilityRole="button" style={styles.outlineButton} onPress={onRecheck}>
+            <View style={styles.airlockCard}>
+              <Ionicons name="lock-closed-outline" size={19} color={colors.warning.dark} />
+              <View style={styles.airlockCopy}>
+                <Text style={styles.airlockTitle}>Uncertain write in progress</Text>
+                <Text style={styles.airlockText}>
+                  Name, breed, and replay identity stay frozen until Woof resolves whether the server
+                  created this dog.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {ambiguousCreate && (
+            <Pressable
+              accessibilityRole="button"
+              style={styles.outlineButton}
+              onPress={onRecheck}
+            >
               <Text style={styles.outlineButtonText}>Check server state first</Text>
             </Pressable>
           )}
@@ -253,23 +293,29 @@ export default function FirstAdventureScreen({
         <View style={styles.altRow}>
           <Pressable
             accessibilityRole="button"
-            disabled={switchingMode !== null}
-            style={styles.altButton}
+            accessibilityState={{ disabled: modeSwitchDisabled }}
+            disabled={modeSwitchDisabled}
+            style={[styles.altButton, modeSwitchDisabled && styles.disabled]}
             onPress={() => void changeMode('ANIMAL_ALLY')}
           >
             <Text style={styles.altButtonText}>I’m here to learn</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            disabled={switchingMode !== null}
-            style={styles.altButton}
+            accessibilityState={{ disabled: modeSwitchDisabled }}
+            disabled={modeSwitchDisabled}
+            style={[styles.altButton, modeSwitchDisabled && styles.disabled]}
             onPress={() => void changeMode('FOSTER_CAREGIVER')}
           >
             <Text style={styles.altButtonText}>I foster / support</Text>
           </Pressable>
         </View>
 
-        {error && <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>}
+        {error && (
+          <Text style={styles.errorText} accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
       </ScrollView>
     );
   }
@@ -277,12 +323,16 @@ export default function FirstAdventureScreen({
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {header}
-      <Text style={styles.progress}>OPTIONAL CONTEXT · {phase === 'goals' ? '1' : phase === 'capacity' ? '2' : '3'} OF 3</Text>
+      <Text style={styles.progress}>
+        OPTIONAL CONTEXT · {phase === 'goals' ? '1' : phase === 'capacity' ? '2' : '3'} OF 3
+      </Text>
 
       {phase === 'goals' && (
         <>
           <Text style={styles.title}>What would feel useful together?</Text>
-          <Text style={styles.intro}>Choose up to three, or skip. This helps break ties between otherwise safe suggestions.</Text>
+          <Text style={styles.intro}>
+            Choose up to three, or skip. This helps break ties between otherwise safe suggestions.
+          </Text>
           <View style={styles.chipWrap}>
             {goalChoices.map((choice) => {
               const selected = selections.goals.includes(choice.value);
@@ -294,12 +344,18 @@ export default function FirstAdventureScreen({
                   style={[styles.chip, selected && styles.chipSelected]}
                   onPress={() => toggleGoal(choice.value)}
                 >
-                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{choice.label}</Text>
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                    {choice.label}
+                  </Text>
                 </Pressable>
               );
             })}
           </View>
-          <Pressable style={styles.primaryButton} onPress={() => setPhase('capacity')} accessibilityRole="button">
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => setPhase('capacity')}
+            accessibilityRole="button"
+          >
             <Text style={styles.primaryButtonText}>Continue</Text>
           </Pressable>
         </>
@@ -308,7 +364,10 @@ export default function FirstAdventureScreen({
       {phase === 'capacity' && (
         <>
           <Text style={styles.title}>What fits a real day?</Text>
-          <Text style={styles.intro}>No aspirational homework. Tell Woof what is realistically easy to fit, or leave it unknown.</Text>
+          <Text style={styles.intro}>
+            No aspirational homework. Tell Woof what is realistically easy to fit, or leave it
+            unknown.
+          </Text>
           <Text style={styles.question}>Time that often fits</Text>
           <View style={styles.chipWrap}>
             {timeChoices.map((choice) => (
@@ -316,7 +375,9 @@ export default function FirstAdventureScreen({
                 key={choice.value}
                 label={choice.label}
                 selected={selections.timeBudget === choice.value}
-                onPress={() => setSelections((current) => ({ ...current, timeBudget: choice.value }))}
+                onPress={() =>
+                  setSelections((current) => ({ ...current, timeBudget: choice.value }))
+                }
               />
             ))}
           </View>
@@ -331,7 +392,11 @@ export default function FirstAdventureScreen({
               />
             ))}
           </View>
-          <Pressable style={styles.primaryButton} onPress={() => setPhase('social')} accessibilityRole="button">
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => setPhase('social')}
+            accessibilityRole="button"
+          >
             <Text style={styles.primaryButtonText}>Continue</Text>
           </Pressable>
         </>
@@ -339,15 +404,22 @@ export default function FirstAdventureScreen({
 
       {phase === 'social' && (
         <>
-          <Text style={styles.title}>How does {pet?.name ?? 'your dog'} usually feel around unfamiliar dogs?</Text>
-          <Text style={styles.intro}>This is a starting observation, not a personality label. “Not sure” is useful information too.</Text>
+          <Text style={styles.title}>
+            How does {pet?.name ?? 'your dog'} usually feel around unfamiliar dogs?
+          </Text>
+          <Text style={styles.intro}>
+            This is a starting observation, not a personality label. “Not sure” is useful
+            information too.
+          </Text>
           <View style={styles.choiceColumn}>
             {socialChoices.map((choice) => (
               <ChoiceChip
                 key={choice.value}
                 label={choice.label}
                 selected={selections.socialComfort === choice.value}
-                onPress={() => setSelections((current) => ({ ...current, socialComfort: choice.value }))}
+                onPress={() =>
+                  setSelections((current) => ({ ...current, socialComfort: choice.value }))
+                }
                 wide
               />
             ))}
@@ -358,7 +430,11 @@ export default function FirstAdventureScreen({
             style={[styles.primaryButton, saving && styles.disabled]}
             onPress={() => void finish(false)}
           >
-            {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryButtonText}>Open Today</Text>}
+            {saving ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Open Today</Text>
+            )}
           </Pressable>
         </>
       )}
@@ -371,8 +447,14 @@ export default function FirstAdventureScreen({
       >
         <Text style={styles.skipText}>Skip personalization and open Today</Text>
       </Pressable>
-      <Text style={styles.permissionText}>Skipping never reduces access, rewards, or relationship status.</Text>
-      {error && <Text style={styles.errorText} accessibilityRole="alert">{error}</Text>}
+      <Text style={styles.permissionText}>
+        Skipping never reduces access, rewards, or relationship status.
+      </Text>
+      {error && (
+        <Text style={styles.errorText} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
     </ScrollView>
   );
 }
@@ -412,34 +494,146 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[600],
     marginBottom: 24,
   },
-  eyebrow: { color: colors.primary[700], fontSize: 11, fontWeight: '800', letterSpacing: 1.4, marginBottom: 8 },
-  progress: { color: colors.gray[500], fontSize: 11, fontWeight: '700', letterSpacing: 1.1, marginBottom: 14 },
+  eyebrow: {
+    color: colors.primary[700],
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: 8,
+  },
+  progress: {
+    color: colors.gray[500],
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    marginBottom: 14,
+  },
   title: { color: colors.gray[900], fontSize: 31, lineHeight: 38, fontWeight: '800' },
   intro: { color: colors.gray[600], fontSize: 15, lineHeight: 23, marginTop: 12 },
-  formCard: { marginTop: 26, borderWidth: 1, borderColor: colors.gray[200], borderRadius: 20, padding: 18, backgroundColor: '#ffffff' },
+  formCard: {
+    marginTop: 26,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: '#ffffff',
+  },
   label: { color: colors.gray[800], fontSize: 13, fontWeight: '700', marginBottom: 8 },
-  input: { minHeight: 52, borderWidth: 1, borderColor: colors.gray[300], borderRadius: 14, paddingHorizontal: 15, color: colors.gray[900], fontSize: 16, marginBottom: 17, backgroundColor: colors.gray[50] },
-  primaryButton: { minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[600], marginTop: 24, paddingHorizontal: 18 },
+  input: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    color: colors.gray[900],
+    fontSize: 16,
+    marginBottom: 17,
+    backgroundColor: colors.gray[50],
+  },
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary[600],
+    marginTop: 24,
+    paddingHorizontal: 18,
+  },
   primaryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
   disabled: { opacity: 0.5 },
-  outlineButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.primary[300], alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  airlockCard: {
+    flexDirection: 'row',
+    gap: 10,
+    borderRadius: 14,
+    padding: 13,
+    marginTop: 12,
+    backgroundColor: colors.warning.light,
+  },
+  airlockCopy: { flex: 1 },
+  airlockTitle: { color: colors.warning.dark, fontSize: 13, fontWeight: '800' },
+  airlockText: { color: colors.warning.dark, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  outlineButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.primary[300],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
   outlineButtonText: { color: colors.primary[700], fontSize: 14, fontWeight: '700' },
-  truthCard: { flexDirection: 'row', gap: 10, padding: 15, borderRadius: 16, backgroundColor: colors.success.light, marginTop: 16 },
+  truthCard: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 15,
+    borderRadius: 16,
+    backgroundColor: colors.success.light,
+    marginTop: 16,
+  },
   truthText: { flex: 1, color: colors.success.dark, fontSize: 12, lineHeight: 18 },
-  altTitle: { color: colors.gray[800], fontSize: 14, fontWeight: '800', marginTop: 28, marginBottom: 10 },
+  altTitle: {
+    color: colors.gray[800],
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 28,
+    marginBottom: 10,
+  },
   altRow: { flexDirection: 'row', gap: 10 },
-  altButton: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.gray[200], alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  altButtonText: { color: colors.gray[700], fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  errorText: { color: colors.error.dark, backgroundColor: colors.error.light, borderRadius: 12, padding: 12, fontSize: 12, lineHeight: 18, marginTop: 16 },
+  altButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  altButtonText: {
+    color: colors.gray[700],
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  errorText: {
+    color: colors.error.dark,
+    backgroundColor: colors.error.light,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 16,
+  },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 22 },
-  chip: { minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: colors.gray[300], backgroundColor: '#ffffff', paddingHorizontal: 15, paddingVertical: 10 },
+  chip: {
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
   chipWide: { width: '100%', borderRadius: 14 },
   chipSelected: { borderColor: colors.primary[500], backgroundColor: colors.primary[50] },
   chipText: { color: colors.gray[700], fontSize: 13, fontWeight: '600' },
   chipTextSelected: { color: colors.primary[800], fontWeight: '800' },
   question: { color: colors.gray[800], fontSize: 14, fontWeight: '800', marginTop: 26 },
   choiceColumn: { gap: 9, marginTop: 22 },
-  skipButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 12 },
+  skipButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingHorizontal: 12,
+  },
   skipText: { color: colors.gray[600], fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  permissionText: { color: colors.gray[500], fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 4 },
+  permissionText: {
+    color: colors.gray[500],
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 4,
+  },
 });
