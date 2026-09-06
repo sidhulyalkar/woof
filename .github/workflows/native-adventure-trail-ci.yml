@@ -1,0 +1,69 @@
+name: Native Adventure Trail CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/adventure.ts'
+      - 'apps/mobile/src/game/adventure-trail.ts'
+      - 'apps/mobile/src/screens/CompassScreen.tsx'
+      - '.github/scripts/assert-native-adventure-trail.py'
+      - '.github/workflows/native-adventure-trail-ci.yml'
+      - 'docs/NATIVE_ADVENTURE_TRAIL_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/adventure.ts'
+      - 'apps/mobile/src/game/adventure-trail.ts'
+      - 'apps/mobile/src/screens/CompassScreen.tsx'
+      - '.github/scripts/assert-native-adventure-trail.py'
+      - '.github/workflows/native-adventure-trail-ci.yml'
+      - 'docs/NATIVE_ADVENTURE_TRAIL_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-adventure-trail-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native relationship game authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native Adventure Trail source contract
+        run: python3 .github/scripts/assert-native-adventure-trail.py
+
+      - name: Check native Adventure Trail formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/game/adventure-trail.ts \
+            apps/mobile/src/screens/CompassScreen.tsx \
+            .github/workflows/native-adventure-trail-ci.yml \
+            docs/NATIVE_ADVENTURE_TRAIL_V1.md
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
