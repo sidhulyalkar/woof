@@ -1,0 +1,99 @@
+name: iOS Native Artifact Audit CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/app.config.ts'
+      - 'apps/mobile/eas.json'
+      - 'apps/mobile/package.json'
+      - 'apps/mobile/src/**'
+      - '.github/scripts/audit-ios-native-artifact.py'
+      - '.github/workflows/ios-native-artifact-audit-ci.yml'
+      - 'docs/IOS_NATIVE_ARTIFACT_AUDIT_V1.md'
+      - 'pnpm-lock.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/app.config.ts'
+      - 'apps/mobile/eas.json'
+      - 'apps/mobile/package.json'
+      - 'apps/mobile/src/**'
+      - '.github/scripts/audit-ios-native-artifact.py'
+      - '.github/workflows/ios-native-artifact-audit-ci.yml'
+      - 'docs/IOS_NATIVE_ARTIFACT_AUDIT_V1.md'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-native-artifact-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  CI: '1'
+  WOOF_BUILD_PROFILE: 'production'
+  EXPO_PUBLIC_API_URL: 'https://woof-api-prod.fly.dev/api/v1'
+  EAS_PROJECT_ID: '00000000-0000-4000-8000-000000000001'
+
+jobs:
+  audit:
+    name: Generate and inspect iOS native authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check audit tranche formatting
+        run: >-
+          pnpm exec prettier --check
+          .github/workflows/ios-native-artifact-audit-ci.yml
+          docs/IOS_NATIVE_ARTIFACT_AUDIT_V1.md
+
+      - name: Generate production-shaped iOS project without signing or Pods
+        run: pnpm --filter @woof/mobile exec expo prebuild --clean --platform ios --no-install
+
+      - name: Resolve native autolinking graph used by Expo CocoaPods integration
+        working-directory: apps/mobile
+        run: |
+          node --no-warnings --eval "require('expo/bin/autolinking')" \
+            expo-modules-autolinking resolve --platform apple --json \
+            > ../../expo-autolinking-apple.json
+          node --no-warnings --eval "require('expo/bin/autolinking')" \
+            expo-modules-autolinking react-native-config --platform ios --json \
+            > ../../react-native-autolinking-ios.json
+
+      - name: Audit generated metadata and privacy manifests
+        run: python3 .github/scripts/audit-ios-native-artifact.py
+
+      - name: Upload generated native evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-native-artifact-audit-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ios-native-artifact-report.json
+            expo-autolinking-apple.json
+            react-native-autolinking-ios.json
+            apps/mobile/ios/Podfile
+            apps/mobile/ios/*/Info.plist
+            apps/mobile/ios/*/PrivacyInfo.xcprivacy
+            apps/mobile/ios/*.xcodeproj/project.pbxproj
