@@ -1,0 +1,49 @@
+name: Temporary mobile deletion formatting
+
+on:
+  push:
+    branches:
+      - agent/mobile-account-deletion-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-mobile-deletion-format
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  canonicalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/mobile-account-deletion-v1
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Canonicalize Profile
+        run: pnpm exec prettier --write apps/mobile/src/screens/ProfileScreen.tsx
+      - name: Recheck deletion authority
+        run: python3 .github/scripts/assert-mobile-account-deletion.py
+      - name: Commit exact formatter output
+        run: |
+          if git diff --quiet -- apps/mobile/src/screens/ProfileScreen.tsx; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/mobile/src/screens/ProfileScreen.tsx
+          git commit -m 'Canonicalize native account deletion UI'
+          git push origin HEAD:agent/mobile-account-deletion-v1
