@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { companionApi, type CompanionMode, type CompanionState } from '../api/companion';
 import { colors } from '../theme/tokens';
 
-const choices: Array<{
+const choices: {
   mode: CompanionMode;
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
+}[] = [
   {
     mode: 'PET_GUARDIAN',
     title: 'I care for a dog',

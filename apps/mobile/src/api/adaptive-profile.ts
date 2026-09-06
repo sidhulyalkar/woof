@@ -23,5 +23,8 @@ export const adaptiveProfileApi = {
     petId: string,
     input: AdaptiveProfileQuestionResponseInput
   ) =>
-    apiClient.post<AdaptiveProfileWriteReceipt>(`${pairPath(householdId, petId)}/questions/respond`, input),
+    apiClient.post<AdaptiveProfileWriteReceipt>(
+      `${pairPath(householdId, petId)}/questions/respond`,
+      input
+    ),
 };

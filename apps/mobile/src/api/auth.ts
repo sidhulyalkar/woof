@@ -1,9 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import apiClient, { ACCESS_TOKEN_KEY } from './client';
-import {
-  clearRegistrationRecovery,
-  getOrCreateRegistrationRecovery,
-} from '../onboarding/recovery';
+import { clearRegistrationRecovery, getOrCreateRegistrationRecovery } from '../onboarding/recovery';
 
 export interface RegisterDto {
   email: string;

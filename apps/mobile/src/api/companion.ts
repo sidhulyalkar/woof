@@ -17,6 +17,5 @@ export type CompanionState = {
 
 export const companionApi = {
   state: () => apiClient.get<CompanionState>('/companion/state'),
-  updateMode: (mode: CompanionMode) =>
-    apiClient.put<CompanionState>('/companion/mode', { mode }),
+  updateMode: (mode: CompanionMode) => apiClient.put<CompanionState>('/companion/mode', { mode }),
 };

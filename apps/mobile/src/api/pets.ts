@@ -18,9 +18,9 @@ export type OwnedPet = {
 };
 
 export type CreatedOwnedPet = OwnedPet & {
-  householdMemberships: Array<{
+  householdMemberships: {
     householdId: string;
-  }>;
+  }[];
 };
 
 export type OwnedPetsResponse = {

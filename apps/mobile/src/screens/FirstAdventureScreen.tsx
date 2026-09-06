@@ -33,7 +33,7 @@ import { colors } from '../theme/tokens';
 
 type Phase = 'pet' | 'goals' | 'capacity' | 'social';
 
-const goalChoices: Array<{ value: FirstAdventureGoal; label: string }> = [
+const goalChoices: { value: FirstAdventureGoal; label: string }[] = [
   { value: 'MORE_ADVENTURES', label: 'More adventures' },
   { value: 'TRAINING', label: 'Training together' },
   { value: 'CALMER_ROUTINES', label: 'Calmer routines' },
@@ -42,7 +42,7 @@ const goalChoices: Array<{ value: FirstAdventureGoal; label: string }> = [
   { value: 'JUST_HAVE_FUN', label: 'Just have fun' },
 ];
 
-const timeChoices: Array<{ value: FirstAdventureTimeBudget; label: string }> = [
+const timeChoices: { value: FirstAdventureTimeBudget; label: string }[] = [
   { value: 'FIVE_MIN', label: 'About 5 min' },
   { value: 'TEN_TO_FIFTEEN', label: '10–15 min' },
   { value: 'TWENTY_TO_THIRTY', label: '20–30 min' },
@@ -50,14 +50,14 @@ const timeChoices: Array<{ value: FirstAdventureTimeBudget; label: string }> = [
   { value: 'VARIES', label: 'It varies' },
 ];
 
-const effortChoices: Array<{ value: FirstAdventureEffort; label: string }> = [
+const effortChoices: { value: FirstAdventureEffort; label: string }[] = [
   { value: 'KEEP_IT_EASY', label: 'Keep it easy' },
   { value: 'MODERATE', label: 'Moderate' },
   { value: 'UP_FOR_A_CHALLENGE', label: 'Up for a challenge' },
   { value: 'VARIES', label: 'It varies' },
 ];
 
-const socialChoices: Array<{ value: FirstAdventureSocialComfort; label: string }> = [
+const socialChoices: { value: FirstAdventureSocialComfort; label: string }[] = [
   { value: 'PREFERS_SPACE', label: 'Usually prefers space' },
   { value: 'CALM_AT_DISTANCE', label: 'Comfortable at a distance' },
   { value: 'SELECTIVELY_SOCIAL', label: 'Selectively social' },
@@ -263,19 +263,15 @@ export default function FirstAdventureScreen({
               <View style={styles.airlockCopy}>
                 <Text style={styles.airlockTitle}>Uncertain write in progress</Text>
                 <Text style={styles.airlockText}>
-                  Name, breed, and replay identity stay frozen until Woof resolves whether the server
-                  created this dog.
+                  Name, breed, and replay identity stay frozen until Woof resolves whether the
+                  server created this dog.
                 </Text>
               </View>
             </View>
           )}
 
           {ambiguousCreate && (
-            <Pressable
-              accessibilityRole="button"
-              style={styles.outlineButton}
-              onPress={onRecheck}
-            >
+            <Pressable accessibilityRole="button" style={styles.outlineButton} onPress={onRecheck}>
               <Text style={styles.outlineButtonText}>Check server state first</Text>
             </Pressable>
           )}
