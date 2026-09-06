@@ -20,20 +20,23 @@ The client performs exactly one destructive server operation:
 
 The authenticated server subject remains the account authority. Mobile does not send or choose a user id to delete.
 
-The access token is removed from SecureStore only after the server request resolves successfully. AuthContext clears the local user only after the same success. A retryable failure therefore does not intentionally convert an undeleted server account into a locally logged-out state.
+The server request must resolve successfully before any deleted-account credential cleanup runs and before AuthContext clears the in-memory user. A retryable server failure therefore does not intentionally convert an undeleted server account into a locally logged-out state.
+
+After authoritative server success, SecureStore cleanup is best-effort. A device credential-store failure cannot truthfully turn a completed server deletion into an “account was not deleted” result. The backend deletion contract removes the canonical `dogos_auth.sessions` row, and JWT validation is session-backed, so a locally retained token is no longer accepted by the server. A later 401/session-restoration attempt provides another cleanup path for that stale credential.
 
 ## Qualification
 
 `Mobile Account Deletion CI` proves from a frozen install that:
 
 1. mobile calls the canonical self-delete endpoint;
-2. server deletion precedes local token deletion;
-3. AuthContext retains user state until server success;
-4. Profile retains two destructive confirmations and retry copy;
-5. the delete control has an accessibility label;
-6. the tranche is canonically formatted;
-7. the complete native client type-checks;
-8. the complete native client lints with zero warnings.
+2. server deletion precedes best-effort local credential cleanup;
+3. local credential cleanup cannot reclassify authoritative server success as deletion failure;
+4. AuthContext retains user state until server success;
+5. Profile retains two destructive confirmations and retry copy;
+6. the delete control has an accessibility label;
+7. the tranche is canonically formatted;
+8. the complete native client type-checks;
+9. the complete native client lints with zero warnings.
 
 ## Privacy boundary
 
