@@ -10,10 +10,11 @@ import type { Pet } from '../types';
 type Props = StackScreenProps<RootStackParamList, 'Profile'>;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [petsLoading, setPetsLoading] = useState(true);
   const [petsUnavailable, setPetsUnavailable] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const loadPets = useCallback(async () => {
     if (!user?.id) {
@@ -49,6 +50,51 @@ export default function ProfileScreen({ navigation }: Props) {
         onPress: () => void logout(),
       },
     ]);
+  };
+
+  const performAccountDeletion = async () => {
+    if (deletingAccount) return;
+
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+    } catch {
+      Alert.alert(
+        'Account was not deleted',
+        'Woof could not complete deletion. Your account remains active so you can retry. No local logout was performed.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete your Woof account?',
+      'This permanently removes your Woof account, your owned pet profiles and relationship history, and Woof-owned private Media Library files. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Delete permanently?',
+              'Your active Woof sessions will end after the server confirms deletion. If deletion cannot complete, Woof keeps your account active so you can retry safely.',
+              [
+                { text: 'Keep my account', style: 'cancel' },
+                {
+                  text: 'Delete permanently',
+                  style: 'destructive',
+                  onPress: () => void performAccountDeletion(),
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -167,10 +213,33 @@ export default function ProfileScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.eyebrow}>Account</Text>
+        <Text style={styles.sectionTitle}>Session and privacy</Text>
+
         <TouchableOpacity style={styles.logoutItem} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="#ef4444" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
+
+        <View style={styles.dangerZone}>
+          <Text style={styles.dangerTitle}>Delete account</Text>
+          <Text style={styles.dangerDetail}>
+            Permanently delete your Woof account and Woof-owned relationship data. This action cannot
+            be undone.
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Delete Woof account permanently"
+            disabled={deletingAccount}
+            style={[styles.deleteButton, deletingAccount && styles.deleteButtonDisabled]}
+            onPress={handleDeleteAccount}
+          >
+            <Ionicons name="trash-outline" size={20} color="#b91c1c" />
+            <Text style={styles.deleteButtonText}>
+              {deletingAccount ? 'Deleting account...' : 'Delete account'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -248,6 +317,37 @@ const styles = StyleSheet.create({
   menuCopy: { flex: 1, marginLeft: 14, marginRight: 8 },
   menuItemText: { fontSize: 16, color: '#1f2937', fontWeight: '500' },
   menuItemDetail: { fontSize: 12, lineHeight: 17, color: '#6b7280', marginTop: 2 },
-  logoutItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  logoutItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
   logoutText: { marginLeft: 14, fontSize: 16, color: '#ef4444', fontWeight: '500' },
+  dangerZone: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+  },
+  dangerTitle: { fontSize: 15, fontWeight: '700', color: '#991b1b', marginBottom: 6 },
+  dangerDetail: { fontSize: 12, lineHeight: 18, color: '#7f1d1d' },
+  deleteButton: {
+    marginTop: 14,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  deleteButtonDisabled: { opacity: 0.55 },
+  deleteButtonText: { color: '#b91c1c', fontSize: 14, fontWeight: '700' },
 });
