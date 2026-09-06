@@ -47,18 +47,24 @@ if pathways != expected_pathways:
 if "CARE" in pathways:
     raise SystemExit("CARE must remain outside Adventure Trail discovery collection")
 
-thresholds = [int(value) for value in re.findall(r"minBondXp: (\d+)", trail)]
+thresholds = [int(value) for value in re.findall(r"minTrailXp: (\d+)", trail)]
 if len(thresholds) != 6:
     raise SystemExit(f"Expected six Adventure Trail chapters, found {len(thresholds)}")
 if thresholds[0] != 0:
-    raise SystemExit("Adventure Trail must begin at zero Bond XP")
+    raise SystemExit("Adventure Trail must begin at zero Trail XP")
 if thresholds != sorted(set(thresholds)):
     raise SystemExit("Adventure Trail chapter thresholds must be unique and strictly increasing")
 
-for marker in ("dashboard.bondXp", "dashboard.compass", "dashboard.rhythm"):
-    require(trail, marker, f"Adventure Trail must derive from canonical dashboard field: {marker}")
+for marker in (
+    "dashboard.compass",
+    "dashboard.rhythm",
+    "const trailXp = TRAIL_PATHWAYS.reduce(",
+    "trailXp,",
+):
+    require(trail, marker, f"Adventure Trail canonical derivation marker missing: {marker}")
 
 for forbidden in (
+    "dashboard.bondXp",
     "apiClient",
     "adventureApi",
     ".post(",
@@ -69,22 +75,24 @@ for forbidden in (
     "new Date(",
 ):
     if forbidden in trail:
-        raise SystemExit(f"Adventure Trail presentation policy must stay deterministic/read-only: {forbidden}")
+        raise SystemExit(f"Adventure Trail presentation policy must stay bounded/read-only: {forbidden}")
 
 for marker in (
     "deriveAdventureTrail(dashboard)",
     "ADVENTURE TRAIL",
+    "Trail XP",
     "Discovery stamps",
     "CARE stays visible in the Compass below, but it is intentionally outside this collection",
+    "never advances chapters or changes recommendations.",
     "Missing a day never resets Rhythm",
-    "They never unlock care or change",
 ):
     require(compass, marker, f"Native Adventure Trail UI boundary missing: {marker}")
 
 for marker in (
     "The human gets a game-shaped sense of unfolding progress.",
     "The dog keeps the right to have an ordinary day.",
-    "`CARE` is intentionally excluded from the collection layer.",
+    "`CARE` is intentionally excluded from the collection layer and from Trail XP.",
+    "CARE contributes zero Trail XP",
     "It does not create a daily streak",
 ):
     require(doc, marker, f"Native Adventure Trail documentation boundary missing: {marker}")
