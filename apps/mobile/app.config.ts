@@ -3,6 +3,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 const DEVELOPMENT_API_URL = 'http://localhost:4000/api/v1';
 const NON_REMOTE_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
 
+type StaticExpoConfig = ConfigContext['config'];
 type EasExtra = {
   projectId?: string;
   [key: string]: unknown;
@@ -39,7 +40,7 @@ function resolveBuildProfile(): string {
   return firstNonEmpty(process.env.EAS_BUILD_PROFILE, process.env.WOOF_BUILD_PROFILE) ?? 'development';
 }
 
-function resolveApiUrl(config: ExpoConfig, buildProfile: string): string {
+function resolveApiUrl(config: StaticExpoConfig, buildProfile: string): string {
   const configured = firstNonEmpty(
     process.env.EXPO_PUBLIC_API_URL,
     typeof config.extra?.apiUrl === 'string' ? config.extra.apiUrl : undefined,
@@ -58,7 +59,7 @@ function resolveApiUrl(config: ExpoConfig, buildProfile: string): string {
   return assertRemoteApiUrl(process.env.EXPO_PUBLIC_API_URL.trim(), buildProfile);
 }
 
-function resolveProjectId(config: ExpoConfig, buildProfile: string): string | undefined {
+function resolveProjectId(config: StaticExpoConfig, buildProfile: string): string | undefined {
   const staticEas = config.extra?.eas as EasExtra | undefined;
   const projectId = firstNonEmpty(
     process.env.EAS_PROJECT_ID,
@@ -87,6 +88,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
+    name: config.name ?? 'Woof',
+    slug: config.slug ?? 'woof',
     extra: {
       ...config.extra,
       apiUrl,
