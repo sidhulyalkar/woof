@@ -287,7 +287,29 @@ function AuthenticatedEntry() {
     return <CompanionNavigator onResolved={(next) => void applyResolved(next)} />;
   }
 
-  return <GuardianNavigator />;
+  if (state.landing === 'PET_TODAY') {
+    return <GuardianNavigator />;
+  }
+
+  return (
+    <View style={styles.authorityError}>
+      <Ionicons name="shield-outline" size={34} color={colors.primary[700]} />
+      <Text style={styles.errorTitle}>Woof returned an unsupported account mode.</Text>
+      <Text style={styles.errorCopy}>
+        Pet-specific surfaces stay closed until this client can verify a recognized server landing.
+      </Text>
+      <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => void load()}>
+        <Text style={styles.retryButtonText}>Check again</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        style={styles.signOutButton}
+        onPress={() => void logout()}
+      >
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export const AppNavigator = () => {
