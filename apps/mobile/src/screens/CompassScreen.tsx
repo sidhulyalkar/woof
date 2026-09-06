@@ -155,7 +155,7 @@ export default function CompassScreen() {
             />
           </View>
           <View style={styles.trailProgressRow}>
-            <Text style={styles.trailProgressValue}>{dashboard.bondXp} Bond XP</Text>
+            <Text style={styles.trailProgressValue}>{trail.trailXp} Trail XP</Text>
             <Text style={styles.trailProgressHint}>
               {trail.nextChapter
                 ? `${trail.xpToNextChapter} to ${trail.nextChapter.label}`
@@ -163,8 +163,8 @@ export default function CompassScreen() {
             </Text>
           </View>
           <Text style={styles.trailAuthorityCopy}>
-            Chapters are a playful view of server-earned Bond XP. They never unlock care or change
-            what Woof recommends.
+            Trail XP is a display-only sum of server-earned XP from seven non-care pathways. CARE
+            never advances chapters or changes recommendations.
           </Text>
 
           <View style={styles.discoveryHeader}>
