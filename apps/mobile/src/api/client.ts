@@ -57,7 +57,7 @@ class ApiClient {
         }
         return config;
       },
-      (error) => Promise.reject(error),
+      (error) => Promise.reject(error)
     );
 
     // The canonical NestJS API currently issues one expiring access token and
@@ -71,7 +71,7 @@ class ApiClient {
           await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
         }
         return Promise.reject(error);
-      },
+      }
     );
   }
 

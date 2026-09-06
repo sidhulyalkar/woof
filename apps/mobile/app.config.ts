@@ -37,13 +37,15 @@ function assertRemoteApiUrl(value: string, buildProfile: string): string {
 }
 
 function resolveBuildProfile(): string {
-  return firstNonEmpty(process.env.EAS_BUILD_PROFILE, process.env.WOOF_BUILD_PROFILE) ?? 'development';
+  return (
+    firstNonEmpty(process.env.EAS_BUILD_PROFILE, process.env.WOOF_BUILD_PROFILE) ?? 'development'
+  );
 }
 
 function resolveApiUrl(config: StaticExpoConfig, buildProfile: string): string {
   const configured = firstNonEmpty(
     process.env.EXPO_PUBLIC_API_URL,
-    typeof config.extra?.apiUrl === 'string' ? config.extra.apiUrl : undefined,
+    typeof config.extra?.apiUrl === 'string' ? config.extra.apiUrl : undefined
   );
 
   if (buildProfile === 'development') {
@@ -52,7 +54,7 @@ function resolveApiUrl(config: StaticExpoConfig, buildProfile: string): string {
 
   if (!process.env.EXPO_PUBLIC_API_URL?.trim()) {
     throw new Error(
-      `Woof ${buildProfile} builds require EXPO_PUBLIC_API_URL from the selected EAS environment`,
+      `Woof ${buildProfile} builds require EXPO_PUBLIC_API_URL from the selected EAS environment`
     );
   }
 
@@ -64,7 +66,7 @@ function resolveProjectId(config: StaticExpoConfig, buildProfile: string): strin
   const projectId = firstNonEmpty(
     process.env.EAS_PROJECT_ID,
     process.env.EAS_BUILD_PROJECT_ID,
-    staticEas?.projectId,
+    staticEas?.projectId
   );
 
   if (projectId?.toLowerCase().includes('your-project-id')) {
@@ -73,7 +75,7 @@ function resolveProjectId(config: StaticExpoConfig, buildProfile: string): strin
 
   if (buildProfile !== 'development' && !projectId) {
     throw new Error(
-      `Woof ${buildProfile} builds require a real EAS project id via EAS_PROJECT_ID or linked app config`,
+      `Woof ${buildProfile} builds require a real EAS project id via EAS_PROJECT_ID or linked app config`
     );
   }
 
