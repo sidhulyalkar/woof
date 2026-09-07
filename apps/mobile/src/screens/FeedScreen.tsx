@@ -154,10 +154,18 @@ export default function FeedScreen({ navigation }: Props) {
             <Text style={styles.eyebrow}>PEOPLE AROUND YOUR DOG LIFE</Text>
             <Text style={styles.headerTitle}>Community</Text>
             <Text style={styles.headerSubtitle}>
-              Real friends, local plans, and shared moments. Community should help you get back to
-              life together, not keep you scrolling.
+              Real friends, local plans, shared moments, and human-skill practice. Community should
+              help you get back to life together, not keep you scrolling.
             </Text>
             <View style={styles.quickLinks}>
+              <Pressable
+                style={styles.quickLink}
+                onPress={() => navigation.navigate('Skillcraft')}
+                accessibilityRole="button"
+              >
+                <Ionicons name="game-controller-outline" size={18} color={colors.primary[700]} />
+                <Text style={styles.quickLinkText}>Skillcraft</Text>
+              </Pressable>
               <Pressable
                 style={styles.quickLink}
                 onPress={() => navigation.navigate('Events')}
@@ -188,8 +196,8 @@ export default function FeedScreen({ navigation }: Props) {
             <Ionicons name="people-outline" size={44} color={colors.primary[500]} />
             <Text style={styles.emptyText}>A quieter community is okay.</Text>
             <Text style={styles.emptySubtext}>
-              Woof can still be useful through Today, Story, and your real relationship even when
-              there is nothing new to browse.
+              Woof can still be useful through Today, Story, Skillcraft, and your real relationship
+              even when there is nothing new to browse.
             </Text>
           </View>
         }
@@ -212,7 +220,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
   headerTitle: { marginTop: 3, fontSize: 32, fontWeight: '800', color: colors.text.primary },
   headerSubtitle: { marginTop: 7, fontSize: 14, lineHeight: 20, color: colors.text.secondary },
-  quickLinks: { marginTop: 14, flexDirection: 'row', gap: 8 },
+  quickLinks: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quickLink: {
     minHeight: 42,
     paddingHorizontal: 13,
