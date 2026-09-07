@@ -48,6 +48,8 @@ rooms explored this week / 4
 
 A room is explored when the server reports a current-season practice result for that challenge.
 
+If the Arcade catalog is unavailable, native does not render an invented `0/4`. Unknown server state stays unknown until authority is restored.
+
 The important asymmetry is deliberate:
 
 - completing a distinct room can contribute one fixed Human Skill breadth unit to Social Adventure;
@@ -66,13 +68,13 @@ The native client measures the user's tap relative to the local round start and 
 
 The native client may animate the public behavior track and describe the current cue window, but it must not reproduce the server score formula or turn timing precision into competitive authority.
 
-If the local display reaches the end of the playable window before a tap, the client stops the round and asks for a fresh attempt. It does not manufacture an outcome.
+If the local display reaches the end of the playable window before a tap, the client stops the round and asks the user to choose a fresh attempt. It does not manufacture an outcome.
 
 ## Sharing
 
 Sharing is always optional and post-completion.
 
-Native Skillcraft can publish a completed Human Skill attempt only when the user presses **Share skill moment**. The request uses:
+Native Skillcraft can publish a completed Human Skill attempt only when the user presses **Share publicly**. The public scope is visible at the decision point before the mutation. The request uses:
 
 - `sourceType = HUMAN_SKILL_ATTEMPT`;
 - the server-owned attempt ID;
@@ -115,14 +117,14 @@ The game must not:
 
 The native screen provides:
 
-- a four-room weekly breadth panel;
+- a four-room weekly breadth panel only when canonical catalog state is available;
 - server-authored challenge cards;
 - server-issued rounds;
 - multiple-choice interaction for three rooms;
 - a local timing track for Marker Timing;
 - server-scored receipts and explanations;
 - personal practice-best context;
-- an explicit optional share action;
+- an explicit optional public share action;
 - an explicit professional-support boundary.
 
 ### Companion Home
@@ -141,6 +143,8 @@ Community links to Skillcraft so guardians can move from social browsing into hu
 - the native API stops using the existing server-authoritative Arcade endpoints;
 - correct answer IDs or the server score formula are copied into native code;
 - Skillcraft gains pet/Adventure/CareEvent/Health mutation authority;
+- unavailable catalog state is presented as fabricated zero progress;
+- public sharing is not disclosed before the share mutation;
 - weekly breadth, no-grind, optional-sharing, or safety-boundary copy disappears;
 - the route is removed from either Pet Guardian or Companion native navigation;
 - Companion Home or Community loses its Skillcraft entry point;
