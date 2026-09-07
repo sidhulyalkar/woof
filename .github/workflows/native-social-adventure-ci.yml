@@ -76,6 +76,20 @@ jobs:
             .github/workflows/native-social-adventure-ci.yml \
             docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
+      - name: Upload canonical Social Adventure formatter output
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-social-adventure-prettier-${{ github.run_id }}
+          path: |
+            apps/mobile/src/api/social-adventure.ts
+            apps/mobile/src/screens/FeedScreen.tsx
+            apps/mobile/src/screens/PacksScreen.tsx
+            apps/mobile/src/navigation/AppNavigator.tsx
+            .github/workflows/native-social-adventure-ci.yml
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Re-run server Social Adventure score policy tests
         run: pnpm --filter @woof/api test -- social-adventure.policy.spec.ts --runInBand
 
