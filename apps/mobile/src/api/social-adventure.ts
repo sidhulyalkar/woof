@@ -1,11 +1,7 @@
 import apiClient from './client';
 
 export type SocialAdventureReaction =
-  | 'NICE_READ'
-  | 'GOOD_CALL'
-  | 'TRYING_THIS'
-  | 'ADVENTURE_INSPIRATION'
-  | 'CHEER';
+  'NICE_READ' | 'GOOD_CALL' | 'TRYING_THIS' | 'ADVENTURE_INSPIRATION' | 'CHEER';
 
 export type SocialAdventureScoreComponents = {
   humanSkill: {
@@ -74,7 +70,7 @@ export type SocialAdventurePost = {
   handle: string;
   avatarUrl: string | null;
   petName: string | null;
-  reactions: Array<{ reaction: SocialAdventureReaction; count: number; mine: boolean }>;
+  reactions: { reaction: SocialAdventureReaction; count: number; mine: boolean }[];
 };
 
 export type SocialAdventureFeed = {
@@ -101,10 +97,7 @@ export type PacksCatalog = {
 };
 
 export type ArcadeChallengeKey =
-  | 'MAKE_IT_EASIER'
-  | 'CATCH_THE_GOOD'
-  | 'PAIRING_LAB'
-  | 'MARKER_TIMING';
+  'MAKE_IT_EASIER' | 'CATCH_THE_GOOD' | 'PAIRING_LAB' | 'MARKER_TIMING';
 
 export type ArcadeOption = {
   id: string;
@@ -167,8 +160,7 @@ export const socialAdventureApi = {
       globalLeaderboardOptIn,
     }),
 
-  globalLeaderboard: () =>
-    apiClient.get<GlobalLeaderboard>('/social-adventure/leaderboard/global'),
+  globalLeaderboard: () => apiClient.get<GlobalLeaderboard>('/social-adventure/leaderboard/global'),
 
   feed: () => apiClient.get<SocialAdventureFeed>('/social-adventure/feed'),
 
