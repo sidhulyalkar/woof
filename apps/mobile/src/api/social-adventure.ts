@@ -1,10 +1,7 @@
 import apiClient from './client';
 
 export type ArcadeChallengeKey =
-  | 'MAKE_IT_EASIER'
-  | 'CATCH_THE_GOOD'
-  | 'PAIRING_LAB'
-  | 'MARKER_TIMING';
+  'MAKE_IT_EASIER' | 'CATCH_THE_GOOD' | 'PAIRING_LAB' | 'MARKER_TIMING';
 
 export type ArcadeOption = {
   id: string;
