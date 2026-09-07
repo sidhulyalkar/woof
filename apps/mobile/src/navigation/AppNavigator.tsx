@@ -32,6 +32,7 @@ import PetsListScreen from '../screens/PetsListScreen';
 import GoalsScreen from '../screens/GoalsScreen';
 import MediaLibraryScreen from '../screens/MediaLibraryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SkillcraftScreen from '../screens/SkillcraftScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -46,6 +47,7 @@ export type RootStackParamList = {
   Goals: undefined;
   Library: undefined;
   Profile: undefined;
+  Skillcraft: undefined;
 };
 
 export type MainTabParamList = {
@@ -157,6 +159,11 @@ function GuardianNavigator() {
           options={{ ...secondaryScreenOptions, title: 'Map' }}
         />
         <Stack.Screen
+          name="Skillcraft"
+          component={SkillcraftScreen}
+          options={{ ...secondaryScreenOptions, title: 'Skillcraft' }}
+        />
+        <Stack.Screen
           name="Profile"
           component={ProfileScreen}
           options={{ ...secondaryScreenOptions, title: 'You' }}
@@ -187,6 +194,11 @@ function CompanionNavigator({ onResolved }: { onResolved: (state: CompanionState
           name="Map"
           component={MapScreen}
           options={{ ...secondaryScreenOptions, title: 'Map' }}
+        />
+        <Stack.Screen
+          name="Skillcraft"
+          component={SkillcraftScreen}
+          options={{ ...secondaryScreenOptions, title: 'Skillcraft' }}
         />
         <Stack.Screen
           name="Profile"
