@@ -66,14 +66,13 @@ jobs:
       - name: Enforce native Social Adventure source contract
         run: python3 .github/scripts/assert-native-social-adventure.py
 
-      - name: Check native Social Adventure formatting
+      - name: Materialize canonical Social Adventure formatting
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/api/social-adventure.ts \
             apps/mobile/src/screens/FeedScreen.tsx \
             apps/mobile/src/screens/PacksScreen.tsx \
             apps/mobile/src/navigation/AppNavigator.tsx \
-            .github/scripts/assert-native-social-adventure.py \
             .github/workflows/native-social-adventure-ci.yml \
             docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
@@ -85,3 +84,13 @@ jobs:
 
       - name: Lint native client
         run: pnpm --filter @woof/mobile lint
+
+      - name: Print uncommitted canonical formatting
+        run: |
+          git diff --exit-code -- \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PacksScreen.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
