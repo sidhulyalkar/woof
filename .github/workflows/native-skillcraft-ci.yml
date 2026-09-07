@@ -1,0 +1,89 @@
+name: Native Skillcraft CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/SkillcraftScreen.tsx'
+      - 'apps/mobile/src/screens/CompanionHomeScreen.tsx'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/social-adventure/social-adventure.arcade.ts'
+      - 'apps/api/src/social-adventure/social-adventure.arcade.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - '.github/scripts/assert-native-skillcraft.py'
+      - '.github/workflows/native-skillcraft-ci.yml'
+      - 'docs/NATIVE_SKILLCRAFT_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/SkillcraftScreen.tsx'
+      - 'apps/mobile/src/screens/CompanionHomeScreen.tsx'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/social-adventure/social-adventure.arcade.ts'
+      - 'apps/api/src/social-adventure/social-adventure.arcade.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - '.github/scripts/assert-native-skillcraft.py'
+      - '.github/workflows/native-skillcraft-ci.yml'
+      - 'docs/NATIVE_SKILLCRAFT_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-skillcraft-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native human-skill game authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native Skillcraft source contract
+        run: python3 .github/scripts/assert-native-skillcraft.py
+
+      - name: Check native Skillcraft formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/SkillcraftScreen.tsx \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            .github/workflows/native-skillcraft-ci.yml \
+            docs/NATIVE_SKILLCRAFT_V1.md
+
+      - name: Re-run server Human Skill policy tests
+        run: pnpm --filter @woof/api test -- social-adventure.arcade.spec.ts social-adventure.policy.spec.ts --runInBand
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
