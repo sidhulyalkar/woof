@@ -30,6 +30,10 @@ def require(source: str, marker: str, message: str) -> None:
         raise SystemExit(message)
 
 
+def normalized(source: str) -> str:
+    return re.sub(r"\s+", " ", source).strip()
+
+
 challenge_match = re.search(
     r"export const HUMAN_SKILL_CHALLENGES = \[(.*?)\] as const;",
     server_policy,
@@ -63,6 +67,15 @@ for marker in (
     "socialAdventureApi.startArcadeAttempt",
     "socialAdventureApi.completeArcadeAttempt",
     "socialAdventureApi.shareSkillAttempt",
+    "onPress={() => void shareResult()}",
+    'accessibilityLabel="Share this human skill moment publicly"',
+    "const totalChallenges = catalog?.challenges.length ?? 0;",
+    "{catalog && (",
+):
+    require(screen, marker, f"Native Skillcraft UI contract missing: {marker}")
+
+screen_copy = normalized(screen)
+for marker in (
     "Breadth counts once. Grinding does not.",
     "Practice scores stay personal feedback.",
     "retries and higher scores add no rank.",
@@ -70,14 +83,10 @@ for marker in (
     "Sharing is optional and publishes this human practice moment only.",
     "reactions do not increase your rank.",
     "A game is not training authority.",
-    "onPress={() => void shareResult()}",
     "Share publicly",
-    'accessibilityLabel="Share this human skill moment publicly"',
-    "const totalChallenges = catalog?.challenges.length ?? 0;",
-    "{catalog && (",
     "Choose a fresh round",
 ):
-    require(screen, marker, f"Native Skillcraft UI boundary missing: {marker}")
+    require(screen_copy, marker, f"Native Skillcraft UI boundary missing: {marker}")
 
 if "catalog?.challenges.length ?? 4" in screen:
     raise SystemExit("Unavailable Skillcraft authority must not render as fabricated 0/4 progress")
@@ -135,6 +144,6 @@ for marker in (
     "Pet relationships still control pet authority.",
     "the human gets the game; the dog keeps the right to have an ordinary day.",
 ):
-    require(doc.lower(), marker.lower(), f"Native Skillcraft documentation boundary missing: {marker}")
+    require(normalized(doc).lower(), marker.lower(), f"Native Skillcraft documentation boundary missing: {marker}")
 
 print("Native Skillcraft source contract passed")
