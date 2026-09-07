@@ -73,11 +73,7 @@ export type SocialAdventurePost = {
   authorUserId: string;
   handle: string;
   avatarUrl: string | null;
-  petId: string | null;
   petName: string | null;
-  petAvatarUrl: string | null;
-  likesCount: number;
-  commentsCount: number;
   reactions: Array<{ reaction: SocialAdventureReaction; count: number; mine: boolean }>;
 };
 
