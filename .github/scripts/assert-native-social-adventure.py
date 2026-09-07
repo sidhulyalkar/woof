@@ -8,6 +8,7 @@ MOBILE_API = ROOT / "apps/mobile/src/api/social-adventure.ts"
 FEED = ROOT / "apps/mobile/src/screens/FeedScreen.tsx"
 COMMUNITY_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventureCommunityView.tsx"
 PACKS = ROOT / "apps/mobile/src/screens/PacksScreen.tsx"
+PACKS_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventurePacksView.tsx"
 NAV = ROOT / "apps/mobile/src/navigation/AppNavigator.tsx"
 SERVER_POLICY = ROOT / "apps/api/src/social-adventure/social-adventure.policy.ts"
 SERVER_SERVICE = ROOT / "apps/api/src/social-adventure/social-adventure.service.ts"
@@ -17,6 +18,7 @@ mobile_api = MOBILE_API.read_text()
 feed = FEED.read_text()
 community_view = COMMUNITY_VIEW.read_text()
 packs = PACKS.read_text()
+packs_view = PACKS_VIEW.read_text()
 nav = NAV.read_text()
 server_policy = SERVER_POLICY.read_text()
 server_service = SERVER_SERVICE.read_text()
@@ -113,27 +115,28 @@ for marker in (
     "socialAdventureApi.joinPack",
     "socialAdventureApi.leavePack",
     "socialAdventureApi.packLeaderboard",
-    "leaderboard && !leaderboard.cohortReady",
-    "leaderboard?.cohortReady",
-    "leaderboard.minimumCohort",
-    "catalog.locationContract",
     "pack.role === 'OWNER'",
 ):
     require(packs, marker, f"Native Packs authority missing: {marker}")
 
-packs_copy = normalized(packs)
+packs_surface = normalized(packs + "\n" + packs_view)
 for marker in (
+    "leaderboard && !leaderboard.cohortReady",
+    "leaderboard?.cohortReady",
+    "leaderboard.minimumCohort",
+    "catalog.locationContract",
     "Choose a coarse community, not a coordinate.",
     "The app never estimates or reconstructs a private local rank.",
     "Breadth in Human Skill and bounded Adventure variety count.",
     "Use a broad place people recognize.",
 ):
-    require(packs_copy, marker, f"Native Packs boundary copy missing: {marker}")
+    require(packs_surface, marker, f"Native Packs boundary missing: {marker}")
 
 for source_name, source in (
     ("Community authority", feed),
     ("Community presentation", community_view),
-    ("Packs", packs),
+    ("Packs authority", packs),
+    ("Packs presentation", packs_view),
 ):
     for forbidden in (
         ".sort(",
