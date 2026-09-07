@@ -11,11 +11,17 @@ type Props = StackScreenProps<RootStackParamList, 'CompanionHome'> & {
 };
 
 const links: {
-  route: 'CommunityStandalone' | 'Events' | 'Profile';
+  route: 'Skillcraft' | 'CommunityStandalone' | 'Events' | 'Profile';
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
+  {
+    route: 'Skillcraft',
+    title: 'Skillcraft',
+    description: 'Practice setup, observation, pairing, and timing without inventing a pet.',
+    icon: 'game-controller-outline',
+  },
   {
     route: 'CommunityStandalone',
     title: 'Community',
@@ -62,7 +68,8 @@ export default function CompanionHomeScreen({ navigation, onResolved }: Props) {
       <Text style={styles.title}>You do not need to invent a dog to belong here.</Text>
       <Text style={styles.intro}>
         Woof keeps pet-specific Today, Compass, and Story closed until the server can verify a real
-        owned or authorized relationship. You can still explore people, events, and your account.
+        owned or authorized relationship. You can still practice human skills, explore people and
+        events, and manage your account.
       </Text>
 
       <View style={styles.truthCard}>
