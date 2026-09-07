@@ -117,7 +117,10 @@ export default function SkillcraftScreen({ navigation }: Props) {
     setCompleting(true);
     setError(null);
     try {
-      const nextReceipt = await socialAdventureApi.completeArcadeAttempt(attempt.attemptId, response);
+      const nextReceipt = await socialAdventureApi.completeArcadeAttempt(
+        attempt.attemptId,
+        response
+      );
       setReceipt(nextReceipt);
       timingStartRef.current = null;
       void socialAdventureApi
@@ -125,7 +128,9 @@ export default function SkillcraftScreen({ navigation }: Props) {
         .then((nextCatalog) => setCatalog(nextCatalog))
         .catch(() => undefined);
     } catch {
-      setError('Woof could not score that practice round. Start a fresh round before trying again.');
+      setError(
+        'Woof could not score that practice round. Start a fresh round before trying again.'
+      );
     } finally {
       setCompleting(false);
     }
@@ -158,8 +163,9 @@ export default function SkillcraftScreen({ navigation }: Props) {
     }
   };
 
-  const completedThisWeek = catalog?.challenges.filter((challenge) => challenge.bestScore !== null).length ?? 0;
-  const totalChallenges = catalog?.challenges.length ?? 4;
+  const completedThisWeek =
+    catalog?.challenges.filter((challenge) => challenge.bestScore !== null).length ?? 0;
+  const totalChallenges = catalog?.challenges.length ?? 0;
   const breadthProgress = clampPercent((completedThisWeek / Math.max(1, totalChallenges)) * 100);
   const timing = attempt?.scenario.timing;
   const timingProgress = timing ? clampPercent((elapsedMs / timing.durationMs) * 100) : 0;
@@ -192,28 +198,31 @@ export default function SkillcraftScreen({ navigation }: Props) {
           association, and timing. The dog does not have to perform for you to play.
         </Text>
 
-        <View style={styles.weekPanel}>
-          <View style={styles.weekHeader}>
-            <View>
-              <Text style={styles.weekTitle}>This week&apos;s rooms</Text>
-              <Text style={styles.weekSubtitle}>Breadth counts once. Grinding does not.</Text>
+        {catalog && (
+          <View style={styles.weekPanel}>
+            <View style={styles.weekHeader}>
+              <View>
+                <Text style={styles.weekTitle}>This week&apos;s rooms</Text>
+                <Text style={styles.weekSubtitle}>Breadth counts once. Grinding does not.</Text>
+              </View>
+              <Text style={styles.weekCount}>
+                {completedThisWeek}/{totalChallenges}
+              </Text>
             </View>
-            <Text style={styles.weekCount}>
-              {completedThisWeek}/{totalChallenges}
+            <View
+              style={styles.progressTrack}
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: 100, now: Math.round(breadthProgress) }}
+            >
+              <View style={[styles.progressFill, { width: `${breadthProgress}%` }]} />
+            </View>
+            <Text style={styles.weekBoundary}>
+              Practice scores stay personal feedback. Completing each different room once in the
+              weekly season contributes one fixed breadth unit; retries and higher scores add no
+              rank.
             </Text>
           </View>
-          <View
-            style={styles.progressTrack}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: 100, now: Math.round(breadthProgress) }}
-          >
-            <View style={[styles.progressFill, { width: `${breadthProgress}%` }]} />
-          </View>
-          <Text style={styles.weekBoundary}>
-            Practice scores stay personal feedback. Completing each different room once in the
-            weekly season contributes one fixed breadth unit; retries and higher scores add no rank.
-          </Text>
-        </View>
+        )}
       </View>
 
       {error && (
@@ -257,7 +266,9 @@ export default function SkillcraftScreen({ navigation }: Props) {
 
                 <Text style={styles.challengePrompt}>{challenge.prompt}</Text>
                 {practiced && (
-                  <Text style={styles.personalBest}>Personal practice best: {challenge.bestScore}/100</Text>
+                  <Text style={styles.personalBest}>
+                    Personal practice best: {challenge.bestScore}/100
+                  </Text>
                 )}
 
                 <Pressable
@@ -271,7 +282,9 @@ export default function SkillcraftScreen({ navigation }: Props) {
                   ) : (
                     <>
                       <Ionicons name="play" size={16} color="#ffffff" />
-                      <Text style={styles.playButtonText}>{practiced ? 'Practice again' : 'Play room'}</Text>
+                      <Text style={styles.playButtonText}>
+                        {practiced ? 'Practice again' : 'Play room'}
+                      </Text>
                     </>
                   )}
                 </Pressable>
@@ -334,7 +347,7 @@ export default function SkillcraftScreen({ navigation }: Props) {
               <View style={styles.timingCue}>
                 <Text style={styles.timingCueText}>
                   {timingExpired
-                    ? 'Round ended. Start fresh for another timing attempt.'
+                    ? 'Round ended. Choose a fresh timing attempt.'
                     : elapsedMs < timing.targetAtMs - 700
                       ? 'Approaching the mat…'
                       : elapsedMs < timing.targetAtMs
@@ -347,10 +360,7 @@ export default function SkillcraftScreen({ navigation }: Props) {
               <Pressable
                 accessibilityRole="button"
                 disabled={completing || timingExpired}
-                style={[
-                  styles.markButton,
-                  (completing || timingExpired) && styles.disabled,
-                ]}
+                style={[styles.markButton, (completing || timingExpired) && styles.disabled]}
                 onPress={markTiming}
               >
                 {completing ? (
@@ -400,12 +410,17 @@ export default function SkillcraftScreen({ navigation }: Props) {
               <Text style={styles.receiptExplanation}>{receipt.explanation}</Text>
 
               <View style={styles.receiptActions}>
-                <Pressable accessibilityRole="button" style={styles.playButton} onPress={resetRound}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.playButton}
+                  onPress={resetRound}
+                >
                   <Ionicons name="game-controller-outline" size={17} color="#ffffff" />
                   <Text style={styles.playButtonText}>Another room</Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Share this human skill moment publicly"
                   disabled={shareState === 'pending' || shareState === 'shared'}
                   style={[
                     styles.shareButton,
@@ -423,7 +438,7 @@ export default function SkillcraftScreen({ navigation }: Props) {
                         color={colors.primary[700]}
                       />
                       <Text style={styles.shareButtonText}>
-                        {shareState === 'shared' ? 'Shared publicly' : 'Share skill moment'}
+                        {shareState === 'shared' ? 'Shared publicly' : 'Share publicly'}
                       </Text>
                     </>
                   )}
@@ -444,7 +459,9 @@ export default function SkillcraftScreen({ navigation }: Props) {
 
           {!receipt && !completing && (
             <Pressable accessibilityRole="button" style={styles.leaveButton} onPress={resetRound}>
-              <Text style={styles.leaveButtonText}>{timingExpired ? 'Start a fresh round' : 'Leave round'}</Text>
+              <Text style={styles.leaveButtonText}>
+                {timingExpired ? 'Choose a fresh round' : 'Leave round'}
+              </Text>
             </Pressable>
           )}
         </View>
@@ -462,7 +479,11 @@ export default function SkillcraftScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <Pressable accessibilityRole="button" style={styles.backLink} onPress={() => navigation.goBack()}>
+      <Pressable
+        accessibilityRole="button"
+        style={styles.backLink}
+        onPress={() => navigation.goBack()}
+      >
         <Ionicons name="arrow-back" size={16} color={colors.gray[600]} />
         <Text style={styles.backLinkText}>Back to Woof</Text>
       </Pressable>
