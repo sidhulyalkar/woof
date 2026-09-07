@@ -71,8 +71,16 @@ for marker in (
     "reactions do not increase your rank.",
     "A game is not training authority.",
     "onPress={() => void shareResult()}",
+    "Share publicly",
+    'accessibilityLabel="Share this human skill moment publicly"',
+    "const totalChallenges = catalog?.challenges.length ?? 0;",
+    "{catalog && (",
+    "Choose a fresh round",
 ):
     require(screen, marker, f"Native Skillcraft UI boundary missing: {marker}")
+
+if "catalog?.challenges.length ?? 4" in screen:
+    raise SystemExit("Unavailable Skillcraft authority must not render as fabricated 0/4 progress")
 
 if screen.count("socialAdventureApi.shareSkillAttempt") != 1:
     raise SystemExit("Skillcraft sharing must remain one explicit post-completion action")
