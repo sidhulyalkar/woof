@@ -6,6 +6,7 @@ import re
 ROOT = Path(__file__).resolve().parents[2]
 MOBILE_API = ROOT / "apps/mobile/src/api/social-adventure.ts"
 FEED = ROOT / "apps/mobile/src/screens/FeedScreen.tsx"
+COMMUNITY_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventureCommunityView.tsx"
 PACKS = ROOT / "apps/mobile/src/screens/PacksScreen.tsx"
 NAV = ROOT / "apps/mobile/src/navigation/AppNavigator.tsx"
 SERVER_POLICY = ROOT / "apps/api/src/social-adventure/social-adventure.policy.ts"
@@ -14,6 +15,7 @@ DOC = ROOT / "docs/NATIVE_SOCIAL_ADVENTURE_V1.md"
 
 mobile_api = MOBILE_API.read_text()
 feed = FEED.read_text()
+community_view = COMMUNITY_VIEW.read_text()
 packs = PACKS.read_text()
 nav = NAV.read_text()
 server_policy = SERVER_POLICY.read_text()
@@ -85,7 +87,7 @@ for marker in (
     "socialAdventureApi.addReaction",
     "socialAdventureApi.removeReaction",
     "const toggleGlobalVisibility = async () =>",
-    "onPress={() => void toggleGlobalVisibility()}",
+    "onToggleGlobalVisibility={() => void toggleGlobalVisibility()}",
     "navigation.navigate('Packs')",
 ):
     require(feed, marker, f"Native Community authority missing: {marker}")
@@ -93,9 +95,9 @@ for marker in (
 if feed.count("socialAdventureApi.updatePreferences(next)") != 1:
     raise SystemExit("Global leaderboard visibility must change through one explicit UI action")
 
-feed_copy = normalized(feed)
+feed_surface = normalized(feed + "\n" + community_view)
 for marker in (
-    "You compete. Your dog doesn't.",
+    "You compete. Your dog does not.",
     "Your score is private by default.",
     "Reactions build culture, not rank.",
     "Nothing posts automatically.",
@@ -103,7 +105,7 @@ for marker in (
     "Make my rank private",
     "Join global league",
 ):
-    require(feed_copy, marker, f"Native Community boundary copy missing: {marker}")
+    require(feed_surface, marker, f"Native Community boundary copy missing: {marker}")
 
 for marker in (
     "socialAdventureApi.packs()",
@@ -128,7 +130,11 @@ for marker in (
 ):
     require(packs_copy, marker, f"Native Packs boundary copy missing: {marker}")
 
-for source_name, source in (("Community", feed), ("Packs", packs)):
+for source_name, source in (
+    ("Community authority", feed),
+    ("Community presentation", community_view),
+    ("Packs", packs),
+):
     for forbidden in (
         ".sort(",
         "expo-location",
