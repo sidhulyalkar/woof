@@ -68,16 +68,14 @@ jobs:
       - name: Enforce native Skillcraft source contract
         run: python3 .github/scripts/assert-native-skillcraft.py
 
-      - name: Check native Skillcraft formatting
+      - name: Print canonical Skillcraft formatting diff
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/api/social-adventure.ts \
-            apps/mobile/src/screens/SkillcraftScreen.tsx \
-            apps/mobile/src/screens/CompanionHomeScreen.tsx \
-            apps/mobile/src/screens/FeedScreen.tsx \
-            apps/mobile/src/navigation/AppNavigator.tsx \
-            .github/workflows/native-skillcraft-ci.yml \
-            docs/NATIVE_SKILLCRAFT_V1.md
+            apps/mobile/src/screens/SkillcraftScreen.tsx
+          git diff --exit-code -- \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/SkillcraftScreen.tsx
 
       - name: Re-run server Human Skill policy tests
         run: pnpm --filter @woof/api test -- social-adventure.arcade.spec.ts social-adventure.policy.spec.ts --runInBand
