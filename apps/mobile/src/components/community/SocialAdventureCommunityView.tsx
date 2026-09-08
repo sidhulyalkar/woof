@@ -68,13 +68,11 @@ function LeagueCard({
       <Text style={styles.eyebrow}>OPTIONAL LEAGUE</Text>
       <Text style={styles.sectionTitle}>Global human-side league</Text>
       <Text style={styles.body}>
-        {isPublic
-          ? 'You are visible in the global league.'
-          : 'Your score is private by default.'}
+        {isPublic ? 'You are visible in the global league.' : 'Your score is private by default.'}
       </Text>
       <Text style={styles.smallCopy}>
-        Opting in publishes your handle and Social Adventure score. Pet health, route data,
-        private notes, and practice-score magnitude stay out.
+        Opting in publishes your handle and Social Adventure score. Pet health, route data, private
+        notes, and practice-score magnitude stay out.
       </Text>
 
       {isPublic && leaderboard.me.rank !== null && (
@@ -155,9 +153,9 @@ function PostCard({
             <Pressable
               key={reaction.reaction}
               accessibilityRole="button"
-              accessibilityLabel={`${reaction.mine ? 'Remove' : 'Add'} ${reactionCopy[
-                reaction.reaction
-              ]} reaction`}
+              accessibilityLabel={`${reaction.mine ? 'Remove' : 'Add'} ${
+                reactionCopy[reaction.reaction]
+              } reaction`}
               disabled={Boolean(reactionSaving)}
               onPress={() => onReaction(post.shareId, reaction.reaction, reaction.mine)}
               style={[styles.reactionChip, reaction.mine && styles.reactionChipMine]}
@@ -189,11 +187,7 @@ export function SocialAdventureCommunityView(props: Props) {
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={props.refreshing} onRefresh={props.onRefresh} />}
       renderItem={({ item }) => (
-        <PostCard
-          post={item}
-          reactionSaving={props.reactionSaving}
-          onReaction={props.onReaction}
-        />
+        <PostCard post={item} reactionSaving={props.reactionSaving} onReaction={props.onReaction} />
       )}
       ListHeaderComponent={
         <View style={styles.header}>
@@ -285,23 +279,47 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[200],
   },
   eyebrow: { color: colors.primary[700], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  heroTitle: { marginTop: 5, color: colors.gray[900], fontSize: 28, lineHeight: 34, fontWeight: '800' },
+  heroTitle: {
+    marginTop: 5,
+    color: colors.gray[900],
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+  },
   sectionTitle: { marginTop: 3, color: colors.gray[900], fontSize: 20, fontWeight: '800' },
   body: { marginTop: 7, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
   smallCopy: { marginTop: 5, color: colors.gray[600], fontSize: 11, lineHeight: 17 },
   scoreBox: { marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: '#ffffff' },
   heroScore: { marginTop: 2, color: colors.primary[700], fontSize: 26, fontWeight: '900' },
   actionRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  actionChip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: '#ffffff' },
+  actionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+  },
   actionChipText: { color: colors.primary[800], fontSize: 12, fontWeight: '800' },
-  primaryButton: { marginTop: 12, padding: 12, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primary[600] },
+  primaryButton: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: colors.primary[600],
+  },
   primaryButtonText: { color: '#ffffff', fontWeight: '800' },
   disabled: { opacity: 0.55 },
   quietBox: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.gray[50] },
   quietTitle: { color: colors.gray[900], fontSize: 14, fontWeight: '800' },
   rankCallout: { marginTop: 8, color: colors.primary[800], fontSize: 12, fontWeight: '800' },
   rankList: { marginTop: 12, gap: 7 },
-  rankRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 9, borderRadius: 11, backgroundColor: colors.gray[50] },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    padding: 9,
+    borderRadius: 11,
+    backgroundColor: colors.gray[50],
+  },
   rankNumber: { width: 32, color: colors.primary[800], fontWeight: '900' },
   flex: { flex: 1 },
   handle: { color: colors.gray[900], fontSize: 13, fontWeight: '800' },
@@ -311,13 +329,40 @@ const styles = StyleSheet.create({
   feedHeading: { paddingHorizontal: 4, paddingTop: 24, paddingBottom: 9 },
   errorBox: { marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: colors.error.light },
   errorText: { color: colors.error.dark, fontSize: 12, lineHeight: 17 },
-  postCard: { marginHorizontal: 14, marginBottom: 10, padding: 15, borderRadius: 16, backgroundColor: '#ffffff', borderWidth: 1, borderColor: colors.gray[200] },
+  postCard: {
+    marginHorizontal: 14,
+    marginBottom: 10,
+    padding: 15,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
   postTitle: { marginTop: 10, color: colors.gray[900], fontSize: 17, fontWeight: '800' },
-  caption: { marginTop: 9, padding: 10, borderRadius: 10, color: colors.gray[700], backgroundColor: colors.gray[50] },
+  caption: {
+    marginTop: 9,
+    padding: 10,
+    borderRadius: 10,
+    color: colors.gray[700],
+    backgroundColor: colors.gray[50],
+  },
   reactionRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  reactionChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
+  reactionChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    backgroundColor: colors.gray[50],
+  },
   reactionChipMine: { borderColor: colors.primary[300], backgroundColor: colors.primary[50] },
   reactionText: { color: colors.gray[700], fontSize: 10, fontWeight: '700' },
   boundary: { marginTop: 8, color: colors.gray[400], fontSize: 9 },
-  emptyBox: { marginHorizontal: 14, padding: 24, borderRadius: 16, alignItems: 'center', backgroundColor: colors.gray[50] },
+  emptyBox: {
+    marginHorizontal: 14,
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: colors.gray[50],
+  },
 });

@@ -8,11 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type {
-  PackLeaderboard,
-  PacksCatalog,
-  SocialPack,
-} from '../../api/social-adventure';
+import type { PackLeaderboard, PacksCatalog, SocialPack } from '../../api/social-adventure';
 import { colors } from '../../theme/tokens';
 
 type Props = {
@@ -95,8 +91,8 @@ function Standings({
       <Text style={styles.eyebrow}>PACK LEAGUE</Text>
       <Text style={styles.sectionTitle}>{selectedPack.name}</Text>
       <Text style={styles.body}>
-        Breadth in Human Skill and bounded Adventure variety count. Repetition, likes, missed
-        days, health, and exercise intensity do not.
+        Breadth in Human Skill and bounded Adventure variety count. Repetition, likes, missed days,
+        health, and exercise intensity do not.
       </Text>
 
       {loading ? (
@@ -152,8 +148,8 @@ export function SocialAdventurePacksView(props: Props) {
         <View style={styles.quietBox}>
           <Text style={styles.quietTitle}>Privacy floor</Text>
           <Text style={styles.smallCopy}>
-            The app never estimates or reconstructs a private local rank. Standings appear only
-            when the server says the cohort is large enough.
+            The app never estimates or reconstructs a private local rank. Standings appear only when
+            the server says the cohort is large enough.
           </Text>
         </View>
       </View>
@@ -161,9 +157,7 @@ export function SocialAdventurePacksView(props: Props) {
       <View style={styles.card}>
         <Text style={styles.eyebrow}>OPT-IN COMMUNITIES</Text>
         <Text style={styles.sectionTitle}>Find a Pack</Text>
-        {props.catalog && (
-          <Text style={styles.disclaimer}>{props.catalog.locationContract}</Text>
-        )}
+        {props.catalog && <Text style={styles.disclaimer}>{props.catalog.locationContract}</Text>}
 
         {!props.catalog?.packs.length ? (
           <View style={styles.quietBox}>
@@ -270,7 +264,13 @@ const styles = StyleSheet.create({
   backButton: { alignSelf: 'flex-start', marginBottom: 10, paddingVertical: 4 },
   backButtonText: { color: colors.primary[700], fontSize: 12, fontWeight: '800' },
   eyebrow: { color: colors.primary[700], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  heroTitle: { marginTop: 5, color: colors.gray[900], fontSize: 27, lineHeight: 33, fontWeight: '800' },
+  heroTitle: {
+    marginTop: 5,
+    color: colors.gray[900],
+    fontSize: 27,
+    lineHeight: 33,
+    fontWeight: '800',
+  },
   sectionTitle: { marginTop: 3, color: colors.gray[900], fontSize: 20, fontWeight: '800' },
   body: { marginTop: 7, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
   smallCopy: { marginTop: 4, color: colors.gray[600], fontSize: 11, lineHeight: 17 },
@@ -278,26 +278,74 @@ const styles = StyleSheet.create({
   quietBox: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.gray[50] },
   quietTitle: { color: colors.gray[900], fontSize: 13, fontWeight: '800' },
   packList: { marginTop: 12, gap: 8 },
-  packRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: colors.gray[50], borderWidth: 1, borderColor: colors.gray[100] },
+  packRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.gray[50],
+    borderWidth: 1,
+    borderColor: colors.gray[100],
+  },
   packRowSelected: { borderColor: colors.primary[300], backgroundColor: colors.primary[50] },
   packOpen: { flex: 1, paddingVertical: 3 },
   packName: { color: colors.gray[900], fontSize: 14, fontWeight: '800' },
   meta: { marginTop: 2, color: colors.gray[500], fontSize: 10 },
-  badge: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primary[100] },
+  badge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.primary[100],
+  },
   badgeText: { color: colors.primary[800], fontSize: 10, fontWeight: '800' },
-  secondaryButton: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: colors.primary[200], backgroundColor: '#ffffff' },
+  secondaryButton: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+    backgroundColor: '#ffffff',
+  },
   secondaryButtonText: { color: colors.primary[800], fontSize: 10, fontWeight: '800' },
   inlineLoading: { marginTop: 14 },
   cohortCount: { marginTop: 7, color: colors.primary[800], fontSize: 12, fontWeight: '800' },
   rankList: { marginTop: 12, gap: 7 },
-  rankRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 9, borderRadius: 11, backgroundColor: colors.gray[50] },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    padding: 9,
+    borderRadius: 11,
+    backgroundColor: colors.gray[50],
+  },
   rankNumber: { width: 32, color: colors.primary[800], fontWeight: '900' },
   flex: { flex: 1 },
   handle: { color: colors.gray[900], fontSize: 13, fontWeight: '800' },
   score: { color: colors.primary[700], fontSize: 16, fontWeight: '900' },
-  fieldLabel: { marginTop: 13, marginBottom: 5, color: colors.gray[700], fontSize: 11, fontWeight: '800' },
-  input: { minHeight: 46, paddingHorizontal: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: '#ffffff', color: colors.gray[900] },
-  primaryButton: { marginTop: 14, padding: 13, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primary[600] },
+  fieldLabel: {
+    marginTop: 13,
+    marginBottom: 5,
+    color: colors.gray[700],
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  input: {
+    minHeight: 46,
+    paddingHorizontal: 12,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    backgroundColor: '#ffffff',
+    color: colors.gray[900],
+  },
+  primaryButton: {
+    marginTop: 14,
+    padding: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: colors.primary[600],
+  },
   primaryButtonText: { color: '#ffffff', fontWeight: '800' },
   disabled: { opacity: 0.55 },
   errorBox: { marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: colors.error.light },

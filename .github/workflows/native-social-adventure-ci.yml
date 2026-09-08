@@ -70,11 +70,17 @@ jobs:
       - name: Enforce native Social Adventure source contract
         run: python3 .github/scripts/assert-native-social-adventure.py
 
-      - name: Materialize the two remaining canonical component formats
+      - name: Check native Social Adventure formatting
         run: |
-          pnpm exec prettier --write \
+          pnpm exec prettier --check \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PacksScreen.tsx \
             apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
-            apps/mobile/src/components/community/SocialAdventurePacksView.tsx
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
       - name: Re-run server Social Adventure score policy tests
         run: pnpm --filter @woof/api test -- social-adventure.policy.spec.ts --runInBand
@@ -84,9 +90,3 @@ jobs:
 
       - name: Lint native client
         run: pnpm --filter @woof/mobile lint
-
-      - name: Print the exact canonical component diff
-        run: |
-          git diff --exit-code -- \
-            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
-            apps/mobile/src/components/community/SocialAdventurePacksView.tsx
