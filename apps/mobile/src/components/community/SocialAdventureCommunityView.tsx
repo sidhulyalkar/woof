@@ -2,14 +2,12 @@ import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import type {
   GlobalLeaderboard,
   SocialAdventureMe,
@@ -44,24 +42,15 @@ type Props = {
   onOpenMap: () => void;
 };
 
-function QuickLink({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-}) {
+function ActionChip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" style={styles.quickLink} onPress={onPress}>
-      <Ionicons name={icon} size={18} color={colors.primary[700]} />
-      <Text style={styles.quickLinkText}>{label}</Text>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.actionChip}>
+      <Text style={styles.actionChipText}>{label}</Text>
     </Pressable>
   );
 }
 
-function League({
+function LeagueCard({
   me,
   leaderboard,
   saving,
@@ -75,61 +64,51 @@ function League({
   const isPublic = me.preferences.globalLeaderboardOptIn;
 
   return (
-    <View style={styles.sectionCard}>
-      <View style={styles.headingRow}>
-        <View style={styles.flexCopy}>
-          <Text style={styles.eyebrow}>OPT-IN LEAGUE</Text>
-          <Text style={styles.sectionTitle}>Global human-side league</Text>
-        </View>
-        <Ionicons name="globe-outline" size={22} color={colors.primary[700]} />
-      </View>
+    <View style={styles.card}>
+      <Text style={styles.eyebrow}>OPTIONAL LEAGUE</Text>
+      <Text style={styles.sectionTitle}>Global human-side league</Text>
+      <Text style={styles.body}>
+        {isPublic
+          ? 'You are visible in the global league.'
+          : 'Your score is private by default.'}
+      </Text>
+      <Text style={styles.smallCopy}>
+        Opting in publishes your handle and Social Adventure score. Pet health, route data,
+        private notes, and practice-score magnitude stay out.
+      </Text>
 
-      <View style={styles.privacyCard}>
-        <Ionicons name="shield-checkmark-outline" size={20} color={colors.success.dark} />
-        <View style={styles.flexCopy}>
-          <Text style={styles.privacyTitle}>
-            {isPublic ? 'You are visible in the global league.' : 'Your score is private by default.'}
-          </Text>
-          <Text style={styles.privacyText}>
-            Opting in publishes your handle and Social Adventure score. Pet health, Daily Signals,
-            route data, private notes, and practice-score magnitude stay out.
-          </Text>
-          {isPublic && leaderboard.me.rank !== null && (
-            <Text style={styles.myRank}>Your server-issued rank: #{leaderboard.me.rank}</Text>
-          )}
-        </View>
-      </View>
+      {isPublic && leaderboard.me.rank !== null && (
+        <Text style={styles.rankCallout}>Your server-issued rank: #{leaderboard.me.rank}</Text>
+      )}
 
       <Pressable
         accessibilityRole="button"
         disabled={saving}
-        style={[styles.primaryAction, isPublic && styles.outlineAction, saving && styles.disabled]}
         onPress={onToggle}
+        style={[styles.primaryButton, saving && styles.disabled]}
       >
         {saving ? (
-          <ActivityIndicator color={isPublic ? colors.primary[700] : '#ffffff'} />
+          <ActivityIndicator color="#ffffff" />
         ) : (
-          <Text style={[styles.primaryActionText, isPublic && styles.outlineActionText]}>
+          <Text style={styles.primaryButtonText}>
             {isPublic ? 'Make my rank private' : 'Join global league'}
           </Text>
         )}
       </Pressable>
 
       {leaderboard.entries.length === 0 ? (
-        <View style={styles.quietCard}>
+        <View style={styles.quietBox}>
           <Text style={styles.quietTitle}>An empty podium is allowed.</Text>
-          <Text style={styles.quietText}>
-            Private-by-default means Woof does not need to manufacture a leaderboard.
+          <Text style={styles.smallCopy}>
+            Private-by-default means Woof does not manufacture a leaderboard.
           </Text>
         </View>
       ) : (
-        <View style={styles.rows}>
+        <View style={styles.rankList}>
           {leaderboard.entries.slice(0, 5).map((entry) => (
             <View key={entry.userId} style={styles.rankRow}>
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>{entry.rank}</Text>
-              </View>
-              <View style={styles.flexCopy}>
+              <Text style={styles.rankNumber}>#{entry.rank}</Text>
+              <View style={styles.flex}>
                 <Text style={styles.handle}>@{entry.handle}</Text>
                 <Text style={styles.meta}>
                   {entry.components.humanSkill.score} skill ·{' '}
@@ -141,6 +120,7 @@ function League({
           ))}
         </View>
       )}
+
       <Text style={styles.disclaimer}>{leaderboard.disclaimer}</Text>
     </View>
   );
@@ -157,44 +137,35 @@ function PostCard({
 }) {
   return (
     <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        {post.avatarUrl ? (
-          <Image source={{ uri: post.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Ionicons name="person-outline" size={19} color={colors.gray[600]} />
-          </View>
-        )}
-        <View style={styles.flexCopy}>
-          <Text style={styles.handle}>@{post.handle}</Text>
-          <Text style={styles.meta}>
-            {post.petName ? `with ${post.petName} · ` : ''}{post.kind.replace(/_/g, ' ')}
-          </Text>
-        </View>
-      </View>
-
+      <Text style={styles.handle}>@{post.handle}</Text>
+      <Text style={styles.meta}>
+        {post.petName ? `with ${post.petName} · ` : ''}
+        {post.kind.replace(/_/g, ' ')}
+      </Text>
       <Text style={styles.postTitle}>{post.headline}</Text>
-      <Text style={styles.postSummary}>{post.summary}</Text>
+      <Text style={styles.body}>{post.summary}</Text>
       {post.caption && post.caption !== post.summary && (
         <Text style={styles.caption}>{post.caption}</Text>
       )}
 
-      <View style={styles.reactions}>
+      <View style={styles.reactionRow}>
         {post.reactions.map((reaction) => {
           const busy = reactionSaving === `${post.shareId}:${reaction.reaction}`;
           return (
             <Pressable
               key={reaction.reaction}
               accessibilityRole="button"
-              accessibilityLabel={`${reaction.mine ? 'Remove' : 'Add'} ${reactionCopy[reaction.reaction]} reaction`}
+              accessibilityLabel={`${reaction.mine ? 'Remove' : 'Add'} ${reactionCopy[
+                reaction.reaction
+              ]} reaction`}
               disabled={Boolean(reactionSaving)}
-              style={[styles.reactionChip, reaction.mine && styles.reactionChipMine]}
               onPress={() => onReaction(post.shareId, reaction.reaction, reaction.mine)}
+              style={[styles.reactionChip, reaction.mine && styles.reactionChipMine]}
             >
               {busy ? (
                 <ActivityIndicator size="small" color={colors.primary[700]} />
               ) : (
-                <Text style={[styles.reactionText, reaction.mine && styles.reactionTextMine]}>
+                <Text style={styles.reactionText}>
                   {reactionCopy[reaction.reaction]}
                   {reaction.count > 0 ? ` · ${reaction.count}` : ''}
                 </Text>
@@ -203,7 +174,7 @@ function PostCard({
           );
         })}
       </View>
-      <Text style={styles.boundaryText}>Reactions build culture, not rank.</Text>
+      <Text style={styles.boundary}>Reactions build culture, not rank.</Text>
     </View>
   );
 }
@@ -226,44 +197,38 @@ export function SocialAdventureCommunityView(props: Props) {
       )}
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={styles.heroCard}>
+          <View style={styles.hero}>
             <Text style={styles.eyebrow}>SOCIAL ADVENTURE</Text>
             <Text style={styles.heroTitle}>You compete. Your dog does not.</Text>
-            <Text style={styles.bodyText}>
+            <Text style={styles.body}>
               Human Skill breadth and varied, suitable Adventures can count. Distance, repetition,
               likes, health, symptoms, exercise intensity, and missed days are worth zero league
               points.
             </Text>
 
             {me && (
-              <View style={styles.scoreCard}>
-                <View style={styles.headingRow}>
-                  <View>
-                    <Text style={styles.meta}>This week</Text>
-                    <Text style={styles.heroScore}>
-                      {me.score}
-                      <Text style={styles.scoreMax}> / {me.maxScore}</Text>
-                    </Text>
-                  </View>
-                  <Ionicons name="trophy-outline" size={25} color={colors.primary[700]} />
-                </View>
-                <Text style={styles.meta}>
+              <View style={styles.scoreBox}>
+                <Text style={styles.meta}>THIS WEEK</Text>
+                <Text style={styles.heroScore}>
+                  {me.score} / {me.maxScore}
+                </Text>
+                <Text style={styles.smallCopy}>
                   {me.components.humanSkill.score}/{me.components.humanSkill.maxScore} Human Skill ·{' '}
                   {me.components.adventureVariety.pathways.length} Adventure pathways
                 </Text>
               </View>
             )}
 
-            <View style={styles.quickLinks}>
-              <QuickLink icon="game-controller-outline" label="Skillcraft" onPress={props.onOpenSkillcraft} />
-              <QuickLink icon="people-outline" label="Packs" onPress={props.onOpenPacks} />
-              <QuickLink icon="calendar-outline" label="Events" onPress={props.onOpenEvents} />
-              <QuickLink icon="map-outline" label="Nearby" onPress={props.onOpenMap} />
+            <View style={styles.actionRow}>
+              <ActionChip label="Skillcraft" onPress={props.onOpenSkillcraft} />
+              <ActionChip label="Packs" onPress={props.onOpenPacks} />
+              <ActionChip label="Events" onPress={props.onOpenEvents} />
+              <ActionChip label="Nearby" onPress={props.onOpenMap} />
             </View>
           </View>
 
           {me && leaderboard && (
-            <League
+            <LeagueCard
               me={me}
               leaderboard={leaderboard}
               saving={props.preferenceSaving}
@@ -274,7 +239,7 @@ export function SocialAdventureCommunityView(props: Props) {
           <View style={styles.feedHeading}>
             <Text style={styles.eyebrow}>OPTIONAL SHARING</Text>
             <Text style={styles.sectionTitle}>Adventure feed</Text>
-            <Text style={styles.bodyText}>
+            <Text style={styles.body}>
               Nothing posts automatically. Shared cards are server-authored summaries, and their
               reactions never become pet labels or league points.
             </Text>
@@ -282,18 +247,16 @@ export function SocialAdventureCommunityView(props: Props) {
           </View>
 
           {props.error && (
-            <View style={styles.errorCard} accessibilityRole="alert">
-              <Ionicons name="alert-circle-outline" size={18} color={colors.error.dark} />
+            <View style={styles.errorBox} accessibilityRole="alert">
               <Text style={styles.errorText}>{props.error}</Text>
             </View>
           )}
         </View>
       }
       ListEmptyComponent={
-        <View style={styles.emptyCard}>
-          <Ionicons name="paw-outline" size={42} color={colors.primary[500]} />
+        <View style={styles.emptyBox}>
           <Text style={styles.quietTitle}>A quieter community is okay.</Text>
-          <Text style={styles.quietText}>
+          <Text style={styles.smallCopy}>
             Nothing needs to be posted for Woof to work. Skillcraft, real-world Adventures, Story,
             and ordinary time together remain the point.
           </Text>
@@ -305,72 +268,56 @@ export function SocialAdventureCommunityView(props: Props) {
 
 const styles = StyleSheet.create({
   listContent: { paddingBottom: 110 },
-  header: { padding: 14, paddingBottom: 8 },
-  heroCard: {
+  header: { padding: 14 },
+  hero: {
     padding: 18,
-    borderRadius: 24,
+    borderRadius: 22,
     backgroundColor: colors.primary[50],
     borderWidth: 1,
     borderColor: colors.primary[100],
   },
+  card: {
+    marginTop: 14,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
   eyebrow: { color: colors.primary[700], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   heroTitle: { marginTop: 5, color: colors.gray[900], fontSize: 28, lineHeight: 34, fontWeight: '800' },
   sectionTitle: { marginTop: 3, color: colors.gray[900], fontSize: 20, fontWeight: '800' },
-  bodyText: { marginTop: 7, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
-  scoreCard: { marginTop: 15, padding: 14, borderRadius: 16, backgroundColor: '#ffffff' },
-  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  heroScore: { marginTop: 2, color: colors.primary[700], fontSize: 27, fontWeight: '900' },
-  scoreMax: { color: colors.gray[500], fontSize: 13, fontWeight: '700' },
-  quickLinks: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickLink: {
-    minHeight: 42,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: colors.primary[100],
-  },
-  quickLinkText: { color: colors.primary[800], fontSize: 12, fontWeight: '800' },
-  sectionCard: { marginTop: 14, padding: 17, borderRadius: 22, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: '#ffffff' },
-  flexCopy: { flex: 1 },
-  privacyCard: { marginTop: 13, padding: 13, borderRadius: 15, backgroundColor: colors.success.light, flexDirection: 'row', gap: 9 },
-  privacyTitle: { color: colors.success.dark, fontSize: 13, fontWeight: '800' },
-  privacyText: { marginTop: 4, color: colors.success.dark, fontSize: 11, lineHeight: 17 },
-  myRank: { marginTop: 7, color: colors.success.dark, fontSize: 11, fontWeight: '800' },
-  primaryAction: { minHeight: 45, marginTop: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[600] },
-  outlineAction: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: colors.primary[300] },
-  primaryActionText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
-  outlineActionText: { color: colors.primary[800] },
+  body: { marginTop: 7, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
+  smallCopy: { marginTop: 5, color: colors.gray[600], fontSize: 11, lineHeight: 17 },
+  scoreBox: { marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: '#ffffff' },
+  heroScore: { marginTop: 2, color: colors.primary[700], fontSize: 26, fontWeight: '900' },
+  actionRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  actionChip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: '#ffffff' },
+  actionChipText: { color: colors.primary[800], fontSize: 12, fontWeight: '800' },
+  primaryButton: { marginTop: 12, padding: 12, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primary[600] },
+  primaryButtonText: { color: '#ffffff', fontWeight: '800' },
   disabled: { opacity: 0.55 },
-  quietCard: { marginTop: 13, padding: 13, borderRadius: 14, backgroundColor: colors.gray[50] },
-  quietTitle: { marginTop: 4, color: colors.gray[900], fontSize: 14, fontWeight: '800' },
-  quietText: { marginTop: 4, color: colors.gray[600], fontSize: 12, lineHeight: 18 },
-  rows: { marginTop: 13, gap: 7 },
-  rankRow: { minHeight: 58, padding: 9, borderRadius: 13, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.gray[50] },
-  rankBadge: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary[100] },
-  rankText: { color: colors.primary[800], fontSize: 12, fontWeight: '900' },
+  quietBox: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.gray[50] },
+  quietTitle: { color: colors.gray[900], fontSize: 14, fontWeight: '800' },
+  rankCallout: { marginTop: 8, color: colors.primary[800], fontSize: 12, fontWeight: '800' },
+  rankList: { marginTop: 12, gap: 7 },
+  rankRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 9, borderRadius: 11, backgroundColor: colors.gray[50] },
+  rankNumber: { width: 32, color: colors.primary[800], fontWeight: '900' },
+  flex: { flex: 1 },
   handle: { color: colors.gray[900], fontSize: 13, fontWeight: '800' },
-  meta: { marginTop: 2, color: colors.gray[600], fontSize: 10 },
-  score: { color: colors.primary[700], fontSize: 17, fontWeight: '900' },
-  disclaimer: { marginTop: 9, color: colors.gray[500], fontSize: 10, lineHeight: 15 },
-  feedHeading: { paddingHorizontal: 4, paddingTop: 25, paddingBottom: 11 },
-  errorCard: { marginTop: 10, padding: 12, borderRadius: 12, flexDirection: 'row', gap: 7, backgroundColor: colors.error.light },
-  errorText: { flex: 1, color: colors.error.dark, fontSize: 12, lineHeight: 17 },
-  postCard: { marginHorizontal: 12, marginBottom: 10, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: '#ffffff' },
-  postHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 11 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.gray[200] },
-  avatarFallback: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.gray[100] },
-  postTitle: { color: colors.gray[900], fontSize: 17, fontWeight: '800' },
-  postSummary: { marginTop: 6, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
-  caption: { marginTop: 10, padding: 11, borderRadius: 12, color: colors.gray[800], backgroundColor: colors.gray[50], fontSize: 12, lineHeight: 18 },
-  reactions: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  reactionChip: { minHeight: 34, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: colors.gray[200], alignItems: 'center', justifyContent: 'center', backgroundColor: colors.gray[50] },
+  meta: { marginTop: 2, color: colors.gray[500], fontSize: 10 },
+  score: { color: colors.primary[700], fontSize: 16, fontWeight: '900' },
+  disclaimer: { marginTop: 8, color: colors.gray[500], fontSize: 10, lineHeight: 15 },
+  feedHeading: { paddingHorizontal: 4, paddingTop: 24, paddingBottom: 9 },
+  errorBox: { marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: colors.error.light },
+  errorText: { color: colors.error.dark, fontSize: 12, lineHeight: 17 },
+  postCard: { marginHorizontal: 14, marginBottom: 10, padding: 15, borderRadius: 16, backgroundColor: '#ffffff', borderWidth: 1, borderColor: colors.gray[200] },
+  postTitle: { marginTop: 10, color: colors.gray[900], fontSize: 17, fontWeight: '800' },
+  caption: { marginTop: 9, padding: 10, borderRadius: 10, color: colors.gray[700], backgroundColor: colors.gray[50] },
+  reactionRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  reactionChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: colors.gray[200], backgroundColor: colors.gray[50] },
   reactionChipMine: { borderColor: colors.primary[300], backgroundColor: colors.primary[50] },
-  reactionText: { color: colors.gray[600], fontSize: 10, fontWeight: '700' },
-  reactionTextMine: { color: colors.primary[800] },
-  boundaryText: { marginTop: 8, color: colors.gray[400], fontSize: 9 },
-  emptyCard: { alignItems: 'center', paddingHorizontal: 38, paddingVertical: 56 },
+  reactionText: { color: colors.gray[700], fontSize: 10, fontWeight: '700' },
+  boundary: { marginTop: 8, color: colors.gray[400], fontSize: 9 },
+  emptyBox: { marginHorizontal: 14, padding: 24, borderRadius: 16, alignItems: 'center', backgroundColor: colors.gray[50] },
 });

@@ -143,9 +143,7 @@ export default function FeedScreen({ navigation }: Props) {
           void loadCommunity();
         }}
         onToggleGlobalVisibility={() => void toggleGlobalVisibility()}
-        onReaction={(shareId, reaction, remove) =>
-          void handleReaction(shareId, reaction, remove)
-        }
+        onReaction={(shareId, reaction, remove) => void handleReaction(shareId, reaction, remove)}
         onOpenSkillcraft={() => navigation.navigate('Skillcraft')}
         onOpenPacks={() => navigation.navigate('Packs')}
         onOpenEvents={() => navigation.navigate('Events')}
