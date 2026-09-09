@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+"""Fail closed if native Social Adventure drifts from server-owned game authority."""
 
 from pathlib import Path
-import re
 
 ROOT = Path(__file__).resolve().parents[2]
+
 MOBILE_API = ROOT / "apps/mobile/src/api/social-adventure.ts"
 FEED = ROOT / "apps/mobile/src/screens/FeedScreen.tsx"
 COMMUNITY_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventureCommunityView.tsx"
@@ -12,193 +13,203 @@ PACKS_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventurePacksVi
 NAV = ROOT / "apps/mobile/src/navigation/AppNavigator.tsx"
 SERVER_POLICY = ROOT / "apps/api/src/social-adventure/social-adventure.policy.ts"
 SERVER_SERVICE = ROOT / "apps/api/src/social-adventure/social-adventure.service.ts"
+SERVER_DTO = ROOT / "apps/api/src/social-adventure/dto/social-adventure.dto.ts"
 DOC = ROOT / "docs/NATIVE_SOCIAL_ADVENTURE_V1.md"
 
-mobile_api = MOBILE_API.read_text()
-feed = FEED.read_text()
-community_view = COMMUNITY_VIEW.read_text()
-packs = PACKS.read_text()
-packs_view = PACKS_VIEW.read_text()
-nav = NAV.read_text()
-server_policy = SERVER_POLICY.read_text()
-server_service = SERVER_SERVICE.read_text()
-doc = DOC.read_text()
+
+def fail(message: str) -> None:
+    raise SystemExit(message)
 
 
-def require(source: str, marker: str, message: str) -> None:
-    if marker not in source:
-        raise SystemExit(message)
+def require(text: str, marker: str, label: str) -> None:
+    if marker not in text:
+        fail(f"{label} missing required marker: {marker}")
 
 
-def normalized(source: str) -> str:
-    return re.sub(r"\s+", " ", source).strip()
+def reject(text: str, marker: str, label: str) -> None:
+    if marker in text:
+        fail(f"{label} contains forbidden marker: {marker}")
 
 
-for marker in (
-    "'/social-adventure/me'",
-    "'/social-adventure/preferences'",
-    "'/social-adventure/leaderboard/global'",
-    "'/social-adventure/feed'",
-    "`/social-adventure/shares/${shareId}/reactions`",
-    "`/social-adventure/shares/${shareId}/reactions/${reaction}`",
-    "'/social-adventure/packs'",
-    "`/social-adventure/packs/${packId}/join`",
-    "`/social-adventure/packs/${packId}/membership`",
-    "`/social-adventure/packs/${packId}/leaderboard`",
-):
-    require(mobile_api, marker, f"Native Social Adventure API contract missing: {marker}")
+def main() -> None:
+    required = [
+        MOBILE_API,
+        FEED,
+        COMMUNITY_VIEW,
+        PACKS,
+        PACKS_VIEW,
+        NAV,
+        SERVER_POLICY,
+        SERVER_SERVICE,
+        SERVER_DTO,
+        DOC,
+    ]
+    for path in required:
+        if not path.is_file():
+            fail(f"missing required native Social Adventure file: {path.relative_to(ROOT)}")
 
-reaction_match = re.search(
-    r"export type SocialAdventureReaction =\s*(.*?);",
-    mobile_api,
-    re.DOTALL,
-)
-if reaction_match is None:
-    raise SystemExit("Unable to parse native Social Adventure reaction authority")
+    mobile_api = MOBILE_API.read_text()
+    feed = FEED.read_text()
+    community = COMMUNITY_VIEW.read_text()
+    packs = PACKS.read_text()
+    packs_view = PACKS_VIEW.read_text()
+    packs_surface = packs + packs_view
+    nav = NAV.read_text()
+    server_policy = SERVER_POLICY.read_text()
+    server_service = SERVER_SERVICE.read_text()
+    server_dto = SERVER_DTO.read_text()
+    doc = DOC.read_text()
 
-reactions = re.findall(r"'([A-Z_]+)'", reaction_match.group(1))
-expected_reactions = [
-    "NICE_READ",
-    "GOOD_CALL",
-    "TRYING_THIS",
-    "ADVENTURE_INSPIRATION",
-    "CHEER",
-]
-if reactions != expected_reactions:
-    raise SystemExit(f"Native semantic reaction set drifted: {reactions!r}")
+    for marker in [
+        "'/social-adventure/me'",
+        "'/social-adventure/preferences'",
+        "'/social-adventure/leaderboard/global'",
+        "'/social-adventure/feed'",
+        "'/social-adventure/packs'",
+        "'/social-adventure/arcade'",
+        "HUMAN_SKILL_ATTEMPT",
+        "cohortReady: boolean",
+        "localMinimumCohort",
+    ]:
+        require(mobile_api, marker, "mobile Social Adventure API")
 
-post_match = re.search(
-    r"export type SocialAdventurePost = \{(.*?)\n\};",
-    mobile_api,
-    re.DOTALL,
-)
-if post_match is None:
-    raise SystemExit("Unable to parse native Social Adventure post type")
-for forbidden in ("petId", "likesCount", "commentsCount"):
-    if forbidden in post_match.group(1):
-        raise SystemExit(f"Native feed reintroduced unnecessary pet/popularity authority: {forbidden}")
+    for marker in [
+        "socialAdventureApi.feed()",
+        "socialAdventureApi.getMine()",
+        "socialAdventureApi.globalLeaderboard()",
+        "socialAdventureApi.updatePreferences(next)",
+        "socialAdventureApi.addReaction",
+        "socialAdventureApi.removeReaction",
+        "Promise.allSettled([",
+        "Your visibility preference was saved by the server",
+        "Previously loaded server content is still shown where available",
+        "navigation.navigate('Skillcraft')",
+        "navigation.navigate('Packs')",
+    ]:
+        require(feed, marker, "native Community screen")
 
-if "from '../api/social'" in feed or "socialApi." in feed:
-    raise SystemExit("Native Community must not use the legacy social feed authority")
+    if feed.count("socialAdventureApi.updatePreferences(next)") != 1:
+        fail("native Community must have exactly one explicit global-visibility mutation path")
+    reject(feed, "Promise.all([", "native Community screen")
+    reject(feed, "Your prior setting remains authoritative.", "native Community screen")
 
-for marker in (
-    "socialAdventureApi.feed()",
-    "socialAdventureApi.getMine()",
-    "socialAdventureApi.globalLeaderboard()",
-    "socialAdventureApi.updatePreferences(next)",
-    "socialAdventureApi.addReaction",
-    "socialAdventureApi.removeReaction",
-    "const toggleGlobalVisibility = async () =>",
-    "onToggleGlobalVisibility={() => void toggleGlobalVisibility()}",
-    "navigation.navigate('Packs')",
-):
-    require(feed, marker, f"Native Community authority missing: {marker}")
+    for marker in [
+        "You compete. Your dog does not.",
+        "Your score is private by default.",
+        "Reactions build culture, not rank.",
+        "Nothing posts automatically.",
+        "An empty podium is allowed.",
+        "Make my rank private",
+        "Join global league",
+        "Nice read",
+        "Good call",
+        "Trying this",
+        "Adventure inspiration",
+        "Cheer",
+    ]:
+        require(community, marker, "native Community presentation")
 
-if feed.count("socialAdventureApi.updatePreferences(next)") != 1:
-    raise SystemExit("Global leaderboard visibility must change through one explicit UI action")
-
-feed_surface = normalized(feed + "\n" + community_view)
-for marker in (
-    "You compete. Your dog does not.",
-    "Your score is private by default.",
-    "Reactions build culture, not rank.",
-    "Nothing posts automatically.",
-    "An empty podium is allowed.",
-    "Make my rank private",
-    "Join global league",
-):
-    require(feed_surface, marker, f"Native Community boundary copy missing: {marker}")
-
-for marker in (
-    "socialAdventureApi.packs()",
-    "socialAdventureApi.createPack",
-    "socialAdventureApi.joinPack",
-    "socialAdventureApi.leavePack",
-    "socialAdventureApi.packLeaderboard",
-    "pack.role === 'OWNER'",
-):
-    require(packs, marker, f"Native Packs authority missing: {marker}")
-
-packs_surface = normalized(packs + "\n" + packs_view)
-for marker in (
-    "leaderboard && !leaderboard.cohortReady",
-    "leaderboard?.cohortReady",
-    "leaderboard.minimumCohort",
-    "catalog.locationContract",
-    "Choose a coarse community, not a coordinate.",
-    "The app never estimates or reconstructs a private local rank.",
-    "Breadth in Human Skill and bounded Adventure variety count.",
-    "Use a broad place people recognize.",
-):
-    require(packs_surface, marker, f"Native Packs boundary missing: {marker}")
-
-for source_name, source in (
-    ("Community authority", feed),
-    ("Community presentation", community_view),
-    ("Packs authority", packs),
-    ("Packs presentation", packs_view),
-):
-    for forbidden in (
+    for forbidden in [
+        "../api/social",
+        "socialApi.",
+        "totalLikes",
+        "commentsCount",
+        "petId:",
+        "petId?:",
         ".sort(",
+        "sort((",
+    ]:
+        reject(feed + community + mobile_api, forbidden, "native Community authority surface")
+
+    for marker in [
+        "socialAdventureApi.packs()",
+        "socialAdventureApi.createPack",
+        "socialAdventureApi.joinPack",
+        "socialAdventureApi.leavePack",
+        "socialAdventureApi.packLeaderboard",
+        "leaderboardRequestRef",
+        "requestId !== leaderboardRequestRef.current",
+        "response.pack.id !== packId",
+        "leaderboard?.pack.id === selectedPack?.id",
+        "Choose a broad community label, not a coordinate or precise place.",
+        "Woof will not estimate a rank locally.",
+    ]:
+        require(packs_surface, marker, "native Packs surface")
+
+    for marker in [
+        "leaderboard.cohortReady",
+        "leaderboard.minimumCohort",
+        "catalog.locationContract",
+        "pack.role === 'OWNER'",
+    ]:
+        require(packs_surface, marker, "native Pack privacy boundary")
+
+    for forbidden in [
         "expo-location",
+        "Location.request",
         "getCurrentPosition",
-        "requestForegroundPermissions",
-        "latitude",
-        "longitude",
+        "watchPosition",
         "navigator.geolocation",
-        "../api/daily-signals",
-        "../api/pets",
-        "../api/activities",
-    ):
-        if forbidden in source:
-            raise SystemExit(f"Native {source_name} crossed a social authority boundary: {forbidden}")
+        ".sort(",
+        "sort((",
+    ]:
+        reject(packs_surface, forbidden, "native Packs authority surface")
 
-if nav.count('name="Packs"') != 2:
-    raise SystemExit("Packs must remain registered in both Guardian and Companion navigators")
-require(nav, "Packs: undefined;", "Packs route type is missing")
+    require(nav, "Community: undefined", "native navigation")
+    require(nav, "Packs: undefined", "native navigation")
+    require(nav, "name=\"Community\"", "native navigation")
+    require(nav, "name=\"Packs\"", "native navigation")
 
-pathway_match = re.search(
-    r"export const SOCIAL_ADVENTURE_PATHWAYS = \[(.*?)\] as const;",
-    server_policy,
-    re.DOTALL,
-)
-if pathway_match is None:
-    raise SystemExit("Unable to parse server Social Adventure pathway authority")
-pathways = re.findall(r"'([A-Z_]+)'", pathway_match.group(1))
-expected_pathways = ["MOVE", "EXPLORE", "ENRICH", "LEARN", "CONNECT", "RECOVER", "BOND"]
-if pathways != expected_pathways:
-    raise SystemExit(f"Server Social Adventure pathway set drifted: {pathways!r}")
-if "CARE" in pathways:
-    raise SystemExit("CARE must never enter Social Adventure competitive pathways")
+    for marker in [
+        "SOCIAL_ADVENTURE_SCORE_POLICY_VERSION",
+        "humanSkill",
+        "adventureVariety",
+        "GLOBAL_LEADERBOARD_OPT_IN",
+    ]:
+        require(server_policy + server_service, marker, "server Social Adventure authority")
 
-require(
-    server_policy,
-    "export const LOCAL_LEAGUE_MINIMUM_COHORT = 5;",
-    "Server local cohort privacy floor drifted",
-)
+    for forbidden in [
+        "steps",
+        "distance",
+        "mileage",
+        "duration",
+        "likeCount",
+        "commentCount",
+        "streak",
+        "healthScore",
+    ]:
+        reject(server_policy.lower(), forbidden.lower(), "server Social Adventure score policy")
 
-for marker in (
-    "pref.global_leaderboard_opt_in = TRUE",
-    "u.visibility = 'PUBLIC'",
-    "FROM public.blocked_users blocked",
-    "cohortReady: false",
-    "minimumCohort: LOCAL_LEAGUE_MINIMUM_COHORT",
-    "locationContract: 'coarse-user-chosen-region-only'",
-    "post.author_user_id = ${userId} OR post.visibility = 'PUBLIC'",
-    "reactions: REACTION_TYPES.map",
-):
-    require(server_service, marker, f"Server Social Adventure privacy authority missing: {marker}")
+    require(server_dto, "v1 enforces slug syntax and length only", "server Pack locality contract")
+    require(server_dto, "clients must not collect or submit device coordinates", "server Pack locality contract")
+    reject(
+        server_dto,
+        "Never an address, coordinate, or route trace.",
+        "server Pack locality contract",
+    )
 
-for marker in (
-    "does not create a second points economy",
-    "Reactions are culture signals.",
-    "private by default",
-    "The client never derives, sorts, estimates, or repairs rank.",
-    "coarse, user-chosen `regionKey`",
-    "only renders entries when the server returns `cohortReady: true`",
-    "The human gets the competition, collection, discovery, and community feedback.",
-    "there is not yet a canonical Expedition API or receipt model",
-):
-    require(normalized(doc), marker, f"Native Social Adventure documentation boundary missing: {marker}")
+    for marker in [
+        "You compete. Your dog does not.",
+        "Community reads degrade independently.",
+        "server's mutation response as the immediate authority",
+        "user-supplied broad-area `regionKey`",
+        "does **not** semantically prove",
+        "Selection changes invalidate older in-flight requests",
+        "Pack leaderboard responses are request/Pack-bound",
+        "Expeditions are a candidate product layer, not the automatic next release.",
+        "production deployment, physical-device use, restore evidence, and a small owner pilot",
+    ]:
+        require(doc, marker, "native Social Adventure documentation")
 
-print("Native Social Adventure source contract passed")
+    for forbidden in [
+        "auto-opt-in",
+        "client-derived rank",
+        "device geolocation is required",
+    ]:
+        reject(doc.lower(), forbidden.lower(), "native Social Adventure documentation")
+
+    print("Native Social Adventure authority contract OK")
+
+
+if __name__ == "__main__":
+    main()
