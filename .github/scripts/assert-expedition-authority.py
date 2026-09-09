@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,11 @@ def read(path: str) -> str:
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
         raise SystemExit(f"Missing {label}: {needle}")
+
+
+def require_regex(text: str, pattern: str, label: str) -> None:
+    if re.search(pattern, text, re.DOTALL) is None:
+        raise SystemExit(f"Missing {label}: pattern {pattern!r}")
 
 
 def require_count(text: str, needle: str, minimum: int, label: str) -> None:
@@ -67,10 +73,14 @@ require(
     "if (!pack || !pack.viewerJoined)",
     "non-enumerable Pack membership rejection",
 )
-require(social_module, "PackAccessService", "shared Pack authority provider")
-require(
+require_regex(
     social_module,
-    "exports: [SocialAdventureService, PackAccessService]",
+    r"providers\s*:\s*\[[^\]]*\bPackAccessService\b[^\]]*\]",
+    "shared Pack authority provider",
+)
+require_regex(
+    social_module,
+    r"exports\s*:\s*\[[^\]]*\bPackAccessService\b[^\]]*\]",
     "shared Pack authority export",
 )
 require(
