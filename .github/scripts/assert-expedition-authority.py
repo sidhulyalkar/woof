@@ -12,6 +12,12 @@ def require(text: str, needle: str, label: str) -> None:
         raise SystemExit(f"Missing {label}: {needle}")
 
 
+def require_count(text: str, needle: str, minimum: int, label: str) -> None:
+    count = text.count(needle)
+    if count < minimum:
+        raise SystemExit(f"Missing {label}: expected >= {minimum} occurrences of {needle!r}, found {count}")
+
+
 def forbid(text: str, needle: str, label: str) -> None:
     if needle in text:
         raise SystemExit(f"Forbidden {label}: {needle}")
@@ -108,7 +114,9 @@ for cap in [
 ]:
     require(policy, cap, "bounded contribution policy")
 
-# Canonical evidence, deterministic bounded ranking, and idempotent reconciliation.
+# Canonical evidence, incremental reconciliation, deterministic bounded ranking, and
+# idempotent receipt issuance. Both Global and Pack paths must preserve already-issued
+# allowances so neither repeated reads nor Pack rejoin can reset a seasonal cap.
 require(service, "event.source = 'QUEST_ENGINE'", "canonical Adventure source")
 require(service, "event.event_type LIKE 'QUEST_%'", "canonical Adventure event family")
 require(
@@ -123,17 +131,29 @@ for challenge in [
     "'MARKER_TIMING'",
 ]:
     require(service, challenge, "canonical Human Skill allowlist")
-require(service, "category_rank <= 2", "Global CareEvent category cap")
-require(service, "category_rank = 1", "Global Human Skill breadth cap")
-require(
+require_count(
+    service,
+    "COALESCE(issued.issued_count, 0)",
+    4,
+    "issued-cap accounting across Global and Pack materializers",
+)
+require_count(
     service,
     "category_rank + issued_count <= 2",
-    "Pack CareEvent rejoin-safe cap",
+    2,
+    "CareEvent cap across Global and Pack materializers",
 )
-require(
+require_count(
     service,
     "category_rank + issued_count <= 1",
-    "Pack Human Skill rejoin-safe cap",
+    2,
+    "Human Skill cap across Global and Pack materializers",
+)
+require_count(
+    service,
+    "AND NOT EXISTS (",
+    4,
+    "already-receipted source exclusion across materializers",
 )
 require(service, "ON CONFLICT DO NOTHING", "idempotent receipt materialization")
 require(service, "target: null", "uncalibrated target contract")
