@@ -123,7 +123,12 @@ describe('ExpeditionsService integration', () => {
     const evidenceAt = new Date(season.startsAt.getTime() + 6 * 60 * 60 * 1000);
 
     for (let index = 0; index < 3; index += 1) {
-      await insertCareEvent(userId, 'EXPLORE', new Date(evidenceAt.getTime() + index * 1000), index);
+      await insertCareEvent(
+        userId,
+        'EXPLORE',
+        new Date(evidenceAt.getTime() + index * 1000),
+        index
+      );
       await insertCareEvent(
         userId,
         'ENRICH',
@@ -232,7 +237,12 @@ describe('ExpeditionsService integration', () => {
     `);
     await insertCareEvent(memberId, 'ENRICH', new Date(rejoinedAt.getTime() + 60_000), 1);
     await insertCareEvent(memberId, 'ENRICH', new Date(rejoinedAt.getTime() + 120_000), 2);
-    await insertHumanSkill(memberId, 'MAKE_IT_EASIER', new Date(rejoinedAt.getTime() + 180_000), 100);
+    await insertHumanSkill(
+      memberId,
+      'MAKE_IT_EASIER',
+      new Date(rejoinedAt.getTime() + 180_000),
+      100
+    );
 
     const afterRejoin = await service.getPack(ownerId, packId);
     expect(objective(afterRejoin, 'SNIFF_EXPLORE').total).toBe(3);
