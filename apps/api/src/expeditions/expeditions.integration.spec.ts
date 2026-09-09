@@ -123,9 +123,24 @@ describe('ExpeditionsService integration', () => {
     const evidenceAt = new Date(season.startsAt.getTime() + 6 * 60 * 60 * 1000);
 
     for (let index = 0; index < 3; index += 1) {
-      await insertCareEvent(userId, 'EXPLORE', new Date(evidenceAt.getTime() + index * 1000), index);
-      await insertCareEvent(userId, 'ENRICH', new Date(evidenceAt.getTime() + 10_000 + index * 1000), index);
-      await insertCareEvent(userId, 'RECOVER', new Date(evidenceAt.getTime() + 20_000 + index * 1000), index);
+      await insertCareEvent(
+        userId,
+        'EXPLORE',
+        new Date(evidenceAt.getTime() + index * 1000),
+        index
+      );
+      await insertCareEvent(
+        userId,
+        'ENRICH',
+        new Date(evidenceAt.getTime() + 10_000 + index * 1000),
+        index
+      );
+      await insertCareEvent(
+        userId,
+        'RECOVER',
+        new Date(evidenceAt.getTime() + 20_000 + index * 1000),
+        index
+      );
     }
     await insertCareEvent(userId, 'CARE', new Date(evidenceAt.getTime() + 30_000), 0);
 
