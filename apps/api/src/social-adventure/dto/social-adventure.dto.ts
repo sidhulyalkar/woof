@@ -66,7 +66,8 @@ export class CreatePackDto {
 
   @ApiProperty({
     example: 'south-bay-ca',
-    description: 'Coarse, user-chosen locality key. Never an address, coordinate, or route trace.',
+    description:
+      'User-supplied broad-area locality label. v1 enforces slug syntax and length only; clients must not collect or submit device coordinates, street addresses, precise venues, or route traces.',
   })
   @IsString()
   @MinLength(2)
