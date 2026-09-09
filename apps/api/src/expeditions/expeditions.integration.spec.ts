@@ -156,7 +156,7 @@ describe('ExpeditionsService integration', () => {
     expect(careRows[0]?.count).toBe(0);
   });
 
-  it('requires ACTIVE Pack membership, rejects pre-join evidence, and preserves issued history after leave', async () => {
+  it('requires ACTIVE Pack membership and keeps season caps across leave and rejoin', async () => {
     const ownerId = await createUser('pack-owner');
     const memberId = await createUser('pack-member');
     const formerMemberId = await createUser('pack-former');
@@ -188,12 +188,14 @@ describe('ExpeditionsService integration', () => {
     await insertCareEvent(memberId, 'ENRICH', afterJoin, 0);
     await insertCareEvent(formerMemberId, 'EXPLORE', afterJoin, 0);
     await insertCareEvent(outsiderId, 'EXPLORE', afterJoin, 0);
+    await insertHumanSkill(memberId, 'MAKE_IT_EASIER', new Date(afterJoin.getTime() + 60_000), 1);
 
     await expect(service.getPack(outsiderId, packId)).rejects.toThrow('Pack not found');
 
     const packProjection = await service.getPack(ownerId, packId);
     expect(objective(packProjection, 'SNIFF_EXPLORE').total).toBe(2);
     expect(objective(packProjection, 'SNIFF_EXPLORE').myContribution).toBe(1);
+    expect(objective(packProjection, 'READ_THE_ROOM').total).toBe(1);
 
     await Promise.all(Array.from({ length: 5 }, () => service.getPack(ownerId, packId)));
     const beforeLeaveRows = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
@@ -201,7 +203,7 @@ describe('ExpeditionsService integration', () => {
       FROM dogos_social.expedition_receipts
       WHERE scope = 'PACK' AND pack_id = ${packId}
     `);
-    expect(beforeLeaveRows[0]?.count).toBe(2);
+    expect(beforeLeaveRows[0]?.count).toBe(3);
 
     await prisma.$executeRaw(Prisma.sql`
       UPDATE dogos_social.pack_memberships
@@ -210,6 +212,52 @@ describe('ExpeditionsService integration', () => {
     `);
     const afterLeave = await service.getPack(ownerId, packId);
     expect(objective(afterLeave, 'SNIFF_EXPLORE').total).toBe(2);
+    expect(objective(afterLeave, 'READ_THE_ROOM').total).toBe(1);
+
+    const rejoinedAt = new Date(afterJoin.getTime() + 2 * 60 * 60 * 1000);
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE dogos_social.pack_memberships
+      SET status = 'ACTIVE', joined_at = ${rejoinedAt}
+      WHERE pack_id = ${packId} AND user_id = ${memberId}
+    `);
+
+    for (let index = 0; index < 3; index += 1) {
+      await insertCareEvent(
+        memberId,
+        'ENRICH',
+        new Date(rejoinedAt.getTime() + 60_000 + index * 1000),
+        10 + index
+      );
+    }
+    await insertHumanSkill(
+      memberId,
+      'MAKE_IT_EASIER',
+      new Date(rejoinedAt.getTime() + 2 * 60_000),
+      100
+    );
+
+    const afterRejoin = await service.getPack(ownerId, packId);
+    expect(objective(afterRejoin, 'SNIFF_EXPLORE').total).toBe(3);
+    expect(objective(afterRejoin, 'READ_THE_ROOM').total).toBe(1);
+
+    const memberCategoryRows = await prisma.$queryRaw<
+      Array<{ sourceType: string; categoryKey: string; count: number }>
+    >(Prisma.sql`
+      SELECT
+        source_type AS "sourceType",
+        category_key AS "categoryKey",
+        COUNT(*)::int AS count
+      FROM dogos_social.expedition_receipts
+      WHERE scope = 'PACK'
+        AND pack_id = ${packId}
+        AND user_id = ${memberId}
+      GROUP BY source_type, category_key
+      ORDER BY source_type, category_key
+    `);
+    expect(memberCategoryRows).toEqual([
+      { sourceType: 'CARE_EVENT', categoryKey: 'ENRICH', count: 2 },
+      { sourceType: 'HUMAN_SKILL_ATTEMPT', categoryKey: 'MAKE_IT_EASIER', count: 1 },
+    ]);
 
     const receipt = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT id
