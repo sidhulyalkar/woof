@@ -171,8 +171,7 @@ export default function PacksScreen({ navigation }: Props) {
     }
   };
 
-  const selectedLeaderboard =
-    leaderboard?.pack.id === selectedPack?.id ? leaderboard : null;
+  const selectedLeaderboard = leaderboard?.pack.id === selectedPack?.id ? leaderboard : null;
 
   if (loading) {
     return (
