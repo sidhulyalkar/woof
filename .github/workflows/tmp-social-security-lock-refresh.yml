@@ -27,6 +27,8 @@ jobs:
           cache: pnpm
       - name: Regenerate lockfile with repository pnpm authority
         run: pnpm install --lockfile-only --no-frozen-lockfile
+      - name: Materialize regenerated graph without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify production advisory policy
         run: |
           set +e
