@@ -29,6 +29,8 @@ jobs:
         run: pnpm install --lockfile-only --no-frozen-lockfile
       - name: Materialize regenerated graph without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Canonicalize focused native presentation file
+        run: pnpm exec prettier --write apps/mobile/src/screens/PacksScreen.tsx
       - name: Verify production advisory policy
         run: |
           set +e
@@ -41,14 +43,14 @@ jobs:
           fi
           echo "pnpm audit raw exit status: ${audit_status}"
           python .github/scripts/assert-pnpm-audit-policy.py /tmp/pnpm-audit.json .github/security-audit-exceptions.json
-      - name: Commit canonical lockfile when changed
+      - name: Commit canonical files when changed
         run: |
-          if git diff --quiet -- pnpm-lock.yaml; then
-            echo 'Lockfile already canonical.'
+          if git diff --quiet -- pnpm-lock.yaml apps/mobile/src/screens/PacksScreen.tsx; then
+            echo 'Lockfile and PacksScreen are already canonical.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pnpm-lock.yaml
-          git commit -m 'Regenerate narrow security lockfile'
+          git add pnpm-lock.yaml apps/mobile/src/screens/PacksScreen.tsx
+          git commit -m 'Canonicalize security graph and Packs presentation'
           git push
