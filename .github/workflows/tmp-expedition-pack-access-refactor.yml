@@ -100,7 +100,7 @@ jobs:
       - name: Canonicalize refactored file
         run: pnpm exec prettier --write apps/api/src/social-adventure/social-adventure.service.ts
 
-      - name: Commit only the intended refactor
+      - name: Commit only the intended refactor on latest branch head
         run: |
           changed="$(git diff --name-only)"
           if [[ -z "$changed" ]]; then
@@ -116,4 +116,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add apps/api/src/social-adventure/social-adventure.service.ts
           git commit -m 'Reuse shared Pack access authority in Social Adventure'
-          git push
+          git fetch origin agent/expedition-authority-v1
+          git rebase origin/agent/expedition-authority-v1
+          git push origin HEAD:agent/expedition-authority-v1
