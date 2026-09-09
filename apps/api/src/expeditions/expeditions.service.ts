@@ -107,173 +107,233 @@ export class ExpeditionsService {
 
   private async materializeGlobalCareReceipts(season: ExpeditionSeason) {
     await this.prisma.$executeRaw(Prisma.sql`
-      WITH ranked AS (
-        SELECT
-          event.id,
-          event.user_id,
-          event.pathway,
-          event.occurred_at,
-          ROW_NUMBER() OVER (
-            PARTITION BY event.user_id, event.pathway
-            ORDER BY event.occurred_at ASC, event.id ASC
-          ) AS category_rank
-        FROM public.care_events event
-        WHERE event.occurred_at >= ${season.startsAt}
-          AND event.occurred_at < ${season.endsAt}
-          AND event.source = 'QUEST_ENGINE'
-          AND event.event_type LIKE 'QUEST_%'
-          AND event.pathway IN ('EXPLORE', 'ENRICH', 'RECOVER')
-      ), eligible AS (
-        SELECT
-          id,
-          user_id,
-          pathway,
-          occurred_at,
-          CASE
-            WHEN pathway IN ('EXPLORE', 'ENRICH') THEN 'SNIFF_EXPLORE'
-            ELSE 'RECOVERY_COUNTS'
-          END AS objective_key
-        FROM ranked
-        WHERE category_rank <= 2
-      ), prepared AS (
-        SELECT
-          *,
-          concat_ws(
-            '|',
-            ${EXPEDITION_KEY},
-            ${EXPEDITION_VERSION},
-            ${season.key},
-            ${EXPEDITION_POLICY_VERSION},
-            'GLOBAL',
-            objective_key,
-            'CARE_EVENT',
-            id
-          ) AS identity
-        FROM eligible
-      ), fingerprinted AS (
-        SELECT
-          *,
-          md5(identity) || md5('expedition-v1|' || identity) AS fingerprint
-        FROM prepared
-      )
-      INSERT INTO dogos_social.expedition_receipts (
-        id,
-        expedition_key,
-        expedition_version,
-        season_key,
-        policy_version,
-        scope,
-        pack_id,
-        user_id,
-        source_type,
-        source_id,
-        objective_key,
-        category_key,
-        pathway,
-        source_fingerprint,
-        evidence_at
-      )
+    WITH issued AS (
       SELECT
-        'exp:' || fingerprint,
-        ${EXPEDITION_KEY},
-        ${EXPEDITION_VERSION},
-        ${season.key},
-        ${EXPEDITION_POLICY_VERSION},
-        'GLOBAL',
-        NULL,
-        user_id,
-        'CARE_EVENT',
+        receipt.user_id,
+        receipt.category_key,
+        COUNT(*)::int AS issued_count
+      FROM dogos_social.expedition_receipts receipt
+      WHERE receipt.expedition_key = ${EXPEDITION_KEY}
+        AND receipt.expedition_version = ${EXPEDITION_VERSION}
+        AND receipt.season_key = ${season.key}
+        AND receipt.policy_version = ${EXPEDITION_POLICY_VERSION}
+        AND receipt.scope = 'GLOBAL'
+        AND receipt.pack_id IS NULL
+        AND receipt.source_type = 'CARE_EVENT'
+      GROUP BY receipt.user_id, receipt.category_key
+    ), ranked AS (
+      SELECT
+        event.id,
+        event.user_id,
+        event.pathway,
+        event.occurred_at,
+        COALESCE(issued.issued_count, 0) AS issued_count,
+        ROW_NUMBER() OVER (
+          PARTITION BY event.user_id, event.pathway
+          ORDER BY event.occurred_at ASC, event.id ASC
+        ) AS category_rank
+      FROM public.care_events event
+      LEFT JOIN issued
+        ON issued.user_id = event.user_id
+       AND issued.category_key = event.pathway
+      WHERE event.occurred_at >= ${season.startsAt}
+        AND event.occurred_at < ${season.endsAt}
+        AND event.source = 'QUEST_ENGINE'
+        AND event.event_type LIKE 'QUEST_%'
+        AND event.pathway IN ('EXPLORE', 'ENRICH', 'RECOVER')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dogos_social.expedition_receipts existing
+          WHERE existing.expedition_key = ${EXPEDITION_KEY}
+            AND existing.expedition_version = ${EXPEDITION_VERSION}
+            AND existing.season_key = ${season.key}
+            AND existing.policy_version = ${EXPEDITION_POLICY_VERSION}
+            AND existing.scope = 'GLOBAL'
+            AND existing.pack_id IS NULL
+            AND existing.source_type = 'CARE_EVENT'
+            AND existing.source_id = event.id
+        )
+    ), eligible AS (
+      SELECT
         id,
-        objective_key,
+        user_id,
         pathway,
-        pathway,
-        fingerprint,
-        occurred_at
-      FROM fingerprinted
-      ON CONFLICT DO NOTHING
-    `);
+        occurred_at,
+        CASE
+          WHEN pathway IN ('EXPLORE', 'ENRICH') THEN 'SNIFF_EXPLORE'
+          ELSE 'RECOVERY_COUNTS'
+        END AS objective_key
+      FROM ranked
+      WHERE category_rank + issued_count <= 2
+    ), prepared AS (
+      SELECT
+        *,
+        concat_ws(
+          '|',
+          ${EXPEDITION_KEY},
+          ${EXPEDITION_VERSION},
+          ${season.key},
+          ${EXPEDITION_POLICY_VERSION},
+          'GLOBAL',
+          objective_key,
+          'CARE_EVENT',
+          id
+        ) AS identity
+      FROM eligible
+    ), fingerprinted AS (
+      SELECT
+        *,
+        md5(identity) || md5('expedition-v1|' || identity) AS fingerprint
+      FROM prepared
+    )
+    INSERT INTO dogos_social.expedition_receipts (
+      id,
+      expedition_key,
+      expedition_version,
+      season_key,
+      policy_version,
+      scope,
+      pack_id,
+      user_id,
+      source_type,
+      source_id,
+      objective_key,
+      category_key,
+      pathway,
+      source_fingerprint,
+      evidence_at
+    )
+    SELECT
+      'exp:' || fingerprint,
+      ${EXPEDITION_KEY},
+      ${EXPEDITION_VERSION},
+      ${season.key},
+      ${EXPEDITION_POLICY_VERSION},
+      'GLOBAL',
+      NULL,
+      user_id,
+      'CARE_EVENT',
+      id,
+      objective_key,
+      pathway,
+      pathway,
+      fingerprint,
+      occurred_at
+    FROM fingerprinted
+    ON CONFLICT DO NOTHING
+  `);
   }
 
   private async materializeGlobalHumanSkillReceipts(season: ExpeditionSeason) {
     await this.prisma.$executeRaw(Prisma.sql`
-      WITH ranked AS (
-        SELECT
-          attempt.id,
-          attempt.user_id,
-          attempt.challenge_key,
-          attempt.completed_at,
-          ROW_NUMBER() OVER (
-            PARTITION BY attempt.user_id, attempt.challenge_key
-            ORDER BY attempt.completed_at ASC, attempt.id ASC
-          ) AS category_rank
-        FROM dogos_social.human_skill_attempts attempt
-        WHERE attempt.completed_at >= ${season.startsAt}
-          AND attempt.completed_at < ${season.endsAt}
-          AND attempt.challenge_key IN (
-            'MAKE_IT_EASIER',
-            'CATCH_THE_GOOD',
-            'PAIRING_LAB',
-            'MARKER_TIMING'
-          )
-      ), eligible AS (
-        SELECT * FROM ranked WHERE category_rank = 1
-      ), prepared AS (
-        SELECT
-          *,
-          concat_ws(
-            '|',
-            ${EXPEDITION_KEY},
-            ${EXPEDITION_VERSION},
-            ${season.key},
-            ${EXPEDITION_POLICY_VERSION},
-            'GLOBAL',
-            'READ_THE_ROOM',
-            'HUMAN_SKILL_ATTEMPT',
-            id
-          ) AS identity
-        FROM eligible
-      ), fingerprinted AS (
-        SELECT
-          *,
-          md5(identity) || md5('expedition-v1|' || identity) AS fingerprint
-        FROM prepared
-      )
-      INSERT INTO dogos_social.expedition_receipts (
-        id,
-        expedition_key,
-        expedition_version,
-        season_key,
-        policy_version,
-        scope,
-        pack_id,
-        user_id,
-        source_type,
-        source_id,
-        objective_key,
-        category_key,
-        pathway,
-        source_fingerprint,
-        evidence_at
-      )
+    WITH issued AS (
       SELECT
-        'exp:' || fingerprint,
-        ${EXPEDITION_KEY},
-        ${EXPEDITION_VERSION},
-        ${season.key},
-        ${EXPEDITION_POLICY_VERSION},
-        'GLOBAL',
-        NULL,
-        user_id,
-        'HUMAN_SKILL_ATTEMPT',
-        id,
-        'READ_THE_ROOM',
-        challenge_key,
-        NULL,
-        fingerprint,
-        completed_at
-      FROM fingerprinted
-      ON CONFLICT DO NOTHING
-    `);
+        receipt.user_id,
+        receipt.category_key,
+        COUNT(*)::int AS issued_count
+      FROM dogos_social.expedition_receipts receipt
+      WHERE receipt.expedition_key = ${EXPEDITION_KEY}
+        AND receipt.expedition_version = ${EXPEDITION_VERSION}
+        AND receipt.season_key = ${season.key}
+        AND receipt.policy_version = ${EXPEDITION_POLICY_VERSION}
+        AND receipt.scope = 'GLOBAL'
+        AND receipt.pack_id IS NULL
+        AND receipt.source_type = 'HUMAN_SKILL_ATTEMPT'
+      GROUP BY receipt.user_id, receipt.category_key
+    ), ranked AS (
+      SELECT
+        attempt.id,
+        attempt.user_id,
+        attempt.challenge_key,
+        attempt.completed_at,
+        COALESCE(issued.issued_count, 0) AS issued_count,
+        ROW_NUMBER() OVER (
+          PARTITION BY attempt.user_id, attempt.challenge_key
+          ORDER BY attempt.completed_at ASC, attempt.id ASC
+        ) AS category_rank
+      FROM dogos_social.human_skill_attempts attempt
+      LEFT JOIN issued
+        ON issued.user_id = attempt.user_id
+       AND issued.category_key = attempt.challenge_key
+      WHERE attempt.completed_at >= ${season.startsAt}
+        AND attempt.completed_at < ${season.endsAt}
+        AND attempt.challenge_key IN (
+          'MAKE_IT_EASIER',
+          'CATCH_THE_GOOD',
+          'PAIRING_LAB',
+          'MARKER_TIMING'
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dogos_social.expedition_receipts existing
+          WHERE existing.expedition_key = ${EXPEDITION_KEY}
+            AND existing.expedition_version = ${EXPEDITION_VERSION}
+            AND existing.season_key = ${season.key}
+            AND existing.policy_version = ${EXPEDITION_POLICY_VERSION}
+            AND existing.scope = 'GLOBAL'
+            AND existing.pack_id IS NULL
+            AND existing.source_type = 'HUMAN_SKILL_ATTEMPT'
+            AND existing.source_id = attempt.id
+        )
+    ), eligible AS (
+      SELECT * FROM ranked WHERE category_rank + issued_count <= 1
+    ), prepared AS (
+      SELECT
+        *,
+        concat_ws(
+          '|',
+          ${EXPEDITION_KEY},
+          ${EXPEDITION_VERSION},
+          ${season.key},
+          ${EXPEDITION_POLICY_VERSION},
+          'GLOBAL',
+          'READ_THE_ROOM',
+          'HUMAN_SKILL_ATTEMPT',
+          id
+        ) AS identity
+      FROM eligible
+    ), fingerprinted AS (
+      SELECT
+        *,
+        md5(identity) || md5('expedition-v1|' || identity) AS fingerprint
+      FROM prepared
+    )
+    INSERT INTO dogos_social.expedition_receipts (
+      id,
+      expedition_key,
+      expedition_version,
+      season_key,
+      policy_version,
+      scope,
+      pack_id,
+      user_id,
+      source_type,
+      source_id,
+      objective_key,
+      category_key,
+      pathway,
+      source_fingerprint,
+      evidence_at
+    )
+    SELECT
+      'exp:' || fingerprint,
+      ${EXPEDITION_KEY},
+      ${EXPEDITION_VERSION},
+      ${season.key},
+      ${EXPEDITION_POLICY_VERSION},
+      'GLOBAL',
+      NULL,
+      user_id,
+      'HUMAN_SKILL_ATTEMPT',
+      id,
+      'READ_THE_ROOM',
+      challenge_key,
+      NULL,
+      fingerprint,
+      completed_at
+    FROM fingerprinted
+    ON CONFLICT DO NOTHING
+  `);
   }
 
   private async materializePackCareReceipts(packId: string, season: ExpeditionSeason) {
