@@ -1,0 +1,52 @@
+name: Temporary Social Security Lock Refresh
+
+on:
+  push:
+    branches:
+      - agent/tmp-social-security-lock-refresh
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-24.04
+    env:
+      NODE_VERSION: 20.20.2
+      PNPM_VERSION: 8.15.1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Regenerate lockfile with repository pnpm authority
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+      - name: Verify production advisory policy
+        run: |
+          set +e
+          pnpm audit --prod --json > /tmp/pnpm-audit.json
+          audit_status=$?
+          set -e
+          if [[ ! -s /tmp/pnpm-audit.json ]]; then
+            echo 'pnpm audit produced no machine-readable evidence.' >&2
+            exit 1
+          fi
+          echo "pnpm audit raw exit status: ${audit_status}"
+          python .github/scripts/assert-pnpm-audit-policy.py /tmp/pnpm-audit.json .github/security-audit-exceptions.json
+      - name: Commit canonical lockfile when changed
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo 'Lockfile already canonical.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pnpm-lock.yaml
+          git commit -m 'Regenerate narrow security lockfile'
+          git push
