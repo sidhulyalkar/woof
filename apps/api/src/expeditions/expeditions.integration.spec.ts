@@ -123,12 +123,7 @@ describe('ExpeditionsService integration', () => {
     const evidenceAt = new Date(season.startsAt.getTime() + 6 * 60 * 60 * 1000);
 
     for (let index = 0; index < 3; index += 1) {
-      await insertCareEvent(
-        userId,
-        'EXPLORE',
-        new Date(evidenceAt.getTime() + index * 1000),
-        index
-      );
+      await insertCareEvent(userId, 'EXPLORE', new Date(evidenceAt.getTime() + index * 1000), index);
       await insertCareEvent(
         userId,
         'ENRICH',
@@ -235,21 +230,9 @@ describe('ExpeditionsService integration', () => {
       SET status = 'ACTIVE', joined_at = ${rejoinedAt}
       WHERE pack_id = ${packId} AND user_id = ${memberId}
     `);
-
-    for (let index = 0; index < 3; index += 1) {
-      await insertCareEvent(
-        memberId,
-        'ENRICH',
-        new Date(rejoinedAt.getTime() + 60_000 + index * 1000),
-        10 + index
-      );
-    }
-    await insertHumanSkill(
-      memberId,
-      'MAKE_IT_EASIER',
-      new Date(rejoinedAt.getTime() + 2 * 60_000),
-      100
-    );
+    await insertCareEvent(memberId, 'ENRICH', new Date(rejoinedAt.getTime() + 60_000), 1);
+    await insertCareEvent(memberId, 'ENRICH', new Date(rejoinedAt.getTime() + 120_000), 2);
+    await insertHumanSkill(memberId, 'MAKE_IT_EASIER', new Date(rejoinedAt.getTime() + 180_000), 100);
 
     const afterRejoin = await service.getPack(ownerId, packId);
     expect(objective(afterRejoin, 'SNIFF_EXPLORE').total).toBe(3);
@@ -284,7 +267,7 @@ describe('ExpeditionsService integration', () => {
     await expect(
       prisma.$executeRaw(Prisma.sql`
         UPDATE dogos_social.expedition_receipts
-        SET category_key = 'ENRICH'
+        SET authorized_at = authorized_at + INTERVAL '1 second'
         WHERE id = ${receipt[0]?.id}
       `)
     ).rejects.toThrow();
