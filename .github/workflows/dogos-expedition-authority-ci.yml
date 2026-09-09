@@ -1,0 +1,249 @@
+name: dogOS Expedition Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/expeditions/**'
+      - 'apps/api/src/social-adventure/pack-access.service.ts'
+      - 'apps/api/src/social-adventure/social-adventure.module.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - 'apps/api/src/adventure/pack-challenges.service.ts'
+      - 'apps/api/src/adventure/pack-challenges.controller.ts'
+      - 'apps/api/src/adventure/adventure.module.ts'
+      - 'packages/database/prisma/migrations/20260909181500_add_expedition_authority_v1/**'
+      - '.github/scripts/assert-expedition-authority.py'
+      - '.github/workflows/dogos-expedition-authority-ci.yml'
+      - '.github/workflows/dogos-social-adventure-ci.yml'
+      - 'docs/EXPEDITION_AUTHORITY_V1.md'
+      - 'docs/WOOF_ADVENTURE_SYSTEM.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-expedition-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Expedition receipt + membership authority
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-expedition-authority-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Enforce Expedition source authority contract
+        run: python .github/scripts/assert-expedition-authority.py
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Apply canonical migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Prove Prisma-managed schema remains converged
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Prove Expedition receipt database invariants
+        run: |
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users (id, handle, email, created_at, updated_at)
+          VALUES ('expedition-ci-user', 'expedition_ci_user', 'expedition-ci@example.test', NOW(), NOW());
+
+          INSERT INTO dogos_social.packs (
+            id, owner_user_id, name, slug, scope, region_key, visibility
+          ) VALUES (
+            'expedition-ci-pack',
+            'expedition-ci-user',
+            'Expedition CI Pack',
+            'expedition-ci-pack',
+            'LOCAL',
+            'ci-region',
+            'PUBLIC'
+          );
+
+          INSERT INTO dogos_social.expedition_receipts (
+            id,
+            expedition_key,
+            expedition_version,
+            season_key,
+            policy_version,
+            scope,
+            pack_id,
+            user_id,
+            source_type,
+            source_id,
+            objective_key,
+            category_key,
+            pathway,
+            source_fingerprint,
+            evidence_at
+          ) VALUES (
+            'expedition-ci-global',
+            'shared-world',
+            'v1',
+            'week:2026-09-07',
+            'expedition-authority-v1',
+            'GLOBAL',
+            NULL,
+            'expedition-ci-user',
+            'CARE_EVENT',
+            'expedition-ci-source-global',
+            'SNIFF_EXPLORE',
+            'EXPLORE',
+            'EXPLORE',
+            repeat('a', 64),
+            NOW()
+          );
+
+          INSERT INTO dogos_social.expedition_receipts (
+            id,
+            expedition_key,
+            expedition_version,
+            season_key,
+            policy_version,
+            scope,
+            pack_id,
+            user_id,
+            source_type,
+            source_id,
+            objective_key,
+            category_key,
+            pathway,
+            source_fingerprint,
+            evidence_at
+          ) VALUES (
+            'expedition-ci-pack-receipt',
+            'shared-world',
+            'v1',
+            'week:2026-09-07',
+            'expedition-authority-v1',
+            'PACK',
+            'expedition-ci-pack',
+            'expedition-ci-user',
+            'HUMAN_SKILL_ATTEMPT',
+            'expedition-ci-source-pack',
+            'READ_THE_ROOM',
+            'MAKE_IT_EASIER',
+            NULL,
+            repeat('b', 64),
+            NOW()
+          );
+          SQL
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE dogos_social.expedition_receipts SET category_key = 'ENRICH' WHERE id = 'expedition-ci-global';"
+          then
+            echo 'Issued Expedition receipt unexpectedly mutated.' >&2
+            exit 1
+          fi
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO dogos_social.expedition_receipts (id, expedition_key, expedition_version, season_key, policy_version, scope, pack_id, user_id, source_type, source_id, objective_key, category_key, pathway, source_fingerprint, evidence_at) VALUES ('expedition-ci-invalid-scope', 'shared-world', 'v1', 'week:2026-09-07', 'expedition-authority-v1', 'PACK', NULL, 'expedition-ci-user', 'CARE_EVENT', 'bad-scope', 'SNIFF_EXPLORE', 'EXPLORE', 'EXPLORE', repeat('c', 64), NOW());"
+          then
+            echo 'PACK receipt without pack_id unexpectedly passed scope-shape authority.' >&2
+            exit 1
+          fi
+
+          if psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO dogos_social.expedition_receipts (id, expedition_key, expedition_version, season_key, policy_version, scope, pack_id, user_id, source_type, source_id, objective_key, category_key, pathway, source_fingerprint, evidence_at) VALUES ('expedition-ci-care', 'shared-world', 'v1', 'week:2026-09-07', 'expedition-authority-v1', 'GLOBAL', NULL, 'expedition-ci-user', 'CARE_EVENT', 'care-source', 'SNIFF_EXPLORE', 'CARE', 'CARE', repeat('d', 64), NOW());"
+          then
+            echo 'CARE unexpectedly entered Expedition receipt authority.' >&2
+            exit 1
+          fi
+
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM dogos_social.packs WHERE id = 'expedition-ci-pack';"
+          pack_receipts="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.expedition_receipts WHERE id = 'expedition-ci-pack-receipt';")"
+          test "${pack_receipts}" = '0'
+
+          psql -h localhost -U postgres -d woof_test -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM users WHERE id = 'expedition-ci-user';"
+          global_receipts="$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.expedition_receipts WHERE id = 'expedition-ci-global';")"
+          test "${global_receipts}" = '0'
+
+      - name: Check Expedition formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/expeditions
+          apps/api/src/social-adventure/pack-access.service.ts
+          apps/api/src/social-adventure/social-adventure.module.ts
+          apps/api/src/social-adventure/social-adventure.service.ts
+          apps/api/src/adventure/pack-challenges.service.ts
+          apps/api/src/adventure/pack-challenges.controller.ts
+          apps/api/src/adventure/adventure.module.ts
+          .github/workflows/dogos-expedition-authority-ci.yml
+          .github/workflows/dogos-social-adventure-ci.yml
+          docs/EXPEDITION_AUTHORITY_V1.md
+          docs/WOOF_ADVENTURE_SYSTEM.md
+
+      - name: Lint Expedition API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/expeditions/**/*.ts'
+          src/social-adventure/pack-access.service.ts
+          src/social-adventure/social-adventure.module.ts
+          src/social-adventure/social-adventure.service.ts
+          src/adventure/pack-challenges.service.ts
+          src/adventure/pack-challenges.controller.ts
+          src/adventure/adventure.module.ts
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run Expedition integration contracts
+        run: pnpm --filter @woof/api exec jest src/expeditions --runInBand
+
+      - name: Run full backend contracts
+        run: pnpm --filter @woof/api test -- --runInBand
+
+      - name: Build API
+        run: pnpm --filter @woof/api build
