@@ -14,7 +14,7 @@ The system is intentionally designed around **individual fit**, not maximum exer
 | **Compass** | Eight-pathway recent opportunity coverage, explicitly not a health score                       |
 | **Journey** | Adventure Book built on the private Media Library                                              |
 | **Coach**   | Reward-based Learn progression and dog-literacy feedback                                       |
-| **Pack**    | Compatibility-first social discovery and cooperative challenges                                |
+| **Pack**    | Social discovery and membership authority; cooperative Expeditions are an explicit game scope  |
 | **Health**  | Separate high-stakes Health Lens; emergency/illness flows are outside competitive gamification |
 
 ### Pawprint Compass
@@ -154,16 +154,20 @@ Journey reads the existing private Media Library and albums. Photos remain optio
 
 The reward policy caps any memory bonus so the system cannot become a photo farming game.
 
-### Pack
+### Packs and Expeditions
 
-`GET /api/v1/pack/challenges` exposes aggregate cooperative challenges. It returns community totals, contributor count, and the current user's contribution without publishing individual raw rankings.
+Pack membership authority lives in `dogos_social.packs` and `dogos_social.pack_memberships`.
 
-The first challenges are:
+Cooperative game progress is now a separate receipt-backed system documented in [`EXPEDITION_AUTHORITY_V1.md`](./EXPEDITION_AUTHORITY_V1.md):
 
-- Sniff & Explore Week
-- Recovery Counts
+- `GET /api/v1/expeditions/global` returns bounded Global Expedition progress;
+- `GET /api/v1/expeditions/packs/:packId` returns Pack progress only to a current ACTIVE member;
+- `dogos_social.expedition_receipts` records immutable, idempotent contribution evidence;
+- `CARE`, health state, raw distance/duration/intensity, popularity, streaks, and Human Skill score magnitude contribute zero Expedition progress.
 
-The social layer keeps compatibility-first discovery and shared events available while avoiding a “most miles wins” leaderboard.
+`GET /api/v1/pack/challenges` is deprecated compatibility. Despite its historical name, the old implementation was a database-wide aggregate with no Pack membership predicate. It now delegates to the Global Expedition authority rather than maintaining a second raw-event truth engine.
+
+The legacy response keeps its old target numbers only so older clients do not break. New Expedition targets remain explicitly `CALIBRATING` until pilot evidence can set meaningful bounded-participation targets.
 
 ## Rhythm replaces streak pressure
 
@@ -229,7 +233,7 @@ Do not optimize the quest policy for screen time, posts, likes, or notification 
 9. record a Coach stress + stopped-early session and verify Bond safe-stop credit;
 10. verify Health Lens emergency UX contains no game reward treatment;
 11. validate Compass copy says opportunity coverage rather than health score;
-12. verify Pack exposes aggregate cooperation rather than raw individual rankings.
+12. verify Global and Pack Expedition reads are receipt-backed, bounded, and contain no individual performance ranking.
 
 ## Future work after real-world outcome collection
 
@@ -238,6 +242,6 @@ Do not optimize the quest policy for screen time, posts, likes, or notification 
 - private preventive Care Journey milestones;
 - household / multi-dog quests;
 - friend-scoped personalized leagues based on quest completion percentage rather than raw exercise volume;
-- configurable seasonal cooperative Pack challenges;
+- calibrated seasonal Expedition world-reveal presentation built on the immutable receipt contract;
 - contextual quest ranking evaluated against the explainable rule-based baseline;
 - veterinary handoff built from structured longitudinal history, with explicit owner control.
