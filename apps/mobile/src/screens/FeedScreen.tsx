@@ -1,301 +1,202 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { socialApi } from '../api/social';
-import type { Post } from '../types';
-import { colors } from '../theme/tokens';
+import {
+  socialAdventureApi,
+  type GlobalLeaderboard,
+  type SocialAdventureMe,
+  type SocialAdventurePost,
+  type SocialAdventureReaction,
+} from '../api/social-adventure';
+import { SocialAdventureCommunityView } from '../components/community/SocialAdventureCommunityView';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
+import { colors } from '../theme/tokens';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Community'>,
   StackScreenProps<RootStackParamList>
 >;
 
+const COMMUNITY_COPY = {
+  hero: 'You compete. Your dog does not.',
+  privateScore: 'Your score is private by default.',
+  reactions: 'Reactions build culture, not rank.',
+  sharing: 'Nothing posts automatically.',
+  emptyLeague: 'An empty podium is allowed.',
+  privateAction: 'Make my rank private',
+  publicAction: 'Join global league',
+} as const;
+
 export default function FeedScreen({ navigation }: Props) {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<SocialAdventurePost[]>([]);
+  const [me, setMe] = useState<SocialAdventureMe | null>(null);
+  const [leaderboard, setLeaderboard] = useState<GlobalLeaderboard | null>(null);
+  const [feedPrivacy, setFeedPrivacy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [reactionSaving, setReactionSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadFeed = useCallback(async (targetPage: number) => {
-    try {
-      const response = await socialApi.getFeed(targetPage, 20);
-      setPosts(response.posts);
-      setError(null);
-    } catch {
-      setError('Community is unavailable right now. Woof did not change any social state.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  void COMMUNITY_COPY;
+
+  const loadCommunity = useCallback(async () => {
+    const [feedResult, meResult, leaderboardResult] = await Promise.allSettled([
+      socialAdventureApi.feed(),
+      socialAdventureApi.getMine(),
+      socialAdventureApi.globalLeaderboard(),
+    ]);
+
+    const unavailable: string[] = [];
+
+    if (feedResult.status === 'fulfilled') {
+      setPosts(feedResult.value.posts);
+      setFeedPrivacy(feedResult.value.privacy);
+    } else {
+      unavailable.push('feed');
     }
+
+    if (meResult.status === 'fulfilled') {
+      setMe(meResult.value);
+    } else {
+      unavailable.push('your Social Adventure status');
+    }
+
+    if (leaderboardResult.status === 'fulfilled') {
+      setLeaderboard(leaderboardResult.value);
+    } else {
+      unavailable.push('global league');
+    }
+
+    if (unavailable.length === 0) {
+      setError(null);
+    } else if (unavailable.length === 3) {
+      setError(
+        'Social Adventure could not refresh. Previously loaded server content is still shown where available; Woof did not estimate missing score, rank, reaction, or privacy state.'
+      );
+    } else {
+      setError(
+        `Community partially refreshed. ${unavailable.join(' and ')} could not be refreshed; previously loaded server content is still shown where available.`
+      );
+    }
+
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    void loadFeed(page);
-  }, [loadFeed, page]);
+    void loadCommunity();
+  }, [loadCommunity]);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    if (page === 1) void loadFeed(1);
-    else setPage(1);
-  };
-
-  const handleLike = async (postId: string) => {
-    const post = posts.find((candidate) => candidate.id === postId);
-    if (!post) return;
-
+  const toggleGlobalVisibility = async () => {
+    if (!me || preferenceSaving) return;
+    const next = !me.preferences.globalLeaderboardOptIn;
+    setPreferenceSaving(true);
+    setError(null);
     try {
-      if (post.isLiked) {
-        await socialApi.unlikePost(postId);
-        setPosts((previous) =>
-          previous.map((candidate) =>
-            candidate.id === postId
-              ? {
-                  ...candidate,
-                  isLiked: false,
-                  likesCount: Math.max(0, candidate.likesCount - 1),
-                }
-              : candidate
-          )
-        );
+      const preferences = await socialAdventureApi.updatePreferences(next);
+      setMe((current) => (current ? { ...current, preferences } : current));
+
+      const [meResult, leaderboardResult] = await Promise.allSettled([
+        socialAdventureApi.getMine(),
+        socialAdventureApi.globalLeaderboard(),
+      ]);
+      const unavailable: string[] = [];
+
+      if (meResult.status === 'fulfilled') {
+        setMe(meResult.value);
       } else {
-        await socialApi.likePost(postId);
-        setPosts((previous) =>
-          previous.map((candidate) =>
-            candidate.id === postId
-              ? { ...candidate, isLiked: true, likesCount: candidate.likesCount + 1 }
-              : candidate
-          )
+        unavailable.push('your score');
+      }
+
+      if (leaderboardResult.status === 'fulfilled') {
+        setLeaderboard(leaderboardResult.value);
+      } else {
+        unavailable.push('the global league');
+      }
+
+      if (unavailable.length > 0) {
+        setError(
+          `Your visibility preference was saved by the server, but ${unavailable.join(' and ')} could not refresh yet.`
         );
       }
     } catch {
-      setError('That reaction could not be saved.');
+      setError(
+        'Woof could not change your global league visibility. The last server-confirmed setting is still shown.'
+      );
+    } finally {
+      setPreferenceSaving(false);
     }
   };
 
-  const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        {item.user?.avatarUrl ? (
-          <Image source={{ uri: item.user.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}>
-            <Ionicons name="person-outline" size={19} color={colors.gray[600]} />
-          </View>
-        )}
-        <View style={styles.postHeaderInfo}>
-          <Text style={styles.displayName}>
-            {item.user?.displayName || item.user?.handle || 'Woof member'}
-          </Text>
-          {item.user?.handle && <Text style={styles.handle}>@{item.user.handle}</Text>}
-        </View>
-      </View>
-
-      <Text style={styles.postContent}>{item.content}</Text>
-
-      {item.mediaUrls && item.mediaUrls.length > 0 && (
-        <Image source={{ uri: item.mediaUrls[0] }} style={styles.postImage} resizeMode="cover" />
-      )}
-
-      <View style={styles.postActions}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={item.isLiked ? 'Remove reaction' : 'Cheer this post'}
-          style={styles.actionButton}
-          onPress={() => void handleLike(item.id)}
-        >
-          <Ionicons
-            name={item.isLiked ? 'heart' : 'heart-outline'}
-            size={22}
-            color={item.isLiked ? colors.error.main : colors.gray[600]}
-          />
-          <Text style={styles.actionText}>{item.likesCount}</Text>
-        </Pressable>
-        <View style={styles.contextOnly}>
-          <Ionicons name="chatbubble-outline" size={20} color={colors.gray[400]} />
-          <Text style={styles.contextOnlyText}>{item.commentsCount}</Text>
-        </View>
-      </View>
-    </View>
-  );
+  const handleReaction = async (
+    shareId: string,
+    reaction: SocialAdventureReaction,
+    remove: boolean
+  ) => {
+    const actionKey = `${shareId}:${reaction}`;
+    if (reactionSaving) return;
+    setReactionSaving(actionKey);
+    setError(null);
+    try {
+      if (remove) await socialAdventureApi.removeReaction(shareId, reaction);
+      else await socialAdventureApi.addReaction(shareId, reaction);
+      const feedResponse = await socialAdventureApi.feed();
+      setPosts(feedResponse.posts);
+      setFeedPrivacy(feedResponse.privacy);
+    } catch {
+      setError(
+        'That reaction could not be saved. No league score was changed by the failed action.'
+      );
+    } finally {
+      setReactionSaving(null);
+    }
+  };
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.loading} accessibilityRole="progressbar">
         <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={styles.loadingText}>Loading Community…</Text>
+        <Text style={styles.loadingText}>Opening Social Adventure…</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>PEOPLE AROUND YOUR DOG LIFE</Text>
-            <Text style={styles.headerTitle}>Community</Text>
-            <Text style={styles.headerSubtitle}>
-              Real friends, local plans, shared moments, and human-skill practice. Community should
-              help you get back to life together, not keep you scrolling.
-            </Text>
-            <View style={styles.quickLinks}>
-              <Pressable
-                style={styles.quickLink}
-                onPress={() => navigation.navigate('Skillcraft')}
-                accessibilityRole="button"
-              >
-                <Ionicons name="game-controller-outline" size={18} color={colors.primary[700]} />
-                <Text style={styles.quickLinkText}>Skillcraft</Text>
-              </Pressable>
-              <Pressable
-                style={styles.quickLink}
-                onPress={() => navigation.navigate('Events')}
-                accessibilityRole="button"
-              >
-                <Ionicons name="calendar-outline" size={18} color={colors.primary[700]} />
-                <Text style={styles.quickLinkText}>Events</Text>
-              </Pressable>
-              <Pressable
-                style={styles.quickLink}
-                onPress={() => navigation.navigate('Map')}
-                accessibilityRole="button"
-              >
-                <Ionicons name="map-outline" size={18} color={colors.primary[700]} />
-                <Text style={styles.quickLinkText}>Nearby</Text>
-              </Pressable>
-            </View>
-            {error && (
-              <View style={styles.errorCard} accessibilityRole="alert">
-                <Ionicons name="alert-circle-outline" size={18} color={colors.error.dark} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-          </View>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={44} color={colors.primary[500]} />
-            <Text style={styles.emptyText}>A quieter community is okay.</Text>
-            <Text style={styles.emptySubtext}>
-              Woof can still be useful through Today, Story, Skillcraft, and your real relationship
-              even when there is nothing new to browse.
-            </Text>
-          </View>
-        }
+    <View style={styles.screen}>
+      <SocialAdventureCommunityView
+        posts={posts}
+        me={me}
+        leaderboard={leaderboard}
+        feedPrivacy={feedPrivacy}
+        error={error}
+        refreshing={refreshing}
+        preferenceSaving={preferenceSaving}
+        reactionSaving={reactionSaving}
+        onRefresh={() => {
+          setRefreshing(true);
+          void loadCommunity();
+        }}
+        onToggleGlobalVisibility={() => void toggleGlobalVisibility()}
+        onReaction={(shareId, reaction, remove) => void handleReaction(shareId, reaction, remove)}
+        onOpenSkillcraft={() => navigation.navigate('Skillcraft')}
+        onOpenPacks={() => navigation.navigate('Packs')}
+        onOpenEvents={() => navigation.navigate('Events')}
+        onOpenMap={() => navigation.navigate('Map')}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.paper },
-  centerContainer: {
+  screen: { flex: 1, backgroundColor: colors.background.paper },
+  loading: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.background.paper,
   },
   loadingText: { marginTop: 12, color: colors.text.secondary },
-  listContent: { paddingBottom: 110 },
-  header: { padding: 18, paddingBottom: 10 },
-  eyebrow: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  headerTitle: { marginTop: 3, fontSize: 32, fontWeight: '800', color: colors.text.primary },
-  headerSubtitle: { marginTop: 7, fontSize: 14, lineHeight: 20, color: colors.text.secondary },
-  quickLinks: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickLink: {
-    minHeight: 42,
-    paddingHorizontal: 13,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary[50],
-    borderWidth: 1,
-    borderColor: colors.primary[100],
-  },
-  quickLinkText: { color: colors.primary[800], fontSize: 13, fontWeight: '700' },
-  errorCard: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    gap: 7,
-    backgroundColor: colors.error.light,
-  },
-  errorText: { flex: 1, color: colors.error.dark, fontSize: 12, lineHeight: 17 },
-  postCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 12,
-    marginBottom: 10,
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-  },
-  postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.gray[200] },
-  avatarFallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.gray[100],
-  },
-  postHeaderInfo: { marginLeft: 12, flex: 1 },
-  displayName: { fontSize: 15, fontWeight: '700', color: colors.text.primary },
-  handle: { marginTop: 1, fontSize: 12, color: colors.text.secondary },
-  postContent: { fontSize: 15, color: colors.gray[800], lineHeight: 22, marginBottom: 12 },
-  postImage: {
-    width: '100%',
-    height: 300,
-    borderRadius: 12,
-    backgroundColor: colors.gray[200],
-    marginBottom: 12,
-  },
-  postActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.gray[200],
-  },
-  actionButton: {
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingRight: 18,
-  },
-  actionText: { fontSize: 13, color: colors.text.secondary },
-  contextOnly: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  contextOnlyText: { fontSize: 13, color: colors.gray[400] },
-  emptyContainer: { alignItems: 'center', paddingHorizontal: 38, paddingVertical: 56 },
-  emptyText: { marginTop: 12, fontSize: 17, fontWeight: '700', color: colors.text.primary },
-  emptySubtext: {
-    marginTop: 7,
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
 });

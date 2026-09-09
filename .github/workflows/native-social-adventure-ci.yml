@@ -1,0 +1,93 @@
+name: Native Social Adventure CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/screens/PacksScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventureCommunityView.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventurePacksView.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/social-adventure/social-adventure.controller.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
+      - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/workflows/native-social-adventure-ci.yml'
+      - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/screens/PacksScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventureCommunityView.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventurePacksView.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/social-adventure/social-adventure.controller.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.ts'
+      - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
+      - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/workflows/native-social-adventure-ci.yml'
+      - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-social-adventure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native social-game authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native Social Adventure source contract
+        run: python3 .github/scripts/assert-native-social-adventure.py
+
+      - name: Check native Social Adventure formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PacksScreen.tsx \
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+
+      - name: Re-run server Social Adventure score policy tests
+        run: pnpm --filter @woof/api test -- social-adventure.policy.spec.ts --runInBand
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
