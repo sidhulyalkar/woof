@@ -6,6 +6,8 @@ Native Woof should feel more like a social adventure game without turning a dog 
 
 The human gets the competition, collection, discovery, and community feedback. The dog keeps the right to have an ordinary day.
 
+You compete. Your dog does not.
+
 This tranche converges native Community onto the existing server-authoritative Social Adventure system. It does not create a second points economy and it does not invent an Expedition system before server authority exists.
 
 ## Native surfaces
