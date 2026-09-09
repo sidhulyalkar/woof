@@ -13,7 +13,10 @@ export class PackChallengesController {
   constructor(private readonly packChallenges: PackChallengesService) {}
 
   @Get('challenges')
-  @ApiOperation({ summary: 'Get cooperative, non-ranking Pack challenges' })
+  @ApiOperation({
+    summary: 'Legacy Global Expedition compatibility projection',
+    deprecated: true,
+  })
   getChallenges(@Request() req: AuthenticatedRequest) {
     return this.packChallenges.getChallenges(req.user.sub);
   }
