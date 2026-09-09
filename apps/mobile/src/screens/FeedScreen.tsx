@@ -43,29 +43,47 @@ export default function FeedScreen({ navigation }: Props) {
   void COMMUNITY_COPY;
 
   const loadCommunity = useCallback(async () => {
-    try {
-      const [feedResponse, meResponse, leaderboardResponse] = await Promise.all([
-        socialAdventureApi.feed(),
-        socialAdventureApi.getMine(),
-        socialAdventureApi.globalLeaderboard(),
-      ]);
-      setPosts(feedResponse.posts);
-      setFeedPrivacy(feedResponse.privacy);
-      setMe(meResponse);
-      setLeaderboard(leaderboardResponse);
-      setError(null);
-    } catch {
-      setPosts([]);
-      setFeedPrivacy(null);
-      setMe(null);
-      setLeaderboard(null);
-      setError(
-        'Social Adventure authority is unavailable right now. Woof did not estimate a score, rank, reaction, or privacy state.'
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    const [feedResult, meResult, leaderboardResult] = await Promise.allSettled([
+      socialAdventureApi.feed(),
+      socialAdventureApi.getMine(),
+      socialAdventureApi.globalLeaderboard(),
+    ]);
+
+    const unavailable: string[] = [];
+
+    if (feedResult.status === 'fulfilled') {
+      setPosts(feedResult.value.posts);
+      setFeedPrivacy(feedResult.value.privacy);
+    } else {
+      unavailable.push('feed');
     }
+
+    if (meResult.status === 'fulfilled') {
+      setMe(meResult.value);
+    } else {
+      unavailable.push('your Social Adventure status');
+    }
+
+    if (leaderboardResult.status === 'fulfilled') {
+      setLeaderboard(leaderboardResult.value);
+    } else {
+      unavailable.push('global league');
+    }
+
+    if (unavailable.length === 0) {
+      setError(null);
+    } else if (unavailable.length === 3) {
+      setError(
+        'Social Adventure could not refresh. Previously loaded server content is still shown where available; Woof did not estimate missing score, rank, reaction, or privacy state.'
+      );
+    } else {
+      setError(
+        `Community partially refreshed. ${unavailable.join(' and ')} could not be refreshed; previously loaded server content is still shown where available.`
+      );
+    }
+
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -78,16 +96,35 @@ export default function FeedScreen({ navigation }: Props) {
     setPreferenceSaving(true);
     setError(null);
     try {
-      await socialAdventureApi.updatePreferences(next);
-      const [meResponse, leaderboardResponse] = await Promise.all([
+      const preferences = await socialAdventureApi.updatePreferences(next);
+      setMe((current) => (current ? { ...current, preferences } : current));
+
+      const [meResult, leaderboardResult] = await Promise.allSettled([
         socialAdventureApi.getMine(),
         socialAdventureApi.globalLeaderboard(),
       ]);
-      setMe(meResponse);
-      setLeaderboard(leaderboardResponse);
+      const unavailable: string[] = [];
+
+      if (meResult.status === 'fulfilled') {
+        setMe(meResult.value);
+      } else {
+        unavailable.push('your score');
+      }
+
+      if (leaderboardResult.status === 'fulfilled') {
+        setLeaderboard(leaderboardResult.value);
+      } else {
+        unavailable.push('the global league');
+      }
+
+      if (unavailable.length > 0) {
+        setError(
+          `Your visibility preference was saved by the server, but ${unavailable.join(' and ')} could not refresh yet.`
+        );
+      }
     } catch {
       setError(
-        'Woof could not change your global league visibility. Your prior setting remains authoritative.'
+        'Woof could not change your global league visibility. The last server-confirmed setting is still shown.'
       );
     } finally {
       setPreferenceSaving(false);
