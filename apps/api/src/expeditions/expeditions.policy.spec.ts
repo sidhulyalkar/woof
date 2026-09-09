@@ -27,7 +27,16 @@ describe('Expedition authority policy', () => {
     expect(objective?.categories).toEqual([...EXPEDITION_HUMAN_SKILL_CATEGORIES]);
     expect(objective?.perCategoryCap).toBe(1);
     expect(objective?.perContributorCap).toBe(EXPEDITION_HUMAN_SKILL_CATEGORIES.length);
-    expect(JSON.stringify(objective)).not.toMatch(/score|timing|correct/i);
+
+    // Protective copy may explicitly explain that score magnitude does not count.
+    // Authority is structural: the objective definition itself carries no practice-
+    // score, correctness, or timing field that could influence cooperative arithmetic.
+    expect(objective).not.toHaveProperty('score');
+    expect(objective).not.toHaveProperty('bestScore');
+    expect(objective).not.toHaveProperty('practiceScore');
+    expect(objective).not.toHaveProperty('correct');
+    expect(objective).not.toHaveProperty('timingErrorMs');
+    expect(objective).not.toHaveProperty('targetTimingMs');
   });
 
   it('uses an explicit Monday UTC season instead of a rolling streak window', () => {
