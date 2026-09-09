@@ -79,6 +79,7 @@ jobs:
             apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
             apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
             apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts \
             .github/workflows/native-social-adventure-ci.yml \
             docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
