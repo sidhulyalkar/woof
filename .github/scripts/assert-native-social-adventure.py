@@ -162,12 +162,21 @@ def main() -> None:
     require(nav, "name=\"Packs\"", "native navigation")
 
     for marker in [
-        "SOCIAL_ADVENTURE_SCORE_POLICY_VERSION",
-        "humanSkill",
-        "adventureVariety",
-        "GLOBAL_LEADERBOARD_OPT_IN",
+        "SOCIAL_ADVENTURE_POLICY_VERSION",
+        "HUMAN_SKILL_CHALLENGES",
+        "SOCIAL_ADVENTURE_PATHWAYS",
+        "LOCAL_LEAGUE_MINIMUM_COHORT",
+        "deriveSocialAdventureScore",
     ]:
-        require(server_policy + server_service, marker, "server Social Adventure authority")
+        require(server_policy, marker, "server Social Adventure score policy")
+
+    for marker in [
+        "globalLeaderboardOptIn",
+        "global_leaderboard_opt_in = TRUE",
+        "cohortReady: false",
+        "cohortReady: true",
+    ]:
+        require(server_service, marker, "server Social Adventure ranking authority")
 
     for forbidden in [
         "steps",
