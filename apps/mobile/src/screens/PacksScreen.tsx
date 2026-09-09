@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { StackScreenProps } from '@react-navigation/stack';
 import {
@@ -14,7 +14,7 @@ import { colors } from '../theme/tokens';
 type Props = StackScreenProps<RootStackParamList, 'Packs'>;
 
 const PACKS_COPY = {
-  locality: 'Choose a coarse community, not a coordinate.',
+  locality: 'Choose a broad community label, not a coordinate or precise place.',
   privacy: 'The app never estimates or reconstructs a private local rank.',
   score: 'Breadth in Human Skill and bounded Adventure variety count.',
   create: 'Use a broad place people recognize.',
@@ -38,6 +38,7 @@ export default function PacksScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [regionKey, setRegionKey] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const leaderboardRequestRef = useRef(0);
 
   void PACKS_COPY;
 
@@ -56,27 +57,44 @@ export default function PacksScreen({ navigation }: Props) {
       });
       setError(null);
     } catch {
-      setCatalog(null);
-      setSelectedPackId(null);
-      setLeaderboard(null);
-      setError('Packs are unavailable right now. Woof did not infer a location or membership.');
+      setError(
+        'Packs could not refresh. Previously loaded server membership is still shown where available; Woof did not infer a location or membership.'
+      );
     } finally {
       setLoading(false);
     }
   }, []);
 
   const loadLeaderboard = useCallback(async (packId: string) => {
+    const requestId = ++leaderboardRequestRef.current;
     setLeaderboardLoading(true);
     try {
       const response = await socialAdventureApi.packLeaderboard(packId);
+      if (requestId !== leaderboardRequestRef.current) return;
+      if (response.pack.id !== packId) {
+        setLeaderboard(null);
+        setError('Pack standings did not match the selected Pack, so Woof hid them.');
+        return;
+      }
       setLeaderboard(response);
       setError(null);
     } catch {
+      if (requestId !== leaderboardRequestRef.current) return;
       setLeaderboard(null);
       setError('This Pack standing is unavailable. Woof will not estimate a rank locally.');
     } finally {
-      setLeaderboardLoading(false);
+      if (requestId === leaderboardRequestRef.current) {
+        setLeaderboardLoading(false);
+      }
     }
+  }, []);
+
+  const selectPack = useCallback((packId: string) => {
+    leaderboardRequestRef.current += 1;
+    setLeaderboard(null);
+    setLeaderboardLoading(false);
+    setError(null);
+    setSelectedPackId(packId);
   }, []);
 
   useEffect(() => {
@@ -85,7 +103,9 @@ export default function PacksScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!selectedPackId) {
+      leaderboardRequestRef.current += 1;
       setLeaderboard(null);
+      setLeaderboardLoading(false);
       return;
     }
     void loadLeaderboard(selectedPackId);
@@ -96,7 +116,7 @@ export default function PacksScreen({ navigation }: Props) {
     setError(null);
     try {
       await socialAdventureApi.joinPack(pack.id);
-      setSelectedPackId(pack.id);
+      selectPack(pack.id);
       await loadPacks();
     } catch {
       setError('Woof could not join that Pack. No membership was changed.');
@@ -140,16 +160,19 @@ export default function PacksScreen({ navigation }: Props) {
       });
       setName('');
       setRegionKey('');
-      setSelectedPackId(created.id);
+      selectPack(created.id);
       await loadPacks();
     } catch {
       setError(
-        'That Pack could not be created. Use a coarse region, not an address, route, or exact meetup point.'
+        'That Pack could not be created. Enter only a broad-area label, never an address, venue, coordinate, route, or exact meetup point.'
       );
     } finally {
       setCreating(false);
     }
   };
+
+  const selectedLeaderboard =
+    leaderboard?.pack.id === selectedPack?.id ? leaderboard : null;
 
   if (loading) {
     return (
@@ -164,14 +187,14 @@ export default function PacksScreen({ navigation }: Props) {
     <SocialAdventurePacksView
       catalog={catalog}
       selectedPack={selectedPack}
-      leaderboard={leaderboard}
+      leaderboard={selectedLeaderboard}
       leaderboardLoading={leaderboardLoading}
       actionId={actionId}
       creating={creating}
       name={name}
       regionKey={regionKey}
       error={error}
-      onSelectPack={setSelectedPackId}
+      onSelectPack={selectPack}
       onJoinPack={(pack) => void joinPack(pack)}
       onLeavePack={(pack) => void leavePack(pack)}
       onNameChange={setName}
