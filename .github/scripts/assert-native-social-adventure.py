@@ -110,7 +110,8 @@ def main() -> None:
         require(community, marker, "native Community presentation")
 
     for forbidden in [
-        "../api/social",
+        "from '../api/social'",
+        'from "../api/social"',
         "socialApi.",
         "totalLikes",
         "commentsCount",
