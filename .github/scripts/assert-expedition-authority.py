@@ -46,46 +46,109 @@ for needle in ["@Post(", "@Put(", "@Patch(", "@Delete(", "@Body("]:
 require(module, "controllers: [ExpeditionsController]", "Expedition controller registration")
 require(module, "exports: [ExpeditionsService]", "Expedition service export")
 require(adventure_module, "ExpeditionsModule", "Adventure module Expedition import")
-require(adventure_module, "imports: [InsightsModule, CareEventsModule, HouseholdsModule, ExpeditionsModule]", "Adventure module wiring")
+require(
+    adventure_module,
+    "imports: [InsightsModule, CareEventsModule, HouseholdsModule, ExpeditionsModule]",
+    "Adventure module wiring",
+)
 
 # Pack authorization is one shared server authority, and Pack Expedition reads demand
 # ACTIVE membership rather than merely a public Pack or cached client flag.
 require(pack_access, "member.status = 'ACTIVE'", "ACTIVE Pack membership predicate")
 require(pack_access, "requireActiveMembership", "Pack membership authority")
-require(pack_access, "if (!pack || !pack.viewerJoined)", "non-enumerable Pack membership rejection")
+require(
+    pack_access,
+    "if (!pack || !pack.viewerJoined)",
+    "non-enumerable Pack membership rejection",
+)
 require(social_module, "PackAccessService", "shared Pack authority provider")
-require(social_module, "exports: [SocialAdventureService, PackAccessService]", "shared Pack authority export")
-require(service, "this.packAccess.requireActiveMembership(userId, packId)", "Pack Expedition membership gate")
-require(service, "event.occurred_at >= GREATEST(${season.startsAt}, member.joined_at)", "post-join CareEvent boundary")
-require(service, "attempt.completed_at >= GREATEST(${season.startsAt}, member.joined_at)", "post-join Human Skill boundary")
+require(
+    social_module,
+    "exports: [SocialAdventureService, PackAccessService]",
+    "shared Pack authority export",
+)
+require(
+    service,
+    "this.packAccess.requireActiveMembership(userId, packId)",
+    "Pack Expedition membership gate",
+)
+require(
+    service,
+    "event.occurred_at >= GREATEST(${season.startsAt}, member.joined_at)",
+    "post-join CareEvent boundary",
+)
+require(
+    service,
+    "attempt.completed_at >= GREATEST(${season.startsAt}, member.joined_at)",
+    "post-join Human Skill boundary",
+)
 
 # Policy is breadth-first and explicitly excludes CARE.
-require(policy, "EXPEDITION_POLICY_VERSION = 'expedition-authority-v1'", "policy version")
+require(
+    policy,
+    "EXPEDITION_POLICY_VERSION = 'expedition-authority-v1'",
+    "policy version",
+)
 require(policy, "EXPEDITION_KEY = 'shared-world'", "Expedition key")
 require(policy, "EXPEDITION_VERSION = 'v1'", "Expedition version")
-require(policy, "EXPEDITION_ELIGIBLE_PATHWAYS = ['EXPLORE', 'ENRICH', 'RECOVER']", "eligible pathway allowlist")
+require(
+    policy,
+    "EXPEDITION_ELIGIBLE_PATHWAYS = ['EXPLORE', 'ENRICH', 'RECOVER']",
+    "eligible pathway allowlist",
+)
 for key in ["MAKE_IT_EASIER", "CATCH_THE_GOOD", "PAIRING_LAB", "MARKER_TIMING"]:
     require(policy, f"'{key}'", f"Human Skill category {key}")
 for objective in ["SNIFF_EXPLORE", "RECOVERY_COUNTS", "READ_THE_ROOM"]:
     require(policy, f"key: '{objective}'", f"objective {objective}")
-for cap in ["perContributorCap: 4", "perContributorCap: 2", "perCategoryCap: 2", "perCategoryCap: 1"]:
+for cap in [
+    "perContributorCap: 4",
+    "perContributorCap: 2",
+    "perCategoryCap: 2",
+    "perCategoryCap: 1",
+]:
     require(policy, cap, "bounded contribution policy")
 
 # Canonical evidence, deterministic bounded ranking, and idempotent reconciliation.
 require(service, "event.source = 'QUEST_ENGINE'", "canonical Adventure source")
 require(service, "event.event_type LIKE 'QUEST_%'", "canonical Adventure event family")
-require(service, "event.pathway IN ('EXPLORE', 'ENRICH', 'RECOVER')", "eligible Adventure pathways")
-for challenge in ["'MAKE_IT_EASIER'", "'CATCH_THE_GOOD'", "'PAIRING_LAB'", "'MARKER_TIMING'"]:
+require(
+    service,
+    "event.pathway IN ('EXPLORE', 'ENRICH', 'RECOVER')",
+    "eligible Adventure pathways",
+)
+for challenge in [
+    "'MAKE_IT_EASIER'",
+    "'CATCH_THE_GOOD'",
+    "'PAIRING_LAB'",
+    "'MARKER_TIMING'",
+]:
     require(service, challenge, "canonical Human Skill allowlist")
 require(service, "category_rank <= 2", "Global CareEvent category cap")
 require(service, "category_rank = 1", "Global Human Skill breadth cap")
-require(service, "category_rank + issued_count <= 2", "Pack CareEvent rejoin-safe cap")
-require(service, "category_rank + issued_count <= 1", "Pack Human Skill rejoin-safe cap")
+require(
+    service,
+    "category_rank + issued_count <= 2",
+    "Pack CareEvent rejoin-safe cap",
+)
+require(
+    service,
+    "category_rank + issued_count <= 1",
+    "Pack Human Skill rejoin-safe cap",
+)
 require(service, "ON CONFLICT DO NOTHING", "idempotent receipt materialization")
 require(service, "target: null", "uncalibrated target contract")
 require(service, "status: 'CALIBRATING'", "uncalibrated status contract")
-for forbidden in ["activityMinutes", "distance", "mileage", "calories", "likesCount", "commentsCount"]:
-    forbid(service, forbidden, "raw performance/popularity scoring input")
+for forbidden in [
+    "context->>'activityMinutes'",
+    "context->>'distance'",
+    "context->>'mileage'",
+    "context->>'calories'",
+    "likes_count",
+    "comments_count",
+    ".score AS",
+    "attempt.score",
+]:
+    forbid(service, forbidden, "raw performance/popularity/practice-score scoring input")
 
 # The deprecated route is a compatibility adapter over the Global receipt projection,
 # not a second raw care_events aggregate.
