@@ -34,6 +34,8 @@ const EMPTY_SNAPSHOT: RelationshipSnapshot = {
 
 let snapshot: RelationshipSnapshot = EMPTY_SNAPSHOT;
 let loadPromise: Promise<void> | null = null;
+let loadUserId: string | null = null;
+let loadGeneration = 0;
 const listeners = new Set<() => void>();
 
 function emit(next: RelationshipSnapshot) {
@@ -96,12 +98,14 @@ async function persistSelectedPetId(userId: string, petId: string | null) {
 
 async function loadAuthorizedRelationships(userId: string, force = false) {
   if (!force && snapshot.initialized && snapshot.userId === userId) return;
-  if (loadPromise && snapshot.userId === userId) return loadPromise;
+  if (loadPromise && loadUserId === userId) return loadPromise;
 
+  const generation = ++loadGeneration;
+  loadUserId = userId;
   const previous = snapshot.userId === userId ? snapshot : EMPTY_SNAPSHOT;
   emit({ ...previous, userId, loading: true, error: null });
 
-  loadPromise = (async () => {
+  const pending = (async () => {
     try {
       const households = await householdsApi.getMine();
       const pets = flattenAuthorizedPets(households);
@@ -113,6 +117,7 @@ async function loadAuthorizedRelationships(userId: string, force = false) {
             Boolean(candidate) && pets.some((pet) => pet.id === candidate)
         ) ?? pets[0]?.id ?? null;
 
+      if (generation !== loadGeneration) return;
       emit({
         userId,
         pets,
@@ -126,6 +131,7 @@ async function loadAuthorizedRelationships(userId: string, force = false) {
         void persistSelectedPetId(userId, selectedPetId);
       }
     } catch {
+      if (generation !== loadGeneration) return;
       emit({
         ...previous,
         userId,
@@ -135,11 +141,15 @@ async function loadAuthorizedRelationships(userId: string, force = false) {
         initialized: true,
       });
     } finally {
-      loadPromise = null;
+      if (generation === loadGeneration) {
+        loadPromise = null;
+        loadUserId = null;
+      }
     }
   })();
 
-  return loadPromise;
+  loadPromise = pending;
+  return pending;
 }
 
 export function useRelationshipScope() {
@@ -157,7 +167,11 @@ export function useRelationshipScope() {
     if (!snapshot.pets.some((pet) => pet.id === petId)) return;
     if (snapshot.selectedPetId === petId) return;
 
-    emit({ ...snapshot, selectedPetId: petId, error: null });
+    // A user choice wins over any slower household refresh already in flight.
+    loadGeneration += 1;
+    loadPromise = null;
+    loadUserId = null;
+    emit({ ...snapshot, selectedPetId: petId, loading: false, error: null });
     void persistSelectedPetId(userId, petId);
   };
 
