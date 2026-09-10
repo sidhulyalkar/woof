@@ -71,7 +71,9 @@ export class ExpeditionJournalService {
     const seasons = new Map<string, Set<ExpeditionObjectiveKey>>();
     for (const row of rows) {
       const season = this.parseSeason(row.seasonKey);
-      const objective = EXPEDITION_OBJECTIVES.find((candidate) => candidate.key === row.objectiveKey);
+      const objective = EXPEDITION_OBJECTIVES.find(
+        (candidate) => candidate.key === row.objectiveKey
+      );
       if (!season || !objective || season.startsAt > current.startsAt) continue;
       const landmarks = seasons.get(season.key) ?? new Set<ExpeditionObjectiveKey>();
       landmarks.add(objective.key);
@@ -89,9 +91,9 @@ export class ExpeditionJournalService {
             endsAt: season.endsAt.toISOString(),
           },
           state: season.key === current.key ? ('ACTIVE' as const) : ('PAST' as const),
-          landmarks: EXPEDITION_OBJECTIVES.filter((objective) => landmarkKeys.has(objective.key)).map(
-            (objective) => ({ key: objective.key, title: objective.title })
-          ),
+          landmarks: EXPEDITION_OBJECTIVES.filter((objective) =>
+            landmarkKeys.has(objective.key)
+          ).map((objective) => ({ key: objective.key, title: objective.title })),
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
