@@ -60,7 +60,9 @@ function PathwayCard({ item }: { item: CompassPathway }) {
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${coveragePercent}%` }]} />
       </View>
-      <Text style={styles.coverageText}>{Math.round(coveragePercent)}% recent pathway coverage</Text>
+      <Text style={styles.coverageText}>
+        {Math.round(coveragePercent)}% recent pathway coverage
+      </Text>
     </View>
   );
 }
