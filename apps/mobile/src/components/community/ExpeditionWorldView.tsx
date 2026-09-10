@@ -9,13 +9,19 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { ExpeditionObjective, ExpeditionProjection } from '../../api/expeditions';
+import type {
+  ExpeditionJournal,
+  ExpeditionObjective,
+  ExpeditionProjection,
+} from '../../api/expeditions';
 import type { SocialPack } from '../../api/social-adventure';
 import { colors } from '../../theme/tokens';
+import { ExpeditionFieldJournalView } from './ExpeditionFieldJournalView';
 
 type Props = {
   globalProjection: ExpeditionProjection | null;
   packProjection: ExpeditionProjection | null;
+  journal: ExpeditionJournal | null;
   joinedPacks: SocialPack[];
   selectedScope: 'GLOBAL' | string;
   packLoading: boolean;
@@ -62,7 +68,11 @@ function formatSeason(start: string, end: string) {
   if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime())) {
     return 'Server-defined weekly season';
   }
-  const formatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
   return `${formatter.format(startsAt)} – ${formatter.format(endsAt)}`;
 }
 
@@ -273,6 +283,8 @@ export function ExpeditionWorldView(props: Props) {
           </Text>
         </View>
       )}
+
+      <ExpeditionFieldJournalView journal={props.journal} />
 
       <View style={styles.boundaryCard}>
         <View style={styles.boundaryIcon}>
