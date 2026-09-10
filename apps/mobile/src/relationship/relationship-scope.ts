@@ -115,7 +115,9 @@ async function loadAuthorizedRelationships(userId: string, force = false) {
         [storedPetId, previousPetId].find(
           (candidate): candidate is string =>
             Boolean(candidate) && pets.some((pet) => pet.id === candidate)
-        ) ?? pets[0]?.id ?? null;
+        ) ??
+        pets[0]?.id ??
+        null;
 
       if (generation !== loadGeneration) return;
       emit({
@@ -155,7 +157,11 @@ async function loadAuthorizedRelationships(userId: string, force = false) {
 export function useRelationshipScope() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const current = useSyncExternalStore(subscribe, () => snapshot, () => snapshot);
+  const current = useSyncExternalStore(
+    subscribe,
+    () => snapshot,
+    () => snapshot
+  );
   const visible = current.userId === userId ? current : EMPTY_SNAPSHOT;
 
   useEffect(() => {
