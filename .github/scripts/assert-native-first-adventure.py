@@ -5,7 +5,6 @@ This verifies authority boundaries and Web/native ontology parity. Runtime,
 typing, lint, and native-build qualification belong to the workflows that
 invoke or accompany this contract.
 """
-
 from pathlib import Path
 import re
 
@@ -107,8 +106,13 @@ for question_id in question_ids:
     require(web_questions, question_id, f"web question id {question_id}")
 
 # Petless Companion mode is a truthful first-class route, not a broken pet Today.
-require(companion_home, "You do not need to invent a dog", "petless Companion framing")
+require(companion_home, "You can belong here before you have a dog.", "petless Companion framing")
 require(companion_home, "CommunityStandalone", "petless Community route")
-require(companion_home, "Presentation is not authority", "mode/authority separation")
+require(companion_home, "Dog-specific spaces stay private", "human-language pet privacy boundary")
+require(
+    companion_home,
+    "does not invent a\n            pet relationship or unlock pet-specific Today, Compass, or Story.",
+    "mode/authority separation",
+)
 
 print("native First Adventure authority contract: PASS")
