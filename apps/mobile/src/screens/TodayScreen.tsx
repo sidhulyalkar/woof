@@ -156,6 +156,7 @@ export default function TodayScreen({ navigation }: Props) {
 
   const saveOutcome = async () => {
     if (!activeDashboard || !closingQuest || !dogExperience || !ownerExperience) return;
+    const completionGeneration = requestGenerationRef.current;
     setSavingOutcome(true);
     try {
       const result = await adventureApi.completeQuest(closingQuest.id, {
@@ -164,6 +165,7 @@ export default function TodayScreen({ navigation }: Props) {
         ownerExperience,
         safeOptOut,
       });
+      if (completionGeneration !== requestGenerationRef.current) return;
       const reward = result.reward.duplicate
         ? 'This outcome was already saved.'
         : result.reward.bondXp > 0
@@ -174,6 +176,7 @@ export default function TodayScreen({ navigation }: Props) {
       closeOutcome();
       await load(true);
     } catch {
+      if (completionGeneration !== requestGenerationRef.current) return;
       setReceipt('Woof could not save that outcome yet. You can try closing the loop again.');
     } finally {
       setSavingOutcome(false);
