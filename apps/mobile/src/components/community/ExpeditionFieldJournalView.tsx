@@ -10,6 +10,7 @@ import { colors } from '../../theme/tokens';
 
 type Props = {
   journal: ExpeditionJournal | null;
+  error?: string | null;
 };
 
 type JournalLandmark = {
@@ -25,7 +26,7 @@ const JOURNAL_LANDMARKS: Record<ExpeditionObjectiveKey, JournalLandmark> = {
 
 function formatWeek(startsAt: string) {
   const date = new Date(startsAt);
-  if (!Number.isFinite(date.getTime())) return 'Server-recorded week';
+  if (!Number.isFinite(date.getTime())) return 'Recorded week';
   const formatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
@@ -43,9 +44,7 @@ function FieldNote({ entry }: { entry: ExpeditionJournalEntry }) {
           <Ionicons name="paw-outline" size={15} color={colors.primary[700]} />
         </View>
         <View style={styles.noteHeading}>
-          <Text style={styles.noteState}>
-            {entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}
-          </Text>
+          <Text style={styles.noteState}>{entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}</Text>
           <Text style={styles.noteDate}>{formatWeek(entry.season.startsAt)}</Text>
         </View>
       </View>
@@ -67,14 +66,14 @@ function FieldNote({ entry }: { entry: ExpeditionJournalEntry }) {
 
       <Text style={styles.noteFoot}>
         {entry.state === 'ACTIVE'
-          ? 'This page reflects server-issued receipts so far. There is nothing you need to fill.'
+          ? 'This page reflects verified moments so far. There is nothing you need to fill.'
           : 'This page records what happened. Blank space is part of the memory.'}
       </Text>
     </View>
   );
 }
 
-export function ExpeditionFieldJournalView({ journal }: Props) {
+export function ExpeditionFieldJournalView({ journal, error }: Props) {
   return (
     <View style={styles.section}>
       <Text style={styles.eyebrow}>FIELD JOURNAL</Text>
@@ -84,12 +83,21 @@ export function ExpeditionFieldJournalView({ journal }: Props) {
         moment does not make a bigger stamp, and a page is never graded for being full.
       </Text>
 
+      {error && journal && (
+        <View style={styles.noticeCard} accessibilityRole="alert">
+          <Ionicons name="cloud-offline-outline" size={18} color={colors.gray[600]} />
+          <Text style={styles.noticeText}>{error}</Text>
+        </View>
+      )}
+
       {!journal ? (
-        <View style={styles.quietCard}>
+        <View style={styles.quietCard} accessibilityRole={error ? 'alert' : undefined}>
           <Ionicons name="book-outline" size={23} color={colors.gray[500]} />
-          <Text style={styles.quietTitle}>Journal history is unavailable.</Text>
+          <Text style={styles.quietTitle}>{error ? 'Field notes could not refresh.' : 'No field notes yet.'}</Text>
           <Text style={styles.quietBody}>
-            Woof will not rebuild field notes from local activity, league score, or guessed history.
+            {error
+              ? 'Your shared world is still available. Woof will leave history blank rather than guess.'
+              : 'Nothing is overdue and there is nothing to catch up on. A page appears only from verified Expedition moments.'}
           </Text>
         </View>
       ) : journal.entries.length === 0 ? (
@@ -97,8 +105,8 @@ export function ExpeditionFieldJournalView({ journal }: Props) {
           <Ionicons name="leaf-outline" size={23} color={colors.primary[600]} />
           <Text style={styles.quietTitle}>No field notes yet.</Text>
           <Text style={styles.quietBody}>
-            Nothing is overdue and there is nothing to catch up on. A page appears only from
-            server-issued Expedition receipts.
+            Nothing is overdue and there is nothing to catch up on. A page appears only from verified
+            Expedition moments.
           </Text>
         </View>
       ) : (
@@ -128,6 +136,18 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.gray[500], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   title: { marginTop: 4, color: colors.gray[900], fontSize: 20, fontWeight: '900' },
   body: { marginTop: 6, color: colors.gray[600], fontSize: 12, lineHeight: 18 },
+  noticeCard: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.gray[50],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  noticeText: { flex: 1, color: colors.gray[600], fontSize: 11, lineHeight: 17 },
   notesRow: { gap: 11, paddingTop: 12, paddingRight: 18 },
   noteCard: {
     width: 286,
