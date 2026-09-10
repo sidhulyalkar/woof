@@ -43,7 +43,9 @@ function FieldNote({ entry }: { entry: ExpeditionJournalEntry }) {
           <Ionicons name="paw-outline" size={15} color={colors.primary[700]} />
         </View>
         <View style={styles.noteHeading}>
-          <Text style={styles.noteState}>{entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}</Text>
+          <Text style={styles.noteState}>
+            {entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}
+          </Text>
           <Text style={styles.noteDate}>{formatWeek(entry.season.startsAt)}</Text>
         </View>
       </View>
