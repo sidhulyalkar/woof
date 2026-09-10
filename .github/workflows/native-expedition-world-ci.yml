@@ -1,0 +1,90 @@
+name: Native Expedition World CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/expeditions.ts'
+      - 'apps/mobile/src/screens/ExpeditionScreen.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionWorldView.tsx'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventureCommunityView.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/expeditions/expeditions.controller.ts'
+      - 'apps/api/src/expeditions/expeditions.policy.ts'
+      - 'apps/api/src/expeditions/expeditions.policy.spec.ts'
+      - 'apps/api/src/expeditions/expeditions.service.ts'
+      - '.github/scripts/assert-native-expedition-world.py'
+      - '.github/workflows/native-expedition-world-ci.yml'
+      - 'docs/NATIVE_EXPEDITION_WORLD_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/api/expeditions.ts'
+      - 'apps/mobile/src/screens/ExpeditionScreen.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionWorldView.tsx'
+      - 'apps/mobile/src/screens/FeedScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventureCommunityView.tsx'
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/api/src/expeditions/expeditions.controller.ts'
+      - 'apps/api/src/expeditions/expeditions.policy.ts'
+      - 'apps/api/src/expeditions/expeditions.policy.spec.ts'
+      - 'apps/api/src/expeditions/expeditions.service.ts'
+      - '.github/scripts/assert-native-expedition-world.py'
+      - '.github/workflows/native-expedition-world-ci.yml'
+      - 'docs/NATIVE_EXPEDITION_WORLD_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-expedition-world-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Native cooperative-world authority
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce native Expedition source contract
+        run: python3 .github/scripts/assert-native-expedition-world.py
+
+      - name: Check native Expedition formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/api/expeditions.ts \
+            apps/mobile/src/screens/ExpeditionScreen.tsx \
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            .github/workflows/native-expedition-world-ci.yml \
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
+
+      - name: Re-run server Expedition policy contracts
+        run: pnpm --filter @woof/api test -- expeditions.policy.spec.ts --runInBand
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint

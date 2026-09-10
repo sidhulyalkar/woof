@@ -36,6 +36,7 @@ type Props = {
   onRefresh: () => void;
   onToggleGlobalVisibility: () => void;
   onReaction: (shareId: string, reaction: SocialAdventureReaction, remove: boolean) => void;
+  onOpenExpedition: () => void;
   onOpenSkillcraft: () => void;
   onOpenPacks: () => void;
   onOpenEvents: () => void;
@@ -214,6 +215,7 @@ export function SocialAdventureCommunityView(props: Props) {
             )}
 
             <View style={styles.actionRow}>
+              <ActionChip label="Expedition" onPress={props.onOpenExpedition} />
               <ActionChip label="Skillcraft" onPress={props.onOpenSkillcraft} />
               <ActionChip label="Packs" onPress={props.onOpenPacks} />
               <ActionChip label="Events" onPress={props.onOpenEvents} />
@@ -251,8 +253,8 @@ export function SocialAdventureCommunityView(props: Props) {
         <View style={styles.emptyBox}>
           <Text style={styles.quietTitle}>A quieter community is okay.</Text>
           <Text style={styles.smallCopy}>
-            Nothing needs to be posted for Woof to work. Skillcraft, real-world Adventures, Story,
-            and ordinary time together remain the point.
+            Nothing needs to be posted for Woof to work. Expedition, Skillcraft, real-world
+            Adventures, Story, and ordinary time together remain the point.
           </Text>
         </View>
       }
