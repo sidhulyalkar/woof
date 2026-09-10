@@ -13,8 +13,10 @@ import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { adventureApi, type AdventureDashboard, type AdventureQuest } from '../api/adventure';
+import { RelationshipScopeBar } from '../components/relationship/RelationshipScopeBar';
 import { colors } from '../theme/tokens';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
+import { useRelationshipScope } from '../relationship/relationship-scope';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Today'>,
@@ -69,6 +71,7 @@ const toolLinks: {
 ];
 
 export default function TodayScreen({ navigation }: Props) {
+  const { selectedPetId, loading: relationshipLoading } = useRelationshipScope();
   const [dashboard, setDashboard] = useState<AdventureDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,22 +84,33 @@ export default function TodayScreen({ navigation }: Props) {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
 
-  const load = useCallback(async (asRefresh = false) => {
-    if (asRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const next = await adventureApi.getMine();
-      setDashboard(next);
-      setError(null);
-    } catch {
-      setError(
-        'Woof could not load a recommendation right now. Your existing relationship data is unchanged.'
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (asRefresh = false) => {
+      if (relationshipLoading) return;
+      if (!selectedPetId) {
+        setDashboard(null);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      if (asRefresh) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const next = await adventureApi.getMine(selectedPetId);
+        setDashboard(next);
+        setError(null);
+      } catch {
+        setError(
+          'Woof could not load a recommendation right now. Your existing relationship data is unchanged.'
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [relationshipLoading, selectedPetId]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -104,12 +118,15 @@ export default function TodayScreen({ navigation }: Props) {
     }, [load])
   );
 
+  const activeDashboard =
+    dashboard && selectedPetId && dashboard.pet.id === selectedPetId ? dashboard : null;
+
   const startQuest = async (quest: AdventureQuest) => {
-    if (!dashboard) return;
+    if (!activeDashboard) return;
     setActiveQuestId(quest.id);
     setReceipt(null);
     try {
-      await adventureApi.selectQuest(quest.id, dashboard.pet.id);
+      await adventureApi.selectQuest(quest.id, activeDashboard.pet.id);
     } catch {
       // Selection persistence improves continuity but must not block the real-world action.
     }
@@ -131,11 +148,11 @@ export default function TodayScreen({ navigation }: Props) {
   };
 
   const saveOutcome = async () => {
-    if (!dashboard || !closingQuest || !dogExperience || !ownerExperience) return;
+    if (!activeDashboard || !closingQuest || !dogExperience || !ownerExperience) return;
     setSavingOutcome(true);
     try {
       const result = await adventureApi.completeQuest(closingQuest.id, {
-        petId: dashboard.pet.id,
+        petId: activeDashboard.pet.id,
         dogExperience,
         ownerExperience,
         safeOptOut,
@@ -156,14 +173,14 @@ export default function TodayScreen({ navigation }: Props) {
     }
   };
 
-  const primaryQuest = dashboard?.quests[0] ?? null;
-  const alternatives = dashboard?.quests.slice(1, 3) ?? [];
+  const primaryQuest = activeDashboard?.quests[0] ?? null;
+  const alternatives = activeDashboard?.quests.slice(1, 3) ?? [];
 
-  if (loading && !dashboard) {
+  if ((loading || relationshipLoading) && !activeDashboard) {
     return (
       <View style={styles.centered} accessibilityRole="progressbar">
         <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={styles.loadingText}>Finding one good thing to do together…</Text>
+        <Text style={styles.loadingText}>Finding one good thing for this relationship…</Text>
       </View>
     );
   }
@@ -184,14 +201,24 @@ export default function TodayScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {dashboard && (
+      <RelationshipScopeBar
+        onBeforeSelect={() => {
+          setDashboard(null);
+          setActiveQuestId(null);
+          setClosingQuest(null);
+          setReceipt(null);
+          setError(null);
+        }}
+      />
+
+      {activeDashboard && (
         <Text style={styles.intro}>
-          One useful next step with {dashboard.pet.name}. Woof recommends, you choose.
+          One useful next step with {activeDashboard.pet.name}. Woof recommends, you choose.
         </Text>
       )}
 
       {error && (
-        <View style={styles.noticeCard}>
+        <View style={styles.noticeCard} accessibilityRole="alert">
           <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
           <Text style={styles.noticeText}>{error}</Text>
           <Pressable
@@ -211,7 +238,7 @@ export default function TodayScreen({ navigation }: Props) {
         </View>
       )}
 
-      {dashboard && primaryQuest && (
+      {activeDashboard && primaryQuest && (
         <View style={styles.primaryCard}>
           <View style={styles.questHeader}>
             <View style={styles.questIcon}>
@@ -219,7 +246,7 @@ export default function TodayScreen({ navigation }: Props) {
             </View>
             <View style={styles.questHeaderCopy}>
               <Text style={styles.eyebrow}>
-                A GOOD PLACE TO START WITH {dashboard.pet.name.toUpperCase()}
+                A GOOD PLACE TO START WITH {activeDashboard.pet.name.toUpperCase()}
               </Text>
               <Text style={styles.questTitle}>{primaryQuest.title}</Text>
             </View>
@@ -278,7 +305,7 @@ export default function TodayScreen({ navigation }: Props) {
         </View>
       )}
 
-      {dashboard && !primaryQuest && (
+      {activeDashboard && !primaryQuest && (
         <View style={styles.noticeCard}>
           <Ionicons name="moon-outline" size={22} color={colors.primary[700]} />
           <Text style={styles.noticeTitle}>Nothing needs pushing today.</Text>
@@ -317,10 +344,10 @@ export default function TodayScreen({ navigation }: Props) {
         </View>
       )}
 
-      {dashboard && dashboard.learningSummary.length > 0 && (
+      {activeDashboard && activeDashboard.learningSummary.length > 0 && (
         <View style={styles.learningCard}>
           <Text style={styles.eyebrow}>WHAT WOOF IS LEARNING</Text>
-          {dashboard.learningSummary.slice(0, 3).map((line) => (
+          {activeDashboard.learningSummary.slice(0, 3).map((line) => (
             <View key={line} style={styles.learningRow}>
               <Ionicons name="sparkles-outline" size={16} color={colors.primary[600]} />
               <Text style={styles.learningText}>{line}</Text>
@@ -506,9 +533,10 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   secondaryButton: {
+    minHeight: 44,
     alignSelf: 'flex-start',
+    justifyContent: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: colors.gray[100],
   },
@@ -526,7 +554,7 @@ const styles = StyleSheet.create({
   startedText: { marginTop: 3, color: colors.success.dark, fontSize: 13, lineHeight: 18 },
   actionRow: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   outlineButton: {
-    minHeight: 42,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -536,7 +564,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[300],
   },
   outlineButtonText: { color: colors.gray[800], fontSize: 13, fontWeight: '700' },
-  ghostButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 8 },
+  ghostButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   ghostButtonText: { color: colors.primary[700], fontSize: 13, fontWeight: '700' },
   permissionText: { marginTop: 12, color: colors.text.secondary, fontSize: 12, lineHeight: 18 },
   section: { marginTop: 26 },
@@ -559,7 +587,7 @@ const styles = StyleSheet.create({
   alternativeTitle: { marginTop: 4, color: colors.text.primary, fontSize: 17, fontWeight: '800' },
   alternativeText: { marginTop: 6, color: colors.text.secondary, fontSize: 13, lineHeight: 19 },
   smallButton: {
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 14,
     borderRadius: 12,
