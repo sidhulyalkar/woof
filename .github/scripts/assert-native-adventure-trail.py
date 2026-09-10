@@ -78,7 +78,8 @@ for forbidden in (
         raise SystemExit(f"Adventure Trail presentation policy must stay bounded/read-only: {forbidden}")
 
 for marker in (
-    "deriveAdventureTrail(dashboard)",
+    "deriveAdventureTrail(activeDashboard)",
+    "dashboard.pet.id === selectedPetId",
     "ADVENTURE TRAIL",
     "Trail XP",
     "Discovery stamps",
