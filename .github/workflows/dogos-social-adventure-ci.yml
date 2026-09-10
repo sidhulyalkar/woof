@@ -161,8 +161,11 @@ jobs:
             echo 'Legacy Social must not award points for posting.' >&2
             exit 1
           fi
-          grep -F "source = 'QUEST_ENGINE'" apps/api/src/adventure/pack-challenges.service.ts
-          grep -F "event_type LIKE 'QUEST_%'" apps/api/src/adventure/pack-challenges.service.ts
+          grep -F "getLegacyGlobalChallenges" apps/api/src/adventure/pack-challenges.service.ts
+          if grep -F "FROM care_events" apps/api/src/adventure/pack-challenges.service.ts; then
+            echo 'Deprecated Pack challenges must not retain a second raw cooperative aggregate.' >&2
+            exit 1
+          fi
           grep -F "global_leaderboard_opt_in BOOLEAN NOT NULL DEFAULT FALSE" \
             packages/database/prisma/migrations/20260827220000_add_dogos_social_adventure_v1/migration.sql
           grep -F "LOCAL_LEAGUE_MINIMUM_COHORT = 5" \

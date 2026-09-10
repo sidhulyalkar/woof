@@ -43,14 +43,29 @@ jobs:
       - name: Install from lockfile
         run: pnpm install --frozen-lockfile
 
-      - name: Restrict database ownership to the profile schema slice
+      - name: Restrict database ownership when Adaptive Profile-owned files change
         shell: bash
         run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          profile_owned="$({
+            git diff --name-only "$base"...HEAD -- \
+              'apps/api/src/adventure/adaptive-profile*.ts' \
+              'apps/api/src/adventure/dto/adaptive-profile.dto.ts' \
+              'packages/database/prisma/schema.prisma' \
+              'packages/database/prisma/migrations/20260826055200_add_adaptive_profile_persistence/**' \
+              'docs/DOGOS_ADAPTIVE_PROFILE_PERSISTENCE_V1.md' || true
+          })"
+
+          if [ -z "$profile_owned" ]; then
+            echo 'No Adaptive Profile-owned runtime/schema files changed; shared-module trigger only.'
+            exit 0
+          fi
+
           unexpected="$({
-            git diff --name-only '${{ github.event.pull_request.base.sha }}'...HEAD -- packages/database || true
+            git diff --name-only "$base"...HEAD -- packages/database || true
           } | grep -Ev '^(packages/database/prisma/schema\.prisma|packages/database/prisma/migrations/20260826055200_add_adaptive_profile_persistence/migration\.sql)$' || true)"
           if [ -n "$unexpected" ]; then
-            echo 'Adaptive Profile persistence changed unrelated database files:'
+            echo 'Adaptive Profile persistence changed alongside unrelated database files:'
             printf '%s\n' "$unexpected"
             exit 1
           fi

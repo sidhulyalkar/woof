@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CareEventsModule } from '../care-events/care-events.module';
+import { ExpeditionsModule } from '../expeditions/expeditions.module';
 import { HouseholdsModule } from '../households/households.module';
 import { InsightsModule } from '../insights/insights.module';
 import { AdaptiveProfileController } from './adaptive-profile.controller';
@@ -11,7 +12,7 @@ import { PackChallengesController } from './pack-challenges.controller';
 import { PackChallengesService } from './pack-challenges.service';
 
 @Module({
-  imports: [InsightsModule, CareEventsModule, HouseholdsModule],
+  imports: [InsightsModule, CareEventsModule, HouseholdsModule, ExpeditionsModule],
   controllers: [AdventureController, AdaptiveProfileController, PackChallengesController],
   providers: [
     AdventureEnabledGuard,

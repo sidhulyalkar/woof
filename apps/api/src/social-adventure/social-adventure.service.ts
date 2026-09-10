@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@woof/database';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { PackAccessService } from './pack-access.service';
 import {
   publicArcadeCatalog,
   scenarioByKey,
@@ -112,15 +113,6 @@ type PackRow = {
   role: string | null;
 };
 
-type PackAccessRow = {
-  id: string;
-  name: string;
-  scope: string;
-  visibility: string;
-  memberCount: number;
-  viewerJoined: boolean;
-};
-
 const REACTION_TYPES = [
   'NICE_READ',
   'GOOD_CALL',
@@ -133,7 +125,10 @@ const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class SocialAdventureService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly packAccess: PackAccessService
+  ) {}
 
   async getMine(userId: string) {
     const [preferences, score, bestScores] = await Promise.all([
@@ -216,24 +211,7 @@ export class SocialAdventureService {
 
   async getPackLeaderboard(userId: string, packId: string, limit = 30) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 30, 50));
-    const accessRows = await this.prisma.$queryRaw<PackAccessRow[]>(Prisma.sql`
-      SELECT
-        pack.id,
-        pack.name,
-        pack.scope,
-        pack.visibility,
-        COUNT(member.user_id)::int AS "memberCount",
-        BOOL_OR(member.user_id = ${userId} AND member.status = 'ACTIVE') AS "viewerJoined"
-      FROM dogos_social.packs pack
-      LEFT JOIN dogos_social.pack_memberships member
-        ON member.pack_id = pack.id AND member.status = 'ACTIVE'
-      WHERE pack.id = ${packId}
-      GROUP BY pack.id, pack.name, pack.scope, pack.visibility
-    `);
-    const pack = accessRows[0];
-    if (!pack || (pack.visibility !== 'PUBLIC' && !pack.viewerJoined)) {
-      throw new NotFoundException('Pack not found');
-    }
+    const pack = await this.packAccess.requireViewable(userId, packId);
 
     if (pack.scope === 'LOCAL' && pack.memberCount < LOCAL_LEAGUE_MINIMUM_COHORT) {
       return {
