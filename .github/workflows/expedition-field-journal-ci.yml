@@ -1,0 +1,124 @@
+name: Expedition Field Journal CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/expeditions/**'
+      - 'apps/mobile/src/api/expeditions.ts'
+      - 'apps/mobile/src/screens/ExpeditionScreen.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionWorldView.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx'
+      - 'packages/database/prisma/migrations/20260909181500_add_expedition_authority_v1/**'
+      - '.github/scripts/assert-expedition-field-journal.py'
+      - '.github/workflows/expedition-field-journal-ci.yml'
+      - 'docs/NATIVE_EXPEDITION_FIELD_JOURNAL_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/src/expeditions/**'
+      - 'apps/mobile/src/api/expeditions.ts'
+      - 'apps/mobile/src/screens/ExpeditionScreen.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionWorldView.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx'
+      - 'packages/database/prisma/migrations/20260909181500_add_expedition_authority_v1/**'
+      - '.github/scripts/assert-expedition-field-journal.py'
+      - '.github/workflows/expedition-field-journal-ci.yml'
+      - 'docs/NATIVE_EXPEDITION_FIELD_JOURNAL_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expedition-field-journal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Receipt-backed memory authority
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Enforce Expedition Journal source contract
+        run: python3 .github/scripts/assert-expedition-field-journal.py
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply canonical migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check Expedition Journal formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/api/src/expeditions/expedition-journal.service.ts \
+            apps/api/src/expeditions/expedition-journal.integration.spec.ts \
+            apps/api/src/expeditions/expeditions.controller.ts \
+            apps/api/src/expeditions/expeditions.module.ts \
+            apps/mobile/src/api/expeditions.ts \
+            apps/mobile/src/screens/ExpeditionScreen.tsx \
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+            .github/workflows/expedition-field-journal-ci.yml \
+            docs/NATIVE_EXPEDITION_FIELD_JOURNAL_V1.md
+
+      - name: Run Journal and Expedition policy integration contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/expeditions/expedition-journal.integration.spec.ts
+          src/expeditions/expeditions.policy.spec.ts
+          --runInBand
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Lint Journal API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/expeditions/expedition-journal.service.ts
+          src/expeditions/expedition-journal.integration.spec.ts
+          src/expeditions/expeditions.controller.ts
+          src/expeditions/expeditions.module.ts
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
