@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -72,6 +72,7 @@ const toolLinks: {
 
 export default function TodayScreen({ navigation }: Props) {
   const { selectedPetId, loading: relationshipLoading } = useRelationshipScope();
+  const requestGenerationRef = useRef(0);
   const [dashboard, setDashboard] = useState<AdventureDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,25 +89,31 @@ export default function TodayScreen({ navigation }: Props) {
     async (asRefresh = false) => {
       if (relationshipLoading) return;
       if (!selectedPetId) {
+        requestGenerationRef.current += 1;
         setDashboard(null);
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
+      const requestGeneration = ++requestGenerationRef.current;
       if (asRefresh) setRefreshing(true);
       else setLoading(true);
       try {
         const next = await adventureApi.getMine(selectedPetId);
+        if (requestGeneration !== requestGenerationRef.current) return;
         setDashboard(next);
         setError(null);
       } catch {
+        if (requestGeneration !== requestGenerationRef.current) return;
         setError(
           'Woof could not load a recommendation right now. Your existing relationship data is unchanged.'
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestGeneration === requestGenerationRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [relationshipLoading, selectedPetId]
@@ -203,7 +210,9 @@ export default function TodayScreen({ navigation }: Props) {
 
       <RelationshipScopeBar
         onBeforeSelect={() => {
+          requestGenerationRef.current += 1;
           setDashboard(null);
+          setLoading(true);
           setActiveQuestId(null);
           setClosingQuest(null);
           setReceipt(null);
