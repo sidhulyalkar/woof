@@ -65,7 +65,8 @@ def main() -> None:
     server_service = SERVER_SERVICE.read_text()
     doc = DOC.read_text()
 
-    # Native Expedition has exactly two read paths and no contribution mutation surface.
+    # Native live Expedition has exactly two projection read paths and no contribution
+    # mutation surface. Historical Journal reads are governed by their own stricter contract.
     for marker in [
         "'/expeditions/global'",
         "`/expeditions/packs/${packId}`",
@@ -99,7 +100,7 @@ def main() -> None:
         "selectedScopeRef",
         "Promise.allSettled([",
         "Woof will only open Expedition views for Packs the server says you joined.",
-        "Woof did not infer missing progress or membership.",
+        "Woof did not infer missing progress, membership, or journal history.",
     ]:
         require(screen, marker, "native Expedition screen")
 
