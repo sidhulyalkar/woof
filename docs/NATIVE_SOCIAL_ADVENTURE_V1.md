@@ -8,7 +8,7 @@ The human gets the competition, collection, discovery, and community feedback. T
 
 You compete. Your dog does not.
 
-This tranche converges native Community onto the existing server-authoritative Social Adventure system. It does not create a second points economy and it does not invent an Expedition system before server authority exists.
+This tranche converges native Community onto the existing server-authoritative Social Adventure system. It does not create a second points economy. Receipt-backed Expeditions now exist as a separate cooperative authority rather than borrowing Social Adventure score.
 
 ## Native surfaces
 
@@ -63,7 +63,7 @@ Pack owners are not offered a fake leave path. Existing server authority require
 
 ## Competition boundary
 
-Social Adventure is a presentation and competition economy for the human side of dogOS. It remains separate from Bond XP, Health Lens, Daily Signals, recommendation authority, and the individual dog baseline.
+Social Adventure is a presentation and competition economy for the human side of dogOS. It remains separate from Bond XP, Health Lens, Daily Signals, recommendation authority, the individual dog baseline, and cooperative Expedition receipts.
 
 The current server policy rewards bounded breadth in:
 
@@ -103,19 +103,23 @@ If an authority slice cannot be loaded, native Woof shows unknown/unavailable st
 
 ## Companion mode
 
-Companion users can participate in pet-independent Human Skill, Community, and Packs without inventing a dog. These account-level social surfaces do not open Today, Compass, Story, Daily Signals, or any other pet-authorized surface.
+Companion users can participate in pet-independent Human Skill, Community, Packs, and the human-side Expedition surface without inventing a dog. These account-level social surfaces do not open Today, Compass, Story, Daily Signals, or any other pet-authorized surface.
 
 A Companion user's Social Adventure score is whatever the server can legitimately derive from that account. The client does not manufacture Adventure evidence to make the league look fuller.
 
-## Why Expeditions are not in this tranche
+## Relationship to Expeditions
 
-The product direction includes cooperative seasonal Expeditions and Pack goals, but there is not yet a canonical Expedition API or receipt model in the server.
+Receipt-backed Expedition Authority now exists independently of Social Adventure score. The canonical Global and Pack Expedition projections are read-only views over immutable, bounded server-issued receipts.
 
-Native v1 therefore stops at Feed + global league + Packs + privacy-safe Pack standings. Shipping a decorative client-side Expedition counter would create exactly the kind of unowned authority dogOS is designed to avoid.
+That separation is intentional:
 
-A later Expedition tranche should add server-owned templates, participation receipts, category caps, duplicate protection, recipient/pet eligibility where relevant, and cooperative progress before native presentation is built.
+- Social Adventure can expose an optional human-side league and rank.
+- Expedition can expose cooperative weekly participation without a podium.
+- neither system borrows the other's score, rank, target, or client-derived arithmetic.
 
-Expeditions are a candidate product layer, not the automatic next release. After this native convergence, production deployment, physical-device use, restore evidence, and a small owner pilot have higher information value. Cooperative mechanics should be promoted when real usage shows that shared Pack goals solve a user problem rather than because the repository can support another subsystem.
+Native Community may link to Expedition as another social-game destination, but it must not fold Expedition totals into league score or use league rank to unlock cooperative world state.
+
+The native Expedition presentation remains responsible for honoring server `CALIBRATING` state. Until server targets are calibrated, the client shows descriptive totals without manufacturing completion percentages or reward thresholds.
 
 ## Qualification contract
 
@@ -133,18 +137,20 @@ Expeditions are a candidate product layer, not the automatic next release. After
 - client code does not sort or derive league ranks;
 - native social types omit pet ID and legacy like/comment counters;
 - the locality contract admits that v1 validates slug shape rather than semantically proving geographic coarseness;
+- Expedition remains a separate cooperative authority rather than a Social Adventure score derivative;
 - the server Social Adventure score policy tests are rerun;
 - the full native client still type-checks and lints with zero warnings.
 
 ## Next validation layer
 
-After this convergence qualifies, the highest-value work is to move Woof from repository confidence to real-world evidence:
+With Social Adventure and receipt-backed Expeditions both represented natively, the highest-value validation remains real-world evidence:
 
-1. protect `main` and preserve exact-head release authority;
-2. establish the production API/Web deployment boundary and release identity;
+1. preserve exact-head release authority and production fail-closed behavior;
+2. establish the production API/Web deployment boundary once external credentials exist;
 3. rehearse backup/restore against the production-shaped database path;
 4. qualify a physical iOS device/TestFlight build;
-5. run a small owner pilot focused on whether Today, Adventure, Skillcraft, Community, and Packs feel useful rather than chore-like;
-6. use observed retention, confusion, safety stops, social participation, and repeat use to choose the next product tranche.
+5. run a small owner and Companion pilot focused on whether Today, Adventure, Skillcraft, Community, Packs, and Expedition feel useful rather than chore-like;
+6. observe whether cooperative play improves breadth, learning, recovery choices, and return behavior without increasing volume pressure;
+7. calibrate Expedition targets only from real participation evidence, then decide whether completed seasons deserve server-owned Story artifacts or cosmetics.
 
-If cooperative Pack play emerges as a real pull from users, receipt-backed Expeditions become a strong next candidate. Until then, launch reality is more valuable than adding another game mechanic.
+The next game mechanic should earn its way into the product through observed behavior, not because another counter is easy to add.
