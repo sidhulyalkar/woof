@@ -83,6 +83,7 @@ def main() -> None:
         "Promise.allSettled([",
         "Your visibility preference was saved by the server",
         "Previously loaded server content is still shown where available",
+        "navigation.navigate('Expedition')",
         "navigation.navigate('Skillcraft')",
         "navigation.navigate('Packs')",
     ]:
@@ -101,6 +102,7 @@ def main() -> None:
         "An empty podium is allowed.",
         "Make my rank private",
         "Join global league",
+        'label="Expedition"',
         "Nice read",
         "Good call",
         "Trying this",
@@ -158,6 +160,7 @@ def main() -> None:
 
     require(nav, "Community: undefined", "native navigation")
     require(nav, "Packs: undefined", "native navigation")
+    require(nav, "Expedition: undefined", "native navigation")
     require(nav, "name=\"Community\"", "native navigation")
     require(nav, "name=\"Packs\"", "native navigation")
 
@@ -206,8 +209,9 @@ def main() -> None:
         "does **not** semantically prove",
         "Selection changes invalidate older in-flight requests",
         "Pack leaderboard responses are request/Pack-bound",
-        "Expeditions are a candidate product layer, not the automatic next release.",
-        "production deployment, physical-device use, restore evidence, and a small owner pilot",
+        "Receipt-backed Expedition Authority now exists independently of Social Adventure score.",
+        "Expedition remains a separate cooperative authority rather than a Social Adventure score derivative",
+        "production API/Web deployment boundary once external credentials exist",
     ]:
         require(doc, marker, "native Social Adventure documentation")
 
