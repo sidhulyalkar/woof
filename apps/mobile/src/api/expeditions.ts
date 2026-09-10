@@ -41,7 +41,36 @@ export type ExpeditionProjection = {
   principles: string[];
 };
 
+export type ExpeditionJournalEntry = {
+  season: {
+    key: string;
+    startsAt: string;
+    endsAt: string;
+  };
+  state: 'ACTIVE' | 'PAST';
+  landmarks: Array<{
+    key: ExpeditionObjectiveKey;
+    title: string;
+  }>;
+};
+
+export type ExpeditionJournal = {
+  expeditionKey: string;
+  expeditionVersion: string;
+  policyVersion: string;
+  scope: 'GLOBAL';
+  generatedAt: string;
+  coverage: {
+    kind: 'RECENT_PARTICIPATED_SEASONS';
+    maxSeasons: number;
+  };
+  entries: ExpeditionJournalEntry[];
+  principles: string[];
+  disclaimer: string;
+};
+
 export const expeditionApi = {
   global: () => apiClient.get<ExpeditionProjection>('/expeditions/global'),
+  journal: () => apiClient.get<ExpeditionJournal>('/expeditions/journal'),
   pack: (packId: string) => apiClient.get<ExpeditionProjection>(`/expeditions/packs/${packId}`),
 };
