@@ -147,8 +147,7 @@ def main() -> None:
 
     for marker in [
         "state: 'ACTIVE' | 'PAST'",
-        "landmarks: Array<",
-        "key: ExpeditionObjectiveKey",
+        "landmarks: {\n    key: ExpeditionObjectiveKey;\n    title: string;\n  }[];",
         "kind: 'RECENT_PARTICIPATED_SEASONS'",
         "maxSeasons: number",
         "scope: 'GLOBAL'",
