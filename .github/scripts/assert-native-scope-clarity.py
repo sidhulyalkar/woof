@@ -131,7 +131,7 @@ def main() -> None:
     reject(expedition, "unavailableWorld.push('field journal')", "Expedition failure isolation")
     reject(expedition, "unavailable.push('field journal')", "Expedition failure isolation")
     require(journal, "error?: string | null", "Field Journal failure presentation")
-    require(journal, "Showing your last verified pages.", "Field Journal stale-history presentation")
+    require(expedition, "Showing your last verified pages.", "Field Journal stale-history authority")
     require(journal, "leave history blank rather than guess", "Field Journal fail-closed presentation")
 
     # The cooperative world keeps server calibration fields in the API but does not advertise
