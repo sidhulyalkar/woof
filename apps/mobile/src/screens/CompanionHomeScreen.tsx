@@ -11,21 +11,33 @@ type Props = StackScreenProps<RootStackParamList, 'CompanionHome'> & {
 };
 
 const links: {
-  route: 'Skillcraft' | 'CommunityStandalone' | 'Events' | 'Profile';
+  route: 'Expedition' | 'Skillcraft' | 'Packs' | 'CommunityStandalone' | 'Events' | 'Profile';
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
   {
+    route: 'Expedition',
+    title: 'Shared Expedition',
+    description: 'Step into the cooperative world. Human-side participation does not require a dog.',
+    icon: 'map-outline',
+  },
+  {
     route: 'Skillcraft',
     title: 'Skillcraft',
-    description: 'Practice setup, observation, pairing, and timing without inventing a pet.',
+    description: 'Practice observation, setup, pairing, and timing before a real dog is involved.',
     icon: 'game-controller-outline',
+  },
+  {
+    route: 'Packs',
+    title: 'Packs',
+    description: 'Find small communities to learn and explore with, without borrowing pet authority.',
+    icon: 'people-circle-outline',
   },
   {
     route: 'CommunityStandalone',
     title: 'Community',
-    description: 'See what people and dogs around Woof are sharing.',
+    description: 'See shared moments, local plans, and people across Woof.',
     icon: 'people-outline',
   },
   {
@@ -65,25 +77,25 @@ export default function CompanionHomeScreen({ navigation, onResolved }: Props) {
         <Ionicons name="heart-outline" size={25} color={colors.primary[700]} />
       </View>
       <Text style={styles.eyebrow}>COMPANION MODE</Text>
-      <Text style={styles.title}>You do not need to invent a dog to belong here.</Text>
+      <Text style={styles.title}>You can belong here before you have a dog.</Text>
       <Text style={styles.intro}>
-        Woof keeps pet-specific Today, Compass, and Story closed until the server can verify a real
-        owned or authorized relationship. You can still practice human skills, explore people and
-        events, and manage your account.
+        Explore the shared world, practice useful human skills, and meet people. Dog-specific Today,
+        Compass, and Story open only when Woof can verify a real relationship you are allowed to see.
       </Text>
 
       <View style={styles.truthCard}>
         <Ionicons name="shield-checkmark-outline" size={21} color={colors.success.dark} />
         <View style={styles.truthCopy}>
-          <Text style={styles.truthTitle}>Presentation is not authority</Text>
+          <Text style={styles.truthTitle}>Dog-specific spaces stay private</Text>
           <Text style={styles.truthText}>
-            Companion mode changes what Woof shows you. It never grants access to somebody else’s
-            dog or manufactures relationship history.
+            Companion mode gives you human-side places to learn and participate. It does not invent a
+            pet relationship or unlock pet-specific Today, Compass, or Story.
           </Text>
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Useful without a pet</Text>
+      <Text style={styles.sectionTitle}>Start anywhere</Text>
+      <Text style={styles.sectionIntro}>These paths are useful with or without a dog of your own.</Text>
       <View style={styles.linkList}>
         {links.map((link) => (
           <Pressable
@@ -171,8 +183,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginTop: 30,
-    marginBottom: 12,
   },
+  sectionIntro: { marginTop: 4, marginBottom: 12, color: colors.gray[600], fontSize: 12, lineHeight: 18 },
   linkList: { gap: 10 },
   linkCard: {
     minHeight: 88,
@@ -185,8 +197,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkIcon: {
-    width: 43,
-    height: 43,
+    width: 44,
+    height: 44,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
