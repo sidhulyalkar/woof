@@ -87,7 +87,13 @@ function ScopeChip({
   );
 }
 
-function Landmark({ objective, spec }: { objective: ExpeditionObjective | null; spec: LandmarkSpec }) {
+function Landmark({
+  objective,
+  spec,
+}: {
+  objective: ExpeditionObjective | null;
+  spec: LandmarkSpec;
+}) {
   const participated = Boolean(objective && objective.myContribution > 0);
 
   return (
@@ -103,7 +109,9 @@ function Landmark({ objective, spec }: { objective: ExpeditionObjective | null; 
         <View style={styles.landmarkHeading}>
           <View style={styles.flex}>
             <Text style={styles.placeName}>{spec.place}</Text>
-            <Text style={styles.objectiveTitle}>{objective?.title ?? 'Server objective unavailable'}</Text>
+            <Text style={styles.objectiveTitle}>
+              {objective?.title ?? 'Server objective unavailable'}
+            </Text>
           </View>
           {participated && (
             <View style={styles.myMark}>
@@ -151,7 +159,8 @@ function Landmark({ objective, spec }: { objective: ExpeditionObjective | null; 
 }
 
 export function ExpeditionWorldView(props: Props) {
-  const projection = props.selectedScope === 'GLOBAL' ? props.globalProjection : props.packProjection;
+  const projection =
+    props.selectedScope === 'GLOBAL' ? props.globalProjection : props.packProjection;
 
   return (
     <ScrollView
@@ -190,14 +199,20 @@ export function ExpeditionWorldView(props: Props) {
         {projection && (
           <Text style={styles.seasonCopy}>
             {formatSeason(projection.season.startsAt, projection.season.endsAt)} ·{' '}
-            {projection.scope === 'GLOBAL' ? 'Everyone together' : projection.pack?.name ?? 'Pack'}
+            {projection.scope === 'GLOBAL'
+              ? 'Everyone together'
+              : (projection.pack?.name ?? 'Pack')}
           </Text>
         )}
       </View>
 
       <View style={styles.scopeSection}>
         <Text style={styles.sectionLabel}>CHOOSE A VIEW</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scopeRow}
+        >
           <ScopeChip
             label="Everyone"
             selected={props.selectedScope === 'GLOBAL'}
@@ -242,7 +257,9 @@ export function ExpeditionWorldView(props: Props) {
             <Landmark
               key={spec.key}
               spec={spec}
-              objective={projection.objectives.find((objective) => objective.key === spec.key) ?? null}
+              objective={
+                projection.objectives.find((objective) => objective.key === spec.key) ?? null
+              }
             />
           ))}
         </View>
@@ -265,19 +282,29 @@ export function ExpeditionWorldView(props: Props) {
           <Text style={styles.boundaryTitle}>The world is the game. Your dog is not.</Text>
           <Text style={styles.boundaryBody}>
             CARE, health state, distance, duration, intensity, missed days, likes, rankings, and
-            repeated grinding add no Expedition progress. Recovery can count because listening can be
-            the useful choice.
+            repeated grinding add no Expedition progress. Recovery can count because listening can
+            be the useful choice.
           </Text>
-          <Text style={styles.noMeter}>No completion bar. This shared scene is not a checklist.</Text>
+          <Text style={styles.noMeter}>
+            No completion bar. This shared scene is not a checklist.
+          </Text>
         </View>
       </View>
 
       <View style={styles.actionRow}>
-        <Pressable accessibilityRole="button" onPress={props.onOpenSkillcraft} style={styles.primaryAction}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={props.onOpenSkillcraft}
+          style={styles.primaryAction}
+        >
           <Ionicons name="game-controller-outline" size={18} color="#ffffff" />
           <Text style={styles.primaryActionText}>Practice Skillcraft</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={props.onOpenPacks} style={styles.secondaryAction}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={props.onOpenPacks}
+          style={styles.secondaryAction}
+        >
           <Ionicons name="people-outline" size={18} color={colors.primary[700]} />
           <Text style={styles.secondaryActionText}>Explore Packs</Text>
         </Pressable>
@@ -298,7 +325,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary[100],
   },
   eyebrow: { color: colors.primary[700], fontSize: 10, fontWeight: '800', letterSpacing: 1.3 },
-  heroTitle: { marginTop: 5, color: colors.gray[900], fontSize: 27, lineHeight: 33, fontWeight: '900' },
+  heroTitle: {
+    marginTop: 5,
+    color: colors.gray[900],
+    fontSize: 27,
+    lineHeight: 33,
+    fontWeight: '900',
+  },
   heroBody: { marginTop: 8, color: colors.gray[600], fontSize: 13, lineHeight: 20 },
   worldScene: {
     height: 168,
@@ -432,7 +465,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.primary[50],
   },
-  calibrationText: { flex: 1, color: colors.primary[800], fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  calibrationText: {
+    flex: 1,
+    color: colors.primary[800],
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '700',
+  },
   loadingCard: {
     marginTop: 22,
     padding: 24,
@@ -444,7 +483,13 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 8, color: colors.gray[600], fontSize: 12 },
   unavailableTitle: { marginTop: 8, color: colors.gray[900], fontSize: 15, fontWeight: '800' },
-  unavailableText: { marginTop: 5, color: colors.gray[600], fontSize: 11, lineHeight: 17, textAlign: 'center' },
+  unavailableText: {
+    marginTop: 5,
+    color: colors.gray[600],
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
   boundaryCard: {
     marginTop: 22,
     padding: 15,
