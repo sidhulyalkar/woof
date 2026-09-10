@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -10,7 +10,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { adventureApi, type AdventureDashboard, type CompassPathway } from '../api/adventure';
+import { RelationshipScopeBar } from '../components/relationship/RelationshipScopeBar';
 import { deriveAdventureTrail, TRAIL_PATHWAYS, type TrailPathway } from '../game/adventure-trail';
+import { useRelationshipScope } from '../relationship/relationship-scope';
 import { colors } from '../theme/tokens';
 
 const pathwayIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -35,7 +37,9 @@ const pathwayShortLabel: Record<TrailPathway, string> = {
 };
 
 function PathwayCard({ item }: { item: CompassPathway }) {
-  const coverage = Math.max(0, Math.min(1, item.coverage));
+  // Canonical CareSummary coverage is already a percentage on a 0–100 scale.
+  // Clamp that scale directly so one recent day (25) can never render as 100%.
+  const coveragePercent = Math.max(0, Math.min(100, item.coverage));
   return (
     <View style={styles.pathwayCard}>
       <View style={styles.pathwayHeader}>
@@ -54,9 +58,11 @@ function PathwayCard({ item }: { item: CompassPathway }) {
         </View>
       </View>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${coverage * 100}%` }]} />
+        <View style={[styles.fill, { width: `${coveragePercent}%` }]} />
       </View>
-      <Text style={styles.coverageText}>{Math.round(coverage * 100)}% recent pathway coverage</Text>
+      <Text style={styles.coverageText}>
+        {Math.round(coveragePercent)}% recent pathway coverage
+      </Text>
     </View>
   );
 }
@@ -79,24 +85,46 @@ function DiscoveryStamp({ pathway, discovered }: { pathway: TrailPathway; discov
 }
 
 export default function CompassScreen() {
+  const { selectedPetId, loading: relationshipLoading } = useRelationshipScope();
+  const requestGenerationRef = useRef(0);
   const [dashboard, setDashboard] = useState<AdventureDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      setDashboard(await adventureApi.getMine());
-      setError(null);
-    } catch {
-      setError('Compass is unavailable right now. Woof has not changed any relationship evidence.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (refresh = false) => {
+      if (relationshipLoading) return;
+      if (!selectedPetId) {
+        requestGenerationRef.current += 1;
+        setDashboard(null);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      const requestGeneration = ++requestGenerationRef.current;
+      if (refresh) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const next = await adventureApi.getMine(selectedPetId);
+        if (requestGeneration !== requestGenerationRef.current) return;
+        setDashboard(next);
+        setError(null);
+      } catch {
+        if (requestGeneration !== requestGenerationRef.current) return;
+        setError(
+          'Compass is unavailable right now. Woof has not changed any relationship evidence.'
+        );
+      } finally {
+        if (requestGeneration === requestGenerationRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [relationshipLoading, selectedPetId]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -104,13 +132,15 @@ export default function CompassScreen() {
     }, [load])
   );
 
-  const trail = dashboard ? deriveAdventureTrail(dashboard) : null;
+  const activeDashboard =
+    dashboard && selectedPetId && dashboard.pet.id === selectedPetId ? dashboard : null;
+  const trail = activeDashboard ? deriveAdventureTrail(activeDashboard) : null;
 
-  if (loading && !dashboard) {
+  if ((loading || relationshipLoading) && !activeDashboard) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.centered} accessibilityRole="progressbar">
         <ActivityIndicator size="large" color={colors.primary[600]} />
-        <Text style={styles.loadingText}>Reading your recent rhythm…</Text>
+        <Text style={styles.loadingText}>Opening this relationship’s Compass…</Text>
       </View>
     );
   }
@@ -128,14 +158,23 @@ export default function CompassScreen() {
         your dog.
       </Text>
 
+      <RelationshipScopeBar
+        onBeforeSelect={() => {
+          requestGenerationRef.current += 1;
+          setDashboard(null);
+          setLoading(true);
+          setError(null);
+        }}
+      />
+
       {error && (
-        <View style={styles.noticeCard}>
+        <View style={styles.noticeCard} accessibilityRole="alert">
           <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
           <Text style={styles.noticeText}>{error}</Text>
         </View>
       )}
 
-      {dashboard && trail && (
+      {activeDashboard && trail && (
         <View style={styles.trailCard}>
           <View style={styles.trailHeader}>
             <View style={styles.trailIcon}>
@@ -223,36 +262,36 @@ export default function CompassScreen() {
         </View>
       )}
 
-      {dashboard && (
+      {activeDashboard && (
         <>
           <View style={styles.summaryCard}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{dashboard.bondXp}</Text>
+              <Text style={styles.summaryValue}>{activeDashboard.bondXp}</Text>
               <Text style={styles.summaryLabel}>Bond XP</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.summaryItem}>
               <Text style={styles.summaryValue}>
-                {dashboard.rhythm.activeWeeks}/{dashboard.rhythm.windowWeeks}
+                {activeDashboard.rhythm.activeWeeks}/{activeDashboard.rhythm.windowWeeks}
               </Text>
               <Text style={styles.summaryLabel}>Active weeks</Text>
             </View>
           </View>
-          <Text style={styles.rhythmCopy}>{dashboard.rhythm.label}</Text>
+          <Text style={styles.rhythmCopy}>{activeDashboard.rhythm.label}</Text>
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{dashboard.pet.name}&apos;s recent shape</Text>
+            <Text style={styles.sectionTitle}>{activeDashboard.pet.name}&apos;s recent shape</Text>
             <Text style={styles.sectionSubtitle}>Different dogs should form different shapes.</Text>
           </View>
 
-          {dashboard.compass.map((item) => (
+          {activeDashboard.compass.map((item) => (
             <PathwayCard key={item.pathway} item={item} />
           ))}
 
-          {dashboard.learningSummary.length > 0 && (
+          {activeDashboard.learningSummary.length > 0 && (
             <View style={styles.learningCard}>
               <Text style={styles.eyebrow}>CURRENT LEARNING</Text>
-              {dashboard.learningSummary.slice(0, 4).map((line) => (
+              {activeDashboard.learningSummary.slice(0, 4).map((line) => (
                 <View key={line} style={styles.learningRow}>
                   <Ionicons name="sparkles-outline" size={16} color={colors.primary[600]} />
                   <Text style={styles.learningText}>{line}</Text>
@@ -261,7 +300,7 @@ export default function CompassScreen() {
             </View>
           )}
 
-          <Text style={styles.disclaimer}>{dashboard.disclaimer}</Text>
+          <Text style={styles.disclaimer}>{activeDashboard.disclaimer}</Text>
         </>
       )}
     </ScrollView>

@@ -1,0 +1,52 @@
+name: Native Relationship Context CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/care-events/care-events.service.ts'
+      - 'apps/mobile/src/api/households.ts'
+      - 'apps/mobile/src/components/relationship/**'
+      - 'apps/mobile/src/relationship/**'
+      - 'apps/mobile/src/screens/TodayScreen.tsx'
+      - 'apps/mobile/src/screens/CompassScreen.tsx'
+      - '.github/scripts/assert-native-relationship-context.py'
+      - '.github/workflows/native-relationship-context-ci.yml'
+      - 'docs/NATIVE_RELATIONSHIP_CONTEXT_V1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relationship-context:
+    name: Authorized multi-dog relationship context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - name: Enforce relationship-context authority contract
+        run: python3 .github/scripts/assert-native-relationship-context.py
+      - name: Compile relationship-context sentry
+        run: python3 -m py_compile .github/scripts/assert-native-relationship-context.py
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Reject relationship-context formatting drift
+        run: |
+          pnpm exec prettier --check \
+            apps/mobile/src/relationship/relationship-scope.ts \
+            apps/mobile/src/components/relationship/RelationshipScopeBar.tsx \
+            apps/mobile/src/screens/TodayScreen.tsx \
+            apps/mobile/src/screens/CompassScreen.tsx \
+            .github/workflows/native-relationship-context-ci.yml \
+            docs/NATIVE_RELATIONSHIP_CONTEXT_V1.md
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
