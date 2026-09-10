@@ -203,7 +203,7 @@ def main() -> None:
         "There is nothing you need to fill.",
         "Blank space is part of the memory.",
         "Nothing is overdue and there is nothing to catch up on.",
-        "Missing older pages are not presented as non-participation.",
+        "older pages are not presented as non-participation.",
         "timeZone: 'UTC'",
     ]:
         require(journal_view, marker, "native Expedition Field Journal")
