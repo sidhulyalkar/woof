@@ -2,7 +2,11 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { expeditionApi, type ExpeditionProjection } from '../api/expeditions';
+import {
+  expeditionApi,
+  type ExpeditionJournal,
+  type ExpeditionProjection,
+} from '../api/expeditions';
 import { socialAdventureApi, type PacksCatalog } from '../api/social-adventure';
 import { ExpeditionWorldView } from '../components/community/ExpeditionWorldView';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -15,6 +19,7 @@ type SelectedScope = 'GLOBAL' | string;
 export default function ExpeditionScreen({ navigation }: Props) {
   const [globalProjection, setGlobalProjection] = useState<ExpeditionProjection | null>(null);
   const [packProjection, setPackProjection] = useState<ExpeditionProjection | null>(null);
+  const [journal, setJournal] = useState<ExpeditionJournal | null>(null);
   const [catalog, setCatalog] = useState<PacksCatalog | null>(null);
   const [selectedScope, setSelectedScope] = useState<SelectedScope>('GLOBAL');
   const [loading, setLoading] = useState(true);
@@ -71,9 +76,10 @@ export default function ExpeditionScreen({ navigation }: Props) {
       if (refresh) setRefreshing(true);
       else setLoading(true);
 
-      const [globalResult, packsResult] = await Promise.allSettled([
+      const [globalResult, packsResult, journalResult] = await Promise.allSettled([
         expeditionApi.global(),
         socialAdventureApi.packs(),
+        expeditionApi.journal(),
       ]);
 
       const unavailable: string[] = [];
@@ -104,10 +110,17 @@ export default function ExpeditionScreen({ navigation }: Props) {
         unavailable.push('Pack membership');
       }
 
+      if (journalResult.status === 'fulfilled') {
+        if (journalResult.value.scope === 'GLOBAL') setJournal(journalResult.value);
+        else unavailable.push('field journal');
+      } else {
+        unavailable.push('field journal');
+      }
+
       if (unavailable.length === 0) setError(null);
       else
         setError(
-          `${unavailable.join(' and ')} could not refresh. Previously loaded server projections remain visible where available; Woof did not infer missing progress or membership.`
+          `${unavailable.join(' and ')} could not refresh. Previously loaded server projections remain visible where available; Woof did not infer missing progress, membership, or journal history.`
         );
 
       setLoading(false);
@@ -158,6 +171,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
     <ExpeditionWorldView
       globalProjection={globalProjection}
       packProjection={packProjection}
+      journal={journal}
       joinedPacks={joinedPacks}
       selectedScope={selectedScope}
       packLoading={packLoading}
