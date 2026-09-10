@@ -29,6 +29,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
   const [journalError, setJournalError] = useState<string | null>(null);
   const packRequestRef = useRef(0);
   const selectedScopeRef = useRef<SelectedScope>('GLOBAL');
+  const journalRef = useRef<ExpeditionJournal | null>(null);
 
   const joinedPacks = useMemo(() => catalog?.packs.filter((pack) => pack.joined) ?? [], [catalog]);
 
@@ -63,7 +64,9 @@ export default function ExpeditionScreen({ navigation }: Props) {
       } catch {
         if (requestId !== packRequestRef.current) return;
         setPackProjection(null);
-        setWorldError('That Pack Expedition is unavailable. Woof will leave the shared world blank rather than guess.');
+        setWorldError(
+          'That Pack Expedition is unavailable. Woof will leave the shared world blank rather than guess.'
+        );
       } finally {
         if (requestId === packRequestRef.current) setPackLoading(false);
       }
@@ -111,11 +114,12 @@ export default function ExpeditionScreen({ navigation }: Props) {
       }
 
       if (journalResult.status === 'fulfilled' && journalResult.value.scope === 'GLOBAL') {
+        journalRef.current = journalResult.value;
         setJournal(journalResult.value);
         setJournalError(null);
       } else {
         setJournalError(
-          journal
+          journalRef.current
             ? 'Could not refresh field notes. Showing your last verified pages.'
             : 'Field notes could not refresh. Your shared world is still available; Woof will leave history blank rather than guess.'
         );
@@ -130,7 +134,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
       setLoading(false);
       setRefreshing(false);
     },
-    [applySelectedScope, journal, loadPackProjection]
+    [applySelectedScope, loadPackProjection]
   );
 
   useFocusEffect(
