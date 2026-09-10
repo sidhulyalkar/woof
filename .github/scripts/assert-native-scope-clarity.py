@@ -73,7 +73,11 @@ def main() -> None:
     # Story owns its own truthful scope: ALL is canonical default, pet filters are authorized
     # through household reads, and Today/Compass relationship preference is not inherited.
     require(story_api, "petId?: string", "Story API")
-    require(households_api, "getMine: () => apiClient.get<HouseholdSnapshot[]>('/households/me')", "household API")
+    require(
+        households_api,
+        "getMine: () => apiClient.get<HouseholdSnapshot[]>('/households/me')",
+        "household API",
+    )
     for marker in [
         "type StoryScope = 'ALL' | string",
         "useState<StoryScope>('ALL')",
@@ -100,14 +104,25 @@ def main() -> None:
         reject(story, forbidden, "Story scope")
 
     # Failure to discover filter options cannot erase or block the all-dogs Story authority.
-    require(story, "Dog filters are unavailable. All-dogs Story still uses server-authorized history.", "Story filter degradation")
+    require(
+        story,
+        "Dog filters are unavailable. All-dogs Story still uses server-authorized history.",
+        "Story filter degradation",
+    )
     require(story, "setFilterError", "Story filter degradation")
     require(story, "setError('Story is unavailable right now.", "Story data degradation")
 
-    # Field Journal is independently degradable from the live Expedition world.
+    # Field Journal is independently degradable from the live Expedition world. Refresh and Pack
+    # requests are generation-bound so an older network result cannot erase a newer truth.
     for marker in [
         "const [worldError, setWorldError]",
         "const [journalError, setJournalError]",
+        "loadRequestRef",
+        "loadRequestId !== loadRequestRef.current",
+        "packRequestRef",
+        "selectedScopeRef.current !== joinedPack.id",
+        "packLoadResult?.status === 'error'",
+        "setWorldError(packLoadResult.message)",
         "journalRef.current",
         "journalError={journalError}",
         "Your shared world is still available",
