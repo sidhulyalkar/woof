@@ -250,13 +250,19 @@ describe('ExpeditionJournalService integration', () => {
 
     const previous = result.entries[1];
     expect(previous?.state).toBe('PAST');
-    expect(previous?.landmarks).toEqual([
-      { key: 'RECOVERY_COUNTS', title: 'Recovery Counts' },
-    ]);
+    expect(previous?.landmarks).toEqual([{ key: 'RECOVERY_COUNTS', title: 'Recovery Counts' }]);
 
     expect(Object.keys(current ?? {}).sort()).toEqual(['landmarks', 'season', 'state']);
     expect(Object.keys(current?.landmarks[0] ?? {}).sort()).toEqual(['key', 'title']);
-    expect(result.entries.some((entry) => entry.season.key.includes(futureStart.toISOString().slice(0, 10)))).toBe(false);
-    expect(result.entries.some((entry) => entry.season.key.includes(malformedStart.toISOString().slice(0, 10)))).toBe(false);
+    expect(
+      result.entries.some((entry) =>
+        entry.season.key.includes(futureStart.toISOString().slice(0, 10))
+      )
+    ).toBe(false);
+    expect(
+      result.entries.some((entry) =>
+        entry.season.key.includes(malformedStart.toISOString().slice(0, 10))
+      )
+    ).toBe(false);
   });
 });
