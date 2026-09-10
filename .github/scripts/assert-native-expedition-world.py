@@ -13,6 +13,7 @@ COMMUNITY = ROOT / "apps/mobile/src/components/community/SocialAdventureCommunit
 NAV = ROOT / "apps/mobile/src/navigation/AppNavigator.tsx"
 SERVER_CONTROLLER = ROOT / "apps/api/src/expeditions/expeditions.controller.ts"
 SERVER_POLICY = ROOT / "apps/api/src/expeditions/expeditions.policy.ts"
+SERVER_SERVICE = ROOT / "apps/api/src/expeditions/expeditions.service.ts"
 DOC = ROOT / "docs/NATIVE_EXPEDITION_WORLD_V1.md"
 
 
@@ -46,6 +47,7 @@ def main() -> None:
         NAV,
         SERVER_CONTROLLER,
         SERVER_POLICY,
+        SERVER_SERVICE,
         DOC,
     ]
     for path in required:
@@ -60,6 +62,7 @@ def main() -> None:
     nav = NAV.read_text()
     server_controller = SERVER_CONTROLLER.read_text()
     server_policy = SERVER_POLICY.read_text()
+    server_service = SERVER_SERVICE.read_text()
     doc = DOC.read_text()
 
     # Native Expedition has exactly two read paths and no contribution mutation surface.
@@ -164,7 +167,8 @@ def main() -> None:
     require_count(nav, 'name="Expedition"', 2, "native navigation")
     require_count(nav, "component={ExpeditionScreen}", 2, "native navigation")
 
-    # Server policy remains the source of what counts and continues to expose calibration.
+    # Server policy remains the source of what counts and the projection remains explicitly
+    # uncalibrated rather than silently inheriting a client target.
     for marker in [
         "@Get('global')",
         "@Get('packs/:packId')",
@@ -179,6 +183,15 @@ def main() -> None:
         "score magnitude does not",
     ]:
         require(server_policy, marker, "server Expedition policy")
+
+    for marker in [
+        "target: null",
+        "status: 'CALIBRATING' as const",
+        "total: row?.total ?? 0",
+        "contributors: row?.contributors ?? 0",
+        "myContribution: row?.mine ?? 0",
+    ]:
+        require(server_service, marker, "server Expedition projection")
 
     for marker in [
         "There is no native Expedition contribution mutation.",
