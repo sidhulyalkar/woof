@@ -89,16 +89,22 @@ def main() -> None:
         reject(mobile_api, forbidden, "native Expedition API")
 
     # Pack reads remain downstream of a server-confirmed joined Pack and identity-bound response.
+    # Whole-screen refreshes and Pack requests are generation-bound so stale network results cannot
+    # replace a newer scope or erase an independently surfaced Pack error.
     for marker in [
         "expeditionApi.global()",
         "socialAdventureApi.packs()",
         "pack.id === packId && pack.joined",
         "expeditionApi.pack(joinedPack.id)",
         "response.scope !== 'PACK' || response.pack?.id !== joinedPack.id",
+        "loadRequestRef",
+        "loadRequestId !== loadRequestRef.current",
         "packRequestRef",
         "requestId !== packRequestRef.current",
-        "selectedScopeRef",
+        "selectedScopeRef.current !== joinedPack.id",
         "Promise.allSettled([",
+        "packLoadResult?.status === 'error'",
+        "setWorldError(packLoadResult.message)",
         "Woof will only open Expedition views for Packs you have joined.",
         "setWorldError(",
         "setJournalError(",
@@ -161,7 +167,11 @@ def main() -> None:
     # Community is a portal to cooperative play, not a hidden embedding in league arithmetic.
     require(feed, "onOpenExpedition={() => navigation.navigate('Expedition')}", "native Community screen")
     require(community, "onOpenExpedition: () => void", "native Community presentation")
-    require(community, 'label="Expedition" onPress={props.onOpenExpedition}', "native Community presentation")
+    require(
+        community,
+        'label="Expedition" onPress={props.onOpenExpedition}',
+        "native Community presentation",
+    )
 
     # Both guardian and Companion stacks expose the same human-side Expedition surface.
     require(nav, "Expedition: undefined", "native navigation")
