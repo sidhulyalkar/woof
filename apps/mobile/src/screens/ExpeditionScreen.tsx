@@ -22,40 +22,49 @@ export default function ExpeditionScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const packRequestRef = useRef(0);
+  const selectedScopeRef = useRef<SelectedScope>('GLOBAL');
 
   const joinedPacks = useMemo(() => catalog?.packs.filter((pack) => pack.joined) ?? [], [catalog]);
 
-  const loadPackProjection = useCallback(async (packId: string, packs: PacksCatalog | null) => {
-    const joinedPack = packs?.packs.find((pack) => pack.id === packId && pack.joined);
-    if (!joinedPack) {
-      packRequestRef.current += 1;
-      setPackProjection(null);
-      setPackLoading(false);
-      setSelectedScope('GLOBAL');
-      return;
-    }
+  const applySelectedScope = useCallback((scope: SelectedScope) => {
+    selectedScopeRef.current = scope;
+    setSelectedScope(scope);
+  }, []);
 
-    const requestId = ++packRequestRef.current;
-    setPackLoading(true);
-    try {
-      const response = await expeditionApi.pack(joinedPack.id);
-      if (requestId !== packRequestRef.current) return;
-      if (response.scope !== 'PACK' || response.pack?.id !== joinedPack.id) {
+  const loadPackProjection = useCallback(
+    async (packId: string, packs: PacksCatalog | null) => {
+      const joinedPack = packs?.packs.find((pack) => pack.id === packId && pack.joined);
+      if (!joinedPack) {
+        packRequestRef.current += 1;
         setPackProjection(null);
-        setError('That Pack Expedition did not match the server-confirmed Pack, so Woof hid it.');
+        setPackLoading(false);
+        applySelectedScope('GLOBAL');
         return;
       }
-      setPackProjection(response);
-    } catch {
-      if (requestId !== packRequestRef.current) return;
-      setPackProjection(null);
-      setError(
-        'That Pack Expedition is unavailable. Woof will not estimate shared progress from local activity or league data.'
-      );
-    } finally {
-      if (requestId === packRequestRef.current) setPackLoading(false);
-    }
-  }, []);
+
+      const requestId = ++packRequestRef.current;
+      setPackLoading(true);
+      try {
+        const response = await expeditionApi.pack(joinedPack.id);
+        if (requestId !== packRequestRef.current) return;
+        if (response.scope !== 'PACK' || response.pack?.id !== joinedPack.id) {
+          setPackProjection(null);
+          setError('That Pack Expedition did not match the server-confirmed Pack, so Woof hid it.');
+          return;
+        }
+        setPackProjection(response);
+      } catch {
+        if (requestId !== packRequestRef.current) return;
+        setPackProjection(null);
+        setError(
+          'That Pack Expedition is unavailable. Woof will not estimate shared progress from local activity or league data.'
+        );
+      } finally {
+        if (requestId === packRequestRef.current) setPackLoading(false);
+      }
+    },
+    [applySelectedScope]
+  );
 
   const load = useCallback(
     async (refresh = false) => {
@@ -68,7 +77,6 @@ export default function ExpeditionScreen({ navigation }: Props) {
       ]);
 
       const unavailable: string[] = [];
-      let nextCatalog = catalog;
 
       if (globalResult.status === 'fulfilled') {
         if (globalResult.value.scope === 'GLOBAL') setGlobalProjection(globalResult.value);
@@ -78,23 +86,22 @@ export default function ExpeditionScreen({ navigation }: Props) {
       }
 
       if (packsResult.status === 'fulfilled') {
-        nextCatalog = packsResult.value;
         setCatalog(packsResult.value);
+        const currentScope = selectedScopeRef.current;
+        if (currentScope !== 'GLOBAL') {
+          const stillJoined = packsResult.value.packs.some(
+            (pack) => pack.id === currentScope && pack.joined
+          );
+          if (stillJoined) await loadPackProjection(currentScope, packsResult.value);
+          else {
+            packRequestRef.current += 1;
+            setPackProjection(null);
+            setPackLoading(false);
+            applySelectedScope('GLOBAL');
+          }
+        }
       } else {
         unavailable.push('Pack membership');
-      }
-
-      if (selectedScope !== 'GLOBAL') {
-        const stillJoined = nextCatalog?.packs.some(
-          (pack) => pack.id === selectedScope && pack.joined
-        );
-        if (stillJoined) await loadPackProjection(selectedScope, nextCatalog);
-        else {
-          packRequestRef.current += 1;
-          setPackProjection(null);
-          setPackLoading(false);
-          setSelectedScope('GLOBAL');
-        }
       }
 
       if (unavailable.length === 0) setError(null);
@@ -106,7 +113,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
       setLoading(false);
       setRefreshing(false);
     },
-    [catalog, loadPackProjection, selectedScope]
+    [applySelectedScope, loadPackProjection]
   );
 
   useFocusEffect(
@@ -120,8 +127,8 @@ export default function ExpeditionScreen({ navigation }: Props) {
     setPackProjection(null);
     setPackLoading(false);
     setError(null);
-    setSelectedScope('GLOBAL');
-  }, []);
+    applySelectedScope('GLOBAL');
+  }, [applySelectedScope]);
 
   const selectPack = useCallback(
     (packId: string) => {
@@ -132,10 +139,10 @@ export default function ExpeditionScreen({ navigation }: Props) {
       }
       setError(null);
       setPackProjection(null);
-      setSelectedScope(joinedPack.id);
+      applySelectedScope(joinedPack.id);
       void loadPackProjection(joinedPack.id, catalog);
     },
-    [catalog, loadPackProjection]
+    [applySelectedScope, catalog, loadPackProjection]
   );
 
   if (loading && !globalProjection) {
