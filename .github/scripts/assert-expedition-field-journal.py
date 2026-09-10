@@ -200,7 +200,7 @@ def main() -> None:
     # page fullness calculations, or local transformations into achievement semantics.
     for marker in [
         "entry.landmarks.map((landmark)",
-        "Repeating a moment does not make a bigger stamp",
+        "does not make a bigger stamp",
         "There is nothing you need to fill.",
         "Blank space is part of the memory.",
         "Nothing is overdue and there is nothing to catch up on.",
