@@ -48,10 +48,10 @@ export type ExpeditionJournalEntry = {
     endsAt: string;
   };
   state: 'ACTIVE' | 'PAST';
-  landmarks: Array<{
+  landmarks: {
     key: ExpeditionObjectiveKey;
     title: string;
-  }>;
+  }[];
 };
 
 export type ExpeditionJournal = {
