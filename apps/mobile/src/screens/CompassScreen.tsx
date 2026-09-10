@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -84,6 +84,7 @@ function DiscoveryStamp({ pathway, discovered }: { pathway: TrailPathway; discov
 
 export default function CompassScreen() {
   const { selectedPetId, loading: relationshipLoading } = useRelationshipScope();
+  const requestGenerationRef = useRef(0);
   const [dashboard, setDashboard] = useState<AdventureDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,24 +94,31 @@ export default function CompassScreen() {
     async (refresh = false) => {
       if (relationshipLoading) return;
       if (!selectedPetId) {
+        requestGenerationRef.current += 1;
         setDashboard(null);
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
+      const requestGeneration = ++requestGenerationRef.current;
       if (refresh) setRefreshing(true);
       else setLoading(true);
       try {
-        setDashboard(await adventureApi.getMine(selectedPetId));
+        const next = await adventureApi.getMine(selectedPetId);
+        if (requestGeneration !== requestGenerationRef.current) return;
+        setDashboard(next);
         setError(null);
       } catch {
+        if (requestGeneration !== requestGenerationRef.current) return;
         setError(
           'Compass is unavailable right now. Woof has not changed any relationship evidence.'
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestGeneration === requestGenerationRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [relationshipLoading, selectedPetId]
@@ -150,7 +158,9 @@ export default function CompassScreen() {
 
       <RelationshipScopeBar
         onBeforeSelect={() => {
+          requestGenerationRef.current += 1;
           setDashboard(null);
+          setLoading(true);
           setError(null);
         }}
       />
