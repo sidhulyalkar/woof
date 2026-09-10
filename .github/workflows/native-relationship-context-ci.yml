@@ -39,14 +39,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Reject relationship-context formatting drift
         run: |
-          pnpm exec prettier --write \
-            apps/mobile/src/relationship/relationship-scope.ts \
-            apps/mobile/src/components/relationship/RelationshipScopeBar.tsx \
-            apps/mobile/src/screens/TodayScreen.tsx \
-            apps/mobile/src/screens/CompassScreen.tsx \
-            .github/workflows/native-relationship-context-ci.yml \
-            docs/NATIVE_RELATIONSHIP_CONTEXT_V1.md
-          git diff --exit-code -- \
+          pnpm exec prettier --check \
             apps/mobile/src/relationship/relationship-scope.ts \
             apps/mobile/src/components/relationship/RelationshipScopeBar.tsx \
             apps/mobile/src/screens/TodayScreen.tsx \
