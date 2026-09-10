@@ -1,0 +1,47 @@
+name: Temporary Native Expedition World Formatter
+
+on:
+  push:
+    branches:
+      - agent/native-expedition-world-v1
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Canonicalize exactly the Expedition world renderer
+        run: pnpm exec prettier --write apps/mobile/src/components/community/ExpeditionWorldView.tsx
+      - name: Commit exactly the canonical formatting delta
+        run: |
+          changed="$(git diff --name-only)"
+          if [[ -z "$changed" ]]; then
+            echo 'Expedition world renderer already canonical.'
+            exit 0
+          fi
+          if [[ "$changed" != 'apps/mobile/src/components/community/ExpeditionWorldView.tsx' ]]; then
+            echo "Unexpected files changed:"
+            echo "$changed"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/mobile/src/components/community/ExpeditionWorldView.tsx
+          git commit -m 'Format native Expedition world renderer'
+          git fetch origin agent/native-expedition-world-v1
+          git rebase origin/agent/native-expedition-world-v1
+          git push origin HEAD:agent/native-expedition-world-v1
