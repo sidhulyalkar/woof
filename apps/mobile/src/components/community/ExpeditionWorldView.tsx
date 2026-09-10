@@ -22,6 +22,7 @@ type Props = {
   globalProjection: ExpeditionProjection | null;
   packProjection: ExpeditionProjection | null;
   journal: ExpeditionJournal | null;
+  journalError: string | null;
   joinedPacks: SocialPack[];
   selectedScope: 'GLOBAL' | string;
   packLoading: boolean;
@@ -66,7 +67,7 @@ function formatSeason(start: string, end: string) {
   const startsAt = new Date(start);
   const endsAt = new Date(end);
   if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime())) {
-    return 'Server-defined weekly season';
+    return 'Weekly Expedition';
   }
   const formatter = new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -74,6 +75,12 @@ function formatSeason(start: string, end: string) {
     timeZone: 'UTC',
   });
   return `${formatter.format(startsAt)} – ${formatter.format(endsAt)}`;
+}
+
+function contributorPresence(count: number) {
+  if (count <= 0) return 'This landmark is quiet so far this week.';
+  if (count === 1) return '1 person has left a mark here this week.';
+  return `${count} people have left a mark here this week.`;
 }
 
 function ScopeChip({
@@ -119,9 +126,7 @@ function Landmark({
         <View style={styles.landmarkHeading}>
           <View style={styles.flex}>
             <Text style={styles.placeName}>{spec.place}</Text>
-            <Text style={styles.objectiveTitle}>
-              {objective?.title ?? 'Server objective unavailable'}
-            </Text>
+            <Text style={styles.objectiveTitle}>{objective?.title ?? 'Landmark unavailable'}</Text>
           </View>
           {participated && (
             <View style={styles.myMark}>
@@ -135,32 +140,19 @@ function Landmark({
 
         {objective ? (
           <>
-            <View style={styles.countRow}>
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{objective.total}</Text>
-                <Text style={styles.countLabel}>shared marks</Text>
-              </View>
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{objective.contributors}</Text>
-                <Text style={styles.countLabel}>contributors</Text>
-              </View>
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{objective.myContribution}</Text>
-                <Text style={styles.countLabel}>yours</Text>
-              </View>
-            </View>
-            <View style={styles.calibrationNote}>
-              <Ionicons name="flask-outline" size={15} color={colors.primary[700]} />
-              <Text style={styles.calibrationText}>
+            <Text style={styles.presenceText}>{contributorPresence(objective.contributors)}</Text>
+            <View style={styles.openNote}>
+              <Ionicons name="leaf-outline" size={15} color={colors.primary[700]} />
+              <Text style={styles.openText}>
                 {objective.status === 'CALIBRATING'
-                  ? 'Calibrating, no completion target yet.'
-                  : 'Server authority has not supplied a supported target state.'}
+                  ? 'This landmark is open. There is no finish line to chase.'
+                  : 'This landmark stays open without a chaseable target.'}
               </Text>
             </View>
           </>
         ) : (
           <Text style={styles.unavailableText}>
-            Woof will not estimate this landmark from another score or local activity history.
+            Woof will leave this landmark quiet rather than guess from another score or local history.
           </Text>
         )}
       </View>
@@ -182,8 +174,7 @@ export function ExpeditionWorldView(props: Props) {
         <Text style={styles.eyebrow}>WEEKLY EXPEDITION</Text>
         <Text style={styles.heroTitle}>Build a shared world, not a bigger score.</Text>
         <Text style={styles.heroBody}>
-          Useful variety leaves marks across the landscape. The scene is playful; what counts stays
-          bounded and server-authored.
+          Useful variety leaves marks across the landscape. There is no finish line to chase.
         </Text>
 
         <View style={styles.worldScene} accessible accessibilityLabel="Shared Expedition landscape">
@@ -238,9 +229,7 @@ export function ExpeditionWorldView(props: Props) {
           ))}
         </ScrollView>
         {props.joinedPacks.length === 0 && (
-          <Text style={styles.scopeHint}>
-            No joined Pack is shown. Woof does not infer local membership from your location.
-          </Text>
+          <Text style={styles.scopeHint}>Join a Pack to see its shared Expedition here.</Text>
         )}
       </View>
 
@@ -254,14 +243,14 @@ export function ExpeditionWorldView(props: Props) {
       {props.selectedScope !== 'GLOBAL' && props.packLoading ? (
         <View style={styles.loadingCard} accessibilityRole="progressbar">
           <ActivityIndicator color={colors.primary[600]} />
-          <Text style={styles.loadingText}>Reading this Pack’s server-issued world…</Text>
+          <Text style={styles.loadingText}>Opening this Pack’s shared world…</Text>
         </View>
       ) : projection ? (
         <View style={styles.landmarksSection}>
           <Text style={styles.sectionLabel}>LANDMARKS</Text>
-          <Text style={styles.sectionTitle}>A landscape with three kinds of contribution</Text>
+          <Text style={styles.sectionTitle}>Three ways to leave the world a little richer</Text>
           <Text style={styles.sectionBody}>
-            Landmarks always exist. Counts show server-issued evidence, not unlock levels.
+            Every landmark is here from the beginning. Presence matters more than repetition.
           </Text>
           {LANDMARKS.map((spec) => (
             <Landmark
@@ -278,13 +267,13 @@ export function ExpeditionWorldView(props: Props) {
           <Ionicons name="shield-outline" size={24} color={colors.gray[600]} />
           <Text style={styles.unavailableTitle}>This Expedition view is unavailable.</Text>
           <Text style={styles.unavailableText}>
-            Woof will not reconstruct shared progress from cached activity, league score, or local
-            guesses.
+            Woof will leave the shared world blank rather than reconstruct it from another score or
+            local guesses.
           </Text>
         </View>
       )}
 
-      <ExpeditionFieldJournalView journal={props.journal} />
+      <ExpeditionFieldJournalView journal={props.journal} error={props.journalError} />
 
       <View style={styles.boundaryCard}>
         <View style={styles.boundaryIcon}>
@@ -293,13 +282,10 @@ export function ExpeditionWorldView(props: Props) {
         <View style={styles.flex}>
           <Text style={styles.boundaryTitle}>The world is the game. Your dog is not.</Text>
           <Text style={styles.boundaryBody}>
-            CARE, health state, distance, duration, intensity, missed days, likes, rankings, and
-            repeated grinding add no Expedition progress. Recovery can count because listening can
-            be the useful choice.
+            The world responds to useful variety, including recovery and listening. It never asks
+            you to optimize health, distance, duration, missed days, likes, or rank.
           </Text>
-          <Text style={styles.noMeter}>
-            No completion bar. This shared scene is not a checklist.
-          </Text>
+          <Text style={styles.noMeter}>No completion bar. This shared scene is not a checklist.</Text>
         </View>
       </View>
 
@@ -406,8 +392,9 @@ const styles = StyleSheet.create({
   sectionLabel: { color: colors.gray[500], fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   scopeRow: { gap: 8, paddingTop: 9, paddingRight: 18 },
   scopeChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 13,
-    paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.gray[200],
@@ -464,11 +451,8 @@ const styles = StyleSheet.create({
   },
   myMarkText: { color: colors.primary[800], fontSize: 9, fontWeight: '800' },
   atmosphere: { marginTop: 7, color: colors.gray[600], fontSize: 11, lineHeight: 17 },
-  countRow: { marginTop: 11, flexDirection: 'row', gap: 7 },
-  countCell: { flex: 1, padding: 8, borderRadius: 11, backgroundColor: colors.gray[50] },
-  countValue: { color: colors.gray[900], fontSize: 17, fontWeight: '900' },
-  countLabel: { marginTop: 1, color: colors.gray[500], fontSize: 8 },
-  calibrationNote: {
+  presenceText: { marginTop: 10, color: colors.gray[700], fontSize: 11, fontWeight: '700' },
+  openNote: {
     marginTop: 9,
     flexDirection: 'row',
     alignItems: 'center',
@@ -477,7 +461,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.primary[50],
   },
-  calibrationText: {
+  openText: {
     flex: 1,
     color: colors.primary[800],
     fontSize: 10,
