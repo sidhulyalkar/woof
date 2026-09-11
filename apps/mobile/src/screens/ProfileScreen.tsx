@@ -10,10 +10,11 @@ import type { Pet } from '../types';
 type Props = StackScreenProps<RootStackParamList, 'Profile'>;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { user, logout, deleteAccount } = useAuth();
+  const { user, logout, logoutAll, deleteAccount } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [petsLoading, setPetsLoading] = useState(true);
   const [petsUnavailable, setPetsUnavailable] = useState(false);
+  const [endingAllSessions, setEndingAllSessions] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const loadPets = useCallback(async () => {
@@ -50,6 +51,37 @@ export default function ProfileScreen({ navigation }: Props) {
         onPress: () => void logout(),
       },
     ]);
+  };
+
+  const performLogoutAll = async () => {
+    if (endingAllSessions) return;
+
+    setEndingAllSessions(true);
+    try {
+      await logoutAll();
+    } catch {
+      setEndingAllSessions(false);
+      Alert.alert(
+        'Sessions were not ended',
+        'Woof could not confirm sign out on all devices. This device remains signed in so you can retry.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleLogoutAll = () => {
+    Alert.alert(
+      'Sign out on all devices?',
+      'Woof must reach the server to revoke every active session. If that confirmation fails, this device stays signed in so you can retry safely.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out everywhere',
+          style: 'destructive',
+          onPress: () => void performLogoutAll(),
+        },
+      ]
+    );
   };
 
   const performAccountDeletion = async () => {
@@ -218,7 +250,26 @@ export default function ProfileScreen({ navigation }: Props) {
 
         <TouchableOpacity style={styles.logoutItem} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="#ef4444" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <View style={styles.sessionCopy}>
+            <Text style={styles.logoutText}>Logout</Text>
+            <Text style={styles.sessionDetail}>Sign out on this device, even during an outage.</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Sign out on all Woof devices"
+          disabled={endingAllSessions}
+          style={[styles.logoutItem, endingAllSessions && styles.sessionActionDisabled]}
+          onPress={handleLogoutAll}
+        >
+          <Ionicons name="shield-checkmark-outline" size={24} color="#b45309" />
+          <View style={styles.sessionCopy}>
+            <Text style={styles.logoutAllText}>
+              {endingAllSessions ? 'Ending all sessions…' : 'Sign out on all devices'}
+            </Text>
+            <Text style={styles.sessionDetail}>Requires server confirmation before Woof claims success.</Text>
+          </View>
         </TouchableOpacity>
 
         <View style={styles.dangerZone}>
@@ -320,11 +371,16 @@ const styles = StyleSheet.create({
   logoutItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    minHeight: 60,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  logoutText: { marginLeft: 14, fontSize: 16, color: '#ef4444', fontWeight: '500' },
+  sessionCopy: { flex: 1, marginLeft: 14 },
+  logoutText: { fontSize: 16, color: '#ef4444', fontWeight: '500' },
+  logoutAllText: { fontSize: 16, color: '#b45309', fontWeight: '600' },
+  sessionDetail: { fontSize: 12, lineHeight: 17, color: '#6b7280', marginTop: 2 },
+  sessionActionDisabled: { opacity: 0.55 },
   dangerZone: {
     marginTop: 18,
     padding: 16,
