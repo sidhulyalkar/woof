@@ -109,10 +109,10 @@ for question_id in question_ids:
 require(companion_home, "You can belong here before you have a dog.", "petless Companion framing")
 require(companion_home, "CommunityStandalone", "petless Community route")
 require(companion_home, "Dog-specific spaces stay private", "human-language pet privacy boundary")
-require(companion_home, "does not invent a", "mode/authority separation prefix")
+companion_home_compact = " ".join(companion_home.split())
 require(
-    companion_home,
-    "pet relationship or unlock pet-specific Today, Compass, or Story.",
+    companion_home_compact,
+    "Companion mode gives you human-side places to learn and participate. It does not invent a pet relationship or unlock pet-specific Today, Compass, or Story.",
     "mode/authority separation boundary",
 )
 
