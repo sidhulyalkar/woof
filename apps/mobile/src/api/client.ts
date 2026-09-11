@@ -1,6 +1,11 @@
 import { create, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
+import {
+  ACCESS_TOKEN_KEY,
+  getAccessToken,
+  publishSessionInvalidation,
+  rejectAccessTokenIfCurrent,
+} from './session';
 
 const DEVELOPMENT_API_URL = 'http://localhost:4000/api/v1';
 const NON_REMOTE_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
@@ -30,8 +35,20 @@ function validateApiUrl(value: string): string {
   return normalized;
 }
 
+function requestBearerToken(headers: unknown): string | null {
+  if (!headers || typeof headers !== 'object') return null;
+
+  const record = headers as Record<string, unknown>;
+  const authorization = record.Authorization ?? record.authorization;
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authorization.slice('Bearer '.length).trim();
+  return token || null;
+}
+
 const API_URL = validateApiUrl(configuredApiUrl);
-const ACCESS_TOKEN_KEY = 'woofAccessToken';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -51,7 +68,7 @@ class ApiClient {
   private setupInterceptors() {
     this.client.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
-        const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+        const token = await getAccessToken();
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -61,14 +78,24 @@ class ApiClient {
     );
 
     // The canonical NestJS API currently issues one expiring access token and
-    // does not expose a refresh-token endpoint. Do not invent a client-side
-    // protocol that the server cannot honor. Clear stale credentials on 401 so
-    // navigation/session code can return the user to authentication cleanly.
+    // does not expose a refresh-token endpoint. A 401 can therefore invalidate
+    // only the exact credential that authorized the rejected request. Comparing
+    // the rejected bearer token against current SecureStore authority prevents
+    // a delayed response from an older session from deleting a newer login.
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
         if (error.response?.status === 401) {
-          await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+          const rejectedToken = requestBearerToken(error.config?.headers);
+          if (rejectedToken) {
+            const result = await rejectAccessTokenIfCurrent(rejectedToken);
+            if (result.matched) {
+              if (!result.cleared) {
+                console.warn('Rejected Woof credential could not be removed from secure storage');
+              }
+              publishSessionInvalidation({ reason: 'unauthorized', rejectedToken });
+            }
+          }
         }
         return Promise.reject(error);
       }
