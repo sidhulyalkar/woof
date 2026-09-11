@@ -19,7 +19,8 @@ const links: {
   {
     route: 'Expedition',
     title: 'Shared Expedition',
-    description: 'Step into the cooperative world. Human-side participation does not require a dog.',
+    description:
+      'Step into the cooperative world. Human-side participation does not require a dog.',
     icon: 'map-outline',
   },
   {
@@ -31,7 +32,8 @@ const links: {
   {
     route: 'Packs',
     title: 'Packs',
-    description: 'Find small communities to learn and explore with, without borrowing pet authority.',
+    description:
+      'Find small communities to learn and explore with, without borrowing pet authority.',
     icon: 'people-circle-outline',
   },
   {
@@ -80,7 +82,8 @@ export default function CompanionHomeScreen({ navigation, onResolved }: Props) {
       <Text style={styles.title}>You can belong here before you have a dog.</Text>
       <Text style={styles.intro}>
         Explore the shared world, practice useful human skills, and meet people. Dog-specific Today,
-        Compass, and Story open only when Woof can verify a real relationship you are allowed to see.
+        Compass, and Story open only when Woof can verify a real relationship you are allowed to
+        see.
       </Text>
 
       <View style={styles.truthCard}>
@@ -88,14 +91,16 @@ export default function CompanionHomeScreen({ navigation, onResolved }: Props) {
         <View style={styles.truthCopy}>
           <Text style={styles.truthTitle}>Dog-specific spaces stay private</Text>
           <Text style={styles.truthText}>
-            Companion mode gives you human-side places to learn and participate. It does not invent a
-            pet relationship or unlock pet-specific Today, Compass, or Story.
+            Companion mode gives you human-side places to learn and participate. It does not invent
+            a pet relationship or unlock pet-specific Today, Compass, or Story.
           </Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Start anywhere</Text>
-      <Text style={styles.sectionIntro}>These paths are useful with or without a dog of your own.</Text>
+      <Text style={styles.sectionIntro}>
+        These paths are useful with or without a dog of your own.
+      </Text>
       <View style={styles.linkList}>
         {links.map((link) => (
           <Pressable
@@ -184,7 +189,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 30,
   },
-  sectionIntro: { marginTop: 4, marginBottom: 12, color: colors.gray[600], fontSize: 12, lineHeight: 18 },
+  sectionIntro: {
+    marginTop: 4,
+    marginBottom: 12,
+    color: colors.gray[600],
+    fontSize: 12,
+    lineHeight: 18,
+  },
   linkList: { gap: 10 },
   linkCard: {
     minHeight: 88,

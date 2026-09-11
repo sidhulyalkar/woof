@@ -16,10 +16,7 @@ type Props = StackScreenProps<RootStackParamList, 'Expedition'>;
 
 type SelectedScope = 'GLOBAL' | string;
 
-type PackLoadResult =
-  | { status: 'ok' }
-  | { status: 'stale' }
-  | { status: 'error'; message: string };
+type PackLoadResult = { status: 'ok' } | { status: 'stale' } | { status: 'error'; message: string };
 
 export default function ExpeditionScreen({ navigation }: Props) {
   const [globalProjection, setGlobalProjection] = useState<ExpeditionProjection | null>(null);
@@ -122,7 +119,8 @@ export default function ExpeditionScreen({ navigation }: Props) {
           const stillJoined = packsResult.value.packs.some(
             (pack) => pack.id === currentScope && pack.joined
           );
-          if (stillJoined) packLoadResult = await loadPackProjection(currentScope, packsResult.value);
+          if (stillJoined)
+            packLoadResult = await loadPackProjection(currentScope, packsResult.value);
           else {
             packRequestRef.current += 1;
             setPackProjection(null);

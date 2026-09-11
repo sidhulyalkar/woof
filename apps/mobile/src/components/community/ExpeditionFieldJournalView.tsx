@@ -44,7 +44,9 @@ function FieldNote({ entry }: { entry: ExpeditionJournalEntry }) {
           <Ionicons name="paw-outline" size={15} color={colors.primary[700]} />
         </View>
         <View style={styles.noteHeading}>
-          <Text style={styles.noteState}>{entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}</Text>
+          <Text style={styles.noteState}>
+            {entry.state === 'ACTIVE' ? 'THIS WEEK' : 'FIELD NOTE'}
+          </Text>
           <Text style={styles.noteDate}>{formatWeek(entry.season.startsAt)}</Text>
         </View>
       </View>
@@ -93,7 +95,9 @@ export function ExpeditionFieldJournalView({ journal, error }: Props) {
       {!journal ? (
         <View style={styles.quietCard} accessibilityRole={error ? 'alert' : undefined}>
           <Ionicons name="book-outline" size={23} color={colors.gray[500]} />
-          <Text style={styles.quietTitle}>{error ? 'Field notes could not refresh.' : 'No field notes yet.'}</Text>
+          <Text style={styles.quietTitle}>
+            {error ? 'Field notes could not refresh.' : 'No field notes yet.'}
+          </Text>
           <Text style={styles.quietBody}>
             {error
               ? 'Your shared world is still available. Woof will leave history blank rather than guess.'
@@ -105,8 +109,8 @@ export function ExpeditionFieldJournalView({ journal, error }: Props) {
           <Ionicons name="leaf-outline" size={23} color={colors.primary[600]} />
           <Text style={styles.quietTitle}>No field notes yet.</Text>
           <Text style={styles.quietBody}>
-            Nothing is overdue and there is nothing to catch up on. A page appears only from verified
-            Expedition moments.
+            Nothing is overdue and there is nothing to catch up on. A page appears only from
+            verified Expedition moments.
           </Text>
         </View>
       ) : (

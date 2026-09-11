@@ -152,7 +152,8 @@ function Landmark({
           </>
         ) : (
           <Text style={styles.unavailableText}>
-            Woof will leave this landmark quiet rather than guess from another score or local history.
+            Woof will leave this landmark quiet rather than guess from another score or local
+            history.
           </Text>
         )}
       </View>
@@ -285,7 +286,9 @@ export function ExpeditionWorldView(props: Props) {
             The world responds to useful variety, including recovery and listening. It never asks
             you to optimize health, distance, duration, missed days, likes, or rank.
           </Text>
-          <Text style={styles.noMeter}>No completion bar. This shared scene is not a checklist.</Text>
+          <Text style={styles.noMeter}>
+            No completion bar. This shared scene is not a checklist.
+          </Text>
         </View>
       </View>
 
