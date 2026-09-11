@@ -1,5 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
-import apiClient, { ACCESS_TOKEN_KEY } from './client';
+import apiClient from './client';
+import {
+  clearAccessToken,
+  clearAccessTokenIfCurrent,
+  getAccessToken,
+  storeAccessToken,
+  takeAccessToken,
+} from './session';
 import { clearRegistrationRecovery, getOrCreateRegistrationRecovery } from '../onboarding/recovery';
 
 export interface RegisterDto {
@@ -28,7 +34,7 @@ export interface AuthResponse {
 }
 
 async function persist(response: AuthResponse) {
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, response.access_token);
+  await storeAccessToken(response.access_token);
   return response;
 }
 
@@ -38,7 +44,7 @@ function authHeader(token: string) {
 
 async function clearDeletedAccountCredentialBestEffort() {
   try {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    await clearAccessToken();
   } catch (error) {
     // Server deletion is already authoritative and removes the canonical session.
     // Do not turn a successful account deletion into a false client failure if
@@ -74,8 +80,7 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
-    const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    const token = await takeAccessToken();
     if (!token) return;
 
     try {
@@ -87,10 +92,17 @@ export const authApi = {
   },
 
   async logoutAll(): Promise<void> {
-    const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    const token = await getAccessToken();
     if (!token) return;
+
+    // "All devices" is a server-owned claim. Keep this device credential until
+    // the server confirms every active session for the user has been revoked so
+    // a transient outage remains retryable instead of silently becoming a local-only logout.
     await apiClient.post('/auth/logout-all', {}, authHeader(token));
+    const cleanup = await clearAccessTokenIfCurrent(token);
+    if (cleanup.matched && !cleanup.cleared) {
+      console.warn('All Woof sessions were revoked, but local credential cleanup must retry');
+    }
   },
 
   async deleteAccount(): Promise<void> {
@@ -103,6 +115,6 @@ export const authApi = {
   },
 
   async isAuthenticated(): Promise<boolean> {
-    return Boolean(await SecureStore.getItemAsync(ACCESS_TOKEN_KEY));
+    return Boolean(await getAccessToken());
   },
 };
