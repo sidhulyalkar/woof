@@ -348,8 +348,39 @@ function AuthenticatedEntry() {
   );
 }
 
+function SessionVerificationGate() {
+  const { logout, retrySessionVerification } = useAuth();
+
+  return (
+    <View style={styles.authorityError}>
+      <Ionicons name="cloud-offline-outline" size={34} color={colors.primary[700]} />
+      <Text style={styles.errorTitle}>Woof can’t verify this session yet.</Text>
+      <Text style={styles.errorCopy}>
+        Your saved sign-in is still on this device, but authenticated Woof surfaces stay closed
+        until the server can confirm it. Try again, or sign out on this device.
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Retry Woof session verification"
+        style={styles.retryButton}
+        onPress={() => void retrySessionVerification()}
+      >
+        <Text style={styles.retryButtonText}>Try again</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sign out on this device"
+        style={styles.signOutButton}
+        onPress={() => void logout()}
+      >
+        <Text style={styles.signOutText}>Sign out on this device</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export const AppNavigator = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, sessionVerificationUnavailable } = useAuth();
 
   if (loading) {
     return (
@@ -357,6 +388,10 @@ export const AppNavigator = () => {
         <ActivityIndicator size="large" color={colors.primary[600]} />
       </View>
     );
+  }
+
+  if (sessionVerificationUnavailable) {
+    return <SessionVerificationGate />;
   }
 
   return isAuthenticated ? <AuthenticatedEntry /> : <AuthNavigator />;
