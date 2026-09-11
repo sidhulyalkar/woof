@@ -103,12 +103,16 @@ def main() -> None:
     ]:
         reject(story, forbidden, "Story scope")
 
-    # Failure to discover filter options cannot erase or block the all-dogs Story authority.
+    # Optional filter discovery may fail without blocking canonical Story, but stale pet-specific
+    # filter state or stale same-scope Story data must not remain visible after authority reads fail.
+    require(story, "setFilterPets([]);", "Story filter degradation")
     require(
         story,
-        "Dog filters are unavailable. All-dogs Story still uses server-authorized history.",
+        "Dog filters are unavailable. Story is using the server-authorized all-dogs view.",
         "Story filter degradation",
     )
+    require_count(story, "setDashboard(null);", 2, "Story fail-closed data presentation")
+    require_count(story, "setDashboardScope(null);", 2, "Story fail-closed data presentation")
     require(story, "setFilterError", "Story filter degradation")
     require(story, "setError('Story is unavailable right now.", "Story data degradation")
 
