@@ -54,9 +54,10 @@ jobs:
             .github/scripts/assert-expedition-field-journal.py
       - name: Install from committed lockfile
         run: pnpm install --frozen-lockfile
-      - name: Reject scope-clarity formatting drift
+      - name: Produce canonical scope-clarity formatting
+        id: formatting
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/screens/CompanionHomeScreen.tsx \
             apps/mobile/src/screens/StoryScreen.tsx \
             apps/mobile/src/screens/ExpeditionScreen.tsx \
@@ -65,7 +66,50 @@ jobs:
             .github/workflows/native-scope-clarity-ci.yml \
             docs/NATIVE_SCOPE_CLARITY_V1.md \
             docs/NATIVE_EXPEDITION_WORLD_V1.md
+          if git diff --quiet -- \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/StoryScreen.tsx \
+            apps/mobile/src/screens/ExpeditionScreen.tsx \
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+            .github/workflows/native-scope-clarity-ci.yml \
+            docs/NATIVE_SCOPE_CLARITY_V1.md \
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
+          then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            git diff -- \
+              apps/mobile/src/screens/CompanionHomeScreen.tsx \
+              apps/mobile/src/screens/StoryScreen.tsx \
+              apps/mobile/src/screens/ExpeditionScreen.tsx \
+              apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+              apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+              .github/workflows/native-scope-clarity-ci.yml \
+              docs/NATIVE_SCOPE_CLARITY_V1.md \
+              docs/NATIVE_EXPEDITION_WORLD_V1.md | head -c 60000
+          fi
+      - name: Upload canonical scope-clarity Prettier output
+        if: steps.formatting.outputs.drift == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-scope-clarity-prettier-output-${{ github.run_id }}
+          retention-days: 1
+          path: |
+            apps/mobile/src/screens/CompanionHomeScreen.tsx
+            apps/mobile/src/screens/StoryScreen.tsx
+            apps/mobile/src/screens/ExpeditionScreen.tsx
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx
+            .github/workflows/native-scope-clarity-ci.yml
+            docs/NATIVE_SCOPE_CLARITY_V1.md
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
       - name: Type-check native client
         run: pnpm --filter @woof/mobile type-check
       - name: Lint native client
         run: pnpm --filter @woof/mobile lint
+      - name: Reject uncommitted canonical formatting
+        if: steps.formatting.outputs.drift == 'true'
+        run: |
+          echo "Native scope-clarity files differ from canonical Prettier output."
+          exit 1
