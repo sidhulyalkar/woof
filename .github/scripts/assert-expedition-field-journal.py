@@ -169,7 +169,11 @@ def main() -> None:
     ]:
         reject(journal_types, forbidden, "mobile Expedition Journal types")
 
-    require(mobile_api, "journal: () => apiClient.get<ExpeditionJournal>('/expeditions/journal')", "mobile Expedition API")
+    require(
+        mobile_api,
+        "journal: () => apiClient.get<ExpeditionJournal>('/expeditions/journal')",
+        "mobile Expedition API",
+    )
     require_count(mobile_api, "'/expeditions/journal'", 1, "mobile Expedition API")
     for forbidden in [
         "apiClient.post<ExpeditionJournal>",
@@ -179,20 +183,29 @@ def main() -> None:
     ]:
         reject(mobile_api, forbidden, "mobile Expedition API")
 
-    # Journal is an independently degradable read slice and is never reconstructed from
-    # current-world or Social Adventure state.
+    # Journal is independently degradable. Its failure cannot poison a healthy live world,
+    # and no current-world or Social Adventure state is used to reconstruct history.
     for marker in [
         "type ExpeditionJournal",
         "expeditionApi.journal()",
         "Promise.allSettled([",
-        "if (journalResult.value.scope === 'GLOBAL') setJournal(journalResult.value)",
-        "unavailable.push('field journal')",
-        "journal={journal}",
-        "Woof did not infer missing progress, membership, or journal history.",
+        "journalResult.status === 'fulfilled' && journalResult.value.scope === 'GLOBAL'",
+        "journalRef.current = journalResult.value",
+        "setJournalError(null)",
+        "journalError={journalError}",
+        "setWorldError(",
+        "setJournalError(",
+        "leave history blank rather than guess",
     ]:
         require(screen, marker, "native Expedition screen")
+    reject(screen, "unavailableWorld.push('field journal')", "native Expedition screen")
+    reject(screen, "unavailable.push('field journal')", "native Expedition screen")
 
-    require(world, "<ExpeditionFieldJournalView journal={props.journal} />", "native Expedition world")
+    require(
+        world,
+        "<ExpeditionFieldJournalView journal={props.journal} error={props.journalError} />",
+        "native Expedition world",
+    )
     require(world, "timeZone: 'UTC'", "native Expedition world")
 
     # The scrapbook only renders returned landmarks. There are no missing-slot placeholders,
@@ -205,8 +218,10 @@ def main() -> None:
         "Nothing is overdue and there is nothing to catch up on.",
         "older pages are not presented as non-participation.",
         "timeZone: 'UTC'",
+        "Your shared world is still available.",
+        "Showing your last verified pages.",
     ]:
-        require(journal_view, marker, "native Expedition Field Journal")
+        require(journal_view + screen, marker, "native Expedition Field Journal")
 
     for forbidden in [
         "entry.landmarks.length",

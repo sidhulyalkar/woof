@@ -27,9 +27,9 @@ Those place names, icons, hills, and other scenery are presentation. They do not
 
 Expedition Authority v1 deliberately returns `target: null` and `status: CALIBRATING` for the canonical projection.
 
-Native therefore does **not** invent a fallback target, percentage, completion bar, level threshold, unlock threshold, or aggregate "three of three" meter. Every landmark exists from the beginning. The surface shows the server's bounded contribution total, contributor count, and the viewer's contribution as descriptive evidence only.
+Native therefore does **not** invent a fallback target, percentage, completion bar, level threshold, unlock threshold, or aggregate "three of three" meter. Every landmark exists from the beginning.
 
-A viewer with `myContribution > 0` may see a small **Your mark** treatment. This is binary presentation that a server-issued contribution exists. It is not a proficiency claim, completion claim, reward multiplier, or hidden score.
+The server continues to retain bounded contribution totals for calibration and policy evaluation, but the native world intentionally does **not** display `objective.total` or the viewer's numeric contribution. Communal contributor count may appear once as social presence, never as a threshold. A viewer with `myContribution > 0` may see a small **Your mark** treatment. This is binary presentation that a server-issued contribution exists. It is not a proficiency claim, completion claim, reward multiplier, or hidden score.
 
 The scene geometry is intentionally static with respect to totals. Contribution counts do not enlarge landmarks, brighten the sky, unlock terrain, increase opacity, or otherwise encode an unofficial target.
 
@@ -59,9 +59,11 @@ Recovery remains visible because choosing decompression or stopping can be the u
 
 ## Failure behavior
 
-Global projection, Pack membership, and Pack projection reads fail independently.
+Global projection, Pack membership, Pack projection, and Field Journal reads fail independently.
 
-When authority is unavailable, native shows the last server-confirmed state where appropriate and explicit unavailable copy. It does not reconstruct missing Expedition state from Adventure Trail XP, Social Adventure score, Story, raw activity history, cached route metrics, or client arithmetic.
+A Field Journal refresh failure cannot make a healthy live Expedition look broken. If verified journal pages were already loaded, native may keep showing those pages with a stale-history notice. If no verified journal exists, it leaves the history blank rather than reconstructing it.
+
+When live-world authority is unavailable, native shows the last server-confirmed state where appropriate and explicit unavailable copy. It does not reconstruct missing Expedition state from Adventure Trail XP, Social Adventure score, Story, raw activity history, cached route metrics, or client arithmetic.
 
 ## Relationship to Social Adventure
 
@@ -92,8 +94,8 @@ A later server-authorized archive can turn past seasons into Story artifacts onc
 1. the mobile Expedition API is GET-only;
 2. Global and Pack projections remain server-authored;
 3. Pack requests require a server-confirmed joined Pack and response-Pack identity check;
-4. `CALIBRATING` renders as **no target yet** rather than a client meter;
-5. server totals are displayed but not transformed into progress geometry or completion arithmetic;
+4. `CALIBRATING` renders as no finish line rather than a client meter;
+5. native does not consume `objective.total`, consumes `myContribution` only as binary presence, and allows contributor count only as communal context;
 6. Community links to Expedition;
 7. both guardian and Companion navigation graphs expose the same Expedition screen;
 8. full native type-check and lint stay green;

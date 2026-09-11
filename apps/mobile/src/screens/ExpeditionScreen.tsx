@@ -16,6 +16,8 @@ type Props = StackScreenProps<RootStackParamList, 'Expedition'>;
 
 type SelectedScope = 'GLOBAL' | string;
 
+type PackLoadResult = { status: 'ok' } | { status: 'stale' } | { status: 'error'; message: string };
+
 export default function ExpeditionScreen({ navigation }: Props) {
   const [globalProjection, setGlobalProjection] = useState<ExpeditionProjection | null>(null);
   const [packProjection, setPackProjection] = useState<ExpeditionProjection | null>(null);
@@ -25,9 +27,12 @@ export default function ExpeditionScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [packLoading, setPackLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [worldError, setWorldError] = useState<string | null>(null);
+  const [journalError, setJournalError] = useState<string | null>(null);
+  const loadRequestRef = useRef(0);
   const packRequestRef = useRef(0);
   const selectedScopeRef = useRef<SelectedScope>('GLOBAL');
+  const journalRef = useRef<ExpeditionJournal | null>(null);
 
   const joinedPacks = useMemo(() => catalog?.packs.filter((pack) => pack.joined) ?? [], [catalog]);
 
@@ -37,33 +42,45 @@ export default function ExpeditionScreen({ navigation }: Props) {
   }, []);
 
   const loadPackProjection = useCallback(
-    async (packId: string, packs: PacksCatalog | null) => {
+    async (packId: string, packs: PacksCatalog | null): Promise<PackLoadResult> => {
       const joinedPack = packs?.packs.find((pack) => pack.id === packId && pack.joined);
       if (!joinedPack) {
         packRequestRef.current += 1;
         setPackProjection(null);
         setPackLoading(false);
         applySelectedScope('GLOBAL');
-        return;
+        return {
+          status: 'error',
+          message: 'Woof will only open Expedition views for Packs you have joined.',
+        };
       }
 
       const requestId = ++packRequestRef.current;
       setPackLoading(true);
       try {
         const response = await expeditionApi.pack(joinedPack.id);
-        if (requestId !== packRequestRef.current) return;
+        if (requestId !== packRequestRef.current || selectedScopeRef.current !== joinedPack.id) {
+          return { status: 'stale' };
+        }
         if (response.scope !== 'PACK' || response.pack?.id !== joinedPack.id) {
           setPackProjection(null);
-          setError('That Pack Expedition did not match the server-confirmed Pack, so Woof hid it.');
-          return;
+          return {
+            status: 'error',
+            message: 'That Pack Expedition did not match the Pack you opened, so Woof hid it.',
+          };
         }
         setPackProjection(response);
+        return { status: 'ok' };
       } catch {
-        if (requestId !== packRequestRef.current) return;
+        if (requestId !== packRequestRef.current || selectedScopeRef.current !== joinedPack.id) {
+          return { status: 'stale' };
+        }
         setPackProjection(null);
-        setError(
-          'That Pack Expedition is unavailable. Woof will not estimate shared progress from local activity or league data.'
-        );
+        return {
+          status: 'error',
+          message:
+            'That Pack Expedition is unavailable. Woof will leave the shared world blank rather than guess.',
+        };
       } finally {
         if (requestId === packRequestRef.current) setPackLoading(false);
       }
@@ -73,6 +90,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
 
   const load = useCallback(
     async (refresh = false) => {
+      const loadRequestId = ++loadRequestRef.current;
       if (refresh) setRefreshing(true);
       else setLoading(true);
 
@@ -82,13 +100,16 @@ export default function ExpeditionScreen({ navigation }: Props) {
         expeditionApi.journal(),
       ]);
 
-      const unavailable: string[] = [];
+      if (loadRequestId !== loadRequestRef.current) return;
+
+      const unavailableWorld: string[] = [];
+      let packLoadResult: PackLoadResult | null = null;
 
       if (globalResult.status === 'fulfilled') {
         if (globalResult.value.scope === 'GLOBAL') setGlobalProjection(globalResult.value);
-        else unavailable.push('global Expedition');
+        else unavailableWorld.push('shared Expedition');
       } else {
-        unavailable.push('global Expedition');
+        unavailableWorld.push('shared Expedition');
       }
 
       if (packsResult.status === 'fulfilled') {
@@ -98,7 +119,8 @@ export default function ExpeditionScreen({ navigation }: Props) {
           const stillJoined = packsResult.value.packs.some(
             (pack) => pack.id === currentScope && pack.joined
           );
-          if (stillJoined) await loadPackProjection(currentScope, packsResult.value);
+          if (stillJoined)
+            packLoadResult = await loadPackProjection(currentScope, packsResult.value);
           else {
             packRequestRef.current += 1;
             setPackProjection(null);
@@ -107,21 +129,32 @@ export default function ExpeditionScreen({ navigation }: Props) {
           }
         }
       } else {
-        unavailable.push('Pack membership');
+        unavailableWorld.push('Pack list');
       }
 
-      if (journalResult.status === 'fulfilled') {
-        if (journalResult.value.scope === 'GLOBAL') setJournal(journalResult.value);
-        else unavailable.push('field journal');
+      if (loadRequestId !== loadRequestRef.current) return;
+
+      if (journalResult.status === 'fulfilled' && journalResult.value.scope === 'GLOBAL') {
+        journalRef.current = journalResult.value;
+        setJournal(journalResult.value);
+        setJournalError(null);
       } else {
-        unavailable.push('field journal');
+        setJournalError(
+          journalRef.current
+            ? 'Could not refresh field notes. Showing your last verified pages.'
+            : 'Field notes could not refresh. Your shared world is still available; Woof will leave history blank rather than guess.'
+        );
       }
 
-      if (unavailable.length === 0) setError(null);
-      else
-        setError(
-          `${unavailable.join(' and ')} could not refresh. Previously loaded server projections remain visible where available; Woof did not infer missing progress, membership, or journal history.`
+      if (packLoadResult?.status === 'error') {
+        setWorldError(packLoadResult.message);
+      } else if (unavailableWorld.length === 0) {
+        setWorldError(null);
+      } else {
+        setWorldError(
+          `${unavailableWorld.join(' and ')} could not refresh. Previously loaded shared-world data stays visible where available; Woof will not invent the missing view.`
         );
+      }
 
       setLoading(false);
       setRefreshing(false);
@@ -132,6 +165,10 @@ export default function ExpeditionScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       void load();
+      return () => {
+        loadRequestRef.current += 1;
+        packRequestRef.current += 1;
+      };
     }, [load])
   );
 
@@ -139,7 +176,7 @@ export default function ExpeditionScreen({ navigation }: Props) {
     packRequestRef.current += 1;
     setPackProjection(null);
     setPackLoading(false);
-    setError(null);
+    setWorldError(null);
     applySelectedScope('GLOBAL');
   }, [applySelectedScope]);
 
@@ -147,13 +184,16 @@ export default function ExpeditionScreen({ navigation }: Props) {
     (packId: string) => {
       const joinedPack = catalog?.packs.find((pack) => pack.id === packId && pack.joined);
       if (!joinedPack) {
-        setError('Woof will only open Expedition views for Packs the server says you joined.');
+        setWorldError('Woof will only open Expedition views for Packs you have joined.');
         return;
       }
-      setError(null);
+      setWorldError(null);
       setPackProjection(null);
       applySelectedScope(joinedPack.id);
-      void loadPackProjection(joinedPack.id, catalog);
+      void loadPackProjection(joinedPack.id, catalog).then((result) => {
+        if (result.status === 'stale' || selectedScopeRef.current !== joinedPack.id) return;
+        setWorldError(result.status === 'error' ? result.message : null);
+      });
     },
     [applySelectedScope, catalog, loadPackProjection]
   );
@@ -172,11 +212,12 @@ export default function ExpeditionScreen({ navigation }: Props) {
       globalProjection={globalProjection}
       packProjection={packProjection}
       journal={journal}
+      journalError={journalError}
       joinedPacks={joinedPacks}
       selectedScope={selectedScope}
       packLoading={packLoading}
       refreshing={refreshing}
-      error={error}
+      error={worldError}
       onRefresh={() => void load(true)}
       onSelectGlobal={selectGlobal}
       onSelectPack={selectPack}

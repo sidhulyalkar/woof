@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,8 +10,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { householdsApi } from '../api/households';
 import { storyApi, type StoryDashboard, type StoryMoment } from '../api/story';
 import { colors } from '../theme/tokens';
+
+type StoryScope = 'ALL' | string;
+
+type StoryPet = {
+  id: string;
+  name: string;
+};
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -30,43 +39,126 @@ function iconForMoment(moment: StoryMoment): keyof typeof Ionicons.glyphMap {
   return 'paw-outline';
 }
 
+function uniqueStoryPets(
+  households: Awaited<ReturnType<typeof householdsApi.getMine>>
+): StoryPet[] {
+  const pets = new Map<string, StoryPet>();
+  for (const household of households) {
+    for (const link of household.pets) {
+      if (!pets.has(link.pet.id)) pets.set(link.pet.id, { id: link.pet.id, name: link.pet.name });
+    }
+  }
+  return [...pets.values()];
+}
+
 export default function StoryScreen() {
   const [dashboard, setDashboard] = useState<StoryDashboard | null>(null);
+  const [dashboardScope, setDashboardScope] = useState<StoryScope | null>(null);
+  const [filterPets, setFilterPets] = useState<StoryPet[]>([]);
+  const [selectedScope, setSelectedScopeState] = useState<StoryScope>('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filterLoading, setFilterLoading] = useState(true);
+  const [filterError, setFilterError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedScopeRef = useRef<StoryScope>('ALL');
+  const storyRequestRef = useRef(0);
+  const filterRequestRef = useRef(0);
 
-  const load = useCallback(async (refresh = false) => {
+  const setSelectedScope = useCallback((scope: StoryScope) => {
+    selectedScopeRef.current = scope;
+    setSelectedScopeState(scope);
+  }, []);
+
+  const loadStory = useCallback(async (refresh = false, scope = selectedScopeRef.current) => {
+    const requestId = ++storyRequestRef.current;
     if (refresh) setRefreshing(true);
     else setLoading(true);
     try {
-      setDashboard(await storyApi.get({ limit: 36 }));
+      const next = await storyApi.get({ limit: 36, ...(scope === 'ALL' ? {} : { petId: scope }) });
+      if (requestId !== storyRequestRef.current || scope !== selectedScopeRef.current) return;
+      setDashboard(next);
+      setDashboardScope(scope);
       setError(null);
     } catch {
+      if (requestId !== storyRequestRef.current || scope !== selectedScopeRef.current) return;
+      setDashboard(null);
+      setDashboardScope(null);
       setError('Story is unavailable right now. Your existing memories remain unchanged.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === storyRequestRef.current && scope === selectedScopeRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  const loadFilters = useCallback(async () => {
+    const requestId = ++filterRequestRef.current;
+    setFilterLoading(true);
+    try {
+      const pets = uniqueStoryPets(await householdsApi.getMine());
+      if (requestId !== filterRequestRef.current) return;
+      setFilterPets(pets);
+      setFilterError(null);
+      const currentScope = selectedScopeRef.current;
+      if (currentScope !== 'ALL' && !pets.some((pet) => pet.id === currentScope)) {
+        setSelectedScope('ALL');
+        void loadStory(false, 'ALL');
+      }
+    } catch {
+      if (requestId !== filterRequestRef.current) return;
+      setFilterPets([]);
+      const currentScope = selectedScopeRef.current;
+      if (currentScope !== 'ALL') {
+        setSelectedScope('ALL');
+        setDashboard(null);
+        setDashboardScope(null);
+        setError(null);
+        void loadStory(false, 'ALL');
+      }
+      setFilterError(
+        'Dog filters are unavailable. Story is using the server-authorized all-dogs view.'
+      );
+    } finally {
+      if (requestId === filterRequestRef.current) setFilterLoading(false);
+    }
+  }, [loadStory, setSelectedScope]);
+
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load])
+      void loadStory();
+      void loadFilters();
+      return () => {
+        storyRequestRef.current += 1;
+        filterRequestRef.current += 1;
+      };
+    }, [loadFilters, loadStory])
   );
 
+  const chooseScope = useCallback(
+    (scope: StoryScope) => {
+      if (scope === selectedScopeRef.current) return;
+      if (scope !== 'ALL' && !filterPets.some((pet) => pet.id === scope)) return;
+      setSelectedScope(scope);
+      setError(null);
+      void loadStory(false, scope);
+    },
+    [filterPets, loadStory, setSelectedScope]
+  );
+
+  const activeDashboard = dashboard && dashboardScope === selectedScope ? dashboard : null;
   const moments = useMemo(
     () =>
-      [...(dashboard?.moments ?? [])].sort(
+      [...(activeDashboard?.moments ?? [])].sort(
         (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
       ),
-    [dashboard]
+    [activeDashboard]
   );
 
   if (loading && !dashboard) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.centered} accessibilityRole="progressbar">
         <ActivityIndicator size="large" color={colors.primary[600]} />
         <Text style={styles.loadingText}>Gathering the moments that matter…</Text>
       </View>
@@ -77,7 +169,9 @@ export default function StoryScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => void loadStory(true)} />
+      }
     >
       <Text style={styles.eyebrow}>RELATIONSHIP MEMORY</Text>
       <Text style={styles.title}>Story</Text>
@@ -85,31 +179,93 @@ export default function StoryScreen() {
         A record of what you have actually lived together, not a feed you need to keep filling.
       </Text>
 
+      <View style={styles.scopeSection}>
+        <View style={styles.scopeHeadingRow}>
+          <View>
+            <Text style={styles.scopeEyebrow}>SHOWING</Text>
+            <Text style={styles.scopeTitle}>
+              {selectedScope === 'ALL'
+                ? 'All your dogs'
+                : (filterPets.find((pet) => pet.id === selectedScope)?.name ?? 'One dog')}
+            </Text>
+          </View>
+          {filterLoading && <ActivityIndicator size="small" color={colors.primary[600]} />}
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scopeRow}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedScope === 'ALL' }}
+            style={[styles.scopeChip, selectedScope === 'ALL' && styles.scopeChipSelected]}
+            onPress={() => chooseScope('ALL')}
+          >
+            <Text
+              style={[
+                styles.scopeChipText,
+                selectedScope === 'ALL' && styles.scopeChipTextSelected,
+              ]}
+            >
+              All dogs
+            </Text>
+          </Pressable>
+          {filterPets.map((pet) => {
+            const selected = pet.id === selectedScope;
+            return (
+              <Pressable
+                key={pet.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${selected ? 'Showing' : 'Show'} Story for ${pet.name}`}
+                style={[styles.scopeChip, selected && styles.scopeChipSelected]}
+                onPress={() => chooseScope(pet.id)}
+              >
+                <Text style={[styles.scopeChipText, selected && styles.scopeChipTextSelected]}>
+                  {pet.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <Text style={styles.scopeHint}>
+          All dogs is one authorized household view. Choosing a dog narrows Story without changing
+          Today or Compass.
+        </Text>
+        {filterError && <Text style={styles.filterError}>{filterError}</Text>}
+      </View>
+
       {error && (
-        <View style={styles.noticeCard}>
+        <View style={styles.noticeCard} accessibilityRole="alert">
           <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
           <Text style={styles.noticeText}>{error}</Text>
         </View>
       )}
 
-      {dashboard && (
+      {loading && !activeDashboard ? (
+        <View style={styles.scopeLoadingCard} accessibilityRole="progressbar">
+          <ActivityIndicator size="small" color={colors.primary[600]} />
+          <Text style={styles.scopeLoadingText}>Opening this Story view…</Text>
+        </View>
+      ) : activeDashboard ? (
         <>
           <View style={styles.statsCard}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{dashboard.stats.activities}</Text>
+              <Text style={styles.statValue}>{activeDashboard.stats.activities}</Text>
               <Text style={styles.statLabel}>Activities</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{dashboard.stats.memories}</Text>
+              <Text style={styles.statValue}>{activeDashboard.stats.memories}</Text>
               <Text style={styles.statLabel}>Memories</Text>
             </View>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>{dashboard.stats.namedPlaces}</Text>
+              <Text style={styles.statValue}>{activeDashboard.stats.namedPlaces}</Text>
               <Text style={styles.statLabel}>Places</Text>
             </View>
           </View>
 
-          {dashboard.milestones.length > 0 && (
+          {activeDashboard.milestones.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Milestones</Text>
               <ScrollView
@@ -117,7 +273,7 @@ export default function StoryScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.milestonesRow}
               >
-                {dashboard.milestones.slice(0, 8).map((milestone) => (
+                {activeDashboard.milestones.slice(0, 8).map((milestone) => (
                   <View key={milestone.id} style={styles.milestoneCard}>
                     <View style={styles.milestoneIcon}>
                       <Ionicons name="sparkles-outline" size={20} color={colors.primary[700]} />
@@ -140,10 +296,10 @@ export default function StoryScreen() {
             {moments.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="paw-outline" size={28} color={colors.primary[600]} />
-                <Text style={styles.emptyTitle}>Your story is just beginning.</Text>
+                <Text style={styles.emptyTitle}>This Story view is just beginning.</Text>
                 <Text style={styles.emptyText}>
-                  Complete a shared activity or add a memory. Woof will keep the useful parts
-                  without turning everyday life into homework.
+                  Nothing is missing or overdue. Woof will keep useful moments without turning
+                  everyday life into homework.
                 </Text>
               </View>
             ) : (
@@ -174,11 +330,12 @@ export default function StoryScreen() {
           </View>
 
           <Text style={styles.coverageNote}>
-            Story coverage: {dashboard.stats.coverage.toLowerCase()}. Woof may intentionally show a
-            bounded recent history rather than pretending this is every moment you have shared.
+            Story coverage: {activeDashboard.stats.coverage.toLowerCase()}. Woof may intentionally
+            show a bounded recent history rather than pretending this is every moment you have
+            shared.
           </Text>
         </>
-      )}
+      ) : null}
     </ScrollView>
   );
 }
@@ -197,6 +354,36 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   title: { marginTop: 3, color: colors.text.primary, fontSize: 34, fontWeight: '800' },
   subtitle: { marginTop: 8, color: colors.text.secondary, fontSize: 15, lineHeight: 22 },
+  scopeSection: {
+    marginTop: 18,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  scopeHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scopeEyebrow: {
+    color: colors.text.secondary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  scopeTitle: { marginTop: 2, color: colors.text.primary, fontSize: 16, fontWeight: '800' },
+  scopeRow: { gap: 8, paddingTop: 10, paddingRight: 18 },
+  scopeChip: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    backgroundColor: '#ffffff',
+  },
+  scopeChipSelected: { borderColor: colors.primary[300], backgroundColor: colors.primary[100] },
+  scopeChipText: { color: colors.gray[700], fontSize: 13, fontWeight: '700' },
+  scopeChipTextSelected: { color: colors.primary[900] },
+  scopeHint: { marginTop: 8, color: colors.text.secondary, fontSize: 11, lineHeight: 17 },
+  filterError: { marginTop: 6, color: colors.text.secondary, fontSize: 10, lineHeight: 15 },
   noticeCard: {
     marginTop: 18,
     padding: 16,
@@ -208,6 +395,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   noticeText: { flex: 1, color: colors.text.secondary, fontSize: 14, lineHeight: 20 },
+  scopeLoadingCard: {
+    minHeight: 84,
+    marginTop: 18,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  scopeLoadingText: { color: colors.text.secondary, fontSize: 12 },
   statsCard: {
     marginTop: 20,
     paddingVertical: 18,

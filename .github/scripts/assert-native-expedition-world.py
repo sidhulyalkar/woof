@@ -65,8 +65,8 @@ def main() -> None:
     server_service = SERVER_SERVICE.read_text()
     doc = DOC.read_text()
 
-    # Native live Expedition has exactly two projection read paths and no contribution
-    # mutation surface. Historical Journal reads are governed by their own stricter contract.
+    # Native live Expedition has exactly two projection read paths and no contribution mutation.
+    # Journal history is governed by its own stricter contract.
     for marker in [
         "'/expeditions/global'",
         "`/expeditions/packs/${packId}`",
@@ -88,19 +88,26 @@ def main() -> None:
     ]:
         reject(mobile_api, forbidden, "native Expedition API")
 
-    # Pack reads must be downstream of a server-confirmed joined Pack and identity-bound response.
+    # Pack reads remain downstream of a server-confirmed joined Pack and identity-bound response.
+    # Whole-screen refreshes and Pack requests are generation-bound so stale network results cannot
+    # replace a newer scope or erase an independently surfaced Pack error.
     for marker in [
         "expeditionApi.global()",
         "socialAdventureApi.packs()",
         "pack.id === packId && pack.joined",
         "expeditionApi.pack(joinedPack.id)",
         "response.scope !== 'PACK' || response.pack?.id !== joinedPack.id",
+        "loadRequestRef",
+        "loadRequestId !== loadRequestRef.current",
         "packRequestRef",
         "requestId !== packRequestRef.current",
-        "selectedScopeRef",
+        "selectedScopeRef.current !== joinedPack.id",
         "Promise.allSettled([",
-        "Woof will only open Expedition views for Packs the server says you joined.",
-        "Woof did not infer missing progress, membership, or journal history.",
+        "packLoadResult?.status === 'error'",
+        "setWorldError(packLoadResult.message)",
+        "Woof will only open Expedition views for Packs you have joined.",
+        "setWorldError(",
+        "setJournalError(",
     ]:
         require(screen, marker, "native Expedition screen")
 
@@ -116,12 +123,11 @@ def main() -> None:
     ]:
         reject(screen, forbidden, "native Expedition screen")
 
-    # The renderer may display each numeric authority field, but may not repeatedly consume it
-    # to create shadow geometry, unlocks, or local scoring. myContribution gets one additional
-    # binary use for the explicitly documented Your-mark treatment.
-    require_count(world, "objective.total", 1, "native Expedition world")
+    # Native presentation deliberately hides repeatable contribution volume. The server retains
+    # totals for calibration, but the world may only show communal presence and a binary personal mark.
+    reject(world, "objective.total", "native Expedition world")
     require_count(world, "objective.contributors", 1, "native Expedition world")
-    require_count(world, "objective.myContribution", 2, "native Expedition world")
+    require_count(world, "objective.myContribution", 1, "native Expedition world")
     require(world, "objective.myContribution > 0", "native Expedition world")
 
     for marker in [
@@ -129,11 +135,12 @@ def main() -> None:
         "Resting Hollow",
         "Signal Observatory",
         "objective.status === 'CALIBRATING'",
-        "Calibrating, no completion target yet.",
+        "This landmark is open. There is no finish line to chase.",
         "No completion bar. This shared scene is not a checklist.",
-        "Landmarks always exist. Counts show server-issued evidence, not unlock levels.",
+        "Every landmark is here from the beginning. Presence matters more than repetition.",
         "The world is the game. Your dog is not.",
-        "CARE, health state, distance, duration, intensity, missed days, likes, rankings",
+        "It never asks",
+        "minHeight: 44",
     ]:
         require(world, marker, "native Expedition world")
 
@@ -160,7 +167,11 @@ def main() -> None:
     # Community is a portal to cooperative play, not a hidden embedding in league arithmetic.
     require(feed, "onOpenExpedition={() => navigation.navigate('Expedition')}", "native Community screen")
     require(community, "onOpenExpedition: () => void", "native Community presentation")
-    require(community, 'label="Expedition" onPress={props.onOpenExpedition}', "native Community presentation")
+    require(
+        community,
+        'label="Expedition" onPress={props.onOpenExpedition}',
+        "native Community presentation",
+    )
 
     # Both guardian and Companion stacks expose the same human-side Expedition surface.
     require(nav, "Expedition: undefined", "native navigation")

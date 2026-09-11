@@ -1,0 +1,115 @@
+name: Native Scope Clarity CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/src/api/households.ts'
+      - 'apps/mobile/src/api/story.ts'
+      - 'apps/mobile/src/api/expeditions.ts'
+      - 'apps/mobile/src/screens/CompanionHomeScreen.tsx'
+      - 'apps/mobile/src/screens/StoryScreen.tsx'
+      - 'apps/mobile/src/screens/ExpeditionScreen.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionWorldView.tsx'
+      - 'apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx'
+      - '.github/scripts/assert-native-scope-clarity.py'
+      - '.github/scripts/assert-native-first-adventure.py'
+      - '.github/scripts/assert-native-expedition-world.py'
+      - '.github/scripts/assert-expedition-field-journal.py'
+      - '.github/workflows/native-scope-clarity-ci.yml'
+      - 'docs/NATIVE_SCOPE_CLARITY_V1.md'
+      - 'docs/NATIVE_EXPEDITION_WORLD_V1.md'
+      - 'docs/NATIVE_EXPEDITION_FIELD_JOURNAL_V1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scope-clarity:
+    name: Truthful native scope and failure isolation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+      - name: Enforce native scope clarity contract
+        run: python3 .github/scripts/assert-native-scope-clarity.py
+      - name: Re-run adjacent authority contracts
+        run: |
+          python3 .github/scripts/assert-native-first-adventure.py
+          python3 .github/scripts/assert-native-expedition-world.py
+          python3 .github/scripts/assert-expedition-field-journal.py
+      - name: Compile authority sentries
+        run: |
+          python3 -m py_compile \
+            .github/scripts/assert-native-scope-clarity.py \
+            .github/scripts/assert-native-first-adventure.py \
+            .github/scripts/assert-native-expedition-world.py \
+            .github/scripts/assert-expedition-field-journal.py
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Produce canonical scope-clarity formatting
+        id: formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/StoryScreen.tsx \
+            apps/mobile/src/screens/ExpeditionScreen.tsx \
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+            .github/workflows/native-scope-clarity-ci.yml \
+            docs/NATIVE_SCOPE_CLARITY_V1.md \
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
+          if git diff --quiet -- \
+            apps/mobile/src/screens/CompanionHomeScreen.tsx \
+            apps/mobile/src/screens/StoryScreen.tsx \
+            apps/mobile/src/screens/ExpeditionScreen.tsx \
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+            .github/workflows/native-scope-clarity-ci.yml \
+            docs/NATIVE_SCOPE_CLARITY_V1.md \
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
+          then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            git diff -- \
+              apps/mobile/src/screens/CompanionHomeScreen.tsx \
+              apps/mobile/src/screens/StoryScreen.tsx \
+              apps/mobile/src/screens/ExpeditionScreen.tsx \
+              apps/mobile/src/components/community/ExpeditionWorldView.tsx \
+              apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx \
+              .github/workflows/native-scope-clarity-ci.yml \
+              docs/NATIVE_SCOPE_CLARITY_V1.md \
+              docs/NATIVE_EXPEDITION_WORLD_V1.md | head -c 60000
+          fi
+      - name: Upload canonical scope-clarity Prettier output
+        if: steps.formatting.outputs.drift == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-scope-clarity-prettier-output-${{ github.run_id }}
+          retention-days: 1
+          path: |
+            apps/mobile/src/screens/CompanionHomeScreen.tsx
+            apps/mobile/src/screens/StoryScreen.tsx
+            apps/mobile/src/screens/ExpeditionScreen.tsx
+            apps/mobile/src/components/community/ExpeditionWorldView.tsx
+            apps/mobile/src/components/community/ExpeditionFieldJournalView.tsx
+            .github/workflows/native-scope-clarity-ci.yml
+            docs/NATIVE_SCOPE_CLARITY_V1.md
+            docs/NATIVE_EXPEDITION_WORLD_V1.md
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
+      - name: Reject uncommitted canonical formatting
+        if: steps.formatting.outputs.drift == 'true'
+        run: |
+          echo "Native scope-clarity files differ from canonical Prettier output."
+          exit 1
