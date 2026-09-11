@@ -82,6 +82,8 @@ export default function StoryScreen() {
       setError(null);
     } catch {
       if (requestId !== storyRequestRef.current || scope !== selectedScopeRef.current) return;
+      setDashboard(null);
+      setDashboardScope(null);
       setError('Story is unavailable right now. Your existing memories remain unchanged.');
     } finally {
       if (requestId === storyRequestRef.current && scope === selectedScopeRef.current) {
@@ -106,8 +108,17 @@ export default function StoryScreen() {
       }
     } catch {
       if (requestId !== filterRequestRef.current) return;
+      setFilterPets([]);
+      const currentScope = selectedScopeRef.current;
+      if (currentScope !== 'ALL') {
+        setSelectedScope('ALL');
+        setDashboard(null);
+        setDashboardScope(null);
+        setError(null);
+        void loadStory(false, 'ALL');
+      }
       setFilterError(
-        'Dog filters are unavailable. All-dogs Story still uses server-authorized history.'
+        'Dog filters are unavailable. Story is using the server-authorized all-dogs view.'
       );
     } finally {
       if (requestId === filterRequestRef.current) setFilterLoading(false);
