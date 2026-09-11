@@ -39,7 +39,9 @@ function iconForMoment(moment: StoryMoment): keyof typeof Ionicons.glyphMap {
   return 'paw-outline';
 }
 
-function uniqueStoryPets(households: Awaited<ReturnType<typeof householdsApi.getMine>>): StoryPet[] {
+function uniqueStoryPets(
+  households: Awaited<ReturnType<typeof householdsApi.getMine>>
+): StoryPet[] {
   const pets = new Map<string, StoryPet>();
   for (const household of households) {
     for (const link of household.pets) {
@@ -104,7 +106,9 @@ export default function StoryScreen() {
       }
     } catch {
       if (requestId !== filterRequestRef.current) return;
-      setFilterError('Dog filters are unavailable. All-dogs Story still uses server-authorized history.');
+      setFilterError(
+        'Dog filters are unavailable. All-dogs Story still uses server-authorized history.'
+      );
     } finally {
       if (requestId === filterRequestRef.current) setFilterLoading(false);
     }
@@ -154,7 +158,9 @@ export default function StoryScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadStory(true)} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => void loadStory(true)} />
+      }
     >
       <Text style={styles.eyebrow}>RELATIONSHIP MEMORY</Text>
       <Text style={styles.title}>Story</Text>
@@ -174,14 +180,23 @@ export default function StoryScreen() {
           </View>
           {filterLoading && <ActivityIndicator size="small" color={colors.primary[600]} />}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scopeRow}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: selectedScope === 'ALL' }}
             style={[styles.scopeChip, selectedScope === 'ALL' && styles.scopeChipSelected]}
             onPress={() => chooseScope('ALL')}
           >
-            <Text style={[styles.scopeChipText, selectedScope === 'ALL' && styles.scopeChipTextSelected]}>
+            <Text
+              style={[
+                styles.scopeChipText,
+                selectedScope === 'ALL' && styles.scopeChipTextSelected,
+              ]}
+            >
               All dogs
             </Text>
           </Pressable>
@@ -196,13 +211,16 @@ export default function StoryScreen() {
                 style={[styles.scopeChip, selected && styles.scopeChipSelected]}
                 onPress={() => chooseScope(pet.id)}
               >
-                <Text style={[styles.scopeChipText, selected && styles.scopeChipTextSelected]}>{pet.name}</Text>
+                <Text style={[styles.scopeChipText, selected && styles.scopeChipTextSelected]}>
+                  {pet.name}
+                </Text>
               </Pressable>
             );
           })}
         </ScrollView>
         <Text style={styles.scopeHint}>
-          All dogs is one authorized household view. Choosing a dog narrows Story without changing Today or Compass.
+          All dogs is one authorized household view. Choosing a dog narrows Story without changing
+          Today or Compass.
         </Text>
         {filterError && <Text style={styles.filterError}>{filterError}</Text>}
       </View>
@@ -260,14 +278,17 @@ export default function StoryScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What you have lived</Text>
-            <Text style={styles.sectionSubtitle}>Recent moments from activity, care, and memories.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Recent moments from activity, care, and memories.
+            </Text>
 
             {moments.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="paw-outline" size={28} color={colors.primary[600]} />
                 <Text style={styles.emptyTitle}>This Story view is just beginning.</Text>
                 <Text style={styles.emptyText}>
-                  Nothing is missing or overdue. Woof will keep useful moments without turning everyday life into homework.
+                  Nothing is missing or overdue. Woof will keep useful moments without turning
+                  everyday life into homework.
                 </Text>
               </View>
             ) : (
@@ -298,7 +319,9 @@ export default function StoryScreen() {
           </View>
 
           <Text style={styles.coverageNote}>
-            Story coverage: {activeDashboard.stats.coverage.toLowerCase()}. Woof may intentionally show a bounded recent history rather than pretending this is every moment you have shared.
+            Story coverage: {activeDashboard.stats.coverage.toLowerCase()}. Woof may intentionally
+            show a bounded recent history rather than pretending this is every moment you have
+            shared.
           </Text>
         </>
       ) : null}
@@ -328,7 +351,12 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[200],
   },
   scopeHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  scopeEyebrow: { color: colors.text.secondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  scopeEyebrow: {
+    color: colors.text.secondary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
   scopeTitle: { marginTop: 2, color: colors.text.primary, fontSize: 16, fontWeight: '800' },
   scopeRow: { gap: 8, paddingTop: 10, paddingRight: 18 },
   scopeChip: {
