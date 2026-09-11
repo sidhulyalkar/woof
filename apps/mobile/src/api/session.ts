@@ -9,6 +9,11 @@ export type SessionInvalidation = {
 
 type SessionInvalidationListener = (event: SessionInvalidation) => void;
 
+type ConditionalClearResult = {
+  matched: boolean;
+  cleared: boolean;
+};
+
 const invalidationListeners = new Set<SessionInvalidationListener>();
 let credentialTail: Promise<void> = Promise.resolve();
 
@@ -43,12 +48,10 @@ export function clearAccessToken(): Promise<void> {
   return withCredentialLock(() => SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY));
 }
 
-export function rejectAccessTokenIfCurrent(
-  rejectedToken: string
-): Promise<{ matched: boolean; cleared: boolean }> {
+export function clearAccessTokenIfCurrent(expectedToken: string): Promise<ConditionalClearResult> {
   return withCredentialLock(async () => {
     const currentToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-    if (currentToken !== rejectedToken) {
+    if (currentToken !== expectedToken) {
       return { matched: false, cleared: false };
     }
 
@@ -59,6 +62,10 @@ export function rejectAccessTokenIfCurrent(
       return { matched: true, cleared: false };
     }
   });
+}
+
+export function rejectAccessTokenIfCurrent(rejectedToken: string): Promise<ConditionalClearResult> {
+  return clearAccessTokenIfCurrent(rejectedToken);
 }
 
 export function subscribeToSessionInvalidation(listener: SessionInvalidationListener): () => void {
