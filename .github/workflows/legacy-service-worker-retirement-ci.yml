@@ -1,0 +1,95 @@
+name: Legacy Service Worker Retirement CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/public/sw.js'
+      - 'apps/web/src/**'
+      - 'apps/web/e2e/legacy-service-worker-retirement.spec.ts'
+      - 'apps/web/playwright.config.ts'
+      - 'README.md'
+      - 'docs/ARCHITECTURE.md'
+      - 'docs/PET_MEDIA_LIBRARY.md'
+      - 'legacy/README.md'
+      - '.github/workflows/legacy-service-worker-retirement-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-service-worker-retirement-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Historical browser cleanup authority
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce retirement source boundary
+        run: |
+          grep -F "cacheName.startsWith('petpath-')" apps/web/public/sw.js
+          grep -F 'caches.delete(cacheName)' apps/web/public/sw.js
+          grep -F 'self.registration.unregister()' apps/web/public/sw.js
+
+          if grep -F "addEventListener('fetch'" apps/web/public/sw.js; then
+            echo 'Cleanup worker must never regain fetch interception authority.' >&2
+            exit 1
+          fi
+
+          if grep -F 'caches.open' apps/web/public/sw.js || grep -F 'cache.put' apps/web/public/sw.js; then
+            echo 'Cleanup worker must never write application or user data to browser caches.' >&2
+            exit 1
+          fi
+
+          if grep -REn 'serviceWorker\.register|beforeinstallprompt' apps/web/src; then
+            echo 'Current Woof source must not register a service worker or advertise installability.' >&2
+            exit 1
+          fi
+
+          if test -e apps/web/src/components/pwa-install-prompt.tsx; then
+            echo 'Retired PWA install prompt must not remain in the active source tree.' >&2
+            exit 1
+          fi
+
+      - name: Check retirement fixture formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/web/e2e/legacy-service-worker-retirement.spec.ts \
+            .github/workflows/legacy-service-worker-retirement-ci.yml
+          if ! git diff --quiet; then
+            git diff -- \
+              apps/web/e2e/legacy-service-worker-retirement.spec.ts \
+              .github/workflows/legacy-service-worker-retirement-ci.yml | head -c 60000
+            exit 1
+          fi
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @woof/web exec playwright install --with-deps chromium
+
+      - name: Prove historical worker and cache retirement in Chromium
+        env:
+          PLAYWRIGHT_EXTERNAL_SERVER: '1'
+        run: >-
+          pnpm --filter @woof/web exec playwright test
+          e2e/legacy-service-worker-retirement.spec.ts
+          --project=chromium
+          --reporter=line
