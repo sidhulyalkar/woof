@@ -18,8 +18,10 @@ import {
   CreatePackDto,
   CreateSocialShareDto,
   SocialReactionDto,
+  UpdatePackLocalityDto,
   UpdateSocialAdventurePreferencesDto,
 } from './dto/social-adventure.dto';
+import { PackLocalityService } from './pack-locality.service';
 import { SocialAdventureService } from './social-adventure.service';
 
 @ApiTags('social-adventure')
@@ -27,7 +29,10 @@ import { SocialAdventureService } from './social-adventure.service';
 @UseGuards(JwtAuthGuard)
 @Controller('social-adventure')
 export class SocialAdventureController {
-  constructor(private readonly socialAdventure: SocialAdventureService) {}
+  constructor(
+    private readonly socialAdventure: SocialAdventureService,
+    private readonly packLocality: PackLocalityService
+  ) {}
 
   @Get('me')
   getMine(@Request() req: AuthenticatedRequest) {
@@ -47,9 +52,15 @@ export class SocialAdventureController {
     return this.socialAdventure.getGlobalLeaderboard(req.user.sub, Number(limit));
   }
 
+  @Get('regions')
+  getRegions() {
+    return this.packLocality.getRegions();
+  }
+
   @Get('packs')
-  listPacks(@Request() req: AuthenticatedRequest) {
-    return this.socialAdventure.listPacks(req.user.sub);
+  async listPacks(@Request() req: AuthenticatedRequest) {
+    const catalog = await this.socialAdventure.listPacks(req.user.sub);
+    return this.packLocality.decorateCatalog(catalog);
   }
 
   @Post('packs')
@@ -57,8 +68,18 @@ export class SocialAdventureController {
     return this.socialAdventure.createPack(req.user.sub, dto);
   }
 
+  @Put('packs/:packId/locality')
+  repairPackLocality(
+    @Request() req: AuthenticatedRequest,
+    @Param('packId') packId: string,
+    @Body() dto: UpdatePackLocalityDto
+  ) {
+    return this.packLocality.repairLocality(req.user.sub, packId, dto.regionKey);
+  }
+
   @Post('packs/:packId/join')
-  joinPack(@Request() req: AuthenticatedRequest, @Param('packId') packId: string) {
+  async joinPack(@Request() req: AuthenticatedRequest, @Param('packId') packId: string) {
+    await this.packLocality.requireLocalityAuthority(packId);
     return this.socialAdventure.joinPack(req.user.sub, packId);
   }
 
@@ -68,11 +89,12 @@ export class SocialAdventureController {
   }
 
   @Get('packs/:packId/leaderboard')
-  getPackLeaderboard(
+  async getPackLeaderboard(
     @Request() req: AuthenticatedRequest,
     @Param('packId') packId: string,
     @Query('limit') limit?: string
   ) {
+    await this.packLocality.requireLocalityAuthority(packId);
     return this.socialAdventure.getPackLeaderboard(req.user.sub, packId, Number(limit));
   }
 
