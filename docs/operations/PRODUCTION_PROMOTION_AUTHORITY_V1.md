@@ -47,12 +47,12 @@ The workflow:
 - deploys the API with `WOOF_RELEASE_SHA` equal to the exact `github.sha`;
 - requires API liveness and database-backed readiness to report that same release;
 - builds Web with the same release identity and the canonical staging API URL;
-- verifies public Web provenance markers;
+- verifies both the transient Vercel deployment and the stable public Web origin expose that exact release and API provenance;
 - verifies the configured public Web origin is actually admitted by API CORS;
 - writes a privacy-safe `woof-live-release-qualification` receipt; and
 - retains that receipt as `staging-release-<sha>`.
 
-Staging therefore answers: **did the exact merged commit become a coherent live Web/API release?**
+Staging therefore answers: **did the exact merged commit become a coherent live Web/API release at the public staging boundary?**
 
 It does not prove production, device distribution, recovery, or user value.
 
@@ -90,7 +90,7 @@ Public environment variable:
 
 - `WEB_ORIGIN` — one stable HTTPS origin only, for example `https://staging.example.com` or `https://www.example.com`.
 
-`WEB_ORIGIN` is not inferred from a transient Vercel deployment URL. It represents the public origin that the API is expected to admit through CORS.
+`WEB_ORIGIN` is not inferred from a transient Vercel deployment URL. It represents the stable public alias that must expose the selected release and that the API must admit through CORS.
 
 Production should also use GitHub environment protection / reviewers where available. Repository code can require the `production` environment, but repository code cannot prove that an administrator configured reviewers or secret scope correctly.
 
@@ -103,8 +103,10 @@ It verifies:
 - API `/ops/health/live` returns `status=live` and the exact expected release;
 - API `/ops/health/ready` returns `status=ready`, database `status=ready`, and the same release;
 - the API admits the configured public Web origin through credentialed CORS;
-- the deployed Web `/demo` page exposes the exact release SHA; and
-- the deployed Web artifact points at the intended API base URL.
+- the transient Vercel deployment `/demo` page exposes the exact release SHA and intended API base URL; and
+- the stable public Web origin `/demo` page exposes the same exact release SHA and intended API base URL.
+
+This deliberately catches the case where deployment succeeds but the stable alias still points at an older artifact.
 
 The retained receipt contains only low-cardinality public operational facts:
 
@@ -112,7 +114,8 @@ The retained receipt contains only low-cardinality public operational facts:
 - qualification timestamp;
 - exact release SHA;
 - public API base URL;
-- public Web deployment/origin;
+- transient Web deployment origin;
+- stable public Web origin;
 - health status classes;
 - CORS authority result; and
 - names of checks performed.
@@ -140,11 +143,11 @@ Still required before public beta:
 
 1. Merge only a fully qualified release candidate to `main`.
 2. Confirm `Deploy to Staging` succeeds for that exact SHA.
-3. Inspect the retained `staging-release-<sha>` receipt.
-4. Resolve any staging or provider discrepancy before production promotion.
+3. Inspect the retained `staging-release-<sha>` receipt and confirm both deployment and stable public origins report the same SHA.
+4. Resolve any staging, alias, CORS, or provider discrepancy before production promotion.
 5. Dispatch `Deploy to Production` from `main` and paste the exact staged 40-hex SHA into `release_sha`.
 6. Complete any configured production-environment approval.
-7. Confirm API migration, liveness, readiness, Web provenance, CORS, and live qualification succeed.
+7. Confirm API migration, liveness, readiness, deployment provenance, stable-origin provenance, CORS, and live qualification succeed.
 8. Retain and inspect `production-release-<sha>`.
 9. Continue with authenticated live black-box and operational drills. Do not treat the receipt alone as full public-beta evidence.
 
