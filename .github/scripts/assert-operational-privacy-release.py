@@ -90,6 +90,16 @@ require(
     "EXPECTED_API_URL",
     "--self-test",
 )
+require(
+    ".github/scripts/write-release-receipt.mjs",
+    "SHA_PATTERN",
+    "buildReleaseReceipt",
+    "production receipt requires successful exact-SHA staging qualification",
+    "apiReleaseIdentityVerified: true",
+    "webReleaseIdentityVerified: true",
+    "webApiOriginVerified: true",
+    "--self-test",
+)
 
 require(
     "infra/docker/Dockerfile.api",
@@ -102,12 +112,14 @@ for path in [
 ]:
     require(
         path,
-        '--build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"',
-        "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}",
+        '--build-arg WOOF_RELEASE_SHA="${RELEASE_SHA}"',
+        "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.RELEASE_SHA }}",
         "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
         "Enforce deployed API release identity",
         "Verify deployed Web release and API integration",
         "verify-web-deployment-provenance.mjs",
+        "write-release-receipt.mjs",
+        "actions/upload-artifact@v7",
     )
 
-print("Operational privacy contract preserves exact release identity, Web/API provenance, and privacy-closed replay.")
+print("Operational privacy contract preserves exact release identity, Web/API provenance, and privacy-safe release receipts.")
