@@ -104,7 +104,7 @@ jobs:
             'Expedition CI Pack',
             'expedition-ci-pack',
             'LOCAL',
-            'ci-region',
+            'us-ca-south-bay',
             'PUBLIC'
           );
 
