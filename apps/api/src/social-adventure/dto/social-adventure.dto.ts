@@ -70,7 +70,7 @@ export class CreatePackDto {
     description:
       'Server-approved broad locality identity. Clients select this value from the coarse-region catalog; arbitrary addresses, venues, coordinates, routes, and free-form locality text are rejected.',
   })
-  @IsIn(PACK_COARSE_REGION_IDS)
+  @IsIn([...PACK_COARSE_REGION_IDS])
   regionKey!: PackCoarseRegionId;
 }
 
@@ -81,7 +81,7 @@ export class UpdatePackLocalityDto {
     description:
       'One approved broad locality used to repair a legacy Pack whose former free-form locality was discarded.',
   })
-  @IsIn(PACK_COARSE_REGION_IDS)
+  @IsIn([...PACK_COARSE_REGION_IDS])
   regionKey!: PackCoarseRegionId;
 }
 
