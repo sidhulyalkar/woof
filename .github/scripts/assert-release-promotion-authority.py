@@ -36,7 +36,7 @@ require(
     "deploy-staging.yml",
     "branches: [main]",
     "workflow_dispatch:",
-    "release_sha:",
+    "REQUESTED_SHA: ${{ github.sha }}",
     "Validate Staging Release Candidate",
     "git merge-base --is-ancestor \"${RELEASE_SHA}\" origin/main",
     "ref: ${{ env.RELEASE_SHA }}",
