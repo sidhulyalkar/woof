@@ -27,6 +27,13 @@ function requireHttpsUrl(name, value) {
   return parsed.toString().replace(/\/$/, '');
 }
 
+function requireProof(name, value) {
+  if (value !== 'true') {
+    throw new Error(`${name} must be true before a release receipt can be retained`);
+  }
+  return true;
+}
+
 export function buildReleaseReceipt(env) {
   const releaseEnvironment = requireValue('RELEASE_ENVIRONMENT', env.RELEASE_ENVIRONMENT);
   if (!ALLOWED_ENVIRONMENTS.has(releaseEnvironment)) {
@@ -44,6 +51,12 @@ export function buildReleaseReceipt(env) {
   const runAttempt = requireValue('GITHUB_RUN_ATTEMPT', env.GITHUB_RUN_ATTEMPT);
   const apiUrl = requireHttpsUrl('API_URL', env.API_URL);
   const webUrl = requireHttpsUrl('WEB_URL', env.WEB_URL);
+  const webDeploymentUrl = requireHttpsUrl('WEB_DEPLOYMENT_URL', env.WEB_DEPLOYMENT_URL);
+  const canonicalReleaseChecksVerified = requireProof(
+    'CANONICAL_RELEASE_CHECKS_VERIFIED',
+    env.CANONICAL_RELEASE_CHECKS_VERIFIED
+  );
+  const liveBlackBoxVerified = requireProof('LIVE_BLACK_BOX_VERIFIED', env.LIVE_BLACK_BOX_VERIFIED);
   const stagingWorkflowVerified = env.STAGING_WORKFLOW_VERIFIED === 'true';
 
   if (releaseEnvironment === 'production' && !stagingWorkflowVerified) {
@@ -51,7 +64,7 @@ export function buildReleaseReceipt(env) {
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     environment: releaseEnvironment,
     releaseSha,
     repository,
@@ -60,11 +73,14 @@ export function buildReleaseReceipt(env) {
     runAttempt,
     apiUrl,
     webUrl,
+    webDeploymentUrl,
     evidence: {
       mainAncestryVerified: true,
+      canonicalReleaseChecksVerified,
       apiReleaseIdentityVerified: true,
       webReleaseIdentityVerified: true,
       webApiOriginVerified: true,
+      liveBlackBoxVerified,
       stagingWorkflowVerified,
     },
   };
@@ -80,11 +96,20 @@ function selfTest() {
     GITHUB_RUN_ATTEMPT: '1',
     API_URL: 'https://api.example.test/api/v1',
     WEB_URL: 'https://web.example.test',
+    WEB_DEPLOYMENT_URL: 'https://deployment.example.test',
+    CANONICAL_RELEASE_CHECKS_VERIFIED: 'true',
+    LIVE_BLACK_BOX_VERIFIED: 'true',
     STAGING_WORKFLOW_VERIFIED: 'false',
   };
 
   const staging = buildReleaseReceipt(base);
-  if (staging.releaseSha !== base.RELEASE_SHA || staging.evidence.stagingWorkflowVerified) {
+  if (
+    staging.schemaVersion !== 2 ||
+    staging.releaseSha !== base.RELEASE_SHA ||
+    staging.evidence.stagingWorkflowVerified ||
+    !staging.evidence.canonicalReleaseChecksVerified ||
+    !staging.evidence.liveBlackBoxVerified
+  ) {
     throw new Error('staging receipt self-test failed');
   }
 
@@ -98,17 +123,23 @@ function selfTest() {
     throw new Error('production receipt self-test failed');
   }
 
-  let rejected = false;
-  try {
-    buildReleaseReceipt({ ...base, RELEASE_SHA: 'main' });
-  } catch {
-    rejected = true;
-  }
-  if (!rejected) {
-    throw new Error('non-SHA release identity was accepted');
+  for (const patch of [
+    { RELEASE_SHA: 'main' },
+    { CANONICAL_RELEASE_CHECKS_VERIFIED: 'false' },
+    { LIVE_BLACK_BOX_VERIFIED: 'false' },
+  ]) {
+    let rejected = false;
+    try {
+      buildReleaseReceipt({ ...base, ...patch });
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error(`invalid release receipt evidence was accepted: ${JSON.stringify(patch)}`);
+    }
   }
 
-  rejected = false;
+  let rejected = false;
   try {
     buildReleaseReceipt({
       ...base,

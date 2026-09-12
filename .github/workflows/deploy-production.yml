@@ -55,6 +55,12 @@ jobs:
             exit 1
           fi
 
+      - name: Require exact-SHA canonical main release checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: python3 .github/scripts/verify-main-release-checks.py
+
       - name: Verify exact staging qualification
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,7 +152,6 @@ jobs:
             echo "SLACK_WEBHOOK is not configured; skipping optional deployment notification."
             exit 0
           fi
-
           payload=$(printf '{"text":"Woof production API deployment: %s (%.12s)"}' \
             "${DEPLOYMENT_STATUS}" "${RELEASE_SHA}")
           curl --fail --silent --show-error \
@@ -161,11 +166,13 @@ jobs:
     needs: [validate-release-candidate, deploy-api-production]
     outputs:
       deployment_url: ${{ steps.deploy_web.outputs.url }}
+      web_origin: ${{ steps.web_origin.outputs.origin }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      STABLE_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
       EXPECTED_API_URL: https://woof-api-prod.fly.dev/api/v1
       RELEASE_SHA: ${{ needs.validate-release-candidate.outputs.release_sha }}
     steps:
@@ -173,23 +180,26 @@ jobs:
         with:
           ref: ${{ env.RELEASE_SHA }}
 
-      - name: Validate production Web deployment credentials
+      - name: Validate production Web deployment authority
+        id: web_origin
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID STABLE_WEB_ORIGIN; do
             if [[ -z "${!name}" ]]; then
-              echo "::error title=Missing production secret::${name} is not configured for the production environment."
+              echo "::error title=Missing production authority::${name} is not configured for the production environment."
               missing=1
             fi
           done
           if [[ "${missing}" -ne 0 ]]; then
             exit 1
           fi
+          origin=$(node -e "const u=new URL(process.env.STABLE_WEB_ORIGIN); if(u.protocol!=='https:'||u.origin!==process.env.STABLE_WEB_ORIGIN.replace(/\/$/,'')) process.exit(1); process.stdout.write(u.origin)")
+          echo "origin=${origin}" >> "$GITHUB_OUTPUT"
 
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@58.4.4
 
-      - name: Pull Vercel Environment Information
+      - name: Pull production Vercel project information
         run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
         working-directory: apps/web
 
@@ -212,7 +222,7 @@ jobs:
           fi
           echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify deployed Web release and API integration
+      - name: Verify immutable Web deployment release and API integration
         env:
           WEB_URL: ${{ steps.deploy_web.outputs.url }}
           EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
@@ -220,6 +230,22 @@ jobs:
           html=$(curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 \
             "${WEB_URL}/demo")
           WEB_HTML="$html" node .github/scripts/verify-web-deployment-provenance.mjs
+
+      - name: Verify stable production Web origin release and API integration
+        env:
+          WEB_URL: ${{ steps.web_origin.outputs.origin }}
+          EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
+        run: |
+          html=$(curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 \
+            "${WEB_URL}/demo")
+          WEB_HTML="$html" node .github/scripts/verify-web-deployment-provenance.mjs
+
+      - name: Run non-destructive live release smoke
+        env:
+          API_URL: ${{ env.EXPECTED_API_URL }}
+          WEB_ORIGIN: ${{ steps.web_origin.outputs.origin }}
+          EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
+        run: node .github/scripts/verify-live-release.mjs
 
       - name: Notify production Web deployment when configured
         if: ${{ always() }}
@@ -231,7 +257,6 @@ jobs:
             echo "SLACK_WEBHOOK is not configured; skipping optional deployment notification."
             exit 0
           fi
-
           payload=$(printf '{"text":"Woof production Web deployment: %s (%.12s)"}' \
             "${DEPLOYMENT_STATUS}" "${RELEASE_SHA}")
           curl --fail --silent --show-error \
@@ -245,7 +270,8 @@ jobs:
     needs: [validate-release-candidate, deploy-api-production, deploy-web-production]
     env:
       RELEASE_SHA: ${{ needs.validate-release-candidate.outputs.release_sha }}
-      WEB_URL: ${{ needs.deploy-web-production.outputs.deployment_url }}
+      WEB_URL: ${{ needs.deploy-web-production.outputs.web_origin }}
+      WEB_DEPLOYMENT_URL: ${{ needs.deploy-web-production.outputs.deployment_url }}
       API_URL: https://woof-api-prod.fly.dev/api/v1
     steps:
       - uses: actions/checkout@v7
@@ -256,6 +282,8 @@ jobs:
         env:
           RELEASE_ENVIRONMENT: production
           RELEASE_RECEIPT_PATH: .release-evidence/production-release-receipt.json
+          CANONICAL_RELEASE_CHECKS_VERIFIED: 'true'
+          LIVE_BLACK_BOX_VERIFIED: 'true'
           STAGING_WORKFLOW_VERIFIED: 'true'
         run: node .github/scripts/write-release-receipt.mjs
 

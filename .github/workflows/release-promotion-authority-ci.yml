@@ -2,32 +2,17 @@ name: Release Promotion Authority CI
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/deploy-staging.yml'
-      - '.github/workflows/deploy-production.yml'
-      - '.github/workflows/release-promotion-authority-ci.yml'
-      - '.github/workflows/dogos-operational-privacy-ci.yml'
-      - '.github/scripts/assert-release-promotion-authority.py'
-      - '.github/scripts/assert-operational-privacy-release.py'
-      - '.github/scripts/write-release-receipt.mjs'
-      - '.github/scripts/verify-web-deployment-provenance.mjs'
-      - 'docs/operations/RELEASE_PROMOTION_AUTHORITY_V1.md'
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/deploy-staging.yml'
-      - '.github/workflows/deploy-production.yml'
-      - '.github/workflows/release-promotion-authority-ci.yml'
-      - '.github/workflows/dogos-operational-privacy-ci.yml'
-      - '.github/scripts/assert-release-promotion-authority.py'
-      - '.github/scripts/assert-operational-privacy-release.py'
-      - '.github/scripts/write-release-receipt.mjs'
-      - '.github/scripts/verify-web-deployment-provenance.mjs'
-      - 'docs/operations/RELEASE_PROMOTION_AUTHORITY_V1.md'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-promotion-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release-promotion-authority:
@@ -39,11 +24,17 @@ jobs:
       - name: Qualify staging and production promotion contract
         run: python3 .github/scripts/assert-release-promotion-authority.py
 
+      - name: Exercise exact-SHA main release-check verifier
+        run: python3 .github/scripts/verify-main-release-checks.py --self-test
+
       - name: Exercise privacy-safe release receipt writer
         run: node .github/scripts/write-release-receipt.mjs --self-test
 
       - name: Exercise Web deployment provenance verifier
         run: node .github/scripts/verify-web-deployment-provenance.mjs --self-test
+
+      - name: Exercise live release smoke verifier
+        run: node .github/scripts/verify-live-release.mjs --self-test
 
       - name: Re-qualify operational privacy and release identity
         run: python3 .github/scripts/assert-operational-privacy-release.py
