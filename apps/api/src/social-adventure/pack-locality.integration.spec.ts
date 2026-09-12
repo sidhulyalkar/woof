@@ -71,14 +71,17 @@ describe('PackLocalityService integration', () => {
         granularity: 'BROAD_DISTRICT',
       })
     );
-    expect(PACK_COARSE_REGIONS.some((region) => region.id === 'test-region')).toBe(false);
+    const clientRegionIds: readonly string[] = PACK_COARSE_REGIONS.map((region) => region.id);
+    expect(clientRegionIds).not.toContain('test-region');
   });
 
   it('lets migrated legacy Pack identity survive but blocks locality-dependent authority', async () => {
     const ownerId = await createUser('legacy-owner');
     const packId = await createLocalPack(ownerId, null);
 
-    await expect(service.requireLocalityAuthority(packId)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.requireLocalityAuthority(packId)).rejects.toBeInstanceOf(
+      BadRequestException
+    );
 
     const decorated = service.decorateCatalog({
       packs: [
@@ -141,17 +144,21 @@ describe('PackLocalityService integration', () => {
       service.repairLocality(strangerId, packId, 'us-ca-south-bay')
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    await expect(service.repairLocality(ownerId, packId, 'us-ca-south-bay')).resolves.toMatchObject({
-      packId,
-      localityStatus: 'APPROVED',
-      coarseRegion: { id: 'us-ca-south-bay', displayName: 'South Bay, CA' },
-    });
+    await expect(service.repairLocality(ownerId, packId, 'us-ca-south-bay')).resolves.toMatchObject(
+      {
+        packId,
+        localityStatus: 'APPROVED',
+        coarseRegion: { id: 'us-ca-south-bay', displayName: 'South Bay, CA' },
+      }
+    );
 
     await expect(service.requireLocalityAuthority(packId)).resolves.toBeUndefined();
 
-    await expect(service.repairLocality(ownerId, packId, 'us-ca-south-bay')).resolves.toMatchObject({
-      localityStatus: 'APPROVED',
-    });
+    await expect(service.repairLocality(ownerId, packId, 'us-ca-south-bay')).resolves.toMatchObject(
+      {
+        localityStatus: 'APPROVED',
+      }
+    );
 
     await expect(service.repairLocality(ownerId, packId, 'us-ca-peninsula')).rejects.toBeInstanceOf(
       BadRequestException
