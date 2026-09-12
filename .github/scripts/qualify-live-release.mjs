@@ -85,6 +85,35 @@ function verifyCors(response, expectedWebOrigin) {
   return { allowOrigin, allowCredentials: true };
 }
 
+async function verifyWebSurface({
+  fetchImpl,
+  url,
+  expectedRelease,
+  expectedApiUrl,
+  attempts,
+  delayMs,
+  label,
+}) {
+  const response = await fetchWithRetry(
+    fetchImpl,
+    url,
+    { headers: { Accept: 'text/html', 'Cache-Control': 'no-store' } },
+    attempts,
+    delayMs
+  );
+  const html = await response.text();
+  try {
+    return verifyWebDeploymentProvenance({
+      html,
+      expectedRelease,
+      expectedApiUrl,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} provenance failed: ${message}`);
+  }
+}
+
 export async function qualifyLiveRelease({
   environment,
   expectedRelease,
@@ -115,7 +144,10 @@ export async function qualifyLiveRelease({
   const apiUrl = httpsUrl(expectedApiUrl, 'Expected API URL');
   const deploymentUrl = httpsUrl(webDeploymentUrl, 'Web deployment URL');
   const publicWebUrl = httpsUrl(expectedWebOrigin, 'Expected Web origin');
-  if (publicWebUrl.pathname !== '/' || publicWebUrl.origin !== publicWebUrl.toString().replace(/\/$/, '')) {
+  if (
+    publicWebUrl.pathname !== '/' ||
+    publicWebUrl.origin !== publicWebUrl.toString().replace(/\/$/, '')
+  ) {
     throw new Error(`Expected Web origin must be an origin only, received '${expectedWebOrigin}'.`);
   }
 
@@ -161,20 +193,31 @@ export async function qualifyLiveRelease({
     );
   }
 
-  const demoUrl = new URL('/demo', deploymentUrl.origin);
-  const webResponse = await fetchWithRetry(
+  const deploymentDemoUrl = new URL('/demo', deploymentUrl.origin).toString();
+  const publicDemoUrl = new URL('/demo', webOrigin).toString();
+
+  const deploymentWeb = await verifyWebSurface({
     fetchImpl,
-    demoUrl.toString(),
-    { headers: { Accept: 'text/html', 'Cache-Control': 'no-store' } },
-    attempts,
-    delayMs
-  );
-  const html = await webResponse.text();
-  const web = verifyWebDeploymentProvenance({
-    html,
+    url: deploymentDemoUrl,
     expectedRelease: release,
     expectedApiUrl,
+    attempts,
+    delayMs,
+    label: 'Web deployment URL',
   });
+
+  const publicWeb =
+    deploymentUrl.origin === webOrigin
+      ? deploymentWeb
+      : await verifyWebSurface({
+          fetchImpl,
+          url: publicDemoUrl,
+          expectedRelease: release,
+          expectedApiUrl,
+          attempts,
+          delayMs,
+          label: 'Public Web origin',
+        });
 
   return {
     schemaVersion: 1,
@@ -192,15 +235,17 @@ export async function qualifyLiveRelease({
       deploymentUrl: deploymentUrl.origin,
       publicOrigin: webOrigin,
       route: '/demo',
-      release: web.release,
-      apiOrigin: web.apiOrigin,
+      deploymentRelease: deploymentWeb.release,
+      publicRelease: publicWeb.release,
+      apiOrigin: publicWeb.apiOrigin,
     },
     cors,
     checks: [
       'api-liveness',
       'api-readiness',
       'api-release-identity',
-      'web-release-provenance',
+      'web-deployment-provenance',
+      'web-public-origin-provenance',
       'web-api-origin',
       'cors-public-origin',
       'cors-credentials',
@@ -224,9 +269,14 @@ async function selfTest() {
     'access-control-allow-origin': webOrigin,
     'access-control-allow-credentials': 'true',
   };
-  const html = `<html><head><meta name="woof-release" content="${release}"><meta name="woof-api-origin" content="${api}"></head></html>`;
+  const goodHtml = `<html><head><meta name="woof-release" content="${release}"><meta name="woof-api-origin" content="${api}"></head></html>`;
 
-  const buildFetch = ({ liveRelease = release, readyStatus = 'ready', allowOrigin = webOrigin } = {}) =>
+  const buildFetch = ({
+    liveRelease = release,
+    readyStatus = 'ready',
+    allowOrigin = webOrigin,
+    publicRelease = release,
+  } = {}) =>
     async (url) => {
       if (url.endsWith('/ops/health/live')) {
         return response(
@@ -242,7 +292,10 @@ async function selfTest() {
         });
       }
       if (url === `${webDeployment}/demo`) {
-        return response(html, { contentType: 'text/html' });
+        return response(goodHtml, { contentType: 'text/html' });
+      }
+      if (url === `${webOrigin}/demo`) {
+        return response(goodHtml.replace(release, publicRelease), { contentType: 'text/html' });
       }
       return response({ error: 'not found' }, { status: 404 });
     };
@@ -259,7 +312,11 @@ async function selfTest() {
   };
 
   const receipt = await qualifyLiveRelease({ ...input, fetchImpl: buildFetch() });
-  if (receipt.releaseSha !== release || receipt.api.databaseStatus !== 'ready') {
+  if (
+    receipt.releaseSha !== release ||
+    receipt.api.databaseStatus !== 'ready' ||
+    receipt.web.publicRelease !== release
+  ) {
     throw new Error('Self-test failed to produce the expected qualification receipt.');
   }
 
@@ -267,6 +324,7 @@ async function selfTest() {
     ['wrong API release', buildFetch({ liveRelease: 'f'.repeat(40) })],
     ['database not ready', buildFetch({ readyStatus: 'not_ready' })],
     ['wrong CORS origin', buildFetch({ allowOrigin: 'https://wrong.example.com' })],
+    ['stale public Web alias', buildFetch({ publicRelease: 'f'.repeat(40) })],
   ]) {
     let rejected = false;
     try {
