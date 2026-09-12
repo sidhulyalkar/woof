@@ -1,0 +1,41 @@
+name: Staging Journey Authority CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/scripts/verify-staging-user-journey.mjs'
+      - '.github/scripts/assert-staging-journey-authority.py'
+      - '.github/workflows/deploy-staging.yml'
+      - '.github/workflows/staging-journey-authority-ci.yml'
+      - 'docs/STAGING_JOURNEY_AUTHORITY_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-journey-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Public-API disposable staging lifecycle authority
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20.20.2'
+
+      - name: Parse staging journey verifier
+        run: node --check .github/scripts/verify-staging-user-journey.mjs
+
+      - name: Exercise success and failure-cleanup self-tests
+        run: node .github/scripts/verify-staging-user-journey.mjs --self-test
+
+      - name: Parse staging journey source contract
+        run: python3 -m py_compile .github/scripts/assert-staging-journey-authority.py
+
+      - name: Enforce staging journey source contract
+        run: python3 .github/scripts/assert-staging-journey-authority.py
