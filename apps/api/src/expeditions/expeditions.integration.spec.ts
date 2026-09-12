@@ -187,7 +187,7 @@ describe('ExpeditionsService integration', () => {
         id, owner_user_id, name, slug, scope, region_key, visibility, created_at
       ) VALUES (
         ${packId}, ${ownerId}, 'Expedition Test Pack', ${`expedition-test-${packId}`},
-        'LOCAL', 'test-region', 'PUBLIC', ${season.startsAt}
+        'LOCAL', 'us-ca-south-bay', 'PUBLIC', ${season.startsAt}
       )
     `);
     await prisma.$executeRaw(Prisma.sql`

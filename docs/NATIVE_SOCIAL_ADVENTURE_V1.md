@@ -51,11 +51,35 @@ Preference mutations use the server's mutation response as the immediate authori
 
 Packs are account-level social communities and are available to Guardian and Companion modes. Joining a Pack never grants pet authority.
 
-A Pack currently uses a user-supplied broad-area `regionKey`, such as `south-bay-ca`. Native Woof does not request device location to create or rank a Pack, and it does not derive locality from a home address, route endpoint, GPS trace, or meetup location.
+Pack locality is now a **server-approved structured coarse-region identity**. Web and native clients fetch `/social-adventure/regions` and allow selection only from that catalog. Pack creation and legacy repair send one approved region ID such as `us-ca-south-bay`; the API DTO allowlist and database foreign key independently reject arbitrary locality text.
 
-The v1 locality boundary is intentionally stated narrowly: the server validates `regionKey` slug syntax and length, while the native client asks the user for a broad-area label and does not implement device geolocation. v1 does **not** semantically prove that an arbitrary user-entered slug is geographically coarse. Product policy prohibits submitting a street address, precise venue, coordinate, route, or exact meetup point, but stronger structured-region authority is a separate follow-up rather than an unearned privacy claim.
+The v1 region catalog deliberately represents broad public areas at metro, county, or broad-district granularity. It does not require or derive:
 
-Local standings are fail-closed. The client only renders entries when the server returns `cohortReady: true`. If the server cohort is not ready, native Woof displays the server's privacy message and `memberCount / minimumCohort`. It never calculates whether a cohort should be considered safe itself.
+- device GPS permission;
+- current coordinates;
+- home or street address;
+- route endpoints or trace history;
+- precise venues, schools, apartment complexes, or meetup points;
+- reverse geocoding of private coordinates.
+
+This is a stronger claim than the former free-form `regionKey` model, but it remains intentionally bounded. A coarse region is a broad community label, not an anonymity guarantee, proof of residence, or exact physical location. Expanding the catalog is a reviewed server change rather than a fallback to arbitrary text.
+
+#### Legacy locality migration
+
+Historical `regionKey` values cannot safely be assumed coarse because they were user-entered strings. The migration therefore **does not parse, normalize, map, reverse-geocode, or log those values**. Existing LOCAL Pack locality values are discarded before the new foreign key is installed.
+
+Pack identity and membership remain intact. A migrated LOCAL Pack without an approved region becomes `LEGACY_UNVERIFIED`:
+
+- existing members may still see the Pack because membership is server authority;
+- it is hidden from nonmember public discovery;
+- new joins fail closed;
+- local standings fail closed;
+- an owner may select one approved region to repair locality;
+- changing an already approved locality is not silently allowed through the repair endpoint.
+
+The repair path is deliberately one-way and conservative. It does not expose the discarded legacy text back to clients or telemetry.
+
+Local standings remain fail-closed after locality is approved. The client only renders entries when the server returns `cohortReady: true`. If the server cohort is not ready, native Woof displays the server's privacy message and `memberCount / minimumCohort`. It never calculates whether a cohort should be considered safe itself.
 
 Pack leaderboard responses are also bound to the currently selected Pack. Selection changes invalidate older in-flight requests, stale responses are ignored, and a response whose `pack.id` does not match the requested Pack is hidden rather than displayed under the wrong Pack context.
 
@@ -90,6 +114,8 @@ Server authority owns:
 - Social Adventure score derivation;
 - global opt-in state;
 - global rank;
+- the approved coarse-region catalog;
+- Pack locality validation and legacy locality repair;
 - Pack membership;
 - Pack cohort readiness and minimum cohort;
 - Pack rank;
@@ -99,7 +125,7 @@ Server authority owns:
 
 The native client owns presentation and explicit user intent only.
 
-If an authority slice cannot be loaded, native Woof shows unknown/unavailable state for that slice and may retain an earlier server-confirmed value. It must not substitute cached-looking zeroes, guessed ranks, fabricated privacy state, inferred location, or a response belonging to a different selected Pack.
+If an authority slice cannot be loaded, native Woof shows unknown/unavailable state for that slice and may retain an earlier server-confirmed value. It must not substitute cached-looking zeroes, guessed ranks, fabricated privacy state, inferred location, arbitrary locality text, or a response belonging to a different selected Pack.
 
 ## Companion mode
 
@@ -131,19 +157,23 @@ The native Expedition presentation remains responsible for honoring server `CALI
 - a successful preference mutation is not described as rolled back merely because a follow-up read failed;
 - only the five canonical semantic reactions are exposed;
 - global visibility changes through one explicit user action and is never auto-enabled;
+- Pack creation and legacy repair use the server-approved coarse-region catalog;
+- arbitrary free-form Pack locality normalization is absent from maintained Web/native clients;
+- the database owns approved locality through a foreign key, while DTO validation provides an earlier rejection boundary;
+- legacy free-form locality is discarded without inference or raw-value telemetry before new locality authority is established;
+- unverified legacy Packs cannot be newly joined or ranked until owner repair;
 - Pack standings are rendered only behind server `cohortReady`;
 - Pack leaderboard responses are request/Pack-bound and stale responses are discarded;
 - native Packs contain no device-geolocation implementation;
 - client code does not sort or derive league ranks;
 - native social types omit pet ID and legacy like/comment counters;
-- the locality contract admits that v1 validates slug shape rather than semantically proving geographic coarseness;
 - Expedition remains a separate cooperative authority rather than a Social Adventure score derivative;
 - the server Social Adventure score policy tests are rerun;
 - the full native client still type-checks and lints with zero warnings.
 
 ## Next validation layer
 
-With Social Adventure and receipt-backed Expeditions both represented natively, the highest-value validation remains real-world evidence:
+With Social Adventure, structured coarse locality, and receipt-backed Expeditions represented natively, the highest-value validation remains real-world evidence:
 
 1. preserve exact-head release authority and production fail-closed behavior;
 2. establish the production API/Web deployment boundary once external credentials exist;

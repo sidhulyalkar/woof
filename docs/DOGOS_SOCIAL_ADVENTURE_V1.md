@@ -141,17 +141,30 @@ An opted-in user appears only while their profile is PUBLIC. A viewer never sees
 
 ## Local Packs
 
-A local Pack stores only a user-chosen coarse `region_key`, such as `south-bay-ca`.
+A local Pack uses one **server-approved structured coarse-region identity**. Web and native clients fetch the approved catalog from `GET /social-adventure/regions`; Pack creation accepts only one catalog ID such as `us-ca-south-bay`. API allowlisting and the PostgreSQL foreign key independently reject arbitrary free-form locality text.
 
-Woof does not derive local Pack membership/ranking from:
+The v1 catalog is intentionally broad. Entries are metro, county, or broad-district labels. Woof does not derive Pack locality, membership, or ranking from:
 
-- home coordinates;
-- route endpoints;
-- live GPS;
+- home or street addresses;
+- home coordinates or live GPS;
+- route endpoints or route traces;
 - device pings;
-- inferred neighborhood.
+- precise venues, schools, apartment complexes, or meetup points;
+- inferred neighborhoods;
+- reverse geocoding private coordinates.
 
-Joining a Pack is explicit. Local standings are withheld until at least five active members exist. This is a first privacy floor, not a claim that five-person aggregation makes all locality risk disappear.
+Historical free-form `region_key` values are not promoted into trusted locality. The structured-locality migration clears those values without parsing, mapping, reverse geocoding, or logging them. Pack identity and membership survive, but a migrated local Pack remains `LEGACY_UNVERIFIED` until its owner explicitly selects an approved broad region.
+
+For an unverified legacy Pack:
+
+- existing members may still see the Pack through membership authority;
+- nonmembers cannot discover it through the Pack catalog;
+- new joins fail closed;
+- local standings fail closed;
+- only the owner may perform the one-time locality repair;
+- an already approved locality cannot be silently changed through the repair endpoint.
+
+Joining an approved Pack remains explicit. Local standings are withheld until at least five active members exist. This is a first privacy floor, not a claim that five-person aggregation creates anonymity or eliminates all locality risk.
 
 Existing cooperative `/pack/challenges` remain non-ranking and now count only canonical `QUEST_ENGINE` Adventure events, preventing unrelated CareEvents from becoming community progress.
 
@@ -165,9 +178,12 @@ Tables:
 - `shares`;
 - `reactions`;
 - `human_skill_attempts`;
+- `coarse_regions`;
 - `packs`;
 - `pack_memberships`;
 - `competition_receipts`.
+
+`coarse_regions` contains reviewed broad public-area identities only. `packs.region_key` references that table for approved local Packs and may remain `NULL` only for a migrated local Pack awaiting owner repair. The locality catalog contains no latitude, longitude, address, postal code, route, or precise-venue columns.
 
 Completed Human Skill attempts are immutable at PostgreSQL. Competition receipts are append-only/immutable at PostgreSQL. Competition receipt identity includes user, weekly season, policy version and a SHA-256 hash of the bounded source evidence used for that snapshot.
 
@@ -189,7 +205,9 @@ Clients may submit:
 - one Arcade answer/tap;
 - a bounded reaction;
 - an explicit global-league preference;
-- a Pack name/coarse region or join intent.
+- a Pack name plus one server-approved coarse-region ID;
+- explicit Pack join/leave intent;
+- an owner-only approved-region choice to repair a migrated legacy Pack.
 
 Clients do **not** submit authoritative:
 
@@ -201,7 +219,8 @@ Clients do **not** submit authoritative:
 - social share kind;
 - health/safety status;
 - source propensity/model feature;
-- exact locality.
+- free-form Pack locality;
+- coordinates, address, route, precise venue, or inferred neighborhood authority.
 
 Arcade practice scores are calculated by the server from the canonical scenario, but v1 intentionally does not elevate those values into competitive evidence. In particular, browser timing is untrusted practice telemetry.
 
@@ -209,7 +228,7 @@ Arcade practice scores are calculated by the server from the canonical scenario,
 
 - `/community`: score summary, explicit global opt-in, global league, recent private share candidates, social feed and welfare-positive reactions.
 - `/arcade`: four Human Skill practice games, personal best-score feedback, fixed breadth contribution and optional result sharing.
-- `/community/packs`: coarse local Pack creation/joining and privacy-thresholded local standings.
+- `/community/packs`: approved broad-area Pack creation/joining, conservative legacy-locality repair, and privacy-thresholded local standings.
 - `/pack`: cooperative non-ranking Pack challenges remain available.
 - `/leaderboard`: redirects to `/community`; the old mock distance/walk/friend-count leaderboard is retired.
 - bottom navigation now uses **Community** as the social destination.
@@ -223,12 +242,15 @@ Social Adventure v1 must fail qualification if:
 - competition source identity starts depending on repeat attempts or practice-score magnitude;
 - global leaderboard default becomes opt-out instead of opt-in;
 - local cohort threshold disappears;
+- arbitrary client locality text can become Pack locality authority;
+- migrated free-form locality is inferred, normalized, reverse geocoded, or logged into trusted locality;
+- an unverified legacy Pack becomes publicly discoverable, newly joinable, or locally ranked before owner repair;
 - completed Arcade attempts become mutable;
 - competition receipts become mutable;
 - Social feed loses bilateral block or visibility authority;
 - Pack challenges count arbitrary CareEvents;
 - migration/schema drift leaks the operational schema into canonical Prisma state;
-- API/web type checks, tests or production builds fail.
+- API/web/native type checks, tests or production builds fail.
 
 ## Next releases
 

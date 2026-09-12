@@ -4,6 +4,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import {
   socialAdventureApi,
   type PackLeaderboard,
+  type PackRegionCatalog,
   type PacksCatalog,
   type SocialPack,
 } from '../api/social-adventure';
@@ -14,29 +15,25 @@ import { colors } from '../theme/tokens';
 type Props = StackScreenProps<RootStackParamList, 'Packs'>;
 
 const PACKS_COPY = {
-  locality: 'Choose a broad community label, not a coordinate or precise place.',
+  locality: 'Choose one server-approved broad area, never a coordinate or precise place.',
   privacy: 'The app never estimates or reconstructs a private local rank.',
   score: 'Breadth in Human Skill and bounded Adventure variety count.',
-  create: 'Use a broad place people recognize.',
+  create: 'Woof rejects arbitrary address or venue text as Pack locality.',
 } as const;
-
-const normalizeRegionKey = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 
 export default function PacksScreen({ navigation }: Props) {
   const [catalog, setCatalog] = useState<PacksCatalog | null>(null);
+  const [regions, setRegions] = useState<PackRegionCatalog | null>(null);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<PackLeaderboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [name, setName] = useState('');
   const [regionKey, setRegionKey] = useState('');
+  const [repairRegionKey, setRepairRegionKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const leaderboardRequestRef = useRef(0);
 
@@ -46,6 +43,19 @@ export default function PacksScreen({ navigation }: Props) {
     () => catalog?.packs.find((pack) => pack.id === selectedPackId) ?? null,
     [catalog, selectedPackId]
   );
+
+  const loadRegions = useCallback(async () => {
+    try {
+      const response = await socialAdventureApi.regions();
+      setRegions(response);
+      const firstRegion = response.regions[0]?.id ?? '';
+      setRegionKey((current) => current || firstRegion);
+      setRepairRegionKey((current) => current || firstRegion);
+    } catch {
+      setRegions(null);
+      setError('Approved broad areas are unavailable, so Woof will not guess a locality.');
+    }
+  }, []);
 
   const loadPacks = useCallback(async () => {
     try {
@@ -98,18 +108,18 @@ export default function PacksScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => {
-    void loadPacks();
-  }, [loadPacks]);
+    void Promise.all([loadRegions(), loadPacks()]);
+  }, [loadPacks, loadRegions]);
 
   useEffect(() => {
-    if (!selectedPackId) {
+    if (!selectedPackId || selectedPack?.localityStatus !== 'APPROVED') {
       leaderboardRequestRef.current += 1;
       setLeaderboard(null);
       setLeaderboardLoading(false);
       return;
     }
     void loadLeaderboard(selectedPackId);
-  }, [loadLeaderboard, selectedPackId]);
+  }, [loadLeaderboard, selectedPack?.localityStatus, selectedPackId]);
 
   const joinPack = async (pack: SocialPack) => {
     setActionId(pack.id);
@@ -145,9 +155,8 @@ export default function PacksScreen({ navigation }: Props) {
 
   const createPack = async () => {
     const trimmedName = name.trim();
-    const normalizedRegion = normalizeRegionKey(regionKey);
-    if (trimmedName.length < 2 || normalizedRegion.length < 2) {
-      setError('Use a Pack name and a broad region label such as south-bay-ca.');
+    if (trimmedName.length < 2 || !regionKey || !regions?.regions.some((r) => r.id === regionKey)) {
+      setError('Choose a Pack name and one approved broad area.');
       return;
     }
 
@@ -156,18 +165,41 @@ export default function PacksScreen({ navigation }: Props) {
     try {
       const created = await socialAdventureApi.createPack({
         name: trimmedName,
-        regionKey: normalizedRegion,
+        regionKey,
       });
       setName('');
-      setRegionKey('');
       selectPack(created.id);
       await loadPacks();
     } catch {
       setError(
-        'That Pack could not be created. Enter only a broad-area label, never an address, venue, coordinate, route, or exact meetup point.'
+        'That Pack could not be created. Woof accepts only the server-approved broad areas shown here.'
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const repairPackLocality = async () => {
+    if (
+      !selectedPack ||
+      selectedPack.role !== 'OWNER' ||
+      selectedPack.localityStatus !== 'LEGACY_UNVERIFIED' ||
+      !repairRegionKey ||
+      !regions?.regions.some((region) => region.id === repairRegionKey)
+    ) {
+      setError('Choose an approved broad area to repair this Pack.');
+      return;
+    }
+
+    setRepairing(true);
+    setError(null);
+    try {
+      await socialAdventureApi.repairPackLocality(selectedPack.id, repairRegionKey);
+      await loadPacks();
+    } catch {
+      setError('Woof could not repair that Pack locality. No new location authority was saved.');
+    } finally {
+      setRepairing(false);
     }
   };
 
@@ -185,20 +217,25 @@ export default function PacksScreen({ navigation }: Props) {
   return (
     <SocialAdventurePacksView
       catalog={catalog}
+      regions={regions}
       selectedPack={selectedPack}
       leaderboard={selectedLeaderboard}
       leaderboardLoading={leaderboardLoading}
       actionId={actionId}
       creating={creating}
+      repairing={repairing}
       name={name}
       regionKey={regionKey}
+      repairRegionKey={repairRegionKey}
       error={error}
       onSelectPack={selectPack}
       onJoinPack={(pack) => void joinPack(pack)}
       onLeavePack={(pack) => void leavePack(pack)}
       onNameChange={setName}
       onRegionChange={setRegionKey}
+      onRepairRegionChange={setRepairRegionKey}
       onCreatePack={() => void createPack()}
+      onRepairPack={() => void repairPackLocality()}
       onBack={() => navigation.goBack()}
     />
   );

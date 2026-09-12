@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, MapPinned, ShieldCheck, Trophy, Users } from 'lucide-react';
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
 import { socialAdventureApi } from '@/lib/api/social-adventure';
@@ -13,6 +13,13 @@ export default function LocalPacksPage() {
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [regionKey, setRegionKey] = useState('');
+  const [repairRegionKey, setRepairRegionKey] = useState('');
+
+  const regions = useQuery({
+    queryKey: ['social-adventure', 'regions'],
+    queryFn: socialAdventureApi.regions,
+    retry: false,
+  });
 
   const packs = useQuery({
     queryKey: ['social-adventure', 'packs'],
@@ -21,14 +28,26 @@ export default function LocalPacksPage() {
   });
 
   useEffect(() => {
+    const firstRegion = regions.data?.regions[0]?.id;
+    if (!firstRegion) return;
+    setRegionKey((current) => current || firstRegion);
+    setRepairRegionKey((current) => current || firstRegion);
+  }, [regions.data]);
+
+  useEffect(() => {
     if (selectedPackId || !packs.data) return;
     setSelectedPackId(packs.data.packs.find((pack) => pack.joined)?.id ?? null);
   }, [packs.data, selectedPackId]);
 
+  const selectedPack = useMemo(
+    () => packs.data?.packs.find((pack) => pack.id === selectedPackId) ?? null,
+    [packs.data, selectedPackId]
+  );
+
   const leaderboard = useQuery({
     queryKey: ['social-adventure', 'packs', selectedPackId, 'leaderboard'],
     queryFn: () => socialAdventureApi.packLeaderboard(selectedPackId as string),
-    enabled: Boolean(selectedPackId),
+    enabled: Boolean(selectedPackId && selectedPack?.localityStatus === 'APPROVED'),
     retry: false,
   });
 
@@ -36,9 +55,19 @@ export default function LocalPacksPage() {
     mutationFn: socialAdventureApi.createPack,
     onSuccess: async (created) => {
       setName('');
-      setRegionKey('');
       setSelectedPackId(created.id);
       await queryClient.invalidateQueries({ queryKey: ['social-adventure', 'packs'] });
+    },
+  });
+
+  const repairMutation = useMutation({
+    mutationFn: ({ packId, approvedRegionId }: { packId: string; approvedRegionId: string }) =>
+      socialAdventureApi.repairPackLocality(packId, approvedRegionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['social-adventure', 'packs'] });
+      await queryClient.invalidateQueries({
+        queryKey: ['social-adventure', 'packs', selectedPackId, 'leaderboard'],
+      });
     },
   });
 
@@ -52,13 +81,8 @@ export default function LocalPacksPage() {
 
   const submitPack = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalizedRegion = regionKey
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    if (name.trim().length < 2 || normalizedRegion.length < 2) return;
-    createMutation.mutate({ name: name.trim(), regionKey: normalizedRegion });
+    if (name.trim().length < 2 || !regionKey) return;
+    createMutation.mutate({ name: name.trim(), regionKey });
   };
 
   return (
@@ -81,12 +105,13 @@ export default function LocalPacksPage() {
         <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.1] via-card/95 to-secondary/[0.06] p-5">
           <p className="eyebrow">Local without tracking you</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight">
-            Choose a coarse community, not a coordinate.
+            Choose a broad community, never a coordinate.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            A Pack uses a user-chosen locality such as “south-bay-ca.” Woof does not derive Pack
-            rank from your home location, route endpoints, or live GPS. Local ranks stay hidden
-            until the Pack has enough active members for a safer cohort.
+            Pack locality now comes only from Woof&apos;s server-approved broad-area catalog. The
+            app does not turn typed addresses, venues, home location, route endpoints, or live GPS
+            into locality authority. Local ranks stay hidden until the Pack has enough active
+            members.
           </p>
           <Button variant="outline" asChild className="mt-4 bg-transparent">
             <Link href="/community">← Back to Community</Link>
@@ -96,7 +121,7 @@ export default function LocalPacksPage() {
         <section className="mt-6" aria-labelledby="pack-list-heading">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="eyebrow">Opt-in neighborhoods</p>
+              <p className="eyebrow">Opt-in communities</p>
               <h2 id="pack-list-heading" className="mt-1 text-xl font-bold tracking-tight">
                 Find a Pack
               </h2>
@@ -112,7 +137,7 @@ export default function LocalPacksPage() {
             <div className="surface-soft mt-3 rounded-2xl p-5 text-center">
               <p className="font-semibold">No local Packs yet.</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                You can start the first coarse-locality Pack below.
+                You can start the first approved broad-area Pack below.
               </p>
             </div>
           ) : (
@@ -130,8 +155,8 @@ export default function LocalPacksPage() {
                     >
                       <p className="font-bold">{pack.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {pack.regionKey} · {pack.memberCount}{' '}
-                        {pack.memberCount === 1 ? 'member' : 'members'}
+                        {pack.coarseRegion?.displayName ?? 'Locality needs owner repair'} ·{' '}
+                        {pack.memberCount} {pack.memberCount === 1 ? 'member' : 'members'}
                       </p>
                     </button>
                     {pack.joined ? (
@@ -156,7 +181,45 @@ export default function LocalPacksPage() {
           )}
         </section>
 
-        {selectedPackId && (
+        {selectedPack?.localityStatus === 'LEGACY_UNVERIFIED' && selectedPack.role === 'OWNER' && (
+          <section className="mt-7 rounded-3xl border border-amber-300/50 bg-amber-50/50 p-5">
+            <p className="eyebrow">Locality repair</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight">Choose a broad area again</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Woof discarded the Pack&apos;s old free-form locality rather than assuming it was
+              safe. Select one approved broad area to restore public discovery and local standings.
+            </p>
+            <select
+              aria-label="Approved broad area for legacy Pack"
+              value={repairRegionKey}
+              onChange={(event) => setRepairRegionKey(event.target.value)}
+              className="mt-4 w-full rounded-xl border border-border bg-background px-3 py-2.5"
+            >
+              {regions.data?.regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.displayName}
+                </option>
+              ))}
+            </select>
+            <Button
+              className="mt-3"
+              disabled={!repairRegionKey || repairMutation.isPending}
+              onClick={() =>
+                repairMutation.mutate({
+                  packId: selectedPack.id,
+                  approvedRegionId: repairRegionKey,
+                })
+              }
+            >
+              {repairMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Confirm broad area
+            </Button>
+          </section>
+        )}
+
+        {selectedPackId && selectedPack?.localityStatus === 'APPROVED' && (
           <section className="mt-7" aria-labelledby="local-league-heading">
             <div>
               <p className="eyebrow">Pack league</p>
@@ -217,10 +280,10 @@ export default function LocalPacksPage() {
           <div className="flex items-start gap-3">
             <Trophy className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
             <div>
-              <h2 className="font-bold">Start a coarse-locality Pack</h2>
+              <h2 className="font-bold">Start a broad-area Pack</h2>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                Use a broad label other people would recognize. Do not enter an address, apartment
-                complex, school, route, or exact meetup point.
+                Choose from the approved catalog. Woof does not accept an address, school, venue,
+                coordinate, route, or exact meetup point as Pack locality.
               </p>
             </div>
           </div>
@@ -237,24 +300,31 @@ export default function LocalPacksPage() {
               />
             </label>
             <label className="block text-sm font-semibold">
-              Coarse region
-              <input
+              Broad area
+              <select
                 value={regionKey}
                 onChange={(event) => setRegionKey(event.target.value)}
-                maxLength={64}
-                placeholder="south-bay-ca"
+                disabled={regions.isLoading || !regions.data?.regions.length}
                 className="mt-1.5 w-full rounded-xl border border-border bg-background/60 px-3 py-2.5 font-normal outline-none focus:border-primary"
-              />
+              >
+                {regions.data?.regions.map((region) => (
+                  <option key={region.id} value={region.id}>
+                    {region.displayName}
+                  </option>
+                ))}
+              </select>
             </label>
-            <Button type="submit" disabled={createMutation.isPending}>
+            <Button type="submit" disabled={createMutation.isPending || !regionKey}>
               {createMutation.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
               )}
               Create Pack
             </Button>
-            {createMutation.isError && (
+            {(createMutation.isError || regions.isError) && (
               <p className="text-sm text-destructive">
-                That Pack could not be created. Check the coarse region label and try again.
+                {regions.isError
+                  ? 'Approved broad areas are unavailable, so Woof will not guess a locality.'
+                  : 'That Pack could not be created. Refresh the approved broad-area catalog and try again.'}
               </p>
             )}
           </form>

@@ -15,8 +15,13 @@ on:
       - 'apps/api/src/social-adventure/social-adventure.policy.ts'
       - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
       - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
       - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/scripts/assert-structured-pack-locality.py'
       - '.github/workflows/native-social-adventure-ci.yml'
+      - '.github/workflows/structured-pack-locality-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
   push:
     branches: [main]
@@ -32,8 +37,13 @@ on:
       - 'apps/api/src/social-adventure/social-adventure.policy.ts'
       - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
       - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
       - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/scripts/assert-structured-pack-locality.py'
       - '.github/workflows/native-social-adventure-ci.yml'
+      - '.github/workflows/structured-pack-locality-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
 
 permissions:
@@ -70,9 +80,12 @@ jobs:
       - name: Enforce native Social Adventure source contract
         run: python3 .github/scripts/assert-native-social-adventure.py
 
+      - name: Enforce structured Pack locality source contract
+        run: python3 .github/scripts/assert-structured-pack-locality.py
+
       - name: Check native Social Adventure formatting
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/api/social-adventure.ts \
             apps/mobile/src/screens/FeedScreen.tsx \
             apps/mobile/src/screens/PacksScreen.tsx \
@@ -81,6 +94,46 @@ jobs:
             apps/mobile/src/navigation/AppNavigator.tsx \
             apps/api/src/social-adventure/dto/social-adventure.dto.ts \
             .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+          if ! git diff --quiet -- \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PacksScreen.tsx \
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+          then
+            git diff -- \
+              apps/mobile/src/api/social-adventure.ts \
+              apps/mobile/src/screens/FeedScreen.tsx \
+              apps/mobile/src/screens/PacksScreen.tsx \
+              apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+              apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+              apps/mobile/src/navigation/AppNavigator.tsx \
+              apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+              .github/workflows/native-social-adventure-ci.yml \
+              docs/NATIVE_SOCIAL_ADVENTURE_V1.md | head -c 60000
+            exit 1
+          fi
+
+      - name: Upload canonical native Prettier output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-social-adventure-prettier-output
+          retention-days: 1
+          path: |
+            apps/mobile/src/api/social-adventure.ts
+            apps/mobile/src/screens/FeedScreen.tsx
+            apps/mobile/src/screens/PacksScreen.tsx
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx
+            apps/mobile/src/navigation/AppNavigator.tsx
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts
+            .github/workflows/native-social-adventure-ci.yml
             docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
       - name: Re-run server Social Adventure score policy tests

@@ -196,7 +196,7 @@ describe('ExpeditionJournalService integration', () => {
         'Journal Test Pack',
         ${`journal-test-${packId}`},
         'LOCAL',
-        'test-region',
+        'us-ca-south-bay',
         'PUBLIC',
         ${season.startsAt}
       )
