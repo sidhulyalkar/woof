@@ -14,12 +14,15 @@ type PackLocalityRow = {
   regionKey: string | null;
 };
 
-type PackCatalogRow = {
+type PackLocalityShape = {
   id: string;
+  regionKey: string | null;
+};
+
+type PackCatalogRow = PackLocalityShape & {
   name: string;
   slug: string;
   scope: string;
-  regionKey: string | null;
   visibility: string;
   memberCount: number;
   joined: boolean;
@@ -53,7 +56,7 @@ export class PackLocalityService {
     };
   }
 
-  decoratePack(pack: PackCatalogRow) {
+  decoratePack<T extends PackLocalityShape>(pack: T) {
     const coarseRegion = this.regionById(pack.regionKey);
     return {
       ...pack,
