@@ -1,15 +1,10 @@
 name: Deploy to Staging
-run-name: Stage ${{ github.event_name == 'workflow_dispatch' && inputs.release_sha || github.sha }}
+run-name: Stage ${{ github.sha }}
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      release_sha:
-        description: Optional exact 40-character main commit SHA to stage
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -28,7 +23,7 @@ jobs:
       - name: Resolve exact release candidate
         id: candidate
         env:
-          REQUESTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.release_sha || github.sha }}
+          REQUESTED_SHA: ${{ github.sha }}
         run: |
           if [[ ! "${REQUESTED_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error title=Invalid release SHA::Expected an exact lowercase 40-character Git SHA, received '${REQUESTED_SHA}'."
