@@ -156,6 +156,11 @@ export type SocialPack = {
   coarseRegion: PackCoarseRegion | null;
 };
 
+export type CreatedSocialPack = Pick<
+  SocialPack,
+  'id' | 'name' | 'slug' | 'regionKey' | 'joined' | 'localityStatus' | 'coarseRegion'
+>;
+
 export type PacksCatalog = {
   packs: SocialPack[];
   localMinimumCohort: number;
@@ -194,7 +199,7 @@ export const socialAdventureApi = {
   regions: () => apiClient.get<PackRegionCatalog>('/social-adventure/regions'),
   packs: () => apiClient.get<PacksCatalog>('/social-adventure/packs'),
   createPack: (input: { name: string; regionKey: string }) =>
-    apiClient.post<SocialPack>('/social-adventure/packs', input),
+    apiClient.post<CreatedSocialPack>('/social-adventure/packs', input),
   repairPackLocality: (packId: string, regionKey: string) =>
     apiClient.put<{ packId: string; localityStatus: 'APPROVED'; coarseRegion: PackCoarseRegion }>(
       `/social-adventure/packs/${packId}/locality`,
