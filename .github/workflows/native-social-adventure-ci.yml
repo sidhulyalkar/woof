@@ -85,7 +85,7 @@ jobs:
 
       - name: Check native Social Adventure formatting
         run: |
-          pnpm exec prettier --check \
+          pnpm exec prettier --write \
             apps/mobile/src/api/social-adventure.ts \
             apps/mobile/src/screens/FeedScreen.tsx \
             apps/mobile/src/screens/PacksScreen.tsx \
@@ -94,6 +94,46 @@ jobs:
             apps/mobile/src/navigation/AppNavigator.tsx \
             apps/api/src/social-adventure/dto/social-adventure.dto.ts \
             .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+          if ! git diff --quiet -- \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/FeedScreen.tsx \
+            apps/mobile/src/screens/PacksScreen.tsx \
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+            apps/mobile/src/navigation/AppNavigator.tsx \
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+          then
+            git diff -- \
+              apps/mobile/src/api/social-adventure.ts \
+              apps/mobile/src/screens/FeedScreen.tsx \
+              apps/mobile/src/screens/PacksScreen.tsx \
+              apps/mobile/src/components/community/SocialAdventureCommunityView.tsx \
+              apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+              apps/mobile/src/navigation/AppNavigator.tsx \
+              apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+              .github/workflows/native-social-adventure-ci.yml \
+              docs/NATIVE_SOCIAL_ADVENTURE_V1.md | head -c 60000
+            exit 1
+          fi
+
+      - name: Upload canonical native Prettier output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-social-adventure-prettier-output
+          retention-days: 1
+          path: |
+            apps/mobile/src/api/social-adventure.ts
+            apps/mobile/src/screens/FeedScreen.tsx
+            apps/mobile/src/screens/PacksScreen.tsx
+            apps/mobile/src/components/community/SocialAdventureCommunityView.tsx
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx
+            apps/mobile/src/navigation/AppNavigator.tsx
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts
+            .github/workflows/native-social-adventure-ci.yml
             docs/NATIVE_SOCIAL_ADVENTURE_V1.md
 
       - name: Re-run server Social Adventure score policy tests
