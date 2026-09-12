@@ -8,27 +8,80 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { PackLeaderboard, PacksCatalog, SocialPack } from '../../api/social-adventure';
+import type {
+  PackLeaderboard,
+  PackRegionCatalog,
+  PacksCatalog,
+  SocialPack,
+} from '../../api/social-adventure';
 import { colors } from '../../theme/tokens';
 
 type Props = {
   catalog: PacksCatalog | null;
+  regions: PackRegionCatalog | null;
   selectedPack: SocialPack | null;
   leaderboard: PackLeaderboard | null;
   leaderboardLoading: boolean;
   actionId: string | null;
   creating: boolean;
+  repairing: boolean;
   name: string;
   regionKey: string;
+  repairRegionKey: string;
   error: string | null;
   onSelectPack: (packId: string) => void;
   onJoinPack: (pack: SocialPack) => void;
   onLeavePack: (pack: SocialPack) => void;
   onNameChange: (value: string) => void;
   onRegionChange: (value: string) => void;
+  onRepairRegionChange: (value: string) => void;
   onCreatePack: () => void;
+  onRepairPack: () => void;
   onBack: () => void;
 };
+
+function RegionChoices({
+  regions,
+  selectedId,
+  onSelect,
+}: {
+  regions: PackRegionCatalog | null;
+  selectedId: string;
+  onSelect: (regionId: string) => void;
+}) {
+  if (!regions?.regions.length) {
+    return (
+      <View style={styles.quietBox}>
+        <Text style={styles.quietTitle}>Broad areas unavailable</Text>
+        <Text style={styles.smallCopy}>
+          Woof will not accept typed location text or guess a locality while the approved catalog is
+          unavailable.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.regionChoices} accessibilityRole="radiogroup">
+      {regions.regions.map((region) => {
+        const selected = region.id === selectedId;
+        return (
+          <Pressable
+            key={region.id}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            onPress={() => onSelect(region.id)}
+            style={[styles.regionChoice, selected && styles.regionChoiceSelected]}
+          >
+            <Text style={[styles.regionChoiceText, selected && styles.regionChoiceTextSelected]}>
+              {region.displayName}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 function PackRow({
   pack,
@@ -50,7 +103,7 @@ function PackRow({
       <Pressable accessibilityRole="button" onPress={onSelect} style={styles.packOpen}>
         <Text style={styles.packName}>{pack.name}</Text>
         <Text style={styles.meta}>
-          {pack.regionKey ?? 'coarse region'} · {pack.memberCount}{' '}
+          {pack.coarseRegion?.displayName ?? 'Locality needs owner repair'} · {pack.memberCount}{' '}
           {pack.memberCount === 1 ? 'member' : 'members'}
         </Text>
       </Pressable>
@@ -129,6 +182,10 @@ function Standings({
 }
 
 export function SocialAdventurePacksView(props: Props) {
+  const legacyOwner =
+    props.selectedPack?.localityStatus === 'LEGACY_UNVERIFIED' &&
+    props.selectedPack.role === 'OWNER';
+
   return (
     <ScrollView
       style={styles.screen}
@@ -142,14 +199,15 @@ export function SocialAdventurePacksView(props: Props) {
         <Text style={styles.eyebrow}>SOCIAL ADVENTURE</Text>
         <Text style={styles.heroTitle}>Local Packs without tracking you.</Text>
         <Text style={styles.body}>
-          Choose a coarse community, not a coordinate. Pack rank never uses your home, route
-          endpoints, live GPS, health, mileage, or dog performance.
+          Choose from server-approved broad areas, never typed addresses or coordinates. Pack rank
+          does not use your home, route endpoints, live GPS, health, mileage, or dog performance.
         </Text>
         <View style={styles.quietBox}>
           <Text style={styles.quietTitle}>Privacy floor</Text>
           <Text style={styles.smallCopy}>
-            The app never estimates or reconstructs a private local rank. Standings appear only when
-            the server says the cohort is large enough.
+            Woof never turns arbitrary location text into locality authority, and never estimates or
+            reconstructs a private local rank. Standings appear only when the server says the cohort
+            is large enough.
           </Text>
         </View>
       </View>
@@ -163,7 +221,7 @@ export function SocialAdventurePacksView(props: Props) {
           <View style={styles.quietBox}>
             <Text style={styles.quietTitle}>No local Packs yet.</Text>
             <Text style={styles.smallCopy}>
-              A quiet map is valid. You can start a broad-area Pack below.
+              A quiet map is valid. You can start an approved broad-area Pack below.
             </Text>
           </View>
         ) : (
@@ -183,20 +241,46 @@ export function SocialAdventurePacksView(props: Props) {
         )}
       </View>
 
-      {props.selectedPack && (
+      {legacyOwner && props.selectedPack ? (
+        <View style={styles.card}>
+          <Text style={styles.eyebrow}>LOCALITY REPAIR</Text>
+          <Text style={styles.sectionTitle}>Choose a broad area again</Text>
+          <Text style={styles.body}>
+            Woof discarded this Pack&apos;s old free-form locality instead of assuming it was safe.
+            Choose one approved broad area to restore discovery and local standings.
+          </Text>
+          <RegionChoices
+            regions={props.regions}
+            selectedId={props.repairRegionKey}
+            onSelect={props.onRepairRegionChange}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={props.repairing || !props.repairRegionKey}
+            onPress={props.onRepairPack}
+            style={[styles.primaryButton, (props.repairing || !props.repairRegionKey) && styles.disabled]}
+          >
+            {props.repairing ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Confirm broad area</Text>
+            )}
+          </Pressable>
+        </View>
+      ) : props.selectedPack?.localityStatus === 'APPROVED' ? (
         <Standings
           selectedPack={props.selectedPack}
           leaderboard={props.leaderboard}
           loading={props.leaderboardLoading}
         />
-      )}
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.eyebrow}>CREATE A PACK</Text>
-        <Text style={styles.sectionTitle}>Start a coarse-locality Pack</Text>
+        <Text style={styles.sectionTitle}>Start a broad-area Pack</Text>
         <Text style={styles.body}>
-          Use a broad place people recognize. Do not enter an address, apartment complex, school,
-          route, or exact meetup point.
+          Choose from the approved catalog. Woof does not accept an address, apartment complex,
+          school, venue, route, coordinate, or exact meetup point as Pack locality.
         </Text>
 
         <Text style={styles.fieldLabel}>Pack name</Text>
@@ -209,22 +293,21 @@ export function SocialAdventurePacksView(props: Props) {
           style={styles.input}
         />
 
-        <Text style={styles.fieldLabel}>Coarse region</Text>
-        <TextInput
-          value={props.regionKey}
-          onChangeText={props.onRegionChange}
-          maxLength={80}
-          autoCapitalize="none"
-          placeholder="south-bay-ca"
-          placeholderTextColor={colors.gray[400]}
-          style={styles.input}
+        <Text style={styles.fieldLabel}>Broad area</Text>
+        <RegionChoices
+          regions={props.regions}
+          selectedId={props.regionKey}
+          onSelect={props.onRegionChange}
         />
 
         <Pressable
           accessibilityRole="button"
-          disabled={props.creating}
+          disabled={props.creating || !props.regionKey || !props.regions?.regions.length}
           onPress={props.onCreatePack}
-          style={[styles.primaryButton, props.creating && styles.disabled]}
+          style={[
+            styles.primaryButton,
+            (props.creating || !props.regionKey || !props.regions?.regions.length) && styles.disabled,
+          ]}
         >
           {props.creating ? (
             <ActivityIndicator color="#ffffff" />
@@ -339,6 +422,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     color: colors.gray[900],
   },
+  regionChoices: {
+    marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  regionChoice: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    backgroundColor: colors.gray[50],
+  },
+  regionChoiceSelected: {
+    borderColor: colors.primary[400],
+    backgroundColor: colors.primary[50],
+  },
+  regionChoiceText: { color: colors.gray[700], fontSize: 11, fontWeight: '700' },
+  regionChoiceTextSelected: { color: colors.primary[800] },
   primaryButton: {
     marginTop: 14,
     padding: 13,
