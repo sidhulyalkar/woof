@@ -1,0 +1,171 @@
+name: Structured Pack Locality CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'apps/api/src/social-adventure/pack-locality.integration.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.controller.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/web/src/lib/api/social-adventure.ts'
+      - 'apps/web/src/app/community/packs/page.tsx'
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/PacksScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventurePacksView.tsx'
+      - '.github/scripts/assert-structured-pack-locality.py'
+      - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/workflows/structured-pack-locality-ci.yml'
+      - '.github/workflows/native-social-adventure-ci.yml'
+      - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'apps/api/src/social-adventure/pack-locality.integration.spec.ts'
+      - 'apps/api/src/social-adventure/social-adventure.controller.ts'
+      - 'apps/api/src/social-adventure/social-adventure.service.ts'
+      - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/web/src/lib/api/social-adventure.ts'
+      - 'apps/web/src/app/community/packs/page.tsx'
+      - 'apps/mobile/src/api/social-adventure.ts'
+      - 'apps/mobile/src/screens/PacksScreen.tsx'
+      - 'apps/mobile/src/components/community/SocialAdventurePacksView.tsx'
+      - '.github/scripts/assert-structured-pack-locality.py'
+      - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/workflows/structured-pack-locality-ci.yml'
+      - '.github/workflows/native-social-adventure-ci.yml'
+      - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: structured-pack-locality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Coarse locality authority + migration
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_shadow
+      JWT_SECRET: ci-only-structured-pack-locality-secret
+      NODE_ENV: test
+      ML_SERVICE_ENABLED: 'false'
+      ENABLE_ADVENTURE_SYSTEM: 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from committed lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @woof/database exec prisma validate
+
+      - name: Enforce structured Pack locality source contract
+        run: python3 .github/scripts/assert-structured-pack-locality.py
+
+      - name: Re-enforce native Social Adventure contract
+        run: python3 .github/scripts/assert-native-social-adventure.py
+
+      - name: Apply full canonical migration chain
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Prove migration remains additive to canonical Prisma authority
+        run: >-
+          pnpm --filter @woof/database exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Prove approved region catalog exists without private-location columns
+        env:
+          PGPASSWORD: postgres
+        run: |
+          test "$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.coarse_regions WHERE id IN ('us-ca-san-francisco','us-ca-south-bay','us-ca-peninsula','us-ca-east-bay','us-ca-north-bay','us-ca-santa-cruz-county');")" = '6'
+          test "$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='dogos_social' AND table_name='coarse_regions' AND column_name IN ('latitude','longitude','address','postal_code');")" = '0'
+
+      - name: Run migrated-Postgres Pack locality authority tests
+        run: pnpm --filter @woof/api exec jest src/social-adventure/pack-locality.integration.spec.ts --runInBand
+
+      - name: Check structured locality formatting
+        run: |
+          pnpm exec prettier --check \
+            apps/api/src/social-adventure/pack-locality.catalog.ts \
+            apps/api/src/social-adventure/pack-locality.service.ts \
+            apps/api/src/social-adventure/pack-locality.integration.spec.ts \
+            apps/api/src/social-adventure/social-adventure.controller.ts \
+            apps/api/src/social-adventure/social-adventure.service.ts \
+            apps/api/src/social-adventure/dto/social-adventure.dto.ts \
+            apps/web/src/lib/api/social-adventure.ts \
+            apps/web/src/app/community/packs/page.tsx \
+            apps/mobile/src/api/social-adventure.ts \
+            apps/mobile/src/screens/PacksScreen.tsx \
+            apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
+            .github/workflows/structured-pack-locality-ci.yml \
+            .github/workflows/native-social-adventure-ci.yml \
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Type-check native client
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint locality API surface
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          'src/social-adventure/**/*.ts'
+
+      - name: Lint locality Web surface
+        run: >-
+          pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
+          src/app/community/packs/page.tsx
+          src/lib/api/social-adventure.ts
+
+      - name: Lint native client
+        run: pnpm --filter @woof/mobile lint
