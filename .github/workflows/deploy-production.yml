@@ -151,7 +151,6 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       EXPECTED_API_URL: https://woof-api-prod.fly.dev/api/v1
       EXPECTED_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
-      RELEASE_RECEIPT_PATH: ${{ runner.temp }}/woof-production-release-receipt.json
     steps:
       - uses: actions/checkout@v7
         with:
@@ -214,13 +213,14 @@ jobs:
           WOOF_ENVIRONMENT: production
           WEB_URL: ${{ steps.deploy_web.outputs.url }}
           EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
+          RELEASE_RECEIPT_PATH: ${{ runner.temp }}/woof-production-release-receipt.json
         run: node .github/scripts/qualify-live-release.mjs
 
       - name: Retain production release receipt
         uses: actions/upload-artifact@v7
         with:
           name: production-release-${{ env.RELEASE_SHA }}
-          path: ${{ env.RELEASE_RECEIPT_PATH }}
+          path: ${{ runner.temp }}/woof-production-release-receipt.json
           if-no-files-found: error
           retention-days: 90
 
