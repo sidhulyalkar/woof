@@ -26,6 +26,9 @@ automatic staging deploy
 staging live-release receipt
     |
     v
+production verifies exact staging receipt + workflow run
+    |
+    v
 operator selects exact 40-hex main SHA
     |
     v
@@ -64,12 +67,15 @@ Before deployment, the workflow rejects the request unless:
 
 - the workflow itself was dispatched from `main`;
 - `release_sha` is one exact lowercase 40-hex Git SHA;
-- the commit exists in repository history; and
-- the commit is an ancestor of the current canonical `origin/main`.
+- the commit exists in repository history;
+- the commit is an ancestor of the current canonical `origin/main`;
+- a non-expired `staging-release-<sha>` artifact exists for that exact SHA and `main` branch;
+- the artifact came from a successful `push` run of `.github/workflows/deploy-staging.yml` at that exact SHA; and
+- the downloaded receipt itself reports staging, the exact release, live/ready/database-ready API state, exact transient + stable Web provenance, intended API origin, and credentialed CORS qualification.
 
 The API and Web jobs then check out that exact SHA. Release identity is derived from `release_sha`, never from the workflow-dispatch commit.
 
-This prevents a later `main` commit from silently becoming the deployed artifact merely because the operator intended to promote an older qualified release.
+This prevents a later `main` commit from silently becoming the deployed artifact and prevents an operator from promoting a canonical commit that never completed the staging live-release gate.
 
 ## Environment authority required outside the repository
 
@@ -93,6 +99,8 @@ Public environment variable:
 `WEB_ORIGIN` is not inferred from a transient Vercel deployment URL. It represents the stable public alias that must expose the selected release and that the API must admit through CORS.
 
 Production should also use GitHub environment protection / reviewers where available. Repository code can require the `production` environment, but repository code cannot prove that an administrator configured reviewers or secret scope correctly.
+
+The production workflow has read-only Actions permission in addition to repository-content read permission solely so it can authenticate the exact staging workflow run and download its retained receipt. It does not gain Actions write authority.
 
 ## Live qualification receipt
 
@@ -146,13 +154,14 @@ Still required before public beta:
 3. Inspect the retained `staging-release-<sha>` receipt and confirm both deployment and stable public origins report the same SHA.
 4. Resolve any staging, alias, CORS, or provider discrepancy before production promotion.
 5. Dispatch `Deploy to Production` from `main` and paste the exact staged 40-hex SHA into `release_sha`.
-6. Complete any configured production-environment approval.
-7. Confirm API migration, liveness, readiness, deployment provenance, stable-origin provenance, CORS, and live qualification succeed.
-8. Retain and inspect `production-release-<sha>`.
-9. Continue with authenticated live black-box and operational drills. Do not treat the receipt alone as full public-beta evidence.
+6. The workflow independently locates the exact staging artifact, verifies its successful staging workflow run, downloads it, and validates its contents before any production deploy job can start.
+7. Complete any configured production-environment approval.
+8. Confirm API migration, liveness, readiness, deployment provenance, stable-origin provenance, CORS, and live qualification succeed.
+9. Retain and inspect `production-release-<sha>`.
+10. Continue with authenticated live black-box and operational drills. Do not treat the receipt alone as full public-beta evidence.
 
 ## Rollback boundary
 
-A previous known-good `main` SHA can be deliberately re-promoted through the same production workflow because the selector accepts canonical `main` ancestors.
+A previous known-good `main` SHA can be deliberately re-promoted through the same production workflow because the selector accepts canonical `main` ancestors, but it still needs a valid retained staging receipt for that exact SHA.
 
 That is application rollback authority, not database rollback authority. Database migrations must remain forward-safe or use an explicitly rehearsed recovery procedure. Never infer that deploying an older application SHA reverses a migrated production schema.
