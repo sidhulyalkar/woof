@@ -129,6 +129,19 @@ export type SocialShareCandidate = {
   occurredAt: string;
 };
 
+export type PackCoarseRegion = {
+  id: string;
+  displayName: string;
+  countryCode: string;
+  subdivisionCode: string | null;
+  granularity: 'METRO' | 'COUNTY' | 'BROAD_DISTRICT';
+};
+
+export type PackRegionCatalog = {
+  regions: PackCoarseRegion[];
+  locationContract: string;
+};
+
 export type SocialPack = {
   id: string;
   name: string;
@@ -139,6 +152,14 @@ export type SocialPack = {
   memberCount: number;
   joined: boolean;
   role: string | null;
+  localityStatus: 'APPROVED' | 'LEGACY_UNVERIFIED';
+  coarseRegion: PackCoarseRegion | null;
+};
+
+export type PacksCatalog = {
+  packs: SocialPack[];
+  localMinimumCohort: number;
+  locationContract: string;
 };
 
 export const socialAdventureApi = {
@@ -170,12 +191,15 @@ export const socialAdventureApi = {
     apiClient.post<ArcadeReceipt>(`/social-adventure/arcade/attempts/${attemptId}/complete`, {
       response,
     }),
-  packs: () =>
-    apiClient.get<{ packs: SocialPack[]; localMinimumCohort: number; locationContract: string }>(
-      '/social-adventure/packs'
-    ),
+  regions: () => apiClient.get<PackRegionCatalog>('/social-adventure/regions'),
+  packs: () => apiClient.get<PacksCatalog>('/social-adventure/packs'),
   createPack: (input: { name: string; regionKey: string }) =>
     apiClient.post<SocialPack>('/social-adventure/packs', input),
+  repairPackLocality: (packId: string, regionKey: string) =>
+    apiClient.put<{ packId: string; localityStatus: 'APPROVED'; coarseRegion: PackCoarseRegion }>(
+      `/social-adventure/packs/${packId}/locality`,
+      { regionKey }
+    ),
   joinPack: (packId: string) =>
     apiClient.post<{ ok: true }>(`/social-adventure/packs/${packId}/join`, {}),
   leavePack: (packId: string) =>
