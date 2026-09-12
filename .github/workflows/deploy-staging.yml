@@ -83,7 +83,6 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       EXPECTED_API_URL: https://woof-api-staging.fly.dev/api/v1
       EXPECTED_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
-      RELEASE_RECEIPT_PATH: ${{ runner.temp }}/woof-staging-release-receipt.json
     steps:
       - uses: actions/checkout@v7
 
@@ -144,12 +143,13 @@ jobs:
           WOOF_ENVIRONMENT: staging
           WEB_URL: ${{ steps.deploy_web.outputs.url }}
           EXPECTED_RELEASE: ${{ github.sha }}
+          RELEASE_RECEIPT_PATH: ${{ runner.temp }}/woof-staging-release-receipt.json
         run: node .github/scripts/qualify-live-release.mjs
 
       - name: Retain staging release receipt
         uses: actions/upload-artifact@v7
         with:
           name: staging-release-${{ github.sha }}
-          path: ${{ env.RELEASE_RECEIPT_PATH }}
+          path: ${{ runner.temp }}/woof-staging-release-receipt.json
           if-no-files-found: error
           retention-days: 14
