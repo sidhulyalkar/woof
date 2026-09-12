@@ -64,8 +64,9 @@ export class SocialAdventureController {
   }
 
   @Post('packs')
-  createPack(@Request() req: AuthenticatedRequest, @Body() dto: CreatePackDto) {
-    return this.socialAdventure.createPack(req.user.sub, dto);
+  async createPack(@Request() req: AuthenticatedRequest, @Body() dto: CreatePackDto) {
+    const created = await this.socialAdventure.createPack(req.user.sub, dto);
+    return this.packLocality.decoratePack(created);
   }
 
   @Put('packs/:packId/locality')
