@@ -309,7 +309,8 @@ export function SocialAdventurePacksView(props: Props) {
           onPress={props.onCreatePack}
           style={[
             styles.primaryButton,
-            (props.creating || !props.regionKey || !props.regions?.regions.length) && styles.disabled,
+            (props.creating || !props.regionKey || !props.regions?.regions.length) &&
+              styles.disabled,
           ]}
         >
           {props.creating ? (
