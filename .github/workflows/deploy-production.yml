@@ -1,27 +1,200 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact 40-hex main commit SHA already qualified in staging
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+env:
+  RELEASE_SHA: ${{ inputs.release_sha }}
+
 jobs:
+  select-release:
+    name: Validate production release candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Require exact canonical-main release SHA
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error title=Non-canonical workflow source::Production promotion must be dispatched from main."
+            exit 1
+          fi
+          if [[ ! "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Invalid release SHA::release_sha must be one exact lowercase 40-hex Git SHA."
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          if ! git cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null; then
+            echo "::error title=Unknown release SHA::${RELEASE_SHA} is not available in repository history."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main; then
+            echo "::error title=Release is outside canonical main::${RELEASE_SHA} is not an ancestor of origin/main."
+            exit 1
+          fi
+
+          resolved=$(git rev-parse "${RELEASE_SHA}^{commit}")
+          if [[ "${resolved}" != "${RELEASE_SHA}" ]]; then
+            echo "::error title=Release identity drift::Expected ${RELEASE_SHA}, resolved ${resolved}."
+            exit 1
+          fi
+
+          echo "Selected canonical main release ${RELEASE_SHA}."
+
+      - name: Require exact successful staging release receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_name="staging-release-${RELEASE_SHA}"
+          artifacts_json="${RUNNER_TEMP}/staging-artifacts.json"
+          run_json="${RUNNER_TEMP}/staging-run.json"
+          receipt_dir="${RUNNER_TEMP}/staging-release-receipt"
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
+            > "${artifacts_json}"
+
+          artifact_meta=$(node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(
+            fs.readFileSync(`${process.env.RUNNER_TEMP}/staging-artifacts.json`, 'utf8')
+          );
+          const expectedName = `staging-release-${process.env.RELEASE_SHA}`;
+          const candidates = (data.artifacts ?? [])
+            .filter(
+              (artifact) =>
+                artifact.name === expectedName &&
+                artifact.expired === false &&
+                artifact.size_in_bytes > 0 &&
+                artifact.workflow_run?.head_branch === 'main' &&
+                artifact.workflow_run?.head_sha === process.env.RELEASE_SHA
+            )
+            .sort((left, right) => new Date(right.created_at) - new Date(left.created_at));
+
+          if (candidates.length === 0) {
+            throw new Error(
+              `No non-expired staging receipt artifact exists for exact release ${process.env.RELEASE_SHA}.`
+            );
+          }
+
+          const artifact = candidates[0];
+          process.stdout.write(`${artifact.id}:${artifact.workflow_run.id}`);
+          NODE
+          )
+
+          artifact_id="${artifact_meta%%:*}"
+          staging_run_id="${artifact_meta##*:}"
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${staging_run_id}" \
+            > "${run_json}"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const run = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/staging-run.json`, 'utf8'));
+          const expected = process.env.RELEASE_SHA;
+          const expectedPath = '.github/workflows/deploy-staging.yml';
+
+          if (
+            run.conclusion !== 'success' ||
+            run.event !== 'push' ||
+            run.head_branch !== 'main' ||
+            run.head_sha !== expected ||
+            run.path !== expectedPath
+          ) {
+            throw new Error(
+              `Staging evidence mismatch: expected successful ${expectedPath} push on main at ${expected}; ` +
+                `received conclusion=${run.conclusion} event=${run.event} branch=${run.head_branch} ` +
+                `sha=${run.head_sha} path=${run.path}.`
+            );
+          }
+          NODE
+
+          rm -rf "${receipt_dir}"
+          gh run download "${staging_run_id}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${artifact_name}" \
+            --dir "${receipt_dir}"
+
+          ARTIFACT_ID="${artifact_id}" STAGING_RUN_ID="${staging_run_id}" node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const receiptPath = path.join(
+            process.env.RUNNER_TEMP,
+            'staging-release-receipt',
+            'woof-staging-release-receipt.json'
+          );
+          if (!fs.existsSync(receiptPath)) {
+            throw new Error(`Staging receipt payload is missing at ${receiptPath}.`);
+          }
+
+          const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+          const requiredChecks = new Set([
+            'api-liveness',
+            'api-readiness',
+            'api-release-identity',
+            'web-deployment-provenance',
+            'web-public-origin-provenance',
+            'web-api-origin',
+            'cors-public-origin',
+            'cors-credentials',
+          ]);
+          const actualChecks = new Set(receipt.checks ?? []);
+
+          if (
+            receipt.schemaVersion !== 1 ||
+            receipt.kind !== 'woof-live-release-qualification' ||
+            receipt.environment !== 'staging' ||
+            receipt.releaseSha !== process.env.RELEASE_SHA ||
+            receipt.api?.liveStatus !== 'live' ||
+            receipt.api?.readyStatus !== 'ready' ||
+            receipt.api?.databaseStatus !== 'ready' ||
+            receipt.web?.deploymentRelease !== process.env.RELEASE_SHA ||
+            receipt.web?.publicRelease !== process.env.RELEASE_SHA ||
+            receipt.cors?.allowCredentials !== true ||
+            [...requiredChecks].some((check) => !actualChecks.has(check))
+          ) {
+            throw new Error(
+              `Staging receipt failed promotion authority for ${process.env.RELEASE_SHA}.`
+            );
+          }
+
+          console.log(
+            `Accepted staging receipt artifact ${process.env.ARTIFACT_ID} from run ${process.env.STAGING_RUN_ID} for ${process.env.RELEASE_SHA}.`
+          );
+          NODE
+
   deploy-api-production:
     name: Deploy API to Production
     runs-on: ubuntu-latest
     environment: production
+    needs: select-release
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
 
       - name: Validate production API deployment credentials
         run: |
@@ -41,7 +214,7 @@ jobs:
           --remote-only
           --app woof-api-prod
           --config apps/api/fly.toml
-          --build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"
+          --build-arg WOOF_RELEASE_SHA="${RELEASE_SHA}"
 
       - name: Capture liveness and readiness evidence
         id: release_bodies
@@ -65,7 +238,7 @@ jobs:
           READY_BODY: ${{ steps.release_bodies.outputs.ready }}
         run: |
           node - <<'NODE'
-          const expected = process.env.GITHUB_SHA;
+          const expected = process.env.RELEASE_SHA;
           for (const [name, raw] of Object.entries({ live: process.env.LIVE_BODY, ready: process.env.READY_BODY })) {
             const parsed = JSON.parse(raw);
             if (parsed.release !== expected) {
@@ -85,8 +258,8 @@ jobs:
             exit 0
           fi
 
-          payload=$(printf '{"text":"Woof production API deployment: %s (%s @ %.12s)"}' \
-            "${DEPLOYMENT_STATUS}" "${GITHUB_REF_NAME}" "${GITHUB_SHA}")
+          payload=$(printf '{"text":"Woof production API deployment: %s (promoted %.12s)"}' \
+            "${DEPLOYMENT_STATUS}" "${RELEASE_SHA}")
           curl --fail --silent --show-error \
             -H 'Content-Type: application/json' \
             --data "${payload}" \
@@ -96,26 +269,33 @@ jobs:
     name: Deploy Web to Production
     runs-on: ubuntu-latest
     environment: production
-    needs: deploy-api-production
+    needs: [select-release, deploy-api-production]
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
       EXPECTED_API_URL: https://woof-api-prod.fly.dev/api/v1
+      EXPECTED_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
 
-      - name: Validate production Web deployment credentials
+      - name: Validate production Web deployment authority
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID EXPECTED_WEB_ORIGIN; do
             if [[ -z "${!name}" ]]; then
-              echo "::error title=Missing production secret::${name} is not configured for the production environment."
+              echo "::error title=Missing production authority::${name} is not configured for the production environment."
               missing=1
             fi
           done
           if [[ "${missing}" -ne 0 ]]; then
+            exit 1
+          fi
+          if [[ ! "${EXPECTED_WEB_ORIGIN}" =~ ^https://[^/]+/?$ ]]; then
+            echo "::error title=Invalid production Web origin::WEB_ORIGIN must be one HTTPS origin without a path, query, or fragment."
             exit 1
           fi
 
@@ -131,7 +311,7 @@ jobs:
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: ${{ env.EXPECTED_API_URL }}
-          NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.RELEASE_SHA }}
           NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'
 
       - name: Deploy to Vercel
@@ -148,11 +328,27 @@ jobs:
       - name: Verify deployed Web release and API integration
         env:
           WEB_URL: ${{ steps.deploy_web.outputs.url }}
-          EXPECTED_RELEASE: ${{ github.sha }}
+          EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
         run: |
           html=$(curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 \
             "${WEB_URL}/demo")
           WEB_HTML="$html" node .github/scripts/verify-web-deployment-provenance.mjs
+
+      - name: Qualify live production release and write receipt
+        env:
+          WOOF_ENVIRONMENT: production
+          WEB_URL: ${{ steps.deploy_web.outputs.url }}
+          EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
+          RELEASE_RECEIPT_PATH: ${{ runner.temp }}/woof-production-release-receipt.json
+        run: node .github/scripts/qualify-live-release.mjs
+
+      - name: Retain production release receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-release-${{ env.RELEASE_SHA }}
+          path: ${{ runner.temp }}/woof-production-release-receipt.json
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Notify production Web deployment when configured
         if: ${{ always() }}
@@ -165,8 +361,8 @@ jobs:
             exit 0
           fi
 
-          payload=$(printf '{"text":"Woof production Web deployment: %s (%s @ %.12s)"}' \
-            "${DEPLOYMENT_STATUS}" "${GITHUB_REF_NAME}" "${GITHUB_SHA}")
+          payload=$(printf '{"text":"Woof production Web deployment: %s (promoted %.12s)"}' \
+            "${DEPLOYMENT_STATUS}" "${RELEASE_SHA}")
           curl --fail --silent --show-error \
             -H 'Content-Type: application/json' \
             --data "${payload}" \
