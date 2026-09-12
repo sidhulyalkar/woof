@@ -18,6 +18,8 @@ on:
       - '.github/workflows/deploy-staging.yml'
       - '.github/scripts/assert-operational-privacy-release.py'
       - '.github/scripts/verify-web-deployment-provenance.mjs'
+      - '.github/scripts/qualify-live-release.mjs'
+      - 'docs/operations/PRODUCTION_PROMOTION_AUTHORITY_V1.md'
       - '.github/workflows/dogos-operational-privacy-ci.yml'
 
 permissions:
@@ -35,7 +37,7 @@ env:
 
 jobs:
   qualify:
-    name: Release identity + telemetry privacy + Web/API provenance qualification
+    name: Release identity + promotion authority + telemetry privacy + Web/API provenance
     runs-on: ubuntu-24.04
 
     steps:
@@ -72,9 +74,11 @@ jobs:
           apps/web/src/lib/observability/sentry-policy.ts
           apps/web/src/lib/observability/sentry-policy.test.ts
           .github/scripts/verify-web-deployment-provenance.mjs
+          .github/scripts/qualify-live-release.mjs
           .github/workflows/deploy-production.yml
           .github/workflows/deploy-staging.yml
           .github/workflows/dogos-operational-privacy-ci.yml
+          docs/operations/PRODUCTION_PROMOTION_AUTHORITY_V1.md
 
       - name: Lint API operational privacy surface
         run: >-
@@ -94,11 +98,13 @@ jobs:
           src/lib/observability/sentry-policy.ts
           src/lib/observability/sentry-policy.test.ts
 
-      - name: Validate source contracts and deployment verifier
+      - name: Validate source contracts and deployment verifiers
         run: |
           python -m py_compile .github/scripts/assert-operational-privacy-release.py
           node --check .github/scripts/verify-web-deployment-provenance.mjs
+          node --check .github/scripts/qualify-live-release.mjs
           node .github/scripts/verify-web-deployment-provenance.mjs --self-test
+          node .github/scripts/qualify-live-release.mjs --self-test
 
       - name: Enforce source contract
         run: python .github/scripts/assert-operational-privacy-release.py
