@@ -119,10 +119,12 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
 
-      - name: Prove approved region catalog exists without private-location columns
+      - name: Prove approved region catalog is exact and contains no private-location columns
         env:
           PGPASSWORD: postgres
         run: |
+          test "$(psql -h localhost -U postgres -d woof_test -Atc \
+            "SELECT COUNT(*) FROM dogos_social.coarse_regions;")" = '6'
           test "$(psql -h localhost -U postgres -d woof_test -Atc \
             "SELECT COUNT(*) FROM dogos_social.coarse_regions WHERE id IN ('us-ca-san-francisco','us-ca-south-bay','us-ca-peninsula','us-ca-east-bay','us-ca-north-bay','us-ca-santa-cruz-county');")" = '6'
           test "$(psql -h localhost -U postgres -d woof_test -Atc \
