@@ -192,7 +192,7 @@ Never include provider bearer tokens in Sentry breadcrumbs, analytics, telemetry
 
 ## Apple Photos and device libraries
 
-### Web/PWA
+### Web
 
 Use the browser/system file picker. On iOS this hands selection to the operating-system Photos interface and gives Woof only the selected files.
 
