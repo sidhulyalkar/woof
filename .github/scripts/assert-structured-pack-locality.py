@@ -89,6 +89,7 @@ def main() -> None:
         "longitude",
         "raise notice",
         "raise log",
+        "test-region",
     )
 
     catalog_ids = set(re.findall(r"id: '([^']+)'", catalog))
@@ -98,10 +99,11 @@ def main() -> None:
         fail("internal database fixture region leaked into the client-selectable catalog")
 
     migration_seed_ids = set(re.findall(r"\('([^']+)', '[^']+', 'US'", migration))
-    if not CLIENT_REGION_IDS.issubset(migration_seed_ids):
-        fail("application region catalog contains IDs absent from the migrated database catalog")
-    if "test-region" not in migration_seed_ids:
-        fail("reserved direct-SQL test region is missing from database catalog")
+    if migration_seed_ids != CLIENT_REGION_IDS:
+        fail(
+            "migrated database catalog must exactly match the reviewed application catalog; "
+            f"got {sorted(migration_seed_ids)}"
+        )
 
     require(
         dto,
@@ -145,6 +147,8 @@ def main() -> None:
             "repairPackLocality",
             "localityStatus: 'APPROVED' | 'LEGACY_UNVERIFIED'",
             "coarseRegion: PackCoarseRegion | null",
+            "CreatedSocialPack",
+            "apiClient.post<CreatedSocialPack>('/social-adventure/packs', input)",
         )
 
     require(
