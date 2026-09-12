@@ -16,9 +16,14 @@ type PackLocalityRow = {
 
 type PackCatalogRow = {
   id: string;
+  name: string;
+  slug: string;
+  scope: string;
   regionKey: string | null;
+  visibility: string;
+  memberCount: number;
   joined: boolean;
-  [key: string]: unknown;
+  role: string | null;
 };
 
 export type PackCatalogLike = {
