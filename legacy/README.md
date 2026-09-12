@@ -13,7 +13,7 @@ They are **not active application entry points** and should not be used for new 
 
 Current development happens in:
 
-- [`../apps/web`](../apps/web) — Next.js web/PWA client
+- [`../apps/web`](../apps/web) — Next.js responsive browser client
 - [`../apps/mobile`](../apps/mobile) — Expo React Native client
 - [`../apps/api`](../apps/api) — NestJS application API
 - [`../ml`](../ml) — experimental Python model/inference work
