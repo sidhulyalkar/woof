@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when release identity or telemetry privacy authority drifts."""
+"""Fail closed when release identity, promotion authority, or telemetry privacy drifts."""
 
 from pathlib import Path
 
@@ -90,24 +90,65 @@ require(
     "EXPECTED_API_URL",
     "--self-test",
 )
+require(
+    ".github/scripts/qualify-live-release.mjs",
+    "qualifyLiveRelease",
+    "woof-live-release-qualification",
+    "api-liveness",
+    "api-readiness",
+    "web-release-provenance",
+    "cors-public-origin",
+    "RELEASE_RECEIPT_PATH",
+    "--self-test",
+)
 
 require(
     "infra/docker/Dockerfile.api",
     "ARG WOOF_RELEASE_SHA=unknown",
     "ENV WOOF_RELEASE_SHA=${WOOF_RELEASE_SHA}",
 )
-for path in [
-    ".github/workflows/deploy-production.yml",
-    ".github/workflows/deploy-staging.yml",
-]:
-    require(
-        path,
-        '--build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"',
-        "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}",
-        "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
-        "Enforce deployed API release identity",
-        "Verify deployed Web release and API integration",
-        "verify-web-deployment-provenance.mjs",
-    )
 
-print("Operational privacy contract preserves exact release identity, Web/API provenance, and privacy-closed replay.")
+require(
+    ".github/workflows/deploy-staging.yml",
+    "branches: [main]",
+    '--build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"',
+    "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}",
+    "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
+    "EXPECTED_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}",
+    "Enforce deployed API release identity",
+    "Verify deployed Web release and API integration",
+    "Qualify live staging release and write receipt",
+    "qualify-live-release.mjs",
+    "uses: actions/upload-artifact@v7",
+    "name: staging-release-${{ github.sha }}",
+)
+
+require(
+    ".github/workflows/deploy-production.yml",
+    "workflow_dispatch:",
+    "release_sha:",
+    "refs/heads/main",
+    'if [[ ! "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]',
+    'git merge-base --is-ancestor "${RELEASE_SHA}" refs/remotes/origin/main',
+    "ref: ${{ inputs.release_sha }}",
+    '--build-arg WOOF_RELEASE_SHA="${RELEASE_SHA}"',
+    "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.RELEASE_SHA }}",
+    "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
+    "EXPECTED_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}",
+    "Enforce deployed API release identity",
+    "Verify deployed Web release and API integration",
+    "Qualify live production release and write receipt",
+    "qualify-live-release.mjs",
+    "uses: actions/upload-artifact@v7",
+    "name: production-release-${{ env.RELEASE_SHA }}",
+)
+reject(
+    ".github/workflows/deploy-production.yml",
+    "branches: [main]",
+    '--build-arg WOOF_RELEASE_SHA="${GITHUB_SHA}"',
+    "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ github.sha }}",
+)
+
+print(
+    "Operational privacy contract preserves exact release identity, explicit production promotion, live receipts, Web/API provenance, and privacy-closed replay."
+)
