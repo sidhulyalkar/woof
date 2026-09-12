@@ -44,13 +44,13 @@ Deploy to Production
 
 ## Staging
 
-`Deploy to Staging` runs automatically for pushes to `main` and can also be dispatched manually for an exact historical `main` commit.
+`Deploy to Staging` runs automatically for pushes to `main`. A manual dispatch re-runs the workflow for the Git ref selected when dispatching; the workflow still rejects that candidate unless its exact SHA is reachable from `origin/main`.
 
 The staging workflow rejects:
 
-- branch names, abbreviated SHAs, uppercase/non-hex release identifiers, and other ambiguous refs as release authority;
+- branch names, abbreviated SHAs, uppercase/non-hex release identifiers, and other ambiguous values as release identity;
 - commits that are not reachable from `origin/main`;
-- a checkout whose resolved `HEAD` differs from the requested release SHA;
+- a checkout whose resolved `HEAD` differs from the workflow's exact candidate SHA;
 - missing deployment credentials;
 - API liveness/readiness responses that do not report the exact candidate SHA;
 - Web deployments whose embedded release identity or API origin does not match the expected release.
@@ -157,9 +157,9 @@ Until that external repository-admin control is enabled, Woof must not claim com
 
 ## Rollback
 
-Rollback is an explicit new production promotion of a previously qualified exact `main` SHA. Do not mutate release identity or redeploy an unknown local checkout.
+Rollback is an explicit new production promotion of a previously staging-qualified exact `main` SHA. Do not mutate release identity or redeploy an unknown local checkout.
 
-The chosen rollback SHA must still satisfy the same production preflight, including evidence of a successful staging workflow for that SHA.
+The chosen rollback SHA must satisfy the same production preflight, including a successful `Deploy to Staging` workflow run for that exact SHA. Commits from before this promotion authority existed are not grandfathered into production eligibility merely because they once existed on `main`.
 
 Database rollback is not implied by application rollback. Migrations must remain forward-safe, and destructive schema rollback requires its own reviewed recovery procedure.
 
