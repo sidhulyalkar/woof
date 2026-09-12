@@ -258,7 +258,10 @@ export function SocialAdventurePacksView(props: Props) {
             accessibilityRole="button"
             disabled={props.repairing || !props.repairRegionKey}
             onPress={props.onRepairPack}
-            style={[styles.primaryButton, (props.repairing || !props.repairRegionKey) && styles.disabled]}
+            style={[
+              styles.primaryButton,
+              (props.repairing || !props.repairRegionKey) && styles.disabled,
+            ]}
           >
             {props.repairing ? (
               <ActivityIndicator color="#ffffff" />
