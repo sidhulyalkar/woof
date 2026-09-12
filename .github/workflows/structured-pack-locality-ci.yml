@@ -21,6 +21,7 @@ on:
       - '.github/workflows/structured-pack-locality-ci.yml'
       - '.github/workflows/native-social-adventure-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+      - 'docs/DOGOS_SOCIAL_ADVENTURE_V1.md'
   push:
     branches: [main]
     paths:
@@ -41,6 +42,7 @@ on:
       - '.github/workflows/structured-pack-locality-ci.yml'
       - '.github/workflows/native-social-adventure-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
+      - 'docs/DOGOS_SOCIAL_ADVENTURE_V1.md'
   workflow_dispatch:
 
 permissions:
@@ -145,7 +147,8 @@ jobs:
             apps/mobile/src/components/community/SocialAdventurePacksView.tsx \
             .github/workflows/structured-pack-locality-ci.yml \
             .github/workflows/native-social-adventure-ci.yml \
-            docs/NATIVE_SOCIAL_ADVENTURE_V1.md
+            docs/NATIVE_SOCIAL_ADVENTURE_V1.md \
+            docs/DOGOS_SOCIAL_ADVENTURE_V1.md
 
       - name: Type-check API
         run: pnpm --filter @woof/api type-check
