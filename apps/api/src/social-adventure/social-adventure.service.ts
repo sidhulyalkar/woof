@@ -1,32 +1,106 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@woof/database';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { PackAccessService } from './pack-access.service';
+import {
+  publicArcadeCatalog,
+  scenarioByKey,
+  scenarioForChallenge,
+  scoreArcadeResponse,
+} from './social-adventure.arcade';
+import {
+  currentUtcSeason,
+  deriveSocialAdventureScore,
+  HUMAN_SKILL_CHALLENGES,
+  HUMAN_SKILL_CHALLENGE_VERSION,
+  LOCAL_LEAGUE_MINIMUM_COHORT,
+  SOCIAL_ADVENTURE_POLICY_VERSION,
+  type HumanSkillChallenge,
+} from './social-adventure.policy';
 import type {
   CompleteHumanSkillAttemptDto,
   CreatePackDto,
   CreateSocialShareDto,
   SocialReactionDto,
+  UpdateSocialAdventurePreferencesDto,
 } from './dto/social-adventure.dto';
-import { PackAccessService } from './pack-access.service';
-import {
-  ADVENTURE_VARIETY_POINTS,
-  HUMAN_SKILL_BREADTH_POINTS,
-  HUMAN_SKILL_CHALLENGE_VERSION,
-  HUMAN_SKILL_CHALLENGES,
-  HUMAN_SKILL_SCENARIOS,
-  LOCAL_LEAGUE_MINIMUM_COHORT,
-  SOCIAL_ADVENTURE_PATHWAYS,
-  SOCIAL_ADVENTURE_POLICY_VERSION,
-  deriveSocialAdventureScore,
-  getCurrentSocialSeason,
-  scoreHumanSkillAttempt,
-  type HumanSkillAttemptResponse,
-  type HumanSkillChallengeKey,
-} from './social-adventure.policy';
 
-type PreferenceRow = { globalLeaderboardOptIn: boolean };
-type LeaderboardUserRow = { id: string; handle: string; avatarUrl: string | null };
+type PreferenceRow = {
+  globalLeaderboardOptIn: boolean;
+};
+
+type SkillAttemptRow = {
+  id: string;
+  challengeKey: string;
+  challengeVersion: string;
+  scenarioKey: string;
+  issuedAt: Date;
+  expiresAt: Date;
+  completedAt: Date | null;
+  score: number | null;
+  receipt: unknown;
+};
+
+type SkillScoreRow = {
+  id: string;
+  challengeKey: string;
+  score: number;
+};
+
+type AdventureEvidenceRow = {
+  id: string;
+  pathway: string;
+};
+
+type LeaderboardUserRow = {
+  id: string;
+  handle: string;
+  avatarUrl: string | null;
+};
+
+type ShareSource = {
+  sourceType: 'CARE_EVENT' | 'HUMAN_SKILL_ATTEMPT';
+  sourceId: string;
+  petId: string | null;
+  kind: 'ADVENTURE_MEMORY' | 'DISCOVERY' | 'SKILL_MOMENT' | 'GOOD_READ';
+  headline: string;
+  summary: string;
+  payload: Record<string, unknown>;
+};
+
+type ExistingShareRow = {
+  id: string;
+  postId: string;
+};
+
+type FeedRow = {
+  shareId: string;
+  postId: string;
+  kind: string;
+  headline: string;
+  summary: string;
+  payload: unknown;
+  caption: string | null;
+  visibility: string;
+  createdAt: Date;
+  authorUserId: string;
+  handle: string;
+  avatarUrl: string | null;
+  petId: string | null;
+  petName: string | null;
+  petAvatarUrl: string | null;
+  likesCount: number;
+  commentsCount: number;
+};
+
+type ReactionRow = {
+  shareId: string;
+  reaction: string;
+  count: number;
+  mine: boolean;
+};
+
 type PackRow = {
   id: string;
   name: string;
@@ -38,71 +112,16 @@ type PackRow = {
   joined: boolean;
   role: string | null;
 };
-type HumanSkillRow = {
-  id: string;
-  challengeKey: string;
-  challengeVersion: string;
-  score: number;
-};
-type HumanSkillBestScoreRow = { challengeKey: string; score: number };
-type HumanSkillAttemptRow = {
-  id: string;
-  userId: string;
-  challengeKey: string;
-  challengeVersion: string;
-  scenarioKey: string;
-  issuedAt: Date;
-  expiresAt: Date;
-  completedAt: Date | null;
-};
-type ShareRow = {
-  id: string;
-  postId: string;
-  sourceType: string;
-  sourceId: string;
-  caption: string | null;
-  visibility: string;
-  createdAt: Date;
-};
 
-type CareShareSourceRow = {
-  id: string;
-  petId: string;
-  createdBy: string;
-  eventType: string;
-  title: string;
-  note: string | null;
-  occurredAt: Date;
-  petName: string;
-};
+const REACTION_TYPES = [
+  'NICE_READ',
+  'GOOD_CALL',
+  'TRYING_THIS',
+  'ADVENTURE_INSPIRATION',
+  'CHEER',
+] as const;
 
-type SkillShareSourceRow = {
-  id: string;
-  userId: string;
-  challengeKey: string;
-  challengeVersion: string;
-  score: number;
-  receipt: Prisma.JsonValue;
-  completedAt: Date;
-};
-
-type FeedRow = {
-  shareId: string;
-  postId: string;
-  kind: string;
-  headline: string;
-  summary: string;
-  payload: Prisma.JsonValue;
-  caption: string | null;
-  visibility: string;
-  createdAt: Date;
-  authorUserId: string;
-  handle: string;
-  avatarUrl: string | null;
-  petName: string | null;
-};
-type ReactionRow = { shareId: string; reaction: string; count: number; mine: boolean };
-type PathwayRow = { pathway: string };
+const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class SocialAdventureService {
@@ -111,51 +130,51 @@ export class SocialAdventureService {
     private readonly packAccess: PackAccessService
   ) {}
 
-  private async getPreferences(userId: string): Promise<PreferenceRow> {
-    const rows = await this.prisma.$queryRaw<PreferenceRow[]>(Prisma.sql`
-      SELECT global_leaderboard_opt_in AS "globalLeaderboardOptIn"
-      FROM dogos_social.user_preferences
-      WHERE user_id = ${userId}
-      LIMIT 1
-    `);
-    return rows[0] ?? { globalLeaderboardOptIn: false };
-  }
-
   async getMine(userId: string) {
-    const [preferences, score, humanSkillBestScores] = await Promise.all([
+    const [preferences, score, bestScores] = await Promise.all([
       this.getPreferences(userId),
       this.computeScore(userId),
-      this.getHumanSkillBestScores(userId),
+      this.getBestHumanSkillScores(userId),
     ]);
+
     return {
       preferences,
-      ...score,
-      humanSkillBestScores,
+      season: score.season,
+      score: score.score,
+      maxScore: score.maxScore,
+      components: score.components,
+      humanSkillBestScores: bestScores,
       policyVersion: SOCIAL_ADVENTURE_POLICY_VERSION,
       principles: [
-        'You compete. Your dog does not.',
-        'Health, symptoms, exercise volume, pet performance, and missed days never add league points.',
-        'Reactions build culture, not rank.',
+        'human-skill-over-pet-performance',
+        'variety-over-volume',
+        'no-streak-loss',
+        'no-health-competition',
+        'no-posting-or-popularity-points',
       ],
     };
   }
 
-  async updatePreferences(userId: string, dto: { globalLeaderboardOptIn: boolean }) {
-    const rows = await this.prisma.$queryRaw<PreferenceRow[]>(Prisma.sql`
-      INSERT INTO dogos_social.user_preferences (user_id, global_leaderboard_opt_in, updated_at)
+  async updatePreferences(userId: string, dto: UpdateSocialAdventurePreferencesDto) {
+    await this.prisma.$executeRaw(Prisma.sql`
+      INSERT INTO dogos_social.preferences (user_id, global_leaderboard_opt_in, updated_at)
       VALUES (${userId}, ${dto.globalLeaderboardOptIn}, NOW())
       ON CONFLICT (user_id)
-      DO UPDATE SET global_leaderboard_opt_in = EXCLUDED.global_leaderboard_opt_in, updated_at = NOW()
-      RETURNING global_leaderboard_opt_in AS "globalLeaderboardOptIn"
+      DO UPDATE SET
+        global_leaderboard_opt_in = EXCLUDED.global_leaderboard_opt_in,
+        updated_at = NOW()
     `);
-    return rows[0] ?? { globalLeaderboardOptIn: dto.globalLeaderboardOptIn };
+    return this.getPreferences(userId);
   }
 
   async getGlobalLeaderboard(userId: string, limit = 30) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 30, 50));
     const candidates = await this.prisma.$queryRaw<LeaderboardUserRow[]>(Prisma.sql`
-      SELECT u.id, u.handle, u.avatar_url AS "avatarUrl"
-      FROM dogos_social.user_preferences pref
+      SELECT
+        u.id,
+        u.handle,
+        u.avatar_url AS "avatarUrl"
+      FROM dogos_social.preferences pref
       JOIN public.users u ON u.id = pref.user_id
       WHERE pref.global_leaderboard_opt_in = TRUE
         AND u.visibility = 'PUBLIC'
@@ -168,6 +187,7 @@ export class SocialAdventureService {
       ORDER BY u.id ASC
       LIMIT 100
     `);
+
     const rows = await this.scoreLeaderboardUsers(candidates);
     const entries = rows.slice(0, safeLimit).map((row, index) => ({ ...row, rank: index + 1 }));
     const me = await this.computeScore(userId);
@@ -258,7 +278,7 @@ export class SocialAdventureService {
     return {
       packs: rows,
       localMinimumCohort: LOCAL_LEAGUE_MINIMUM_COHORT,
-      locationContract: 'server-approved-coarse-region-only',
+      locationContract: 'coarse-user-chosen-region-only',
     };
   }
 
@@ -280,17 +300,7 @@ export class SocialAdventureService {
       `);
     });
 
-    return {
-      id,
-      name: dto.name.trim(),
-      slug,
-      scope: 'LOCAL',
-      regionKey: dto.regionKey,
-      visibility: 'PUBLIC',
-      memberCount: 1,
-      joined: true,
-      role: 'OWNER',
-    };
+    return { id, name: dto.name.trim(), slug, regionKey: dto.regionKey, joined: true };
   }
 
   async joinPack(userId: string, packId: string) {
@@ -318,87 +328,56 @@ export class SocialAdventureService {
     const membership = rows[0];
     if (!membership) return { ok: true };
     if (membership.role === 'OWNER') {
-      throw new ConflictException('Transfer or retire this Pack before leaving');
+      throw new BadRequestException(
+        'A Pack owner cannot leave without transferring or retiring the Pack'
+      );
     }
 
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE dogos_social.pack_memberships
-      SET status = 'LEFT', left_at = NOW()
+      SET status = 'LEFT'
       WHERE pack_id = ${packId} AND user_id = ${userId}
     `);
     return { ok: true };
   }
 
   async getArcade(userId: string) {
-    const bestScores = await this.getHumanSkillBestScores(userId);
-    const challenges = HUMAN_SKILL_CHALLENGES.map((challengeKey) => {
-      const scenario = HUMAN_SKILL_SCENARIOS[challengeKey][0];
-      return {
-        challengeKey,
-        challengeVersion: HUMAN_SKILL_CHALLENGE_VERSION,
-        scenarioKey: scenario.scenarioKey,
-        title: scenario.title,
-        skill: scenario.skill,
-        prompt: scenario.prompt,
-        options: 'options' in scenario ? scenario.options : undefined,
-        timing: 'timing' in scenario ? scenario.timing : undefined,
-        bestScore: bestScores[challengeKey] ?? null,
-      };
-    });
+    const bestScores = await this.getBestHumanSkillScores(userId);
     return {
       challengeVersion: HUMAN_SKILL_CHALLENGE_VERSION,
-      challenges,
+      challenges: publicArcadeCatalog().map((scenario) => ({
+        ...scenario,
+        bestScore: bestScores[scenario.challengeKey] ?? null,
+      })),
       scoring:
-        'Practice scores are private feedback. Social Adventure league credit comes from completing distinct Human Skill rooms, not from score magnitude or browser timing.',
+        'Arcade scores are personal practice feedback. Completing each different Human Skill game once this week contributes one fixed breadth unit; higher scores and retries add no league points.',
     };
   }
 
-  async startHumanSkillAttempt(userId: string, challengeKeyRaw: string) {
-    const challengeKey = challengeKeyRaw as HumanSkillChallengeKey;
-    if (!HUMAN_SKILL_CHALLENGES.includes(challengeKey)) {
+  async startHumanSkillAttempt(userId: string, challengeKey: string) {
+    if (!this.isHumanSkillChallenge(challengeKey)) {
       throw new BadRequestException('Unknown Human Skill challenge');
     }
-    const scenarios = HUMAN_SKILL_SCENARIOS[challengeKey];
-    const scenarioIndex = this.deterministicScenarioIndex(userId, challengeKey, scenarios.length);
-    const scenario = scenarios[scenarioIndex];
+    const scenario = scenarioForChallenge(challengeKey);
+    const publicScenario = publicArcadeCatalog().find((item) => item.challengeKey === challengeKey);
+    if (!scenario || !publicScenario)
+      throw new NotFoundException('Human Skill challenge unavailable');
+
     const id = randomUUID();
     const issuedAt = new Date();
-    const expiresAt = new Date(issuedAt.getTime() + 10 * 60 * 1000);
-
+    const expiresAt = new Date(issuedAt.getTime() + ATTEMPT_TTL_MS);
     await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO dogos_social.human_skill_attempts (
-        id,
-        user_id,
-        challenge_key,
-        challenge_version,
-        scenario_key,
-        issued_at,
-        expires_at
-      ) VALUES (
-        ${id},
-        ${userId},
-        ${challengeKey},
-        ${HUMAN_SKILL_CHALLENGE_VERSION},
-        ${scenario.scenarioKey},
-        ${issuedAt},
-        ${expiresAt}
-      )
+      INSERT INTO dogos_social.human_skill_attempts
+        (id, user_id, challenge_key, challenge_version, scenario_key, issued_at, expires_at)
+      VALUES
+        (${id}, ${userId}, ${challengeKey}, ${HUMAN_SKILL_CHALLENGE_VERSION}, ${scenario.scenarioKey}, ${issuedAt}, ${expiresAt})
     `);
 
     return {
       attemptId: id,
       issuedAt: issuedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      scenario: {
-        challengeKey,
-        challengeVersion: HUMAN_SKILL_CHALLENGE_VERSION,
-        scenarioKey: scenario.scenarioKey,
-        title: scenario.title,
-        skill: scenario.skill,
-        prompt: scenario.prompt,
-        options: 'options' in scenario ? scenario.options : undefined,
-        timing: 'timing' in scenario ? scenario.timing : undefined,
-      },
+      scenario: publicScenario,
     };
   }
 
@@ -407,93 +386,127 @@ export class SocialAdventureService {
     attemptId: string,
     dto: CompleteHumanSkillAttemptDto
   ) {
-    const rows = await this.prisma.$queryRaw<HumanSkillAttemptRow[]>(Prisma.sql`
-      SELECT
-        id,
-        user_id AS "userId",
-        challenge_key AS "challengeKey",
-        challenge_version AS "challengeVersion",
-        scenario_key AS "scenarioKey",
-        issued_at AS "issuedAt",
-        expires_at AS "expiresAt",
-        completed_at AS "completedAt"
-      FROM dogos_social.human_skill_attempts
-      WHERE id = ${attemptId} AND user_id = ${userId}
-      LIMIT 1
-    `);
-    const attempt = rows[0];
-    if (!attempt) throw new NotFoundException('Human Skill attempt not found');
-    if (attempt.completedAt) throw new ConflictException('Human Skill attempt already completed');
-    if (attempt.expiresAt.getTime() <= Date.now()) {
-      throw new ConflictException('Human Skill attempt expired');
-    }
-    if (attempt.challengeVersion !== HUMAN_SKILL_CHALLENGE_VERSION) {
-      throw new ConflictException('Human Skill attempt version is no longer supported');
+    const attempt = await this.getAttempt(userId, attemptId);
+    if (attempt.completedAt) return attempt.receipt;
+    if (attempt.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('This Human Skill attempt expired. Start a fresh round.');
     }
 
-    const challengeKey = attempt.challengeKey as HumanSkillChallengeKey;
-    const scenario = HUMAN_SKILL_SCENARIOS[challengeKey].find(
-      (candidate) => candidate.scenarioKey === attempt.scenarioKey
-    );
-    if (!scenario) throw new ConflictException('Human Skill scenario is unavailable');
-
-    const result = scoreHumanSkillAttempt(
-      challengeKey,
-      attempt.scenarioKey,
-      dto.response as HumanSkillAttemptResponse
-    );
+    const scenario = scenarioByKey(attempt.scenarioKey);
+    if (!scenario || scenario.challengeVersion !== attempt.challengeVersion) {
+      throw new BadRequestException('This challenge version is no longer available');
+    }
+    const scored = scoreArcadeResponse(scenario, dto.response);
     const completedAt = new Date();
     const receipt = {
       attemptId,
-      challengeKey,
-      challengeVersion: attempt.challengeVersion,
-      score: result.score,
-      correct: result.correct,
-      timingErrorMs: 'timingErrorMs' in result ? result.timingErrorMs : undefined,
-      explanation: result.explanation,
+      challengeKey: scenario.challengeKey,
+      challengeVersion: scenario.challengeVersion,
+      score: scored.score,
+      correct: scored.correct,
+      ...(scored.timingErrorMs === undefined ? {} : { timingErrorMs: scored.timingErrorMs }),
+      explanation: scored.explanation,
       completedAt: completedAt.toISOString(),
     };
 
-    await this.prisma.$executeRaw(Prisma.sql`
+    const updated = await this.prisma.$queryRaw<Array<{ receipt: unknown }>>(Prisma.sql`
       UPDATE dogos_social.human_skill_attempts
-      SET completed_at = ${completedAt},
-          response = ${JSON.stringify(dto.response)}::jsonb,
-          score = ${result.score},
-          receipt = ${JSON.stringify(receipt)}::jsonb
-      WHERE id = ${attemptId} AND completed_at IS NULL
+      SET
+        completed_at = ${completedAt},
+        response = ${JSON.stringify(dto.response)}::jsonb,
+        score = ${scored.score},
+        receipt = ${JSON.stringify(receipt)}::jsonb
+      WHERE id = ${attemptId}
+        AND user_id = ${userId}
+        AND completed_at IS NULL
+      RETURNING receipt
     `);
-    return receipt;
+
+    if (updated[0]) return updated[0].receipt;
+    return (await this.getAttempt(userId, attemptId)).receipt;
   }
 
-  async getFeed(userId: string, take = 30) {
-    const safeTake = Math.max(1, Math.min(Number(take) || 30, 50));
+  async createShare(userId: string, dto: CreateSocialShareDto) {
+    const source = await this.resolveShareSource(userId, dto);
+    const identity = `social-share:${userId}:${source.sourceType}:${source.sourceId}:${source.kind}`;
+
+    const shareId = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw<Array<{ acquired: number }>>(Prisma.sql`
+        WITH lock_row AS MATERIALIZED (
+          SELECT pg_advisory_xact_lock(hashtextextended(${identity}, 0))
+        )
+        SELECT 1::int AS acquired FROM lock_row
+      `);
+
+      const existing = await tx.$queryRaw<ExistingShareRow[]>(Prisma.sql`
+        SELECT id, post_id AS "postId"
+        FROM dogos_social.shares
+        WHERE user_id = ${userId}
+          AND source_type = ${source.sourceType}
+          AND source_id = ${source.sourceId}
+          AND kind = ${source.kind}
+        LIMIT 1
+      `);
+      if (existing[0]) return existing[0].id;
+
+      const post = await tx.post.create({
+        data: {
+          authorUserId: userId,
+          petId: source.petId,
+          text: dto.caption?.trim() || source.summary,
+          mediaUrls: [],
+          visibility: dto.visibility ?? 'PRIVATE',
+        },
+        select: { id: true },
+      });
+      const id = randomUUID();
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO dogos_social.shares
+          (id, post_id, user_id, pet_id, source_type, source_id, kind, headline, summary, payload)
+        VALUES
+          (${id}, ${post.id}, ${userId}, ${source.petId}, ${source.sourceType}, ${source.sourceId}, ${source.kind}, ${source.headline}, ${source.summary}, ${JSON.stringify(source.payload)}::jsonb)
+      `);
+      return id;
+    });
+
+    const created = await this.getShare(userId, shareId);
+    if (!created) throw new NotFoundException('Shared moment not found');
+    return created;
+  }
+
+  async getFeed(userId: string, take = 20) {
+    const safeTake = Math.max(1, Math.min(Number(take) || 20, 50));
     const rows = await this.prisma.$queryRaw<FeedRow[]>(Prisma.sql`
       SELECT
         share.id AS "shareId",
-        share.post_id AS "postId",
-        post.kind,
-        post.headline,
-        post.summary,
-        post.payload,
-        share.caption,
-        share.visibility,
-        share.created_at AS "createdAt",
-        share.user_id AS "authorUserId",
+        post.id AS "postId",
+        share.kind,
+        share.headline,
+        share.summary,
+        share.payload,
+        post.text AS caption,
+        post.visibility,
+        post.created_at AS "createdAt",
+        author.id AS "authorUserId",
         author.handle,
         author.avatar_url AS "avatarUrl",
-        pet.name AS "petName"
+        pet.id AS "petId",
+        pet.name AS "petName",
+        pet.avatar_url AS "petAvatarUrl",
+        (SELECT COUNT(*)::int FROM public.likes liked WHERE liked.post_id = post.id) AS "likesCount",
+        (SELECT COUNT(*)::int FROM public.comments comment WHERE comment.post_id = post.id) AS "commentsCount"
       FROM dogos_social.shares share
       JOIN public.posts post ON post.id = share.post_id
-      JOIN public.users author ON author.id = share.user_id
-      LEFT JOIN public.pets pet ON pet.id = post.pet_id
-      WHERE share.visibility = 'PUBLIC'
+      JOIN public.users author ON author.id = post.author_user_id
+      LEFT JOIN public.pets pet ON pet.id = share.pet_id
+      WHERE (post.author_user_id = ${userId} OR post.visibility = 'PUBLIC')
         AND NOT EXISTS (
           SELECT 1
           FROM public.blocked_users blocked
-          WHERE (blocked.user_id = ${userId} AND blocked.blocked_id = share.user_id)
-             OR (blocked.user_id = share.user_id AND blocked.blocked_id = ${userId})
+          WHERE (blocked.user_id = ${userId} AND blocked.blocked_id = post.author_user_id)
+             OR (blocked.user_id = post.author_user_id AND blocked.blocked_id = ${userId})
         )
-      ORDER BY share.created_at DESC
+      ORDER BY post.created_at DESC, share.id DESC
       LIMIT ${safeTake}
     `);
 
@@ -513,115 +526,33 @@ export class SocialAdventureService {
     return {
       posts: rows.map((row) => ({
         ...row,
-        reactions: reactions.filter((reaction) => reaction.shareId === row.shareId),
+        createdAt: row.createdAt.toISOString(),
+        reactions: REACTION_TYPES.map((reaction) => {
+          const aggregate = reactions.find(
+            (item) => item.shareId === row.shareId && item.reaction === reaction
+          );
+          return { reaction, count: aggregate?.count ?? 0, mine: aggregate?.mine ?? false };
+        }),
       })),
-      privacy: 'public-opt-in-feed-only',
+      privacy:
+        'Only PUBLIC Social Adventure shares and your own private shares appear here. FRIENDS_ONLY legacy posts remain hidden until a modern friend-authority contract exists.',
     };
   }
 
-  async createShare(userId: string, dto: CreateSocialShareDto) {
-    if ((dto.visibility ?? 'PRIVATE') !== 'PUBLIC') {
-      throw new BadRequestException('Social Adventure sharing is explicit public opt-in only');
-    }
-
-    const source = await this.resolveShareSource(userId, dto);
-    const existing = await this.prisma.$queryRaw<ShareRow[]>(Prisma.sql`
-      SELECT
-        id,
-        post_id AS "postId",
-        source_type AS "sourceType",
-        source_id AS "sourceId",
-        caption,
-        visibility,
-        created_at AS "createdAt"
-      FROM dogos_social.shares
-      WHERE user_id = ${userId}
-        AND source_type = ${dto.sourceType}
-        AND source_id = ${dto.sourceId}
-      LIMIT 1
-    `);
-    if (existing[0]) {
-      return {
-        shareId: existing[0].id,
-        postId: existing[0].postId,
-        headline: source.headline,
-        summary: source.summary,
-        visibility: existing[0].visibility,
-      };
-    }
-
-    const shareId = randomUUID();
-    const postId = randomUUID();
-    const caption = dto.caption?.trim() || null;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO public.posts (
-          id,
-          user_id,
-          pet_id,
-          kind,
-          headline,
-          summary,
-          payload,
-          visibility,
-          source_type,
-          source_id,
-          occurred_at,
-          created_at
-        ) VALUES (
-          ${postId},
-          ${userId},
-          ${source.petId},
-          ${source.kind},
-          ${source.headline},
-          ${source.summary},
-          ${JSON.stringify(source.payload)}::jsonb,
-          'PUBLIC',
-          ${dto.sourceType},
-          ${dto.sourceId},
-          ${source.occurredAt},
-          NOW()
-        )
-      `);
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO dogos_social.shares (
-          id,
-          user_id,
-          post_id,
-          source_type,
-          source_id,
-          caption,
-          visibility,
-          created_at
-        ) VALUES (
-          ${shareId},
-          ${userId},
-          ${postId},
-          ${dto.sourceType},
-          ${dto.sourceId},
-          ${caption},
-          'PUBLIC',
-          NOW()
-        )
-      `);
-    });
-
-    return { shareId, postId, headline: source.headline, summary: source.summary, visibility: 'PUBLIC' };
-  }
-
   async addReaction(userId: string, shareId: string, dto: SocialReactionDto) {
-    await this.requireVisibleShare(userId, shareId);
+    await this.assertShareViewable(userId, shareId);
     await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO dogos_social.reactions (share_id, user_id, reaction, created_at)
-      VALUES (${shareId}, ${userId}, ${dto.reaction}, NOW())
+      INSERT INTO dogos_social.reactions (id, share_id, user_id, reaction)
+      VALUES (${randomUUID()}, ${shareId}, ${userId}, ${dto.reaction})
       ON CONFLICT (share_id, user_id, reaction) DO NOTHING
     `);
     return { ok: true };
   }
 
   async removeReaction(userId: string, shareId: string, reaction: string) {
-    await this.requireVisibleShare(userId, shareId);
+    if (!REACTION_TYPES.includes(reaction as (typeof REACTION_TYPES)[number])) {
+      throw new BadRequestException('Unknown Social Adventure reaction');
+    }
     await this.prisma.$executeRaw(Prisma.sql`
       DELETE FROM dogos_social.reactions
       WHERE share_id = ${shareId} AND user_id = ${userId} AND reaction = ${reaction}
@@ -629,204 +560,294 @@ export class SocialAdventureService {
     return { ok: true };
   }
 
-  private async requireVisibleShare(userId: string, shareId: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT share.id
-      FROM dogos_social.shares share
-      WHERE share.id = ${shareId}
-        AND share.visibility = 'PUBLIC'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM public.blocked_users blocked
-          WHERE (blocked.user_id = ${userId} AND blocked.blocked_id = share.user_id)
-             OR (blocked.user_id = share.user_id AND blocked.blocked_id = ${userId})
-        )
+  private async getPreferences(userId: string) {
+    const rows = await this.prisma.$queryRaw<PreferenceRow[]>(Prisma.sql`
+      SELECT global_leaderboard_opt_in AS "globalLeaderboardOptIn"
+      FROM dogos_social.preferences
+      WHERE user_id = ${userId}
       LIMIT 1
     `);
-    if (!rows[0]) throw new NotFoundException('Share not found');
+    return rows[0] ?? { globalLeaderboardOptIn: false };
   }
 
-  private async resolveShareSource(userId: string, dto: CreateSocialShareDto) {
-    if (dto.sourceType === 'HUMAN_SKILL_ATTEMPT') {
-      const rows = await this.prisma.$queryRaw<SkillShareSourceRow[]>(Prisma.sql`
-        SELECT
-          id,
-          user_id AS "userId",
-          challenge_key AS "challengeKey",
-          challenge_version AS "challengeVersion",
-          score,
-          receipt,
-          completed_at AS "completedAt"
-        FROM dogos_social.human_skill_attempts
-        WHERE id = ${dto.sourceId}
-          AND user_id = ${userId}
-          AND completed_at IS NOT NULL
-        LIMIT 1
-      `);
-      const attempt = rows[0];
-      if (!attempt) throw new NotFoundException('Human Skill attempt not found');
-      const challengeTitle = HUMAN_SKILL_CHALLENGES.includes(
-        attempt.challengeKey as HumanSkillChallengeKey
-      )
-        ? HUMAN_SKILL_SCENARIOS[attempt.challengeKey as HumanSkillChallengeKey][0].title
-        : 'Human Skill';
-      return {
-        petId: null,
-        kind: 'HUMAN_SKILL',
-        headline: `Practiced ${challengeTitle}`,
-        summary: 'Worked on the human side of the relationship.',
-        occurredAt: attempt.completedAt,
-        payload: {
-          sourceType: 'HUMAN_SKILL_ATTEMPT',
-          challengeKey: attempt.challengeKey,
-          challengeVersion: attempt.challengeVersion,
-        },
-      };
-    }
-
-    const rows = await this.prisma.$queryRaw<CareShareSourceRow[]>(Prisma.sql`
+  private async getAttempt(userId: string, attemptId: string) {
+    const rows = await this.prisma.$queryRaw<SkillAttemptRow[]>(Prisma.sql`
       SELECT
-        event.id,
-        event.pet_id AS "petId",
-        event.created_by AS "createdBy",
-        event.event_type AS "eventType",
-        event.title,
-        event.note,
-        event.occurred_at AS "occurredAt",
-        pet.name AS "petName"
-      FROM public.care_events event
-      JOIN public.pets pet ON pet.id = event.pet_id
-      JOIN dogos_household.pet_households ph ON ph.pet_id = pet.id
-      JOIN dogos_household.household_membership hm ON hm.household_id = ph.household_id
-      WHERE event.id = ${dto.sourceId}
-        AND hm.user_id = ${userId}
-        AND hm.status = 'ACTIVE'
+        id,
+        challenge_key AS "challengeKey",
+        challenge_version AS "challengeVersion",
+        scenario_key AS "scenarioKey",
+        issued_at AS "issuedAt",
+        expires_at AS "expiresAt",
+        completed_at AS "completedAt",
+        score,
+        receipt
+      FROM dogos_social.human_skill_attempts
+      WHERE id = ${attemptId} AND user_id = ${userId}
       LIMIT 1
     `);
-    const event = rows[0];
-    if (!event) throw new NotFoundException('CARE event not found');
-    return {
-      petId: event.petId,
-      kind: 'CARE',
-      headline: event.title || `A ${event.eventType.toLowerCase()} moment`,
-      summary: event.note?.trim() || `Shared a ${event.eventType.toLowerCase()} moment with ${event.petName}.`,
-      occurredAt: event.occurredAt,
-      payload: { sourceType: 'CARE_EVENT', eventType: event.eventType },
-    };
+    if (!rows[0]) throw new NotFoundException('Human Skill attempt not found');
+    return rows[0];
   }
 
-  private async scoreLeaderboardUsers(users: LeaderboardUserRow[]) {
-    const scored = await Promise.all(
-      users.map(async (user) => ({
-        userId: user.id,
-        handle: user.handle,
-        avatarUrl: user.avatarUrl,
-        ...(await this.computeScore(user.id)),
-      }))
+  private async getBestHumanSkillScores(userId: string) {
+    const season = currentUtcSeason();
+    const rows = await this.prisma.$queryRaw<Array<{ challengeKey: string; bestScore: number }>>(
+      Prisma.sql`
+        SELECT challenge_key AS "challengeKey", MAX(score)::int AS "bestScore"
+        FROM dogos_social.human_skill_attempts
+        WHERE user_id = ${userId}
+          AND completed_at >= ${season.startsAt}
+          AND completed_at < ${season.endsAt}
+        GROUP BY challenge_key
+      `
     );
-    return scored.sort((a, b) => b.score - a.score || a.handle.localeCompare(b.handle));
+    return Object.fromEntries(rows.map((row) => [row.challengeKey, row.bestScore])) as Partial<
+      Record<HumanSkillChallenge, number>
+    >;
   }
 
   private async computeScore(userId: string) {
-    const season = getCurrentSocialSeason();
-    const [skillRows, pathwayRows] = await Promise.all([
-      this.prisma.$queryRaw<HumanSkillRow[]>(Prisma.sql`
+    const season = currentUtcSeason();
+    const [adventureRows, skillRows] = await Promise.all([
+      this.prisma.$queryRaw<AdventureEvidenceRow[]>(Prisma.sql`
+        SELECT DISTINCT ON (pathway) id, pathway
+        FROM public.care_events
+        WHERE user_id = ${userId}
+          AND source = 'QUEST_ENGINE'
+          AND event_type LIKE 'QUEST_%'
+          AND occurred_at >= ${season.startsAt}
+          AND occurred_at < ${season.endsAt}
+        ORDER BY pathway, occurred_at ASC, id ASC
+      `),
+      this.prisma.$queryRaw<SkillScoreRow[]>(Prisma.sql`
         SELECT DISTINCT ON (challenge_key)
           id,
           challenge_key AS "challengeKey",
-          challenge_version AS "challengeVersion",
           score
         FROM dogos_social.human_skill_attempts
         WHERE user_id = ${userId}
-          AND completed_at IS NOT NULL
           AND completed_at >= ${season.startsAt}
           AND completed_at < ${season.endsAt}
-          AND challenge_version = ${HUMAN_SKILL_CHALLENGE_VERSION}
-        ORDER BY challenge_key, completed_at DESC, id DESC
-      `),
-      this.prisma.$queryRaw<PathwayRow[]>(Prisma.sql`
-        SELECT DISTINCT ON (pathway)
-          pathway
-        FROM public.pet_adventure_outcomes outcome
-        WHERE outcome.user_id = ${userId}
-          AND outcome.completed_at IS NOT NULL
-          AND outcome.completed_at >= ${season.startsAt}
-          AND outcome.completed_at < ${season.endsAt}
-          AND outcome.pathway IN (${Prisma.join([...SOCIAL_ADVENTURE_PATHWAYS])})
-        ORDER BY pathway, completed_at DESC, id DESC
+          AND score IS NOT NULL
+        ORDER BY challenge_key, completed_at ASC, id ASC
       `),
     ]);
 
-    const sourceIdentity = {
-      policyVersion: SOCIAL_ADVENTURE_POLICY_VERSION,
-      seasonKey: season.key,
-      humanSkill: skillRows.map((row) => [row.id, row.challengeKey]),
-      adventureVariety: pathwayRows.map((row) => row.pathway),
-    };
-    const sourceHash = createHash('sha256')
-      .update(JSON.stringify(sourceIdentity))
-      .digest('hex');
-    const components = deriveSocialAdventureScore({
-      completedHumanSkills: skillRows.map((row) => row.challengeKey),
-      completedAdventurePathways: pathwayRows.map((row) => row.pathway),
+    const completedHumanSkills: Partial<Record<HumanSkillChallenge, number>> = {};
+    for (const row of skillRows) {
+      if (!this.isHumanSkillChallenge(row.challengeKey)) continue;
+      // The value only marks finite completion for the breadth policy. Practice
+      // magnitude is intentionally excluded from league arithmetic.
+      completedHumanSkills[row.challengeKey] = row.score;
+    }
+
+    const score = deriveSocialAdventureScore({
+      adventurePathways: adventureRows.map((row) => row.pathway),
+      humanSkillBestScores: completedHumanSkills,
     });
-    const score = components.humanSkill.score + components.adventureVariety.score;
+    const sourceHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          adventure: adventureRows.map((row) => [row.id, row.pathway]),
+          humanSkill: skillRows.map((row) => [row.id, row.challengeKey]),
+        })
+      )
+      .digest('hex');
+    const receiptId = createHash('sha256')
+      .update(`${userId}:${season.key}:${SOCIAL_ADVENTURE_POLICY_VERSION}:${sourceHash}`)
+      .digest('hex')
+      .slice(0, 40);
 
     await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO dogos_social.competition_receipts (
-        id,
-        user_id,
-        season_key,
-        policy_version,
-        score,
-        components,
-        source_hash,
-        calculated_at
-      ) VALUES (
-        ${randomUUID()},
-        ${userId},
-        ${season.key},
-        ${SOCIAL_ADVENTURE_POLICY_VERSION},
-        ${score},
-        ${JSON.stringify(components)}::jsonb,
-        ${sourceHash},
-        NOW()
-      )
+      INSERT INTO dogos_social.competition_receipts
+        (id, user_id, season_key, policy_version, score, components, source_hash)
+      VALUES
+        (${receiptId}, ${userId}, ${season.key}, ${SOCIAL_ADVENTURE_POLICY_VERSION}, ${score.score}, ${JSON.stringify(score.components)}::jsonb, ${sourceHash})
       ON CONFLICT (user_id, season_key, policy_version, source_hash) DO NOTHING
     `);
 
     return {
-      season,
-      score,
-      maxScore: HUMAN_SKILL_BREADTH_POINTS + ADVENTURE_VARIETY_POINTS,
-      components,
+      ...score,
+      season: {
+        key: season.key,
+        startsAt: season.startsAt.toISOString(),
+        endsAt: season.endsAt.toISOString(),
+      },
     };
   }
 
-  private async getHumanSkillBestScores(userId: string) {
-    const rows = await this.prisma.$queryRaw<HumanSkillBestScoreRow[]>(Prisma.sql`
-      SELECT challenge_key AS "challengeKey", MAX(score)::int AS score
-      FROM dogos_social.human_skill_attempts
-      WHERE user_id = ${userId}
-        AND completed_at IS NOT NULL
-        AND challenge_version = ${HUMAN_SKILL_CHALLENGE_VERSION}
-      GROUP BY challenge_key
-    `);
-    return Object.fromEntries(rows.map((row) => [row.challengeKey, row.score]));
+  private async scoreLeaderboardUsers(users: LeaderboardUserRow[]) {
+    const rows = await Promise.all(
+      users.map(async (user) => {
+        const score = await this.computeScore(user.id);
+        return {
+          userId: user.id,
+          handle: user.handle,
+          avatarUrl: user.avatarUrl,
+          score: score.score,
+          maxScore: score.maxScore,
+          components: score.components,
+        };
+      })
+    );
+    return rows.sort((a, b) => b.score - a.score || a.handle.localeCompare(b.handle));
   }
 
-  private deterministicScenarioIndex(userId: string, challengeKey: string, scenarioCount: number) {
-    const hash = createHash('sha256').update(`${userId}:${challengeKey}`).digest();
-    return hash.readUInt32BE(0) % scenarioCount;
+  private async resolveShareSource(
+    userId: string,
+    dto: CreateSocialShareDto
+  ): Promise<ShareSource> {
+    if (dto.sourceType === 'CARE_EVENT') {
+      const event = await this.prisma.careEvent.findFirst({
+        where: { id: dto.sourceId, userId, source: 'QUEST_ENGINE' },
+        include: { pet: { select: { id: true, name: true } } },
+      });
+      if (!event) throw new NotFoundException('Adventure moment not found');
+
+      const context = this.asRecord(event.context);
+      const outcome = this.asRecord(event.outcome);
+      const safeOptOut = outcome.safeOptOut === true;
+      const dogExperience =
+        typeof outcome.dogExperience === 'string' ? outcome.dogExperience : null;
+      const questTitle =
+        typeof context.questTitle === 'string' && context.questTitle.trim()
+          ? context.questTitle.trim().slice(0, 100)
+          : 'Shared Adventure';
+      const petName = event.pet?.name ?? 'your dog';
+      const kind = safeOptOut
+        ? 'GOOD_READ'
+        : dogExperience === 'not_their_thing'
+          ? 'DISCOVERY'
+          : 'ADVENTURE_MEMORY';
+      const summary = safeOptOut
+        ? `We listened to ${petName} and changed course. Stopping appropriately counted as a good read.`
+        : kind === 'DISCOVERY'
+          ? `We learned something useful about what fits ${petName}. Discovery counts even when an activity is not a favorite.`
+          : `A ${event.pathway.toLowerCase()} moment with ${petName}, saved from a real Adventure outcome.`;
+
+      return {
+        sourceType: 'CARE_EVENT',
+        sourceId: event.id,
+        petId: event.petId,
+        kind,
+        headline: questTitle,
+        summary,
+        payload: {
+          pathway: event.pathway,
+          eventType: event.eventType,
+          safeOptOut,
+          dogExperience,
+          petName,
+        },
+      };
+    }
+
+    const rows = await this.prisma.$queryRaw<SkillAttemptRow[]>(Prisma.sql`
+      SELECT
+        id,
+        challenge_key AS "challengeKey",
+        challenge_version AS "challengeVersion",
+        scenario_key AS "scenarioKey",
+        issued_at AS "issuedAt",
+        expires_at AS "expiresAt",
+        completed_at AS "completedAt",
+        score,
+        receipt
+      FROM dogos_social.human_skill_attempts
+      WHERE id = ${dto.sourceId} AND user_id = ${userId} AND completed_at IS NOT NULL
+      LIMIT 1
+    `);
+    const attempt = rows[0];
+    if (!attempt || attempt.score === null)
+      throw new NotFoundException('Human Skill result not found');
+    const scenario = scenarioByKey(attempt.scenarioKey);
+    const title = scenario?.title ?? 'Human Skill Arcade';
+
+    return {
+      sourceType: 'HUMAN_SKILL_ATTEMPT',
+      sourceId: attempt.id,
+      petId: null,
+      kind: 'SKILL_MOMENT',
+      headline: title,
+      summary: `Practiced ${this.humanize(attempt.challengeKey)} and scored ${attempt.score}/100. The score is personal feedback, not pet performance or league proficiency.`,
+      payload: {
+        challengeKey: attempt.challengeKey,
+        challengeVersion: attempt.challengeVersion,
+        score: attempt.score,
+      },
+    };
+  }
+
+  private async getShare(userId: string, shareId: string) {
+    const rows = await this.prisma.$queryRaw<FeedRow[]>(Prisma.sql`
+      SELECT
+        share.id AS "shareId",
+        post.id AS "postId",
+        share.kind,
+        share.headline,
+        share.summary,
+        share.payload,
+        post.text AS caption,
+        post.visibility,
+        post.created_at AS "createdAt",
+        author.id AS "authorUserId",
+        author.handle,
+        author.avatar_url AS "avatarUrl",
+        pet.id AS "petId",
+        pet.name AS "petName",
+        pet.avatar_url AS "petAvatarUrl",
+        (SELECT COUNT(*)::int FROM public.likes liked WHERE liked.post_id = post.id) AS "likesCount",
+        (SELECT COUNT(*)::int FROM public.comments comment WHERE comment.post_id = post.id) AS "commentsCount"
+      FROM dogos_social.shares share
+      JOIN public.posts post ON post.id = share.post_id
+      JOIN public.users author ON author.id = post.author_user_id
+      LEFT JOIN public.pets pet ON pet.id = share.pet_id
+      WHERE share.id = ${shareId}
+        AND (post.author_user_id = ${userId} OR post.visibility = 'PUBLIC')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.blocked_users blocked
+          WHERE (blocked.user_id = ${userId} AND blocked.blocked_id = post.author_user_id)
+             OR (blocked.user_id = post.author_user_id AND blocked.blocked_id = ${userId})
+        )
+      LIMIT 1
+    `);
+    const row = rows[0];
+    return row ? { ...row, createdAt: row.createdAt.toISOString() } : null;
+  }
+
+  private async assertShareViewable(userId: string, shareId: string) {
+    const share = await this.getShare(userId, shareId);
+    if (!share) throw new NotFoundException('Shared moment not found');
+    return share;
+  }
+
+  private isHumanSkillChallenge(value: string): value is HumanSkillChallenge {
+    return HUMAN_SKILL_CHALLENGES.includes(value as HumanSkillChallenge);
+  }
+
+  private asRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
   private slugify(value: string) {
-    const slug = value
+    const normalized = value
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .slice(0, 48);
-    return slug || 'pack';
+      .slice(0, 56);
+    return normalized || 'pack';
+  }
+
+  private humanize(value: string) {
+    return value
+      .toLowerCase()
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 }
