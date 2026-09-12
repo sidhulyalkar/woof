@@ -14,6 +14,8 @@ NAV = ROOT / "apps/mobile/src/navigation/AppNavigator.tsx"
 SERVER_POLICY = ROOT / "apps/api/src/social-adventure/social-adventure.policy.ts"
 SERVER_SERVICE = ROOT / "apps/api/src/social-adventure/social-adventure.service.ts"
 SERVER_DTO = ROOT / "apps/api/src/social-adventure/dto/social-adventure.dto.ts"
+SERVER_LOCALITY = ROOT / "apps/api/src/social-adventure/pack-locality.service.ts"
+SERVER_LOCALITY_CATALOG = ROOT / "apps/api/src/social-adventure/pack-locality.catalog.ts"
 DOC = ROOT / "docs/NATIVE_SOCIAL_ADVENTURE_V1.md"
 
 
@@ -42,6 +44,8 @@ def main() -> None:
         SERVER_POLICY,
         SERVER_SERVICE,
         SERVER_DTO,
+        SERVER_LOCALITY,
+        SERVER_LOCALITY_CATALOG,
         DOC,
     ]
     for path in required:
@@ -58,6 +62,8 @@ def main() -> None:
     server_policy = SERVER_POLICY.read_text()
     server_service = SERVER_SERVICE.read_text()
     server_dto = SERVER_DTO.read_text()
+    server_locality = SERVER_LOCALITY.read_text()
+    server_locality_catalog = SERVER_LOCALITY_CATALOG.read_text()
     doc = DOC.read_text()
 
     for marker in [
@@ -65,8 +71,10 @@ def main() -> None:
         "'/social-adventure/preferences'",
         "'/social-adventure/leaderboard/global'",
         "'/social-adventure/feed'",
+        "'/social-adventure/regions'",
         "'/social-adventure/packs'",
         "'/social-adventure/arcade'",
+        "repairPackLocality",
         "HUMAN_SKILL_ATTEMPT",
         "cohortReady: boolean",
         "localMinimumCohort",
@@ -125,8 +133,10 @@ def main() -> None:
         reject(feed + community + mobile_api, forbidden, "native Community authority surface")
 
     for marker in [
+        "socialAdventureApi.regions()",
         "socialAdventureApi.packs()",
         "socialAdventureApi.createPack",
+        "socialAdventureApi.repairPackLocality",
         "socialAdventureApi.joinPack",
         "socialAdventureApi.leavePack",
         "socialAdventureApi.packLeaderboard",
@@ -134,8 +144,10 @@ def main() -> None:
         "requestId !== leaderboardRequestRef.current",
         "response.pack.id !== packId",
         "leaderboard?.pack.id === selectedPack?.id",
-        "Choose a broad community label, not a coordinate or precise place.",
+        "server-approved broad area",
         "Woof will not estimate a rank locally.",
+        "LEGACY_UNVERIFIED",
+        "APPROVED",
     ]:
         require(packs_surface, marker, "native Packs surface")
 
@@ -144,6 +156,8 @@ def main() -> None:
         "leaderboard.minimumCohort",
         "catalog.locationContract",
         "pack.role === 'OWNER'",
+        "RegionChoices",
+        "coarseRegion?.displayName",
     ]:
         require(packs_surface, marker, "native Pack privacy boundary")
 
@@ -153,6 +167,8 @@ def main() -> None:
         "getCurrentPosition",
         "watchPosition",
         "navigator.geolocation",
+        "normalizeRegionKey",
+        "placeholder=\"south-bay-ca\"",
         ".sort(",
         "sort((",
     ]:
@@ -178,6 +194,7 @@ def main() -> None:
         "global_leaderboard_opt_in = TRUE",
         "cohortReady: false",
         "cohortReady: true",
+        "server-approved-coarse-region-only",
     ]:
         require(server_service, marker, "server Social Adventure ranking authority")
 
@@ -193,22 +210,43 @@ def main() -> None:
     ]:
         reject(server_policy.lower(), forbidden.lower(), "server Social Adventure score policy")
 
-    require(server_dto, "v1 enforces slug syntax and length only", "server Pack locality contract")
-    require(server_dto, "clients must not collect or submit device coordinates", "server Pack locality contract")
-    reject(
-        server_dto,
-        "Never an address, coordinate, or route trace.",
-        "server Pack locality contract",
-    )
+    for marker in [
+        "PACK_COARSE_REGION_IDS",
+        "@IsIn([...PACK_COARSE_REGION_IDS])",
+        "Server-approved broad locality identity",
+        "arbitrary addresses, venues, coordinates, routes, and free-form locality text are rejected",
+    ]:
+        require(server_dto, marker, "server Pack locality DTO contract")
+
+    for marker in [
+        "PACK_COARSE_REGIONS",
+        "PACK_LOCALITY_CONTRACT",
+        "requireLocalityAuthority",
+        "repairLocality",
+        "LEGACY_UNVERIFIED",
+        "APPROVED",
+        "pack.joined || this.isApprovedRegionId(pack.regionKey)",
+    ]:
+        require(server_locality, marker, "server Pack locality authority")
+
+    for marker in [
+        "us-ca-south-bay",
+        "BROAD_DISTRICT",
+        "METRO",
+        "COUNTY",
+        "no device GPS, address, route, or precise venue authority",
+    ]:
+        require(server_locality_catalog, marker, "server coarse-region catalog")
 
     for marker in [
         "You compete. Your dog does not.",
         "Community reads degrade independently.",
         "server's mutation response as the immediate authority",
-        "user-supplied broad-area `regionKey`",
-        "does **not** semantically prove",
+        "server-approved structured coarse-region identity",
+        "does not parse, normalize, map, reverse-geocode, or log those values",
+        "LEGACY_UNVERIFIED",
         "Selection changes invalidate older in-flight requests",
-        "Pack leaderboard responses are request/Pack-bound",
+        "Pack leaderboard responses are also bound to the currently selected Pack",
         "Receipt-backed Expedition Authority now exists independently of Social Adventure score.",
         "Expedition remains a separate cooperative authority rather than a Social Adventure score derivative",
         "production API/Web deployment boundary once external credentials exist",
@@ -219,6 +257,8 @@ def main() -> None:
         "auto-opt-in",
         "client-derived rank",
         "device geolocation is required",
+        "user-supplied broad-area `regionkey`",
+        "slug syntax and length",
     ]:
         reject(doc.lower(), forbidden.lower(), "native Social Adventure documentation")
 
