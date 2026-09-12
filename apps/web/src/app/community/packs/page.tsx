@@ -108,9 +108,10 @@ export default function LocalPacksPage() {
             Choose a broad community, never a coordinate.
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Pack locality now comes only from Woof&apos;s server-approved broad-area catalog. The app
-            does not turn typed addresses, venues, home location, route endpoints, or live GPS into
-            locality authority. Local ranks stay hidden until the Pack has enough active members.
+            Pack locality now comes only from Woof&apos;s server-approved broad-area catalog. The
+            app does not turn typed addresses, venues, home location, route endpoints, or live GPS
+            into locality authority. Local ranks stay hidden until the Pack has enough active
+            members.
           </p>
           <Button variant="outline" asChild className="mt-4 bg-transparent">
             <Link href="/community">← Back to Community</Link>
@@ -185,8 +186,8 @@ export default function LocalPacksPage() {
             <p className="eyebrow">Locality repair</p>
             <h2 className="mt-1 text-xl font-bold tracking-tight">Choose a broad area again</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Woof discarded the Pack&apos;s old free-form locality rather than assuming it was safe.
-              Select one approved broad area to restore public discovery and local standings.
+              Woof discarded the Pack&apos;s old free-form locality rather than assuming it was
+              safe. Select one approved broad area to restore public discovery and local standings.
             </p>
             <select
               aria-label="Approved broad area for legacy Pack"
