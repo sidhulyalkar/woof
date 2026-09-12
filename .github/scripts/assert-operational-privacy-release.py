@@ -111,14 +111,17 @@ require(
     "webApiOriginVerified: true",
     "liveBlackBoxVerified",
     "webDeploymentUrl",
+    "parsed.username = '';",
+    "parsed.password = '';",
     "--self-test",
 )
 reject(
     ".github/scripts/write-release-receipt.mjs",
     "FLY_API_TOKEN",
     "VERCEL_TOKEN",
+    "DATABASE_URL",
+    "JWT_SECRET",
     "Authorization",
-    "password",
 )
 
 require(
