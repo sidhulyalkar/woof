@@ -96,7 +96,8 @@ require(
     "woof-live-release-qualification",
     "api-liveness",
     "api-readiness",
-    "web-release-provenance",
+    "web-deployment-provenance",
+    "web-public-origin-provenance",
     "cors-public-origin",
     "RELEASE_RECEIPT_PATH",
     "--self-test",
@@ -150,5 +151,5 @@ reject(
 )
 
 print(
-    "Operational privacy contract preserves exact release identity, explicit production promotion, live receipts, Web/API provenance, and privacy-closed replay."
+    "Operational privacy contract preserves exact release identity, explicit production promotion, stable public Web provenance, live receipts, Web/API provenance, and privacy-closed replay."
 )
