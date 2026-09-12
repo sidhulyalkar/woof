@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: deploy-production
@@ -56,6 +57,131 @@ jobs:
           fi
 
           echo "Selected canonical main release ${RELEASE_SHA}."
+
+      - name: Require exact successful staging release receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_name="staging-release-${RELEASE_SHA}"
+          artifacts_json="${RUNNER_TEMP}/staging-artifacts.json"
+          run_json="${RUNNER_TEMP}/staging-run.json"
+          receipt_dir="${RUNNER_TEMP}/staging-release-receipt"
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${artifact_name}&per_page=100" \
+            > "${artifacts_json}"
+
+          artifact_meta=$(node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(
+            fs.readFileSync(`${process.env.RUNNER_TEMP}/staging-artifacts.json`, 'utf8')
+          );
+          const expectedName = `staging-release-${process.env.RELEASE_SHA}`;
+          const candidates = (data.artifacts ?? [])
+            .filter(
+              (artifact) =>
+                artifact.name === expectedName &&
+                artifact.expired === false &&
+                artifact.size_in_bytes > 0 &&
+                artifact.workflow_run?.head_branch === 'main' &&
+                artifact.workflow_run?.head_sha === process.env.RELEASE_SHA
+            )
+            .sort((left, right) => new Date(right.created_at) - new Date(left.created_at));
+
+          if (candidates.length === 0) {
+            throw new Error(
+              `No non-expired staging receipt artifact exists for exact release ${process.env.RELEASE_SHA}.`
+            );
+          }
+
+          const artifact = candidates[0];
+          process.stdout.write(`${artifact.id}:${artifact.workflow_run.id}`);
+          NODE
+          )
+
+          artifact_id="${artifact_meta%%:*}"
+          staging_run_id="${artifact_meta##*:}"
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${staging_run_id}" \
+            > "${run_json}"
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const run = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/staging-run.json`, 'utf8'));
+          const expected = process.env.RELEASE_SHA;
+          const expectedPath = '.github/workflows/deploy-staging.yml';
+
+          if (
+            run.conclusion !== 'success' ||
+            run.event !== 'push' ||
+            run.head_branch !== 'main' ||
+            run.head_sha !== expected ||
+            run.path !== expectedPath
+          ) {
+            throw new Error(
+              `Staging evidence mismatch: expected successful ${expectedPath} push on main at ${expected}; ` +
+                `received conclusion=${run.conclusion} event=${run.event} branch=${run.head_branch} ` +
+                `sha=${run.head_sha} path=${run.path}.`
+            );
+          }
+          NODE
+
+          rm -rf "${receipt_dir}"
+          gh run download "${staging_run_id}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${artifact_name}" \
+            --dir "${receipt_dir}"
+
+          ARTIFACT_ID="${artifact_id}" STAGING_RUN_ID="${staging_run_id}" node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const receiptPath = path.join(
+            process.env.RUNNER_TEMP,
+            'staging-release-receipt',
+            'woof-staging-release-receipt.json'
+          );
+          if (!fs.existsSync(receiptPath)) {
+            throw new Error(`Staging receipt payload is missing at ${receiptPath}.`);
+          }
+
+          const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+          const requiredChecks = new Set([
+            'api-liveness',
+            'api-readiness',
+            'api-release-identity',
+            'web-deployment-provenance',
+            'web-public-origin-provenance',
+            'web-api-origin',
+            'cors-public-origin',
+            'cors-credentials',
+          ]);
+          const actualChecks = new Set(receipt.checks ?? []);
+
+          if (
+            receipt.schemaVersion !== 1 ||
+            receipt.kind !== 'woof-live-release-qualification' ||
+            receipt.environment !== 'staging' ||
+            receipt.releaseSha !== process.env.RELEASE_SHA ||
+            receipt.api?.liveStatus !== 'live' ||
+            receipt.api?.readyStatus !== 'ready' ||
+            receipt.api?.databaseStatus !== 'ready' ||
+            receipt.web?.deploymentRelease !== process.env.RELEASE_SHA ||
+            receipt.web?.publicRelease !== process.env.RELEASE_SHA ||
+            receipt.cors?.allowCredentials !== true ||
+            [...requiredChecks].some((check) => !actualChecks.has(check))
+          ) {
+            throw new Error(
+              `Staging receipt failed promotion authority for ${process.env.RELEASE_SHA}.`
+            );
+          }
+
+          console.log(
+            `Accepted staging receipt artifact ${process.env.ARTIFACT_ID} from run ${process.env.STAGING_RUN_ID} for ${process.env.RELEASE_SHA}.`
+          );
+          NODE
 
   deploy-api-production:
     name: Deploy API to Production
