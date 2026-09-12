@@ -75,6 +75,11 @@ jobs:
             exit 1
           fi
 
+          if test -e apps/web/src/hooks/use-push-notifications.ts; then
+            echo 'Retired service-worker-dependent Web Push hook must not remain in active source.' >&2
+            exit 1
+          fi
+
           if grep -Eini 'web[ /-]*pwa|install as (a )?native app|offline functionality' \
             README.md docs/ARCHITECTURE.md docs/PET_MEDIA_LIBRARY.md legacy/README.md; then
             echo 'Current-facing documentation must not imply installable/offline Web authority.' >&2
