@@ -36,10 +36,7 @@ VALUES
   ('us-ca-peninsula', 'Peninsula, CA', 'US', 'CA', 'BROAD_DISTRICT'),
   ('us-ca-east-bay', 'East Bay, CA', 'US', 'CA', 'BROAD_DISTRICT'),
   ('us-ca-north-bay', 'North Bay, CA', 'US', 'CA', 'BROAD_DISTRICT'),
-  ('us-ca-santa-cruz-county', 'Santa Cruz County, CA', 'US', 'CA', 'COUNTY'),
-  -- Reserved non-client fixture used by existing direct-SQL integration setup.
-  -- It is intentionally absent from the application catalog and DTO allowlist.
-  ('test-region', 'Internal test region', 'US', 'CA', 'BROAD_DISTRICT')
+  ('us-ca-santa-cruz-county', 'Santa Cruz County, CA', 'US', 'CA', 'COUNTY')
 ON CONFLICT (id) DO NOTHING;
 
 DROP INDEX IF EXISTS dogos_social.social_packs_region_idx;
