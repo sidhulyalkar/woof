@@ -136,8 +136,7 @@ require(
 require(
     live_verifier,
     "verify-live-release.mjs",
-    "ops/health/live",
-    "ops/health/ready",
+    "ops/health/${endpoint}",
     "auth/me",
     "x-content-type-options",
     "access-control-allow-origin",
