@@ -218,7 +218,7 @@ Compatibility remains interesting because real-world outcomes can become relatio
 woof/
 ├── apps/
 │   ├── api/             # NestJS API, domain services, realtime, dogOS policies
-│   ├── web/             # Next.js web/PWA product
+│   ├── web/             # Next.js responsive browser client
 │   └── mobile/          # Expo / React Native client
 ├── packages/
 │   ├── database/        # Prisma + PostgreSQL/pgvector
@@ -232,6 +232,12 @@ woof/
 ```
 
 At runtime, PostgreSQL remains the source of transactional/authorization truth. Derived intelligence projections and learned-model outputs do not replace canonical state ownership.
+
+### Browser delivery boundary
+
+The current Web client is responsive browser software, not an installable/offline product claim. It does not register an application service worker. `apps/web/public/sw.js` remains available only as a cleanup tombstone for historical PetPath installations: it deletes legacy `petpath-*` caches, unregisters itself, and has no fetch or cache-write authority.
+
+That tombstone should remain available until the historical origin is retired or a future service-worker release is deliberately rebuilt and independently qualified. It is not removed on an arbitrary timer because a browser that has not revisited the origin has not had an opportunity to receive the cleanup worker.
 
 ---
 
