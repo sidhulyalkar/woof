@@ -194,7 +194,6 @@ def main() -> None:
         "global_leaderboard_opt_in = TRUE",
         "cohortReady: false",
         "cohortReady: true",
-        "server-approved-coarse-region-only",
     ]:
         require(server_service, marker, "server Social Adventure ranking authority")
 
