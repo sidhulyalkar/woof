@@ -15,7 +15,8 @@ WEB_PACKS = ROOT / "apps/web/src/app/community/packs/page.tsx"
 MOBILE_API = ROOT / "apps/mobile/src/api/social-adventure.ts"
 MOBILE_PACKS = ROOT / "apps/mobile/src/screens/PacksScreen.tsx"
 MOBILE_VIEW = ROOT / "apps/mobile/src/components/community/SocialAdventurePacksView.tsx"
-DOC = ROOT / "docs/NATIVE_SOCIAL_ADVENTURE_V1.md"
+NATIVE_DOC = ROOT / "docs/NATIVE_SOCIAL_ADVENTURE_V1.md"
+SERVER_DOC = ROOT / "docs/DOGOS_SOCIAL_ADVENTURE_V1.md"
 
 CLIENT_REGION_IDS = {
     "us-ca-san-francisco",
@@ -60,7 +61,8 @@ def main() -> None:
     mobile_api = read(MOBILE_API)
     mobile_packs = read(MOBILE_PACKS)
     mobile_view = read(MOBILE_VIEW)
-    doc = read(DOC)
+    native_doc = read(NATIVE_DOC)
+    server_doc = read(SERVER_DOC)
 
     require(
         migration,
@@ -179,8 +181,8 @@ def main() -> None:
         reject(client_surface, "maintained Pack clients", forbidden)
 
     require(
-        doc,
-        "Pack locality documentation",
+        native_doc,
+        "native Pack locality documentation",
         "server-approved structured coarse-region identity",
         "does not parse, normalize, map, reverse-geocode, or log those values",
         "LEGACY_UNVERIFIED",
@@ -188,6 +190,22 @@ def main() -> None:
         "new joins fail closed",
         "local standings fail closed",
         "not an anonymity guarantee",
+    )
+
+    require(
+        server_doc,
+        "server Pack locality documentation",
+        "server-approved structured coarse-region identity",
+        "Historical free-form `region_key` values are not promoted into trusted locality",
+        "`coarse_regions` contains reviewed broad public-area identities only",
+        "arbitrary client locality text can become Pack locality authority",
+        "unverified legacy Pack becomes publicly discoverable, newly joinable, or locally ranked before owner repair",
+    )
+    reject(
+        server_doc.lower(),
+        "server Pack locality documentation",
+        "user-chosen coarse `region_key`",
+        "such as `south-bay-ca`",
     )
 
     print(
