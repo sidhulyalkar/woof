@@ -72,9 +72,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - manifest.json (PWA manifest)
-     * - sw.js (service worker)
-     * - icons (PWA icons)
+     * - manifest.json (browser manifest metadata)
+     * - sw.js (historical service-worker cleanup tombstone)
+     * - icons (browser/app metadata icons)
      */
     '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|icon-).*)',
   ],
