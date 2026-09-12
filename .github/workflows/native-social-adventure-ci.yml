@@ -15,8 +15,13 @@ on:
       - 'apps/api/src/social-adventure/social-adventure.policy.ts'
       - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
       - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
       - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/scripts/assert-structured-pack-locality.py'
       - '.github/workflows/native-social-adventure-ci.yml'
+      - '.github/workflows/structured-pack-locality-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
   push:
     branches: [main]
@@ -32,8 +37,13 @@ on:
       - 'apps/api/src/social-adventure/social-adventure.policy.ts'
       - 'apps/api/src/social-adventure/social-adventure.policy.spec.ts'
       - 'apps/api/src/social-adventure/dto/social-adventure.dto.ts'
+      - 'apps/api/src/social-adventure/pack-locality.catalog.ts'
+      - 'apps/api/src/social-adventure/pack-locality.service.ts'
+      - 'packages/database/prisma/migrations/20260911233500_add_structured_pack_locality/**'
       - '.github/scripts/assert-native-social-adventure.py'
+      - '.github/scripts/assert-structured-pack-locality.py'
       - '.github/workflows/native-social-adventure-ci.yml'
+      - '.github/workflows/structured-pack-locality-ci.yml'
       - 'docs/NATIVE_SOCIAL_ADVENTURE_V1.md'
 
 permissions:
@@ -69,6 +79,9 @@ jobs:
 
       - name: Enforce native Social Adventure source contract
         run: python3 .github/scripts/assert-native-social-adventure.py
+
+      - name: Enforce structured Pack locality source contract
+        run: python3 .github/scripts/assert-structured-pack-locality.py
 
       - name: Check native Social Adventure formatting
         run: |
