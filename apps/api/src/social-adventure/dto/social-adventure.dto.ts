@@ -5,10 +5,10 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { PACK_COARSE_REGION_IDS, type PackCoarseRegionId } from '../pack-locality.catalog';
 import { HUMAN_SKILL_CHALLENGES } from '../social-adventure.policy';
 
 export class UpdateSocialAdventurePreferencesDto {
@@ -65,15 +65,24 @@ export class CreatePackDto {
   name!: string;
 
   @ApiProperty({
-    example: 'south-bay-ca',
+    enum: PACK_COARSE_REGION_IDS,
+    example: 'us-ca-south-bay',
     description:
-      'User-supplied broad-area locality label. v1 enforces slug syntax and length only; clients must not collect or submit device coordinates, street addresses, precise venues, or route traces.',
+      'Server-approved broad locality identity. Clients select this value from the coarse-region catalog; arbitrary addresses, venues, coordinates, routes, and free-form locality text are rejected.',
   })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(64)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  regionKey!: string;
+  @IsIn(PACK_COARSE_REGION_IDS)
+  regionKey!: PackCoarseRegionId;
+}
+
+export class UpdatePackLocalityDto {
+  @ApiProperty({
+    enum: PACK_COARSE_REGION_IDS,
+    example: 'us-ca-south-bay',
+    description:
+      'One approved broad locality used to repair a legacy Pack whose former free-form locality was discarded.',
+  })
+  @IsIn(PACK_COARSE_REGION_IDS)
+  regionKey!: PackCoarseRegionId;
 }
 
 export class HumanSkillChallengeParamDto {
