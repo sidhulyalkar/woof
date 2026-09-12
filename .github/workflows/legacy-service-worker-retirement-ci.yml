@@ -60,13 +60,24 @@ jobs:
             exit 1
           fi
 
-          if grep -REn 'serviceWorker\.register|beforeinstallprompt' apps/web/src; then
-            echo 'Current Woof source must not register a service worker or advertise installability.' >&2
+          if grep -REn 'serviceWorker\.register|navigator\.serviceWorker\.ready|beforeinstallprompt' apps/web/src; then
+            echo 'Current Woof source must not register, wait on, or advertise an application service worker.' >&2
             exit 1
           fi
 
           if test -e apps/web/src/components/pwa-install-prompt.tsx; then
             echo 'Retired PWA install prompt must not remain in the active source tree.' >&2
+            exit 1
+          fi
+
+          if test -e apps/web/src/lib/push-notifications.ts; then
+            echo 'Retired service-worker-dependent Web Push client must not remain in active source.' >&2
+            exit 1
+          fi
+
+          if grep -Eini 'web[ /-]*pwa|install as (a )?native app|offline functionality' \
+            README.md docs/ARCHITECTURE.md docs/PET_MEDIA_LIBRARY.md legacy/README.md; then
+            echo 'Current-facing documentation must not imply installable/offline Web authority.' >&2
             exit 1
           fi
 
