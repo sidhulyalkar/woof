@@ -91,14 +91,34 @@ require(
     "--self-test",
 )
 require(
+    ".github/scripts/verify-live-release.mjs",
+    "assertReleaseBody",
+    "x-content-type-options",
+    "access-control-allow-origin",
+    "auth/me",
+    "EXPECTED_RELEASE",
+    "--self-test",
+)
+require(
     ".github/scripts/write-release-receipt.mjs",
+    "schemaVersion: 2",
     "SHA_PATTERN",
     "buildReleaseReceipt",
     "production receipt requires successful exact-SHA staging qualification",
+    "canonicalReleaseChecksVerified",
     "apiReleaseIdentityVerified: true",
     "webReleaseIdentityVerified: true",
     "webApiOriginVerified: true",
+    "liveBlackBoxVerified",
+    "webDeploymentUrl",
     "--self-test",
+)
+reject(
+    ".github/scripts/write-release-receipt.mjs",
+    "FLY_API_TOKEN",
+    "VERCEL_TOKEN",
+    "Authorization",
+    "password",
 )
 
 require(
@@ -115,11 +135,21 @@ for path in [
         '--build-arg WOOF_RELEASE_SHA="${RELEASE_SHA}"',
         "NEXT_PUBLIC_WOOF_RELEASE_SHA: ${{ env.RELEASE_SHA }}",
         "NEXT_PUBLIC_SENTRY_REPLAY_ENABLED: 'false'",
+        "STABLE_WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}",
         "Enforce deployed API release identity",
-        "Verify deployed Web release and API integration",
+        "Verify immutable Web deployment release and API integration",
+        "Verify stable",
+        "Web origin release and API integration",
+        "Run non-destructive live release smoke",
         "verify-web-deployment-provenance.mjs",
+        "verify-live-release.mjs",
+        "CANONICAL_RELEASE_CHECKS_VERIFIED: 'true'",
+        "LIVE_BLACK_BOX_VERIFIED: 'true'",
         "write-release-receipt.mjs",
         "actions/upload-artifact@v7",
     )
 
-print("Operational privacy contract preserves exact release identity, Web/API provenance, and privacy-safe release receipts.")
+print(
+    "Operational privacy contract preserves exact API/Web release identity, stable-origin provenance, "
+    "non-destructive live verification, and privacy-safe release receipts."
+)
