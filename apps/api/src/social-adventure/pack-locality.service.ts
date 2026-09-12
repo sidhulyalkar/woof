@@ -44,20 +44,21 @@ export class PackLocalityService {
   }
 
   decorateCatalog(catalog: PackCatalogLike) {
-    const regionsById = new Map(PACK_COARSE_REGIONS.map((region) => [region.id, region]));
     return {
       ...catalog,
       packs: catalog.packs
-        .filter((pack) => pack.joined || (pack.regionKey !== null && regionsById.has(pack.regionKey)))
-        .map((pack) => ({
-          ...pack,
-          localityStatus:
-            pack.regionKey !== null && regionsById.has(pack.regionKey)
-              ? ('APPROVED' as const)
-              : ('LEGACY_UNVERIFIED' as const),
-          coarseRegion: pack.regionKey ? regionsById.get(pack.regionKey) ?? null : null,
-        })),
+        .filter((pack) => pack.joined || this.isApprovedRegionId(pack.regionKey))
+        .map((pack) => this.decoratePack(pack)),
       locationContract: PACK_LOCALITY_CONTRACT,
+    };
+  }
+
+  decoratePack(pack: PackCatalogRow) {
+    const coarseRegion = this.regionById(pack.regionKey);
+    return {
+      ...pack,
+      localityStatus: coarseRegion ? ('APPROVED' as const) : ('LEGACY_UNVERIFIED' as const),
+      coarseRegion,
     };
   }
 
@@ -129,7 +130,7 @@ export class PackLocalityService {
   }
 
   private repairReceipt(packId: string, regionKey: PackCoarseRegionId) {
-    const coarseRegion = PACK_COARSE_REGIONS.find((region) => region.id === regionKey);
+    const coarseRegion = this.regionById(regionKey);
     if (!coarseRegion) throw new BadRequestException('Choose an approved broad locality');
     return {
       packId,
@@ -139,7 +140,12 @@ export class PackLocalityService {
     };
   }
 
+  private regionById(value: string | null) {
+    if (value === null) return null;
+    return PACK_COARSE_REGIONS.find((region) => region.id === value) ?? null;
+  }
+
   private isApprovedRegionId(value: string | null): value is PackCoarseRegionId {
-    return value !== null && PACK_COARSE_REGIONS.some((region) => region.id === value);
+    return this.regionById(value) !== null;
   }
 }
