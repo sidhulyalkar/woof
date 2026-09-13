@@ -126,12 +126,10 @@ const secondaryScreenOptions = {
 
 const keyboardAvoidanceBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
 
-function DailySignalsKeyboardSafeScreen(
-  props: StackScreenProps<RootStackParamList, 'DailySignals'>
-) {
+function DailySignalsKeyboardSafeScreen() {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={keyboardAvoidanceBehavior}>
-      <DailySignalsScreen {...props} />
+      <DailySignalsScreen />
     </KeyboardAvoidingView>
   );
 }
