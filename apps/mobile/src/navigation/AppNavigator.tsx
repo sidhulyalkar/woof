@@ -1,9 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator, type StackScreenProps } from '@react-navigation/stack';
+import { useReducedMotionPreference } from '../accessibility/useReducedMotionPreference';
 import { companionApi, type CompanionState } from '../api/companion';
 import { useAuth } from '../contexts/AuthContext';
 import { clearPetCreationRecovery } from '../onboarding/recovery';
@@ -97,7 +106,6 @@ const MainTabs = () => (
         borderTopColor: '#e5e7eb',
         paddingBottom: 6,
         paddingTop: 6,
-        height: 66,
       },
     })}
   >
@@ -116,10 +124,27 @@ const secondaryScreenOptions = {
   cardStyle: { backgroundColor: '#f9fafb' },
 };
 
+const keyboardAvoidanceBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
+
+function DailySignalsKeyboardSafeScreen() {
+  return (
+    <KeyboardAvoidingView style={styles.flex} behavior={keyboardAvoidanceBehavior}>
+      <DailySignalsScreen />
+    </KeyboardAvoidingView>
+  );
+}
+
 function AuthNavigator() {
+  const reduceMotionEnabled = useReducedMotionPreference();
+
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ cardStyle: { backgroundColor: '#ffffff' } }}>
+      <Stack.Navigator
+        screenOptions={{
+          cardStyle: { backgroundColor: '#ffffff' },
+          animation: reduceMotionEnabled ? 'none' : 'default',
+        }}
+      >
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
@@ -128,13 +153,20 @@ function AuthNavigator() {
 }
 
 function GuardianNavigator() {
+  const reduceMotionEnabled = useReducedMotionPreference();
+
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ cardStyle: { backgroundColor: '#ffffff' } }}>
+      <Stack.Navigator
+        screenOptions={{
+          cardStyle: { backgroundColor: '#ffffff' },
+          animation: reduceMotionEnabled ? 'none' : 'default',
+        }}
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen
           name="DailySignals"
-          component={DailySignalsScreen}
+          component={DailySignalsKeyboardSafeScreen}
           options={{ ...secondaryScreenOptions, title: 'Daily Signals' }}
         />
         <Stack.Screen
@@ -188,9 +220,16 @@ function GuardianNavigator() {
 }
 
 function CompanionNavigator({ onResolved }: { onResolved: (state: CompanionState) => void }) {
+  const reduceMotionEnabled = useReducedMotionPreference();
+
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ cardStyle: { backgroundColor: '#ffffff' } }}>
+      <Stack.Navigator
+        screenOptions={{
+          cardStyle: { backgroundColor: '#ffffff' },
+          animation: reduceMotionEnabled ? 'none' : 'default',
+        }}
+      >
         <Stack.Screen name="CompanionHome" options={{ headerShown: false }}>
           {(props) => <CompanionHomeScreen {...props} onResolved={onResolved} />}
         </Stack.Screen>
@@ -311,11 +350,13 @@ function AuthenticatedEntry() {
 
   if (state.landing === 'NEEDS_PET_SETUP') {
     return (
-      <FirstAdventureScreen
-        onComplete={() => void load()}
-        onModeResolved={(next) => void applyResolved(next)}
-        onRecheck={() => void load()}
-      />
+      <KeyboardAvoidingView style={styles.flex} behavior={keyboardAvoidanceBehavior}>
+        <FirstAdventureScreen
+          onComplete={() => void load()}
+          onModeResolved={(next) => void applyResolved(next)}
+          onRecheck={() => void load()}
+        />
+      </KeyboardAvoidingView>
     );
   }
 
@@ -353,8 +394,9 @@ export const AppNavigator = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loadingContainer} accessibilityRole="progressbar">
         <ActivityIndicator size="large" color={colors.primary[600]} />
+        <Text style={styles.loadingText}>Opening Woof…</Text>
       </View>
     );
   }
@@ -363,6 +405,7 @@ export const AppNavigator = () => {
 };
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
