@@ -145,6 +145,46 @@ export class CaregiverOperationalStore {
     expiresAt: Date;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      // Use the exact same transaction-scoped lock identity as the database
+      // issuance trigger. Maintained API traffic therefore serializes before it
+      // attempts an INSERT, while direct/out-of-band writes still fail closed at
+      // the trigger boundary.
+      const issuanceLockKey = `dogos-caregiver:${input.petId}:${input.recipientUserId}`;
+      await tx.$queryRaw<Array<{ locked: string | null }>>(Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtextextended(${issuanceLockKey}, 0))::text AS locked
+      `);
+
+      // A concurrent exact request-key replay may have committed while this
+      // transaction waited for the pet/recipient lock. Let the service resolve
+      // whether the persisted request is an exact replay or a divergent reuse
+      // without intentionally colliding with either the unique constraint or the
+      // overlap trigger.
+      const replayRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id
+        FROM dogos_caregiver.grants
+        WHERE issuer_user_id = ${input.issuerUserId}
+          AND request_key = ${input.requestKey}
+        LIMIT 1
+      `);
+      if (replayRows[0]) return false;
+
+      // Preserve the trigger's overlap definition exactly. Returning false lets
+      // CaregiverService map a concurrent live-window conflict to its existing
+      // semantic 409 path instead of recovering from an expected PostgreSQL
+      // exception. The unchanged trigger remains the final authority for callers
+      // that bypass this store.
+      const liveRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id
+        FROM dogos_caregiver.grants
+        WHERE pet_id = ${input.petId}
+          AND recipient_user_id = ${input.recipientUserId}
+          AND status IN ('PENDING_ACCEPTANCE', 'ACTIVE')
+          AND issued_at < ${input.expiresAt}
+          AND expires_at > ${input.issuedAt}
+        LIMIT 1
+      `);
+      if (liveRows[0]) return false;
+
       const inserted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO dogos_caregiver.grants (
           id, pet_id, issuer_user_id, recipient_user_id, request_key, policy_version,

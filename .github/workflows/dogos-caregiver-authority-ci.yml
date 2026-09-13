@@ -111,6 +111,10 @@ jobs:
           grep -F "authorityClass: 'CONTEXT_ONLY'" apps/api/src/caregiver/caregiver.service.ts
           grep -F "caregiver grant is not currently active" \
             packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql
+          grep -F 'const issuanceLockKey = `dogos-caregiver:${input.petId}:${input.recipientUserId}`;' \
+            apps/api/src/caregiver/caregiver-operational.store.ts
+          grep -F "hashtextextended('dogos-caregiver:' || NEW.pet_id || ':' || NEW.recipient_user_id, 0)" \
+            packages/database/prisma/migrations/20260829034500_add_dogos_caregiver_authority_v1/migration.sql
 
           if grep -REn "householdMember\.(create|upsert|update|updateMany)|HouseholdsService" apps/api/src/caregiver; then
             echo 'Caregiver authority must not be implemented as generic household membership.' >&2

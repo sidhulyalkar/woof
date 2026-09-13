@@ -164,12 +164,12 @@ describe('CaregiverOperationalStore integration', () => {
     ).rejects.toThrow();
   });
 
-  it('serializes concurrent overlapping issuance so at most one authority window is created', async () => {
+  it('serializes concurrent overlapping issuance before the trigger boundary', async () => {
     const { issuerUserId, recipientUserId, petId } = await fixture('concurrent');
     const issuedAt = new Date();
     const expiresAt = new Date(issuedAt.getTime() + 60 * 60 * 1000);
 
-    const results = await Promise.allSettled(
+    const results = await Promise.all(
       [0, 1].map((index) =>
         store.issueGrant({
           id: randomUUID(),
@@ -184,8 +184,7 @@ describe('CaregiverOperationalStore integration', () => {
       )
     );
 
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(results.sort()).toEqual([false, true]);
 
     const rows = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
       SELECT COUNT(*)::int AS count
@@ -196,6 +195,44 @@ describe('CaregiverOperationalStore integration', () => {
         AND expires_at > ${issuedAt}
     `);
     expect(rows[0]?.count).toBe(1);
+  });
+
+  it('turns concurrent exact issuance replay into one create and one clean noop', async () => {
+    const { issuerUserId, recipientUserId, petId } = await fixture('exact-replay');
+    const issuedAt = new Date();
+    const expiresAt = new Date(issuedAt.getTime() + 60 * 60 * 1000);
+    const requestKey = `exact-replay-${randomUUID()}`;
+
+    const results = await Promise.all(
+      [0, 1].map(() =>
+        store.issueGrant({
+          id: randomUUID(),
+          petId,
+          issuerUserId,
+          recipientUserId,
+          requestKey,
+          capabilities: ['VIEW_TODAY'],
+          issuedAt,
+          expiresAt,
+        })
+      )
+    );
+
+    expect(results.sort()).toEqual([false, true]);
+
+    const counts = await prisma.$queryRaw<Array<{ grants: number; receipts: number }>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*)::int
+         FROM dogos_caregiver.grants
+         WHERE issuer_user_id = ${issuerUserId} AND request_key = ${requestKey}) AS grants,
+        (SELECT COUNT(*)::int
+         FROM dogos_caregiver.grant_receipts receipt
+         INNER JOIN dogos_caregiver.grants grant_row ON grant_row.id = receipt.grant_id
+         WHERE grant_row.issuer_user_id = ${issuerUserId}
+           AND grant_row.request_key = ${requestKey}
+           AND receipt.transition = 'ISSUED') AS receipts
+    `);
+    expect(counts[0]).toEqual({ grants: 1, receipts: 1 });
   });
 
   it('treats expiry as present-tense authority and allows a later non-overlapping grant', async () => {
