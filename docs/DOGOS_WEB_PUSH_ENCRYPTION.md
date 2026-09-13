@@ -114,7 +114,7 @@ The current Web retirement does not require deleting encrypted server rows oppor
 
 Push currently shares `CONNECTOR_CREDENTIALS_KEY` with connector credential envelopes, while authenticated-data namespaces prevent cross-context substitution.
 
-**Replacing the environment key in place is not a valid rotation procedure** because existing envelopes would become undecryptable. Rotation needs a separately controlled old-key to new-key migration before retiring the previous key.
+Replacing the environment key in place is **not** a valid rotation procedure because existing envelopes would become undecryptable. Rotation needs a separately controlled old-key to new-key migration before retiring the previous key.
 
 The key must never be copied into logs, issue trackers, migration artifacts, source control, or release receipts.
 
@@ -137,6 +137,6 @@ The subscription fingerprint is an authenticated control value, not an operation
 
 Repository qualification can prove encrypted storage, wrong-context/tamper rejection, bounded legacy compatibility, compare-and-swap migration, exact cleanup under concurrent replacement, authenticated recipient ownership, privacy-safe diagnostics, and that current Web UI does not claim browser Push delivery.
 
-It **does not prove that production rows were migrated**, that production secrets are configured, that a real provider delivered a notification, that multiple devices are supported, or that the current Web client has background Push authority.
+It does **not** prove that production rows were migrated, that production secrets are configured, that a real provider delivered a notification, that multiple devices are supported, or that the current Web client has background Push authority.
 
 The old production acceptance language requiring a current-browser subscription/delivery check is retired with the browser client path. A future Web Push release must define a new live acceptance contract around its exact service worker, browser lifecycle, permission UX, provider delivery, revocation, account deletion, and rollback behavior before any production delivery claim is restored.
