@@ -15,6 +15,7 @@ on:
       - 'apps/api/tsconfig.eslint.json'
       - 'apps/mobile/src/api/notifications.ts'
       - 'apps/web/src/hooks/use-push-notifications.ts'
+      - 'apps/web/src/components/settings/notification-settings.tsx'
       - 'apps/web/src/lib/api.ts'
       - 'docs/DOGOS_WEB_PUSH_ENCRYPTION.md'
       - 'docs/EXTERNAL_INTEGRATION_INVENTORY.json'
@@ -61,7 +62,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @woof/database db:generate
 
-      - name: Materialize Web Push authority formatting
+      - name: Materialize Push authority formatting
         run: >-
           pnpm exec prettier --write
           .github/workflows/dogos-push-encryption-ci.yml
@@ -79,12 +80,12 @@ jobs:
           apps/api/src/notifications/notifications.service.spec.ts
           apps/api/src/notifications/push-subscription.store.ts
           apps/api/src/notifications/push-subscription.store.spec.ts
-          apps/web/src/hooks/use-push-notifications.ts
+          apps/web/src/components/settings/notification-settings.tsx
           apps/web/src/lib/api.ts
           docs/DOGOS_WEB_PUSH_ENCRYPTION.md
           docs/EXTERNAL_INTEGRATION_INVENTORY.json
 
-      - name: Enforce committed Web Push authority formatting
+      - name: Enforce committed Push authority formatting
         run: git diff --exit-code
 
       - name: Validate encrypted Push authority source contract
@@ -114,7 +115,7 @@ jobs:
       - name: Lint owned Web boundaries
         run: >-
           pnpm --filter @woof/web exec eslint --max-warnings=0 --report-unused-disable-directives --format stylish
-          src/hooks/use-push-notifications.ts
+          src/components/settings/notification-settings.tsx
           src/lib/api.ts
 
       - name: Type-check API

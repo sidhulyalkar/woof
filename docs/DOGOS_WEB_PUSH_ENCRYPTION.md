@@ -4,49 +4,57 @@ Issue: #114
 
 ## Security boundary
 
-Web Push subscriptions contain bearer-like delivery material: the provider endpoint plus the browser-generated `p256dh` and `auth` keys. They are private credential material and must not be stored as plaintext application JSON.
+Web Push subscriptions contain bearer-like delivery material: the provider endpoint plus the browser-generated `p256dh` and `auth` keys. That material is private credential state and must not be stored as plaintext application JSON.
 
-Woof stores Web Push subscription material in `IntegrationToken.data` as an authenticated AES-256-GCM envelope. The implementation reuses the already-qualified `ConnectorCryptoService` primitive and `CONNECTOR_CREDENTIALS_KEY`, but Push and connector credentials use different authenticated-data namespaces.
+Woof stores Push subscription material in `IntegrationToken.data` as an authenticated AES-256-GCM envelope. The implementation reuses the qualified `ConnectorCryptoService` primitive and `CONNECTOR_CREDENTIALS_KEY`, while Push and connector credentials use separate authenticated-data namespaces.
 
 Push context:
 
 `dogos-push-subscription-v1:<userId>`
 
-Connector contexts remain under their own `dogos-connector-credential-v1:*` namespace. Copying a Push envelope to a different user or connector context therefore fails authentication even when the same root key is configured.
+Copying a Push envelope into another user or connector context therefore fails authentication even when the same root key is configured. `CONNECTOR_CREDENTIALS_KEY` is a 32-byte base64 key, and production startup fails closed when VAPID keys are configured without a valid encryption key.
 
-`CONNECTOR_CREDENTIALS_KEY` is a 32-byte base64 key. Production startup fails closed when VAPID keys are configured without a valid encryption key.
+## Current Web delivery boundary
 
-## Runtime authority
+The current responsive Web client intentionally registers **no application service worker**. Historical PetPath service-worker authority is being retired, so **background Web Push is intentionally unavailable** in this Web release.
 
-- `GET /api/v1/notifications/subscription` derives ownership from the authenticated session and returns only subscription state plus a SHA-256 subscription fingerprint for a usable server row. It never returns the endpoint, `p256dh`, or `auth` material.
+That means the encrypted server-side Push substrate and the current browser product have different maturity states:
+
+- encrypted subscription storage, migration, recipient ownership, cleanup, and revocation remain maintained and repository-qualified;
+- the public arbitrary-recipient sender remains retired;
+- the current Web settings page does not request notification permission, create a `PushSubscription`, or claim background delivery;
+- the old service-worker-dependent Web Push hook remains retired;
+- API helpers remain available as dormant transport/recovery primitives, not proof that the current browser UI can subscribe;
+- native notification delivery is a separate client authority and is not inferred from this Web Push contract.
+
+A future browser Push release must deliberately reintroduce an application service worker and earn its own lifecycle, privacy, revocation, browser, and live-provider qualification. Backend capability existing today is not permission to resurrect that UI implicitly.
+
+## Runtime server authority
+
+- `GET /api/v1/notifications/subscription` derives ownership from the authenticated session and returns only subscription state plus a SHA-256 subscription fingerprint for a usable server row. It never returns endpoint, `p256dh`, or `auth` material.
 - The fingerprint covers canonical endpoint, expiration, `p256dh`, and `auth` material in a fixed JSON shape. Rotated Push keys at an unchanged endpoint therefore produce a different identity.
-- The browser fingerprints its own full local subscription and considers Push enabled only when that fingerprint matches the encrypted server row.
-- A browser with no local subscription, or a fingerprint mismatch, marks itself disabled. Passive status reconciliation never deletes server state because that row may represent another browser/device.
-- `POST /api/v1/notifications/subscribe` derives the subscription owner from the authenticated session. The request body cannot select another `userId`.
-- `POST /api/v1/notifications/subscription/revoke` is current-browser revocation. The authenticated body contains only the base64url SHA-256 subscription fingerprint. The server decrypts the current row privately and deletes with a compare-and-delete predicate bound to the exact encrypted JSON snapshot. A mismatch, key rotation, or concurrent row replacement is a safe no-op. POST is intentional here so the fingerprint stays out of the URL and does not depend on DELETE-body handling by intermediaries.
-- Ambiguous browser subscribe failures use that same current-browser conditional revocation. They never call the account-wide delete as compensation.
-- Invalid-row cleanup re-reads the current row, proves that current snapshot is still invalid, and compare-deletes that exact JSON snapshot. A valid or concurrently replaced row survives.
-- Provider 404/410 cleanup is bound to the full subscription fingerprint that actually failed delivery. It cannot account-wide delete a replacement whose endpoint or Push keys changed before cleanup.
-- `DELETE /api/v1/notifications/unsubscribe` is the separate account-wide recovery/revocation path. It removes the authenticated account's Push row without reading or decrypting it, so deletion remains possible for corrupt ciphertext or key-loss incidents.
-- The old public `POST /api/v1/notifications/send` testing surface is retired. Internal application services may still call `NotificationsService.sendPushNotification` with server-selected recipients.
-- The Web client exposes status, subscribe, current-browser unsubscribe, and an account-recovery API helper, but ordinary browser lifecycle code never uses account-wide revocation.
-- For ordinary browser disable, matching server revocation occurs before local browser unsubscribe. A local cleanup failure therefore cannot restore server delivery authority.
+- `POST /api/v1/notifications/subscribe` derives subscription ownership from the authenticated session. The request body cannot select another `userId`.
+- `POST /api/v1/notifications/subscription/revoke` accepts only the authenticated current subscription fingerprint. The server decrypts privately and compare-deletes the exact encrypted snapshot. A mismatch, key rotation, or concurrent replacement is a safe no-op.
+- Invalid-row cleanup re-reads the current row, proves the inspected snapshot is still invalid, and compare-deletes that exact snapshot. A valid or concurrently replaced row survives.
+- **Provider 404/410 cleanup is bound to the full subscription fingerprint** that actually failed delivery. It cannot account-wide delete a replacement whose endpoint or Push keys changed before cleanup.
+- `DELETE /api/v1/notifications/unsubscribe` remains a separate account-wide recovery/revocation path. It removes the authenticated account's Push row without requiring successful decryption, so cleanup still works after corrupt ciphertext or key-loss incidents.
+- The old public `POST /api/v1/notifications/send` testing surface remains retired. Internal application services may call `NotificationsService.sendPushNotification` only with server-selected recipients.
 
-### Current multi-device boundary
+These endpoints remain hardened because legacy rows may exist and because future qualified clients may use the substrate. Their existence does not make current Web Push user-facing.
 
-The existing `IntegrationToken` authority has one active server Push row per account because `(userId, provider)` is unique and Web Push uses `provider=push_subscription`.
+## Current multi-device boundary
 
-This release does **not** claim multi-device Push fan-out. Registering a new browser can replace the prior account-level Push row. The full-material fingerprint handshake plus atomic current-browser compare-and-delete prevent a different or rotated browser subscription from falsely showing itself subscribed or being deleted by stale cleanup, but they do not turn the singleton persistence model into a device registry.
+`IntegrationToken` has one active server Push row per account because `(userId, provider)` is unique and Push uses `provider=push_subscription`.
 
-An identical concurrent registration of the exact same browser subscription is intentionally treated as the same delivery authority. Distinct per-registration attempt identity is not modeled in this singleton design.
+This contract does **not** claim multi-device Push fan-out. A future qualified client registering a new subscription can replace the prior account-level row. Full-material fingerprinting plus atomic compare-and-delete prevent stale cleanup from deleting a different or rotated subscription, but they do not create a device registry.
 
-True multi-device subscription storage, per-device revocation, fan-out, and migration are tracked separately in issue #119. The privacy fix in this release should not be coupled to a schema redesign under an exhausted CI/deployment evidence budget.
+True multi-device storage, per-device revocation, fan-out, and migration remain separate work.
 
 ## Encrypted write semantics
 
 Every new or refreshed subscription is encrypted before `IntegrationToken.upsert`.
 
-The stored JSON contains only the envelope fields:
+The stored JSON contains only envelope fields:
 
 - `v`;
 - `alg`;
@@ -54,39 +62,29 @@ The stored JSON contains only the envelope fields:
 - `tag`;
 - `ciphertext`.
 
-The endpoint, `p256dh`, and `auth` values must not appear as plaintext siblings in the stored row or in application telemetry.
-
-Tampered, malformed, wrong-context, or undecryptable envelopes are never reinterpreted as legacy plaintext. A partial envelope shape also fails closed even if plaintext-looking subscription fields are present. Invalid rows may be removed only through exact-snapshot cleanup so a concurrent valid replacement is not erased.
+Endpoint, `p256dh`, and `auth` values must not appear as plaintext siblings or application telemetry. Tampered, malformed, wrong-context, or undecryptable envelopes are never reinterpreted as legacy plaintext. Partial envelope-shaped data fails closed as well.
 
 ## Legacy plaintext compatibility
 
-Rows written before this release may still contain the historical plaintext shape. Runtime compatibility is intentionally one-way **and time-bounded**.
+Rows written before encryption may contain the historical plaintext shape. Runtime compatibility is intentionally one-way **and time-bounded**.
 
 `PUSH_LEGACY_PLAINTEXT_READS_UNTIL` controls the temporary runtime window:
 
 - empty or absent means runtime plaintext reads are disabled;
-- the value must be an ISO-8601 timestamp with an explicit timezone;
+- the value must be ISO-8601 with an explicit timezone;
 - production startup rejects a cutoff more than 30 days in the future;
-- an already-expired cutoff is valid and explicitly disables runtime plaintext reads;
+- an expired cutoff explicitly disables runtime plaintext reads;
 - operators should remove the setting after migration instead of extending it.
 
-Inside an active compatibility window:
+Inside an active compatibility window, a valid legacy row may be read only when encryption is configured. Before delivery it is encrypted with the Push-specific context, and migration uses compare-and-swap against the exact JSON snapshot read. A concurrent replacement wins and is never overwritten.
 
-1. a valid legacy row may be read only when the encryption key is configured;
-2. before delivery it is encrypted with the Push-specific context;
-3. the migration write is a compare-and-swap against the exact JSON snapshot that was read;
-4. if a concurrent browser re-subscription changes the row first, the migration does not overwrite it and the current row is re-read;
-5. malformed legacy rows are not guessed or repaired from partial credential data.
+Outside that window, a valid plaintext row becomes `LEGACY_MIGRATION_REQUIRED`. Runtime status treats it as unavailable and delivery fails closed with `legacy_migration_required`. It is not guessed, silently deleted, or downgraded into another shape.
 
-Outside that window, a valid plaintext row becomes `LEGACY_MIGRATION_REQUIRED`. Runtime status reports it as unsubscribed and delivery fails closed with `legacy_migration_required`. The row is not classified as corrupt, is not conditionally revoked using its plaintext material, and is not deleted by invalid-row cleanup.
-
-The explicit migration command is deliberately independent of the runtime compatibility cutoff. Operators can therefore finish encrypting legacy rows after plaintext runtime reads have been shut off. This prevents extending compatibility merely to complete migration.
-
-The explicit scanner advances by monotonically increasing row ID (`id > lastSeenId`) rather than a Prisma cursor that requires the previous page-tail row to keep existing. A concurrent unsubscribe can therefore delete a processed row without invalidating the next migration query. Rows inserted behind the current high-water mark are safely picked up by a later idempotent run.
+The **explicit migration command is deliberately independent of the runtime compatibility cutoff**. Operators can finish encrypting legacy rows after runtime plaintext reads have been disabled. The scanner advances by monotonically increasing row ID so deleting a previously processed row cannot invalidate the next page.
 
 ## Explicit migration command
 
-Operators may migrate legacy rows independently of normal traffic:
+Run:
 
 `pnpm --filter @woof/api migrate:push-subscriptions`
 
@@ -94,9 +92,7 @@ Optional batch size:
 
 `PUSH_SUBSCRIPTION_MIGRATION_BATCH_SIZE=100`
 
-Valid batch sizes are 1 through 1000. The command requires `DATABASE_URL` through the normal database package and `CONNECTOR_CREDENTIALS_KEY` for encryption. It remains authorized after `PUSH_LEGACY_PLAINTEXT_READS_UNTIL` has expired or been removed.
-
-The command emits one JSON report containing counts only:
+Valid batch sizes are 1 through 1000. The command requires `DATABASE_URL` and `CONNECTOR_CREDENTIALS_KEY` and emits a counts-only JSON report:
 
 - `scanned`;
 - `migrated`;
@@ -104,34 +100,23 @@ The command emits one JSON report containing counts only:
 - `invalid`;
 - `concurrentChanges`.
 
-It must never print user IDs, row IDs, endpoints, subscription keys, ciphertext, IVs, authentication tags, encryption keys, or arbitrary crypto/provider exception details.
-
-A `concurrentChanges` count is not an error by itself. It means a row changed between read and compare-and-swap, so the migrator deliberately declined to overwrite newer state. Re-running the migration is safe.
+It must never print user IDs, row IDs, endpoints, subscription keys, ciphertext, IVs, authentication tags, encryption keys, or arbitrary crypto/provider exceptions. `concurrentChanges` means the compare-and-swap correctly declined to overwrite newer state; re-running is safe.
 
 ## Deployment and rollback boundary
 
 This is a data-format migration without a Prisma schema migration.
 
-The pre-encryption application revision is **not data-compatible with encrypted Push rows**. Its legacy parser does not understand the envelope. After the first encrypted subscription write or migration, a blind code rollback can misclassify encrypted rows as invalid and may remove them during delivery attempts.
+The pre-encryption application revision is **not data-compatible with encrypted Push rows**. After the first encrypted write or migration, a blind rollback can misclassify envelope data. Prefer roll-forward repair. If rollback to old code is unavoidable, disable Push delivery until an explicitly reviewed data-compatibility plan exists. Never decrypt rows back to plaintext as automatic rollback behavior.
 
-Therefore:
-
-- deploy the encryption-capable application before running the explicit migration;
-- if temporary runtime compatibility is required, choose a short `PUSH_LEGACY_PLAINTEXT_READS_UNTIL` cutoff no more than 30 days ahead;
-- do not run the migration from an older application revision;
-- after any encrypted write occurs, prefer roll-forward repair rather than reverting to a pre-encryption revision;
-- if an emergency rollback to old code is unavoidable, Push delivery should be disabled until an explicitly reviewed data-compatibility plan is executed;
-- never decrypt rows back to plaintext as an automatic rollback behavior.
-
-Database backup/restore evidence belongs to operational-resilience issue #100 and is not implied by this repository migration contract.
+The current Web retirement does not require deleting encrypted server rows opportunistically. Account deletion/recovery authority must continue to remove them safely, and explicit migration remains useful wherever legacy rows still exist.
 
 ## Key rotation authority
 
-Push currently shares `CONNECTOR_CREDENTIALS_KEY` with connector credential envelopes. AAD namespaces prevent cross-context substitution, but compromise or rotation of the root key affects both domains.
+Push currently shares `CONNECTOR_CREDENTIALS_KEY` with connector credential envelopes, while authenticated-data namespaces prevent cross-context substitution.
 
-Replacing the environment key in place is **not** a valid rotation procedure because existing envelopes would become undecryptable. Rotation requires a separately controlled migration that can decrypt with the old key and re-encrypt with the new key before the old key is retired. Until that procedure is implemented and rehearsed, operators must treat this key as one coordinated integration-vault rotation boundary.
+Replacing the environment key in place is **not** a valid rotation procedure because existing envelopes would become undecryptable. Rotation needs a separately controlled old-key to new-key migration before retiring the previous key.
 
-The key must never be copied into logs, issue trackers, migration artifacts, or source control.
+The key must never be copied into logs, issue trackers, migration artifacts, source control, or release receipts.
 
 ## Privacy and telemetry
 
@@ -146,14 +131,12 @@ Application logs may contain bounded state classes and provider HTTP status code
 - encryption key material;
 - arbitrary provider or crypto exception messages/stacks.
 
-The subscription fingerprint is returned only to the authenticated client to compare its own local subscription identity and can be submitted back in the authenticated current-browser revocation body; it is not an operational telemetry identifier or URL parameter.
-
-Browser Push helpers likewise log stable failure classes rather than raw exception objects.
+The subscription fingerprint is an authenticated control value, not an operational telemetry identifier or URL parameter.
 
 ## Repository qualification vs production proof
 
-Repository qualification can prove the source contract, encryption/decryption behavior, wrong-context/tamper rejection, bounded legacy compatibility, legacy compare-and-swap migration, explicit migration after runtime cutoff, deletion-safe batch scanning, session-owned controller authority, full-subscription-fingerprint reconciliation, atomic current-browser compare-and-delete, exact invalid/provider-expiry cleanup, provider privacy behavior, and bounded migration reporting.
+Repository qualification can prove encrypted storage, wrong-context/tamper rejection, bounded legacy compatibility, compare-and-swap migration, exact cleanup under concurrent replacement, authenticated recipient ownership, privacy-safe diagnostics, and that current Web UI does not claim browser Push delivery.
 
-It does **not** prove that production rows were migrated, that production secrets are configured, that a real browser granted permission, that multiple devices are supported, or that a Push provider delivered a notification.
+It does **not** prove that production rows were migrated, that production secrets are configured, that a real provider delivered a notification, that multiple devices are supported, or that the current Web client has background Push authority.
 
-Production promotion requires an observed migration report with counts only, the deployed release SHA, target environment identity, successful browser subscription/delivery/revocation checks, and an explicitly reviewed rollback/rotation procedure. None of those live claims should be inferred from CI.
+The old production acceptance language requiring a current-browser subscription/delivery check is retired with the browser client path. A future Web Push release must define a new live acceptance contract around its exact service worker, browser lifecycle, permission UX, provider delivery, revocation, account deletion, and rollback behavior before any production delivery claim is restored.

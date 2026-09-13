@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when Web Push credential, migration, or browser authority drifts."""
+"""Fail closed when encrypted Push storage, migration, or client truth drifts."""
 
 from pathlib import Path
 import json
@@ -20,7 +20,8 @@ ENV = ROOT / "apps/api/src/config/env.validation.ts"
 ENV_TEST = ROOT / "apps/api/src/config/env.validation.spec.ts"
 ENV_EXAMPLE = ROOT / "apps/api/.env.example"
 WEB_API = ROOT / "apps/web/src/lib/api.ts"
-WEB_HOOK = ROOT / "apps/web/src/hooks/use-push-notifications.ts"
+WEB_SETTINGS = ROOT / "apps/web/src/components/settings/notification-settings.tsx"
+RETIRED_WEB_HOOK = ROOT / "apps/web/src/hooks/use-push-notifications.ts"
 MOBILE_NOTIFICATIONS = ROOT / "apps/mobile/src/api/notifications.ts"
 INVENTORY = ROOT / "docs/EXTERNAL_INTEGRATION_INVENTORY.json"
 DOC = ROOT / "docs/DOGOS_WEB_PUSH_ENCRYPTION.md"
@@ -28,7 +29,7 @@ WORKFLOW = ROOT / ".github/workflows/dogos-push-encryption-ci.yml"
 INTEGRATION_WORKFLOW = ROOT / ".github/workflows/integration-truth-ci.yml"
 INTEGRATION_GUARD = ROOT / ".github/scripts/assert-integration-truth.py"
 
-required_files = [
+REQUIRED_FILES = [
     STORE,
     STORE_TEST,
     SERVICE,
@@ -43,16 +44,20 @@ required_files = [
     ENV_TEST,
     ENV_EXAMPLE,
     WEB_API,
-    WEB_HOOK,
+    WEB_SETTINGS,
     INVENTORY,
     DOC,
     WORKFLOW,
     INTEGRATION_WORKFLOW,
     INTEGRATION_GUARD,
 ]
-for path in required_files:
+
+for path in REQUIRED_FILES:
     if not path.is_file():
-        raise SystemExit(f"required Web Push authority source missing: {path.relative_to(ROOT)}")
+        raise SystemExit(f"required Push authority source missing: {path.relative_to(ROOT)}")
+
+if RETIRED_WEB_HOOK.exists():
+    raise SystemExit("retired service-worker-dependent Web Push hook must remain absent")
 if MOBILE_NOTIFICATIONS.exists():
     raise SystemExit("phantom Mobile notifications/push-token API must remain retired")
 
@@ -61,6 +66,12 @@ def require(text: str, markers: list[str], label: str) -> None:
     for marker in markers:
         if marker not in text:
             raise SystemExit(f"{label} marker missing: {marker}")
+
+
+def forbid(text: str, markers: list[str], label: str) -> None:
+    for marker in markers:
+        if marker in text:
+            raise SystemExit(f"{label} contains forbidden authority: {marker}")
 
 
 store = STORE.read_text()
@@ -88,16 +99,11 @@ require(
     ],
     "Push encrypted store",
 )
-for forbidden in [
-    "Logger",
-    "console.",
-    "error.message",
-    "error.stack",
-    "process.stdout",
-    "process.stderr",
-]:
-    if forbidden in store:
-        raise SystemExit(f"Push encrypted store contains forbidden diagnostic/output authority: {forbidden}")
+forbid(
+    store,
+    ["Logger", "console.", "error.message", "error.stack", "process.stdout", "process.stderr"],
+    "Push encrypted store",
+)
 
 put_match = re.search(r"async put\([\s\S]*?\n  async get\(", store)
 if not put_match:
@@ -150,19 +156,21 @@ require(
     ],
     "Push service authority",
 )
-for forbidden in [
-    "SendPushDto",
-    "PrismaService",
-    "integrationToken",
-    "readStoredSubscription",
-    "toStoredSubscription",
-    "pushError.message",
-    "pushError.stack",
-    "candidate.message",
-    "candidate.stack",
-]:
-    if forbidden in service:
-        raise SystemExit(f"NotificationsService bypasses encrypted/private boundary: {forbidden}")
+forbid(
+    service,
+    [
+        "SendPushDto",
+        "PrismaService",
+        "integrationToken",
+        "readStoredSubscription",
+        "toStoredSubscription",
+        "pushError.message",
+        "pushError.stack",
+        "candidate.message",
+        "candidate.stack",
+    ],
+    "NotificationsService",
+)
 for line in service.splitlines():
     if "this.logger." in line and any(
         private in line
@@ -178,9 +186,8 @@ for line in service.splitlines():
     ):
         raise SystemExit(f"Push logger exposes private/correlatable material: {line.strip()}")
 
-service_test = SERVICE_TEST.read_text()
 require(
-    service_test,
+    SERVICE_TEST.read_text(),
     [
         "reports subscription status with a full-material fingerprint, not private Push material",
         "reports legacy migration required as unsubscribed without deleting plaintext state",
@@ -209,21 +216,21 @@ require(
     ],
     "Push controller session authority",
 )
-for forbidden in [
-    "subscribeDto.userId",
-    "@Post('send')",
-    "sendPush(",
-    "SendPushDto",
-    "@Param(",
-    "unsubscribe/:endpoint",
-    "@Delete('subscription')",
-]:
-    if forbidden in controller:
-        raise SystemExit(f"Push controller regained client-selected/fragile authority: {forbidden}")
-
-controller_test = CONTROLLER_TEST.read_text()
+forbid(
+    controller,
+    [
+        "subscribeDto.userId",
+        "@Post('send')",
+        "sendPush(",
+        "SendPushDto",
+        "@Param(",
+        "unsubscribe/:endpoint",
+        "@Delete('subscription')",
+    ],
+    "Push controller",
+)
 require(
-    controller_test,
+    CONTROLLER_TEST.read_text(),
     [
         "derives subscription status ownership from the authenticated session",
         "derives subscription ownership from the authenticated session",
@@ -276,22 +283,24 @@ require(
     ],
     "Push migration command",
 )
-for forbidden in [
-    "console.log",
-    "console.error",
-    "error.message",
-    "error.stack",
-    "row.id",
-    "userId",
-    "endpoint",
-    "p256dh",
-    "auth",
-    "ciphertext",
-    "iv:",
-    "tag:",
-]:
-    if forbidden in migration:
-        raise SystemExit(f"Push migration command may expose identifier/credential detail: {forbidden}")
+forbid(
+    migration,
+    [
+        "console.log",
+        "console.error",
+        "error.message",
+        "error.stack",
+        "row.id",
+        "userId",
+        "endpoint",
+        "p256dh",
+        "auth",
+        "ciphertext",
+        "iv:",
+        "tag:",
+    ],
+    "Push migration command",
+)
 
 package = json.loads(PACKAGE.read_text())
 if package.get("scripts", {}).get("migrate:push-subscriptions") != "ts-node scripts/migrate-push-subscriptions.ts":
@@ -344,38 +353,36 @@ require(
         "apiClient.post<PushSubscriptionResult>('/notifications/subscription/revoke'",
         "unsubscribeAccount: () => apiClient.delete<PushSubscriptionResult>('/notifications/unsubscribe')",
     ],
-    "Web Push browser API",
+    "Push API client",
 )
-for forbidden in [
-    "/notifications/send",
-    "sendPush:",
-    "/notifications/unsubscribe/",
-    "delete<PushSubscriptionResult>('/notifications/subscription'",
-]:
-    if forbidden in web_api:
-        raise SystemExit(f"Web API retained phantom or fragile Push authority: {forbidden}")
-
-web_hook = WEB_HOOK.read_text()
-require(
-    web_hook,
+forbid(
+    web_api,
     [
-        "Boolean(window.crypto?.subtle)",
-        "function canonicalPushSubscription(subscription: PushSubscription)",
-        "serialized.keys?.p256dh",
-        "serialized.keys?.auth",
-        "browserFingerprint === serverStatus.subscriptionFingerprint",
-        "notificationsApi.unsubscribeCurrent(browserFingerprint)",
-        "const fingerprint = await subscriptionFingerprint(subscription)",
+        "/notifications/send",
+        "sendPush:",
+        "/notifications/unsubscribe/",
+        "delete<PushSubscriptionResult>('/notifications/subscription'",
     ],
-    "browser Push reconciliation/revocation",
+    "Push API client",
 )
-status_effect = re.search(r"useEffect\(\(\) => \{([\s\S]*?)\n  \}, \[\]\);", web_hook)
-if not status_effect:
-    raise SystemExit("browser Push status reconciliation effect could not be located")
-if "unsubscribe" in status_effect.group(1):
-    raise SystemExit("passive browser Push status reconciliation must never revoke server state")
-if "notificationsApi.unsubscribeAccount" in web_hook:
-    raise SystemExit("ordinary browser Push lifecycle must not use account-wide revocation")
+
+web_settings = WEB_SETTINGS.read_text()
+require(
+    web_settings,
+    [
+        "Browser notifications",
+        "Not enabled in this Web release",
+        "does not install an application service worker",
+        "background Web Push is intentionally unavailable",
+        "native notification delivery is qualified separately",
+    ],
+    "current Web Push product truth",
+)
+forbid(
+    web_settings,
+    ["Notification.requestPermission", "PushManager", "serviceWorker.ready", "notificationsApi.subscribe"],
+    "current Web Push settings",
+)
 
 inventory = json.loads(INVENTORY.read_text())
 web_push = next(
@@ -419,8 +426,10 @@ require(
         "The pre-encryption application revision is **not data-compatible with encrypted Push rows**",
         "Replacing the environment key in place is **not** a valid rotation procedure",
         "does **not** prove that production rows were migrated",
+        "Current Web delivery boundary",
+        "background Web Push is intentionally unavailable",
     ],
-    "Web Push encryption documentation",
+    "Push encryption documentation",
 )
 
 workflow = WORKFLOW.read_text()
@@ -433,6 +442,7 @@ require(
         "apps/api/src/config/env.validation.ts",
         "apps/api/src/config/env.validation.spec.ts",
         "apps/web/src/hooks/use-push-notifications.ts",
+        "apps/web/src/components/settings/notification-settings.tsx",
         "push-subscription.store.spec.ts",
         "notifications.controller.spec.ts",
         "python .github/scripts/assert-push-subscription-encryption.py",
@@ -456,7 +466,7 @@ require(
 )
 
 print(
-    "Web Push authority is explicit: credentials are user-bound encrypted data, legacy plaintext runtime "
-    "compatibility has a bounded sunset, explicit migration remains available afterward, cleanup is race-safe, "
-    "and live production migration remains unproven."
+    "Push authority is explicit: encrypted server-side subscription state remains qualified, legacy plaintext "
+    "migration stays bounded and race-safe, the current Web client advertises no background Push delivery, "
+    "and live production migration/delivery remain unproven."
 )

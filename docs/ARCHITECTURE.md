@@ -16,7 +16,7 @@ Woof optimizes for five properties:
 
 ```mermaid
 flowchart LR
-  USER[Dog owner] --> WEB[Next.js web / PWA]
+  USER[Dog owner] --> WEB[Next.js responsive web]
   USER --> MOBILE[Expo mobile]
   WEB --> API[NestJS API]
   MOBILE --> API
@@ -44,7 +44,7 @@ Important boundaries:
 - **domain mutation** happens through typed API clients,
 - **realtime events** should reconcile into query caches rather than create a parallel state universe.
 
-The product is mobile-first, but desktop should provide additional information density rather than simply stretching the phone layout.
+The product is mobile-first, but desktop should provide additional information density rather than simply stretching the phone layout. The current Web release is responsive browser software. It does not claim installable or offline application behavior, and authenticated product truth remains network-authoritative.
 
 ### Mobile
 
