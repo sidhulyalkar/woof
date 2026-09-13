@@ -106,7 +106,7 @@ It must never print user IDs, row IDs, endpoints, subscription keys, ciphertext,
 
 This is a data-format migration without a Prisma schema migration.
 
-**The pre-encryption application revision is not data-compatible with encrypted Push rows**. After the first encrypted write or migration, a blind rollback can misclassify envelope data. Prefer roll-forward repair. If rollback to old code is unavoidable, disable Push delivery until an explicitly reviewed data-compatibility plan exists. Never decrypt rows back to plaintext as automatic rollback behavior.
+The pre-encryption application revision is **not data-compatible with encrypted Push rows**. After the first encrypted write or migration, a blind rollback can misclassify envelope data. Prefer roll-forward repair. If rollback to old code is unavoidable, disable Push delivery until an explicitly reviewed data-compatibility plan exists. Never decrypt rows back to plaintext as automatic rollback behavior.
 
 The current Web retirement does not require deleting encrypted server rows opportunistically. Account deletion/recovery authority must continue to remove them safely, and explicit migration remains useful wherever legacy rows still exist.
 
