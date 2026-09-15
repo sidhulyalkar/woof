@@ -378,6 +378,7 @@ export default function TodayScreen({ navigation }: Props) {
             <Pressable
               key={tool.route}
               accessibilityRole="button"
+              accessibilityLabel={`${tool.label}. ${tool.caption}`}
               style={styles.toolCard}
               onPress={() => navigation.navigate(tool.route as never)}
             >
@@ -393,7 +394,13 @@ export default function TodayScreen({ navigation }: Props) {
         <View style={styles.outcomeCard} accessibilityViewIsModal>
           <View style={styles.outcomeHeader}>
             <Text style={styles.outcomeTitle}>How did {closingQuest.title} go?</Text>
-            <Pressable accessibilityRole="button" onPress={closeOutcome} hitSlop={12}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close outcome check-in"
+              style={styles.iconButton}
+              onPress={closeOutcome}
+              hitSlop={12}
+            >
               <Ionicons name="close" size={24} color={colors.gray[700]} />
             </Pressable>
           </View>
@@ -616,7 +623,8 @@ const styles = StyleSheet.create({
   learningText: { flex: 1, color: colors.gray[700], fontSize: 14, lineHeight: 20 },
   toolsGrid: { marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   toolCard: {
-    width: '48%',
+    flexGrow: 1,
+    flexBasis: 220,
     minHeight: 112,
     padding: 14,
     borderRadius: 18,
@@ -641,6 +649,12 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 27,
     fontWeight: '800',
+  },
+  iconButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   safeStopBanner: {
     marginTop: 14,
