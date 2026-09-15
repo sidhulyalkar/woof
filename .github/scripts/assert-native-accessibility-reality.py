@@ -48,9 +48,8 @@ for marker in required_motion_markers:
 required_today_markers = [
     "accessibilityLabel={`${tool.label}. ${tool.caption}`}",
     'accessibilityLabel="Close outcome check-in"',
-    "flexBasis: 220",
-    "minWidth: 44",
-    "minHeight: 44",
+    "toolCard: {\n    flexGrow: 1,\n    flexBasis: 220,",
+    "iconButton: {\n    minWidth: 44,\n    minHeight: 44,",
 ]
 for marker in required_today_markers:
     if marker not in today:
@@ -61,8 +60,7 @@ if "width: '48%'" in today:
 
 required_first_adventure_markers = [
     "altRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }",
-    "flexGrow: 1",
-    "flexBasis: 220",
+    "altButton: {\n    flexGrow: 1,\n    flexBasis: 220,",
 ]
 for marker in required_first_adventure_markers:
     if marker not in first_adventure:
