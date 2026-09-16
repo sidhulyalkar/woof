@@ -574,9 +574,10 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 10,
   },
-  altRow: { flexDirection: 'row', gap: 10 },
+  altRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   altButton: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 220,
     minHeight: 48,
     borderRadius: 14,
     borderWidth: 1,
