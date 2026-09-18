@@ -440,7 +440,15 @@ export default function TodayScreen({ navigation }: Props) {
               accessibilityRole="button"
               accessibilityLabel={`${tool.label}. ${tool.caption}`}
               style={styles.toolCard}
-              onPress={() => navigation.navigate(tool.route as never)}
+              onPress={() => {
+                if (tool.route === 'DailySignals') {
+                  navigation.navigate('DailySignals', {
+                    ...(selectedPetId ? { preferredPetId: selectedPetId } : {}),
+                  });
+                  return;
+                }
+                navigation.navigate(tool.route as never);
+              }}
             >
               <Ionicons name={tool.icon} size={22} color={colors.primary[700]} />
               <Text style={styles.toolTitle}>{tool.label}</Text>
