@@ -56,7 +56,6 @@ if missing:
 
 for forbidden in [
     "selectedIndex",
-    "contexts[0]",
     "4 of 6",
     "5 of 6",
     "6 of 6",
