@@ -15,6 +15,11 @@ import {
   deriveAdventureLearningSignals,
   type AdventureLearningSignals,
 } from './adventure-learning-policy';
+import {
+  buildAdventureLearningReceipt,
+  parseCanonicalAdventureOutcome,
+  type AdventureCompletionOutcome,
+} from './adventure-learning-receipt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteQuestDto } from './dto/adventure.dto';
 
@@ -140,6 +145,11 @@ export class AdventureService {
         : QUEST_EVENT_TYPES[quest.primaryPathway];
     const rewardPathway: WellbeingPathway =
       safeOptOut || learnedMismatch ? 'BOND' : quest.primaryPathway;
+    const submittedOutcome: AdventureCompletionOutcome = {
+      dogExperience: dto.dogExperience,
+      ownerExperience: dto.ownerExperience,
+      safeOptOut,
+    };
 
     // Memory bonuses require a real, completed private asset owned by this exact
     // dog-owner pair. A random client-supplied asset ID never changes rewards.
@@ -176,12 +186,60 @@ export class AdventureService {
         memoryAssetId: verifiedMemory?.id ?? null,
       },
       outcome: {
-        dogExperience: dto.dogExperience,
-        ownerExperience: dto.ownerExperience,
-        safeOptOut,
+        ...submittedOutcome,
         note: dto.note ?? null,
       },
     });
+
+    let effectiveOutcome: AdventureCompletionOutcome | null = submittedOutcome;
+    let effectiveOriginalPathway: WellbeingPathway | null = quest.primaryPathway;
+
+    if (receipt.duplicate) {
+      try {
+        const canonicalEvent = await this.careEvents.getAuthorizedEvent(
+          userId,
+          receipt.careEventId
+        );
+        effectiveOutcome = parseCanonicalAdventureOutcome(canonicalEvent.outcome);
+
+        const storedOriginalPathway = canonicalEvent.context.originalPathway;
+        if (this.isWellbeingPathway(storedOriginalPathway)) {
+          effectiveOriginalPathway = storedOriginalPathway;
+        } else if (
+          canonicalEvent.eventType === 'SAFE_OPT_OUT' ||
+          (canonicalEvent.pathway === 'BOND' &&
+            effectiveOutcome?.dogExperience === 'not_their_thing')
+        ) {
+          // Legacy Bond/safe-stop events without original-pathway provenance are
+          // ambiguous. Failing closed is safer than telling the user Woof learned
+          // something about the wrong pathway.
+          effectiveOriginalPathway = null;
+        } else {
+          effectiveOriginalPathway = canonicalEvent.pathway;
+        }
+
+        if (!effectiveOutcome) effectiveOriginalPathway = null;
+      } catch (error) {
+        effectiveOutcome = null;
+        effectiveOriginalPathway = null;
+        this.logger.warn(
+          `Quest ${questId} duplicate reward resolved but canonical outcome read failed: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`
+        );
+      }
+    }
+
+    const effectiveSafeOptOut = effectiveOutcome?.safeOptOut === true;
+    const effectiveLearnedMismatch =
+      effectiveOutcome?.dogExperience === 'not_their_thing' && !effectiveSafeOptOut;
+    const learningReceipt =
+      effectiveOutcome && effectiveOriginalPathway
+        ? buildAdventureLearningReceipt({
+            pathway: effectiveOriginalPathway,
+            ...effectiveOutcome,
+          })
+        : null;
 
     // These records are useful for analytics and continuity, but the CareEvent +
     // RewardLedger transaction above is authoritative. A telemetry outage must never
@@ -193,15 +251,15 @@ export class AdventureService {
         petId: dto.petId,
         questId,
         interaction: 'COMPLETED',
-        pathway: rewardPathway,
+        pathway: receipt.pathway,
         context: {
           questKey: quest.key,
-          originalPathway: quest.primaryPathway,
-          rewardPathway,
+          originalPathway: effectiveOriginalPathway,
+          rewardPathway: receipt.pathway,
           learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
-          dogExperience: dto.dogExperience,
-          ownerExperience: dto.ownerExperience,
-          safeOptOut,
+          dogExperience: effectiveOutcome?.dogExperience ?? null,
+          ownerExperience: effectiveOutcome?.ownerExperience ?? null,
+          safeOptOut: effectiveOutcome?.safeOptOut ?? null,
           bondXp: receipt.bondXp,
         },
       });
@@ -217,23 +275,25 @@ export class AdventureService {
       await this.prisma.telemetry.create({
         data: {
           source: 'ADVENTURE',
-          event: safeOptOut
-            ? 'QUEST_SAFE_OPT_OUT'
-            : learnedMismatch
-              ? 'QUEST_LEARNED_MISMATCH'
-              : 'QUEST_COMPLETED',
+          event: effectiveOutcome
+            ? effectiveSafeOptOut
+              ? 'QUEST_SAFE_OPT_OUT'
+              : effectiveLearnedMismatch
+                ? 'QUEST_LEARNED_MISMATCH'
+                : 'QUEST_COMPLETED'
+            : 'QUEST_COMPLETION_REPLAY',
           userId,
           petId: dto.petId,
           data: {
             questId,
-            pathway: rewardPathway,
-            originalPathway: quest.primaryPathway,
-            rewardPathway,
+            pathway: receipt.pathway,
+            originalPathway: effectiveOriginalPathway,
+            rewardPathway: receipt.pathway,
             learningPolicyVersion: ADVENTURE_LEARNING_POLICY_VERSION,
             bondXp: receipt.bondXp,
             duplicate: receipt.duplicate,
-            dogExperience: dto.dogExperience,
-            ownerExperience: dto.ownerExperience,
+            dogExperience: effectiveOutcome?.dogExperience ?? null,
+            ownerExperience: effectiveOutcome?.ownerExperience ?? null,
           },
         },
       });
@@ -247,13 +307,16 @@ export class AdventureService {
 
     return {
       reward: receipt,
-      message: safeOptOut
-        ? 'You listened. Giving space was the right play.'
-        : learnedMismatch
-          ? 'Useful discovery. Woof will treat this as preference evidence, not a failure.'
-          : dto.dogExperience === 'loved_it'
-            ? 'That one is worth remembering.'
-            : 'Nice read. Another useful piece of your shared pattern.',
+      learningReceipt,
+      message: !effectiveOutcome
+        ? 'This outcome was already saved.'
+        : effectiveSafeOptOut
+          ? 'You listened. Giving space was the right play.'
+          : effectiveLearnedMismatch
+            ? 'Useful discovery. Woof will treat this as preference evidence, not a failure.'
+            : effectiveOutcome.dogExperience === 'loved_it'
+              ? 'That one is worth remembering.'
+              : 'Nice read. Another useful piece of your shared pattern.',
     };
   }
 
