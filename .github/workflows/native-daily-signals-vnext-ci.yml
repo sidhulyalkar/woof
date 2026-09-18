@@ -1,0 +1,63 @@
+name: Native Daily Signals vNext CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/src/navigation/AppNavigator.tsx'
+      - 'apps/mobile/src/screens/TodayScreen.tsx'
+      - 'apps/mobile/src/screens/DailySignalsScreen.tsx'
+      - '.github/scripts/assert-native-daily-signals-vnext.py'
+      - '.github/workflows/native-daily-signals-vnext-ci.yml'
+      - 'docs/NATIVE_DAILY_SIGNALS_VNEXT_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-daily-signals-vnext-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+
+jobs:
+  qualify:
+    name: Sparse native observation capture authority
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Check focused formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/mobile/src/navigation/AppNavigator.tsx
+          apps/mobile/src/screens/TodayScreen.tsx
+          apps/mobile/src/screens/DailySignalsScreen.tsx
+          .github/workflows/native-daily-signals-vnext-ci.yml
+          docs/NATIVE_DAILY_SIGNALS_VNEXT_V1.md
+
+      - name: Reject whitespace errors
+        run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
+
+      - name: Type-check mobile
+        run: pnpm --filter @woof/mobile type-check
+
+      - name: Lint mobile
+        run: pnpm --filter @woof/mobile lint
+
+      - name: Enforce sparse-capture source contract
+        run: python .github/scripts/assert-native-daily-signals-vnext.py
