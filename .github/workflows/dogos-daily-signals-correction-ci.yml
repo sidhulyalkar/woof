@@ -73,16 +73,38 @@ jobs:
         run: pnpm --filter @woof/database db:migrate:deploy
 
       - name: Check focused formatting
-        run: >-
-          pnpm exec prettier --check
-          apps/api/src/intelligence/daily-signals-correction.service.ts
-          apps/api/src/intelligence/dto/daily-signals-correction.dto.ts
-          apps/api/src/intelligence/daily-signals-correction.integration.spec.ts
-          apps/api/src/intelligence/intelligence.controller.ts
-          apps/api/src/intelligence/intelligence.module.ts
-          .github/scripts/assert-daily-signals-correction-authority.py
-          .github/workflows/dogos-daily-signals-correction-ci.yml
-          docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/intelligence/daily-signals-correction.service.ts \
+            apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+            apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+            apps/api/src/intelligence/intelligence.controller.ts \
+            apps/api/src/intelligence/intelligence.module.ts \
+            .github/workflows/dogos-daily-signals-correction-ci.yml \
+            docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md
+          if ! git diff --quiet -- \
+            apps/api/src/intelligence/daily-signals-correction.service.ts \
+            apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+            apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+            apps/api/src/intelligence/intelligence.controller.ts \
+            apps/api/src/intelligence/intelligence.module.ts \
+            .github/workflows/dogos-daily-signals-correction-ci.yml \
+            docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md
+          then
+            git diff -- \
+              apps/api/src/intelligence/daily-signals-correction.service.ts \
+              apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+              apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+              apps/api/src/intelligence/intelligence.controller.ts \
+              apps/api/src/intelligence/intelligence.module.ts \
+              .github/workflows/dogos-daily-signals-correction-ci.yml \
+              docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md | head -c 60000
+            echo 'Correction files differ from canonical Prettier output.' >&2
+            exit 1
+          fi
+
+      - name: Parse correction source sentry
+        run: python -m py_compile .github/scripts/assert-daily-signals-correction-authority.py
 
       - name: Reject whitespace errors
         run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
