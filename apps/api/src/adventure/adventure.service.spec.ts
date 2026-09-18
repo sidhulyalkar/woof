@@ -63,6 +63,7 @@ type CareEventsHarness = {
   record: jest.Mock;
   recordQuestInteraction: jest.Mock;
   getRecentSelectedQuestContext: jest.Mock;
+  getAuthorizedEvent: jest.Mock;
 };
 
 describe('AdventureService', () => {
@@ -79,6 +80,7 @@ describe('AdventureService', () => {
       record: jest.fn().mockResolvedValue(receipt()),
       recordQuestInteraction: jest.fn().mockResolvedValue({ id: 'interaction-1' }),
       getRecentSelectedQuestContext: jest.fn().mockResolvedValue(null),
+      getAuthorizedEvent: jest.fn(),
     };
 
     service = new AdventureService(
@@ -157,6 +159,25 @@ describe('AdventureService', () => {
         }),
       })
     );
+  });
+
+  it('returns a bounded policy-versioned learning receipt for a fresh completion', async () => {
+    const result = await service.completeQuest(
+      'user-1',
+      quest.id,
+      dto({ dogExperience: 'loved_it', ownerExperience: 'a_lot_today' })
+    );
+
+    expect(result.learningReceipt).toEqual(
+      expect.objectContaining({
+        policyVersion: 'adventure-learning-v2',
+        headline: 'Worth remembering.',
+        dogSignal: expect.stringContaining('positive fit signal for learning'),
+        humanSignal: expect.stringContaining("separate from your dog's preference"),
+        qualifier: expect.stringContaining('not a permanent preference'),
+      })
+    );
+    expect(careHarness.getAuthorizedEvent).not.toHaveBeenCalled();
   });
 
   it('treats not-their-thing as Bond learning instead of inflating the attempted pathway', async () => {
@@ -280,16 +301,105 @@ describe('AdventureService', () => {
 
   it('uses an idempotent retry to repair interaction telemetry without implying new XP', async () => {
     careHarness.record.mockResolvedValue(receipt({ duplicate: true, bondXp: 17 }));
+    careHarness.getAuthorizedEvent.mockResolvedValue({
+      id: 'care-1',
+      userId: 'user-1',
+      petId: 'pet-1',
+      eventType: 'QUEST_LEARN',
+      pathway: 'LEARN',
+      occurredAt: '2026-08-21T12:00:00.000Z',
+      source: 'QUEST_ENGINE',
+      evidenceType: 'SELF_REPORT',
+      evidenceConfidence: 0.68,
+      context: { originalPathway: 'LEARN' },
+      outcome: {
+        dogExperience: 'comfortable',
+        ownerExperience: 'fine',
+        safeOptOut: false,
+      },
+      dedupeKey: 'quest:quest-1',
+      visibility: 'PRIVATE',
+    });
 
     const result = await service.completeQuest('user-1', quest.id, dto());
 
     expect(result.reward.duplicate).toBe(true);
+    expect(careHarness.getAuthorizedEvent).toHaveBeenCalledWith('user-1', 'care-1');
     expect(careHarness.recordQuestInteraction).toHaveBeenCalledWith(
       expect.objectContaining({ interaction: 'COMPLETED' })
     );
     expect(prismaHarness.telemetry.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ data: expect.objectContaining({ duplicate: true }) }),
+      })
+    );
+  });
+
+  it('derives duplicate receipt semantics from the persisted outcome, never retry answers', async () => {
+    careHarness.record.mockResolvedValue(receipt({ duplicate: true, bondXp: 17, pathway: 'LEARN' }));
+    careHarness.getAuthorizedEvent.mockResolvedValue({
+      id: 'care-1',
+      userId: 'user-1',
+      petId: 'pet-1',
+      eventType: 'QUEST_LEARN',
+      pathway: 'LEARN',
+      occurredAt: '2026-08-21T12:00:00.000Z',
+      source: 'QUEST_ENGINE',
+      evidenceType: 'SELF_REPORT',
+      evidenceConfidence: 0.68,
+      context: { originalPathway: 'LEARN' },
+      outcome: {
+        dogExperience: 'loved_it',
+        ownerExperience: 'fine',
+        safeOptOut: false,
+      },
+      dedupeKey: 'quest:quest-1',
+      visibility: 'PRIVATE',
+    });
+
+    const result = await service.completeQuest(
+      'user-1',
+      quest.id,
+      dto({
+        dogExperience: 'not_their_thing',
+        ownerExperience: 'a_lot_today',
+        safeOptOut: true,
+      })
+    );
+
+    expect(result.message).toBe('That one is worth remembering.');
+    expect(result.learningReceipt).toEqual(
+      expect.objectContaining({
+        headline: 'Worth remembering.',
+        dogSignal: expect.stringContaining('positive fit signal for learning'),
+        humanSignal: null,
+      })
+    );
+    expect(careHarness.recordQuestInteraction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathway: 'LEARN',
+        context: expect.objectContaining({
+          originalPathway: 'LEARN',
+          rewardPathway: 'LEARN',
+          dogExperience: 'loved_it',
+          ownerExperience: 'fine',
+          safeOptOut: false,
+        }),
+      })
+    );
+    expect(prismaHarness.telemetry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event: 'QUEST_COMPLETED',
+          data: expect.objectContaining({
+            pathway: 'LEARN',
+            originalPathway: 'LEARN',
+            rewardPathway: 'LEARN',
+            dogExperience: 'loved_it',
+            ownerExperience: 'fine',
+            duplicate: true,
+          }),
+        }),
       })
     );
   });
