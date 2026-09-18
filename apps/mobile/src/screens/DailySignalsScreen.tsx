@@ -248,9 +248,9 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
       <Text style={styles.eyebrow}>PRIVATE CHECK-IN</Text>
       <Text style={styles.title}>Anything different today?</Text>
       <Text style={styles.subtitle}>
-        Only mark what you actually noticed. Skipping the rest leaves it unknown. This is not a
-        diagnosis or health score.
+        Only mark what you actually noticed. Skipping the rest leaves it unknown.
       </Text>
+      <Text style={styles.boundaryText}>This is not a diagnosis or health score.</Text>
 
       {contexts.length === 0 ? (
         <View style={styles.noticeCard}>
@@ -567,6 +567,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   subtitle: { marginTop: 8, color: colors.text.secondary, fontSize: 14, lineHeight: 21 },
+  boundaryText: { marginTop: 5, color: colors.text.secondary, fontSize: 12, lineHeight: 18 },
   contextSection: {
     marginTop: 20,
     paddingVertical: 14,
