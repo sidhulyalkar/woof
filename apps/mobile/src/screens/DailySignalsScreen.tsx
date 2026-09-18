@@ -116,8 +116,9 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   const [contexts, setContexts] = useState<HouseholdPetContext[]>([]);
   const [selectedContextKey, setSelectedContextKey] = useState<string | null>(null);
   const [answers, setAnswers] = useState<DailySignalsAnswers>({});
-  const [expandedDimension, setExpandedDimension] =
-    useState<keyof DailySignalsAnswers | null>(null);
+  const [expandedDimension, setExpandedDimension] = useState<keyof DailySignalsAnswers | null>(
+    null
+  );
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
@@ -157,8 +158,7 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
     }, [load])
   );
 
-  const selected =
-    contexts.find((context) => contextKey(context) === selectedContextKey) ?? null;
+  const selected = contexts.find((context) => contextKey(context) === selectedContextKey) ?? null;
   const answeredCount = useMemo(
     () => Object.values(answers).filter((value) => value !== undefined).length,
     [answers]
@@ -471,11 +471,7 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
 
               {success && (
                 <View style={styles.successCard} accessibilityRole="summary">
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={22}
-                    color={colors.success.dark}
-                  />
+                  <Ionicons name="checkmark-circle-outline" size={22} color={colors.success.dark} />
                   <View style={styles.successCopy}>
                     <Text style={styles.successTitle}>
                       Saved {success.savedCount}{' '}
@@ -522,11 +518,7 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
               </Pressable>
 
               {onDone && (
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.nothingButton}
-                  onPress={onDone}
-                >
+                <Pressable accessibilityRole="button" style={styles.nothingButton} onPress={onDone}>
                   <Text style={styles.nothingButtonText}>
                     {answeredCount === 0 ? 'Nothing to add today' : 'Leave without saving'}
                   </Text>
