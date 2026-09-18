@@ -41,9 +41,9 @@ describe('parseCanonicalAdventureOutcome', () => {
     { dogExperience: 'comfortable', ownerExperience: 'unknown' },
     { dogExperience: 'comfortable', ownerExperience: 'fine', safeOptOut: 'yes' },
   ])('fails closed for malformed persisted outcome %#', (value) => {
-    expect(parseCanonicalAdventureOutcome(value as Record<string, unknown> | null | undefined)).toBe(
-      null
-    );
+    expect(
+      parseCanonicalAdventureOutcome(value as Record<string, unknown> | null | undefined)
+    ).toBe(null);
   });
 });
 
