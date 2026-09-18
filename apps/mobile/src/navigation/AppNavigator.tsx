@@ -51,7 +51,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   CompanionHome: undefined;
   CommunityStandalone: undefined;
-  DailySignals: undefined;
+  DailySignals: { preferredPetId?: string } | undefined;
   Events: undefined;
   Map: undefined;
   Pets: undefined;
@@ -126,10 +126,16 @@ const secondaryScreenOptions = {
 
 const keyboardAvoidanceBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
 
-function DailySignalsKeyboardSafeScreen() {
+function DailySignalsKeyboardSafeScreen({
+  navigation,
+  route,
+}: StackScreenProps<RootStackParamList, 'DailySignals'>) {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={keyboardAvoidanceBehavior}>
-      <DailySignalsScreen />
+      <DailySignalsScreen
+        preferredPetId={route.params?.preferredPetId}
+        onDone={() => navigation.goBack()}
+      />
     </KeyboardAvoidingView>
   );
 }
