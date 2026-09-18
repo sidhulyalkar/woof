@@ -336,7 +336,9 @@ describe('AdventureService', () => {
   });
 
   it('derives duplicate receipt semantics from the persisted outcome, never retry answers', async () => {
-    careHarness.record.mockResolvedValue(receipt({ duplicate: true, bondXp: 17, pathway: 'LEARN' }));
+    careHarness.record.mockResolvedValue(
+      receipt({ duplicate: true, bondXp: 17, pathway: 'LEARN' })
+    );
     careHarness.getAuthorizedEvent.mockResolvedValue({
       id: 'care-1',
       userId: 'user-1',
