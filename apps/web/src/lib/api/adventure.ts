@@ -61,6 +61,15 @@ export type CompleteQuestInput = {
   note?: string;
 };
 
+export type AdventureLearningReceipt = {
+  policyVersion: string;
+  headline: string;
+  dogSignal: string;
+  humanSignal: string | null;
+  nextRecommendationEffect: string;
+  qualifier: string;
+};
+
 export type QuestCompletion = {
   reward: {
     careEventId: string;
@@ -71,6 +80,7 @@ export type QuestCompletion = {
     explanation: string;
     duplicate: boolean;
   };
+  learningReceipt: AdventureLearningReceipt | null;
   message: string;
 };
 

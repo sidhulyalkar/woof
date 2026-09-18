@@ -12,7 +12,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { adventureApi, type AdventureDashboard, type AdventureQuest } from '../api/adventure';
+import {
+  adventureApi,
+  type AdventureDashboard,
+  type AdventureQuest,
+  type QuestCompletion,
+} from '../api/adventure';
 import { RelationshipScopeBar } from '../components/relationship/RelationshipScopeBar';
 import { colors } from '../theme/tokens';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
@@ -25,6 +30,9 @@ type Props = CompositeScreenProps<
 
 type DogExperience = 'loved_it' | 'comfortable' | 'not_their_thing';
 type OwnerExperience = 'great' | 'fine' | 'a_lot_today';
+
+type OutcomeReceipt =
+  { status: 'saved'; result: QuestCompletion } | { status: 'error'; message: string };
 
 const dogChoices: {
   value: DogExperience;
@@ -83,7 +91,7 @@ export default function TodayScreen({ navigation }: Props) {
   const [ownerExperience, setOwnerExperience] = useState<OwnerExperience | null>(null);
   const [safeOptOut, setSafeOptOut] = useState(false);
   const [savingOutcome, setSavingOutcome] = useState(false);
-  const [receipt, setReceipt] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<OutcomeReceipt | null>(null);
 
   const load = useCallback(
     async (asRefresh = false) => {
@@ -166,18 +174,16 @@ export default function TodayScreen({ navigation }: Props) {
         safeOptOut,
       });
       if (completionGeneration !== requestGenerationRef.current) return;
-      const reward = result.reward.duplicate
-        ? 'This outcome was already saved.'
-        : result.reward.bondXp > 0
-          ? ` +${result.reward.bondXp} Bond XP.`
-          : '';
-      setReceipt(`${result.message}${reward}`);
+      setReceipt({ status: 'saved', result });
       setActiveQuestId(null);
       closeOutcome();
       await load(true);
     } catch {
       if (completionGeneration !== requestGenerationRef.current) return;
-      setReceipt('Woof could not save that outcome yet. You can try closing the loop again.');
+      setReceipt({
+        status: 'error',
+        message: 'Woof could not save that outcome yet. You can try closing the loop again.',
+      });
     } finally {
       setSavingOutcome(false);
     }
@@ -243,10 +249,64 @@ export default function TodayScreen({ navigation }: Props) {
         </View>
       )}
 
-      {receipt && (
+      {receipt?.status === 'error' && (
+        <View style={styles.noticeCard} accessibilityRole="alert">
+          <Ionicons name="cloud-offline-outline" size={20} color={colors.gray[600]} />
+          <Text style={styles.noticeText}>{receipt.message}</Text>
+        </View>
+      )}
+
+      {receipt?.status === 'saved' && (
         <View style={styles.receiptCard} accessibilityRole="summary">
-          <Ionicons name="sparkles-outline" size={20} color={colors.primary[700]} />
-          <Text style={styles.receiptText}>{receipt}</Text>
+          <View style={styles.receiptHeader}>
+            <Ionicons name="sparkles-outline" size={20} color={colors.primary[700]} />
+            <View style={styles.receiptHeaderCopy}>
+              <Text style={styles.eyebrow}>WHAT WOOF LEARNED</Text>
+              <Text style={styles.receiptHeadline}>
+                {receipt.result.learningReceipt?.headline ?? receipt.result.message}
+              </Text>
+            </View>
+          </View>
+
+          {receipt.result.learningReceipt ? (
+            <>
+              <View style={styles.receiptSection}>
+                <Text style={styles.receiptLabel}>YOUR DOG</Text>
+                <Text style={styles.receiptText}>{receipt.result.learningReceipt.dogSignal}</Text>
+              </View>
+
+              {receipt.result.learningReceipt.humanSignal && (
+                <View style={styles.receiptSection}>
+                  <Text style={styles.receiptLabel}>YOU</Text>
+                  <Text style={styles.receiptText}>
+                    {receipt.result.learningReceipt.humanSignal}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.receiptSection}>
+                <Text style={styles.receiptLabel}>WHAT MAY CHANGE</Text>
+                <Text style={styles.receiptText}>
+                  {receipt.result.learningReceipt.nextRecommendationEffect}
+                </Text>
+              </View>
+
+              <Text style={styles.receiptQualifier}>
+                {receipt.result.learningReceipt.qualifier}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.receiptText}>{receipt.result.message}</Text>
+          )}
+
+          <Text style={styles.receiptReward}>
+            {receipt.result.reward.duplicate
+              ? 'Already saved · no additional Bond XP'
+              : receipt.result.reward.bondXp > 0
+                ? `+${receipt.result.reward.bondXp} Bond XP`
+                : 'No Bond XP this time'}
+            {' · '}Game progress, not a wellbeing score.
+          </Text>
         </View>
       )}
 
@@ -503,15 +563,45 @@ const styles = StyleSheet.create({
   noticeText: { color: colors.text.secondary, fontSize: 14, lineHeight: 20 },
   receiptCard: {
     marginTop: 18,
-    padding: 16,
-    borderRadius: 18,
-    flexDirection: 'row',
-    gap: 10,
+    padding: 18,
+    borderRadius: 20,
+    gap: 12,
     backgroundColor: colors.primary[50],
     borderWidth: 1,
     borderColor: colors.primary[200],
   },
-  receiptText: { flex: 1, color: colors.primary[900], fontSize: 14, lineHeight: 20 },
+  receiptHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  receiptHeaderCopy: { flex: 1 },
+  receiptHeadline: {
+    marginTop: 3,
+    color: colors.primary[900],
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '800',
+  },
+  receiptSection: { gap: 3 },
+  receiptLabel: {
+    color: colors.text.secondary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  receiptText: { color: colors.primary[900], fontSize: 14, lineHeight: 20 },
+  receiptQualifier: {
+    paddingTop: 2,
+    color: colors.text.secondary,
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  receiptReward: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.primary[200],
+    color: colors.text.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+  },
   primaryCard: {
     marginTop: 20,
     padding: 20,

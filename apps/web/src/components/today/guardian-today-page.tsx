@@ -24,7 +24,12 @@ import { PetSwitcher } from '@/components/pets/pet-switcher';
 import { RelationshipTools } from '@/components/today/relationship-tools';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { adventureApi, type AdventureQuest, type WellbeingPathway } from '@/lib/api/adventure';
+import {
+  adventureApi,
+  type AdventureLearningReceipt,
+  type AdventureQuest,
+  type WellbeingPathway,
+} from '@/lib/api/adventure';
 
 const pathwayIcons: Record<WellbeingPathway, typeof PawPrint> = {
   MOVE: Footprints,
@@ -51,6 +56,7 @@ const ownerChoices = [
 
 type CompletionReceipt = {
   message: string;
+  learningReceipt: AdventureLearningReceipt | null;
   rewardCopy: string;
   rewardExplanation: string;
   duplicate: boolean;
@@ -145,6 +151,7 @@ export default function HomePage() {
           : 'No Bond XP this time';
       setCompletionReceipt({
         message: result.message,
+        learningReceipt: result.learningReceipt,
         rewardCopy,
         rewardExplanation: result.reward.explanation,
         duplicate: result.reward.duplicate,
@@ -482,21 +489,55 @@ export default function HomePage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                     <PawPrint className="h-5 w-5" aria-hidden="true" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="eyebrow">What Woof learned</p>
-                    <p className="mt-1 font-semibold leading-relaxed">
-                      {completionReceipt.message}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      {completionReceipt.duplicate
-                        ? 'This outcome was already in your shared history, so Woof did not count it twice.'
-                        : `This outcome is now part of ${data.pet.name}'s recent shared pattern and can influence future quest ranking.`}
+                    <p className="mt-1 text-lg font-bold leading-relaxed">
+                      {completionReceipt.learningReceipt?.headline ?? completionReceipt.message}
                     </p>
                   </div>
                 </div>
 
+                {completionReceipt.learningReceipt ? (
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Your dog
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        {completionReceipt.learningReceipt.dogSignal}
+                      </p>
+                    </div>
+
+                    {completionReceipt.learningReceipt.humanSignal && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          You
+                        </p>
+                        <p className="mt-1 text-sm leading-relaxed">
+                          {completionReceipt.learningReceipt.humanSignal}
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        What may change
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        {completionReceipt.learningReceipt.nextRecommendationEffect}
+                      </p>
+                    </div>
+
+                    <p className="text-xs italic leading-relaxed text-muted-foreground">
+                      {completionReceipt.learningReceipt.qualifier}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-relaxed">{completionReceipt.message}</p>
+                )}
+
                 <div className="mt-4 rounded-xl border border-border/70 bg-background/55 p-3">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       Game progress
                     </p>
@@ -505,7 +546,7 @@ export default function HomePage() {
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    {completionReceipt.rewardExplanation}
+                    Game progress is not a wellbeing score. {completionReceipt.rewardExplanation}
                   </p>
                 </div>
 
