@@ -32,8 +32,7 @@ type DogExperience = 'loved_it' | 'comfortable' | 'not_their_thing';
 type OwnerExperience = 'great' | 'fine' | 'a_lot_today';
 
 type OutcomeReceipt =
-  | { status: 'saved'; result: QuestCompletion }
-  | { status: 'error'; message: string };
+  { status: 'saved'; result: QuestCompletion } | { status: 'error'; message: string };
 
 const dogChoices: {
   value: DogExperience;
