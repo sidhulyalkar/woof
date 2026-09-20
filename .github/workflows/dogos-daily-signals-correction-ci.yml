@@ -1,0 +1,135 @@
+name: dogOS Daily Signals Correction CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/intelligence/daily-signals-correction.service.ts'
+      - 'apps/api/src/intelligence/dto/daily-signals-correction.dto.ts'
+      - 'apps/api/src/intelligence/daily-signals-correction.integration.spec.ts'
+      - 'apps/api/src/intelligence/intelligence.controller.ts'
+      - 'apps/api/src/intelligence/intelligence.module.ts'
+      - '.github/scripts/assert-daily-signals-correction-authority.py'
+      - '.github/workflows/dogos-daily-signals-correction-ci.yml'
+      - 'docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dogos-daily-signals-correction-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.20.2'
+  PNPM_VERSION: '8.15.1'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_test
+  JWT_SECRET: ci-only-daily-signals-correction-secret-1234567890
+  CORS_ORIGIN: 'https://daily-signals-correction-ci.example.test'
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  qualify:
+    name: Append-only structured correction authority
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply canonical database migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check focused formatting
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/intelligence/daily-signals-correction.service.ts \
+            apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+            apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+            apps/api/src/intelligence/intelligence.controller.ts \
+            apps/api/src/intelligence/intelligence.module.ts \
+            .github/workflows/dogos-daily-signals-correction-ci.yml \
+            docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md
+          if ! git diff --quiet -- \
+            apps/api/src/intelligence/daily-signals-correction.service.ts \
+            apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+            apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+            apps/api/src/intelligence/intelligence.controller.ts \
+            apps/api/src/intelligence/intelligence.module.ts \
+            .github/workflows/dogos-daily-signals-correction-ci.yml \
+            docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md
+          then
+            git diff -- \
+              apps/api/src/intelligence/daily-signals-correction.service.ts \
+              apps/api/src/intelligence/dto/daily-signals-correction.dto.ts \
+              apps/api/src/intelligence/daily-signals-correction.integration.spec.ts \
+              apps/api/src/intelligence/intelligence.controller.ts \
+              apps/api/src/intelligence/intelligence.module.ts \
+              .github/workflows/dogos-daily-signals-correction-ci.yml \
+              docs/DOGOS_DAILY_SIGNALS_CORRECTION_V1.md | head -c 60000
+            echo 'Correction files differ from canonical Prettier output.' >&2
+            exit 1
+          fi
+
+      - name: Parse correction source sentry
+        run: python -m py_compile .github/scripts/assert-daily-signals-correction-authority.py
+
+      - name: Reject whitespace errors
+        run: git diff --check ${{ github.event.pull_request.base.sha }}...HEAD
+
+      - name: Enforce correction source contract
+        run: python .github/scripts/assert-daily-signals-correction-authority.py
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Lint correction surfaces
+        run: >-
+          pnpm --filter @woof/api exec eslint --max-warnings=0 --report-unused-disable-directives
+          src/intelligence/daily-signals-correction.service.ts
+          src/intelligence/dto/daily-signals-correction.dto.ts
+          src/intelligence/daily-signals-correction.integration.spec.ts
+          src/intelligence/intelligence.controller.ts
+          src/intelligence/intelligence.module.ts
+
+      - name: Run correction convergence and privacy integration tests
+        run: >-
+          pnpm --filter @woof/api exec jest --runInBand
+          src/intelligence/daily-signals-correction.integration.spec.ts
+          src/intelligence/daily-signals.integration.spec.ts
+          src/intelligence/intelligence-projection.integration.spec.ts
+
+      - name: Build production API
+        run: pnpm --filter @woof/api build
