@@ -3,16 +3,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TrustSafetyService } from '../trust-safety/trust-safety.service';
 import { CaregiverOperationalStore } from './caregiver-operational.store';
 import { CaregiverService } from './caregiver.service';
+import type { IssueCaregiverGrantDto } from './dto/caregiver.dto';
 import { PetCapabilityAuthority } from './pet-capability-authority';
 
 const now = new Date('2026-09-19T12:00:00.000Z');
 const expiresAt = new Date('2026-09-19T13:00:00.000Z');
 
-function dto(requestKey = 'caregiver-replay-key') {
+function dto(requestKey = 'caregiver-replay-key'): IssueCaregiverGrantDto {
   return {
     petId: 'pet-1',
     recipientUserId: 'caregiver-1',
-    capabilities: ['VIEW_TODAY'] as const,
+    capabilities: ['VIEW_TODAY'],
     expiresAt: expiresAt.toISOString(),
     requestKey,
   };
