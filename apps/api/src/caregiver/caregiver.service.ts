@@ -60,21 +60,11 @@ export class CaregiverService {
       throw new ForbiddenException('Caregiver access cannot be created for this relationship');
     }
 
-    const replay = await this.store.getByIssuerRequestKey(issuerUserId, requestKey);
-    if (replay) {
-      if (this.matchesIssuance(replay, dto, capabilities, expiresAt)) {
-        return { ...this.grantView(replay, now), replayed: true };
-      }
-      throw new ConflictException('Request key was already used for a different caregiver grant');
-    }
-
-    const existing = await this.store.findLiveGrantForRecipientPet(dto.recipientUserId, dto.petId);
-    if (existing && effectiveCaregiverStatus(existing, now) !== 'EXPIRED') {
-      throw new ConflictException(
-        'This caregiver already has pending or active access to this pet'
-      );
-    }
-
+    // The operational store owns the serialized issuance decision. Do not
+    // perform replay/live-grant reads before it: under concurrent exact retries,
+    // a grant can commit between those reads and turn a valid replay into a
+    // spurious live-grant 409. A transactional no-op is resolved semantically
+    // below after the shared pet/recipient advisory lock has made the decision.
     const grantId = randomUUID();
     try {
       const created = await this.store.issueGrant({
