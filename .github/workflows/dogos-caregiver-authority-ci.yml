@@ -173,7 +173,12 @@ jobs:
         run: pnpm --filter @woof/api type-check
 
       - name: Run caregiver policy + authority unit contracts
-        run: pnpm --filter @woof/api exec jest src/caregiver/caregiver.policy.spec.ts src/caregiver/pet-capability-authority.spec.ts --runInBand
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/caregiver/caregiver.policy.spec.ts
+          src/caregiver/pet-capability-authority.spec.ts
+          src/caregiver/caregiver.service.spec.ts
+          --runInBand
 
       - name: Run caregiver PostgreSQL authority + concurrency contracts
         run: pnpm --filter @woof/api exec jest src/caregiver/caregiver-operational.store.integration.spec.ts --runInBand
