@@ -156,16 +156,50 @@ describe('MeetupProposalsService outcome authority integration', () => {
     ).rejects.toThrow('Meetup feedback opens after the suggested meetup time');
   });
 
-  it('guards the pending acceptance transition under concurrency', async () => {
+  it('converges duplicate acceptance retries at one guarded transition', async () => {
     const future = new Date(Date.now() + 60 * 60 * 1000);
     const { proposal, recipientId } = await createProposal('pending', future);
-    const results = await Promise.allSettled([
+    const results = await Promise.all([
       service.updateStatus(proposal.id, recipientId, { status: 'accepted' as never }),
       service.updateStatus(proposal.id, recipientId, { status: 'accepted' as never }),
     ]);
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => result.status === 'accepted')).toBe(true);
     const shared = await prisma.meetupProposal.findUniqueOrThrow({ where: { id: proposal.id } });
     expect(shared.status).toBe('accepted');
+  });
+
+  it('never leaves a positive canonical outcome on a proposal that loses a cancel race', async () => {
+    const { proposal, proposerId } = await createProposal();
+    const results = await Promise.allSettled([
+      service.complete(proposal.id, proposerId, {
+        occurred: true,
+        dogExperience: 'comfortable' as never,
+        ownerExperience: 'fine' as never,
+        meetAgain: 'maybe' as never,
+        checklistOk: true,
+      }),
+      service.cancel(proposal.id, proposerId),
+    ]);
+
+    expect(results.some((result) => result.status === 'fulfilled')).toBe(true);
+    const [shared, outcome] = await Promise.all([
+      prisma.meetupProposal.findUniqueOrThrow({ where: { id: proposal.id } }),
+      prisma.meetupOutcome.findUnique({
+        where: {
+          proposalId_participantId: {
+            proposalId: proposal.id,
+            participantId: proposerId,
+          },
+        },
+      }),
+    ]);
+
+    if (shared.status === 'cancelled') {
+      expect(outcome).toBeNull();
+    } else {
+      expect(shared.status).toBe('completed');
+      expect(outcome?.occurred).toBe(true);
+    }
   });
 });

@@ -104,7 +104,7 @@ export class MeetupProposalsService {
       select: SHARED_PROPOSAL_SELECT,
     });
 
-    await this.recordTelemetry(proposerId, 'MEETUP_PROPOSED', {
+    await this.recordTelemetryBestEffort(proposerId, 'MEETUP_PROPOSED', {
       proposalId: proposal.id,
       recipientId: dto.recipientId,
       conversationId: directConversation.id,
@@ -191,21 +191,23 @@ export class MeetupProposalsService {
       },
       data: { status: dto.status },
     });
-    if (transition.count !== 1) {
-      throw new ConflictException('This meetup proposal is no longer pending');
-    }
 
     const updated = await this.prisma.meetupProposal.findUnique({
       where: { id },
       select: SHARED_PROPOSAL_SELECT,
     });
     if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
+    if (transition.count !== 1 && updated.status !== dto.status) {
+      throw new ConflictException('This meetup proposal already changed');
+    }
 
-    await this.recordTelemetryBestEffort(
-      userId,
-      dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
-      { proposalId: id, otherUserId: proposal.proposerId }
-    );
+    if (transition.count === 1) {
+      await this.recordTelemetryBestEffort(
+        userId,
+        dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
+        { proposalId: id, otherUserId: proposal.proposerId }
+      );
+    }
     return updated;
   }
 
@@ -231,14 +233,16 @@ export class MeetupProposalsService {
       const result = await this.prisma.$transaction(async (tx) => {
         const createdOutcome = await tx.meetupOutcome.create({ data: normalized });
 
+        let completionTransitionCount = 0;
         if (createdOutcome.occurred && proposal.status === MeetupProposalStatus.ACCEPTED) {
-          await tx.meetupProposal.updateMany({
+          const transition = await tx.meetupProposal.updateMany({
             where: { id, status: MeetupProposalStatus.ACCEPTED },
             data: {
               status: MeetupProposalStatus.COMPLETED,
               occurredAt: proposal.occurredAt ?? new Date(),
             },
           });
+          completionTransitionCount = transition.count;
         }
 
         const latestProposal = await tx.meetupProposal.findUnique({
@@ -246,6 +250,14 @@ export class MeetupProposalsService {
           select: SHARED_PROPOSAL_SELECT,
         });
         if (!latestProposal) throw new NotFoundException(`Meetup proposal ${id} not found`);
+        if (
+          createdOutcome.occurred &&
+          proposal.status === MeetupProposalStatus.ACCEPTED &&
+          completionTransitionCount !== 1 &&
+          latestProposal.status !== MeetupProposalStatus.COMPLETED
+        ) {
+          throw new ConflictException('Meetup coordination changed while feedback was being saved');
+        }
         return { outcome: createdOutcome, proposal: latestProposal };
       });
       outcome = result.outcome;
@@ -294,19 +306,25 @@ export class MeetupProposalsService {
   }
 
   async cancel(id: string, userId: string) {
-    const proposal = await this.findOneForUser(id, userId);
-    if (
-      proposal.status === MeetupProposalStatus.COMPLETED ||
-      proposal.status === MeetupProposalStatus.DECLINED
-    ) {
-      throw new BadRequestException('This meetup can no longer be cancelled');
-    }
-    const updated = await this.prisma.meetupProposal.update({
-      where: { id },
+    await this.findOneForUser(id, userId);
+    const transition = await this.prisma.meetupProposal.updateMany({
+      where: {
+        id,
+        status: { in: [MeetupProposalStatus.PENDING, MeetupProposalStatus.ACCEPTED] },
+      },
       data: { status: MeetupProposalStatus.CANCELLED },
+    });
+    const updated = await this.prisma.meetupProposal.findUnique({
+      where: { id },
       select: SHARED_PROPOSAL_SELECT,
     });
-    await this.recordTelemetryBestEffort(userId, 'MEETUP_CANCELLED', { proposalId: id });
+    if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
+    if (transition.count !== 1 && updated.status !== MeetupProposalStatus.CANCELLED) {
+      throw new ConflictException('This meetup can no longer be cancelled');
+    }
+    if (transition.count === 1) {
+      await this.recordTelemetryBestEffort(userId, 'MEETUP_CANCELLED', { proposalId: id });
+    }
     return updated;
   }
 

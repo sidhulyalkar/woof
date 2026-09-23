@@ -34,7 +34,9 @@ responses because their participant provenance cannot be recovered safely.
 - exact retries converge to the existing outcome;
 - divergent retries fail with conflict instead of overwriting;
 - concurrent same-participant submissions cannot produce two canonical outcomes;
-- acceptance uses a guarded `pending -> accepted|declined` transition.
+- acceptance uses a guarded `pending -> accepted|declined` transition and exact same-status retries converge;
+- cancellation uses a guarded active-state transition and exact retries converge;
+- completion and cancellation cannot race into a contradictory `cancelled + occurred=true` state.
 
 ## Shared-state semantics
 
