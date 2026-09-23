@@ -1,0 +1,114 @@
+name: dogOS Meetup Outcome Authority CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/meetup-proposals/**'
+      - 'apps/web/src/app/meetups/**'
+      - 'apps/web/src/lib/api/meetup-proposals.ts'
+      - 'apps/web/src/lib/api/meetup-proposals.spec.ts'
+      - 'packages/database/prisma/schema.prisma'
+      - 'packages/database/prisma/migrations/**'
+      - 'docs/DOGOS_MEETUP_OUTCOME_AUTHORITY_V1.md'
+      - '.github/workflows/dogos-meetup-outcome-authority-ci.yml'
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_meetup_ci
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woof_meetup_ci
+  JWT_SECRET: ci-only-test-secret
+  NODE_ENV: test
+  ML_SERVICE_ENABLED: 'false'
+
+jobs:
+  meetup-outcome-authority:
+    name: Participant-scoped meetup outcome qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woof_meetup_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woof_meetup_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 8.15.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.20.2
+          cache: pnpm
+
+      - name: Install from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate canonical Prisma schema
+        shell: bash
+        run: |
+          pnpm --filter @woof/database exec prisma validate --schema prisma/schema.prisma
+          pnpm --filter @woof/database exec prisma format --schema prisma/schema.prisma
+          git diff --exit-code -- packages/database/prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: pnpm --filter @woof/database db:generate
+
+      - name: Apply migrations
+        run: pnpm --filter @woof/database db:migrate:deploy
+
+      - name: Check meetup authority formatting
+        run: >-
+          pnpm exec prettier --check
+          apps/api/src/meetup-proposals/meetup-proposals.service.ts
+          apps/api/src/meetup-proposals/meetup-proposals.controller.ts
+          apps/api/src/meetup-proposals/dto/create-meetup-proposal.dto.ts
+          apps/api/src/meetup-proposals/dto/update-meetup-proposal.dto.ts
+          apps/api/src/meetup-proposals/meetup-proposals.outcomes.spec.ts
+          apps/api/src/meetup-proposals/meetup-proposals.outcomes.integration.spec.ts
+          apps/web/src/app/meetups/page.tsx
+          apps/web/src/lib/api/meetup-proposals.ts
+          apps/web/src/lib/api/meetup-proposals.spec.ts
+          docs/DOGOS_MEETUP_OUTCOME_AUTHORITY_V1.md
+          .github/workflows/dogos-meetup-outcome-authority-ci.yml
+
+      - name: Lint meetup authority
+        run: >-
+          pnpm --filter @woof/api exec eslint
+          'src/meetup-proposals/**/*.ts'
+          --max-warnings=0
+
+      - name: Type-check API
+        run: pnpm --filter @woof/api type-check
+
+      - name: Run meetup authority database contracts
+        run: >-
+          pnpm --filter @woof/api exec jest
+          src/meetup-proposals/meetup-proposals.outcomes.spec.ts
+          src/meetup-proposals/meetup-proposals.outcomes.integration.spec.ts
+          --runInBand
+
+      - name: Type-check Web
+        run: pnpm --filter @woof/web type-check
+
+      - name: Run Web meetup transport contract
+        run: >-
+          pnpm --filter @woof/web exec vitest run
+          src/lib/api/meetup-proposals.spec.ts

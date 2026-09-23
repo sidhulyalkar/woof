@@ -118,6 +118,19 @@ describe('MeetupProposalsService outcome authority integration', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('keeps an exact negative-outcome retry idempotent after later cancellation', async () => {
+    const { proposal, proposerId } = await createProposal();
+    const first = await service.complete(proposal.id, proposerId, { occurred: false });
+    expect(first.idempotentRetry).toBe(false);
+
+    await service.cancel(proposal.id, proposerId);
+
+    const retry = await service.complete(proposal.id, proposerId, { occurred: false });
+    expect(retry.idempotentRetry).toBe(true);
+    expect(retry.outcome.occurred).toBe(false);
+    expect(retry.proposal.status).toBe('cancelled');
+  });
+
   it('serializes concurrent same-participant submissions at the database unique key', async () => {
     const { proposal, proposerId } = await createProposal();
     const dto = {
