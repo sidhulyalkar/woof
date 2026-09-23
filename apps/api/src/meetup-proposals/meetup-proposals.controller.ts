@@ -13,10 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
-import {
-  CompleteMeetupDto,
-  UpdateMeetupProposalDto,
-} from './dto/update-meetup-proposal.dto';
+import { CompleteMeetupDto, UpdateMeetupProposalDto } from './dto/update-meetup-proposal.dto';
 import { MeetupProposalsService } from './meetup-proposals.service';
 
 @ApiTags('meetup-proposals')
@@ -61,7 +58,7 @@ export class MeetupProposalsController {
   updateStatus(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
-    @Body() dto: UpdateMeetupProposalDto,
+    @Body() dto: UpdateMeetupProposalDto
   ) {
     return this.meetupProposalsService.updateStatus(id, req.user.sub, dto);
   }
@@ -71,7 +68,7 @@ export class MeetupProposalsController {
   complete(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
-    @Body() dto: CompleteMeetupDto,
+    @Body() dto: CompleteMeetupDto
   ) {
     return this.meetupProposalsService.complete(id, req.user.sub, dto);
   }
