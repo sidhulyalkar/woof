@@ -167,6 +167,7 @@ export class MeetupProposalsService {
     }
     if (
       dto.status === MeetupProposalStatus.ACCEPTED &&
+      proposal.status === MeetupProposalStatus.PENDING &&
       proposal.suggestedTime.getTime() <= Date.now()
     ) {
       throw new BadRequestException('A meetup proposal cannot be accepted after its suggested time');
@@ -213,6 +214,17 @@ export class MeetupProposalsService {
 
   async complete(id: string, userId: string, dto: CompleteMeetupDto) {
     const proposal = await this.findOneForUser(id, userId);
+    const normalized = this.normalizeOutcome(id, userId, dto);
+    const canonicalOutcome = await this.prisma.meetupOutcome.findUnique({
+      where: { proposalId_participantId: { proposalId: id, participantId: userId } },
+    });
+    if (canonicalOutcome) {
+      if (!this.outcomeMatches(canonicalOutcome, normalized)) {
+        throw new ConflictException('You already submitted different feedback for this meetup');
+      }
+      return this.outcomeReceipt(proposal, canonicalOutcome, true);
+    }
+
     if (
       proposal.status !== MeetupProposalStatus.ACCEPTED &&
       proposal.status !== MeetupProposalStatus.COMPLETED
@@ -223,7 +235,6 @@ export class MeetupProposalsService {
       throw new BadRequestException('Meetup feedback opens after the suggested meetup time');
     }
 
-    const normalized = this.normalizeOutcome(id, userId, dto);
     let outcome: MeetupOutcome;
     let currentProposal = proposal;
     let idempotentRetry = false;
@@ -292,17 +303,7 @@ export class MeetupProposalsService {
       }
     }
 
-    return {
-      proposal: currentProposal,
-      outcome,
-      feedbackRecorded: true as const,
-      idempotentRetry,
-      reportSuggested: outcome.checklistOk === false,
-      repeatPlanningEligible:
-        outcome.occurred &&
-        outcome.checklistOk !== false &&
-        (outcome.meetAgain === 'yes' || outcome.meetAgain === 'maybe'),
-    };
+    return this.outcomeReceipt(currentProposal, outcome, idempotentRetry);
   }
 
   async cancel(id: string, userId: string) {
@@ -352,6 +353,24 @@ export class MeetupProposalsService {
         outcomes.length > 0
           ? outcomes.reduce((sum, outcome) => sum + (outcome.rating ?? 0), 0) / outcomes.length
           : 0,
+    };
+  }
+
+  private outcomeReceipt(
+    proposal: Awaited<ReturnType<MeetupProposalsService['findOneForUser']>>,
+    outcome: MeetupOutcome,
+    idempotentRetry: boolean
+  ) {
+    return {
+      proposal,
+      outcome,
+      feedbackRecorded: true as const,
+      idempotentRetry,
+      reportSuggested: outcome.checklistOk === false,
+      repeatPlanningEligible:
+        outcome.occurred &&
+        outcome.checklistOk !== false &&
+        (outcome.meetAgain === 'yes' || outcome.meetAgain === 'maybe'),
     };
   }
 
