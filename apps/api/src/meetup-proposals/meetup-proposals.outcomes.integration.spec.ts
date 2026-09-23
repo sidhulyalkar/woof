@@ -164,9 +164,9 @@ describe('MeetupProposalsService outcome authority integration', () => {
     const future = new Date(Date.now() + 60 * 60 * 1000);
     const { proposal, proposerId } = await createProposal('accepted', future);
 
-    await expect(
-      service.complete(proposal.id, proposerId, { occurred: false })
-    ).rejects.toThrow('Meetup feedback opens after the suggested meetup time');
+    await expect(service.complete(proposal.id, proposerId, { occurred: false })).rejects.toThrow(
+      'Meetup feedback opens after the suggested meetup time'
+    );
   });
 
   it('converges duplicate acceptance retries at one guarded transition', async () => {
