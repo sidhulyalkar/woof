@@ -46,7 +46,9 @@ describe('MeetupProposalsService participant-scoped outcomes', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       telemetry: { create: jest.fn().mockResolvedValue({ id: 'telemetry-1' }) },
-      $transaction: jest.fn().mockImplementation(async (fn: (value: typeof tx) => unknown) => fn(tx)),
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (fn: (value: typeof tx) => unknown) => fn(tx)),
     };
     return { proposal, outcome, prisma, tx };
   }
