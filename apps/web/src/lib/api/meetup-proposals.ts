@@ -14,9 +14,6 @@ export type MeetupProposal = {
   };
   status: MeetupProposalStatus;
   occurredAt?: string | null;
-  rating?: number | null;
-  feedbackTags?: string[];
-  checklistOk?: boolean;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;

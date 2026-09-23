@@ -37,14 +37,17 @@ describe('MeetupProposalsService outcome authority integration', () => {
     return user.id;
   }
 
-  async function createProposal(status = 'accepted') {
+  async function createProposal(
+    status = 'accepted',
+    suggestedTime = new Date(Date.now() - 60 * 60 * 1000)
+  ) {
     const proposerId = await createUser('proposer');
     const recipientId = await createUser('recipient');
     const proposal = await prisma.meetupProposal.create({
       data: {
         proposerId,
         recipientId,
-        suggestedTime: new Date(Date.now() + 60 * 60 * 1000),
+        suggestedTime,
         suggestedVenue: { name: 'Public park', type: 'park', area: 'North loop' },
         status,
         notes: 'shared planning note',
@@ -80,6 +83,9 @@ describe('MeetupProposalsService outcome authority integration', () => {
     expect(recipientRead.outcomes).toHaveLength(1);
     expect(proposerRead.outcomes[0]?.notes).toBe('proposer private note');
     expect(recipientRead.outcomes[0]?.notes).toBe('recipient private note');
+    expect(proposerRead.sent[0]).not.toHaveProperty('rating');
+    expect(proposerRead.sent[0]).not.toHaveProperty('feedbackTags');
+    expect(proposerRead.sent[0]).not.toHaveProperty('checklistOk');
 
     const shared = await prisma.meetupProposal.findUniqueOrThrow({ where: { id: proposal.id } });
     expect(shared.notes).toBe('shared planning note');
@@ -141,8 +147,18 @@ describe('MeetupProposalsService outcome authority integration', () => {
     expect(shared.occurredAt).toBeNull();
   });
 
+  it('rejects outcome feedback before the suggested meetup time', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    const { proposal, proposerId } = await createProposal('accepted', future);
+
+    await expect(
+      service.complete(proposal.id, proposerId, { occurred: false })
+    ).rejects.toThrow('Meetup feedback opens after the suggested meetup time');
+  });
+
   it('guards the pending acceptance transition under concurrency', async () => {
-    const { proposal, recipientId } = await createProposal('pending');
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    const { proposal, recipientId } = await createProposal('pending', future);
     const results = await Promise.allSettled([
       service.updateStatus(proposal.id, recipientId, { status: 'accepted' as never }),
       service.updateStatus(proposal.id, recipientId, { status: 'accepted' as never }),

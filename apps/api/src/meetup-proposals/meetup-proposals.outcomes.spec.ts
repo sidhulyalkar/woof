@@ -9,6 +9,7 @@ describe('MeetupProposalsService participant-scoped outcomes', () => {
       proposerId: 'user-1',
       recipientId: 'user-2',
       status: 'accepted',
+      suggestedTime: new Date(Date.now() - 60_000),
       rating: null,
       feedbackTags: [],
       checklistOk: false,
@@ -82,6 +83,23 @@ describe('MeetupProposalsService participant-scoped outcomes', () => {
       })
     );
     expect(result.repeatPlanningEligible).toBe(true);
+  });
+
+  it('does not encourage another meetup after a safety concern', async () => {
+    const { prisma, tx, outcome } = fixture();
+    tx.meetupOutcome.create.mockResolvedValue({ ...outcome, checklistOk: false });
+    const service = new MeetupProposalsService(prisma as never);
+
+    const result = await service.complete('proposal-1', 'user-1', {
+      occurred: true,
+      dogExperience: 'comfortable' as never,
+      ownerExperience: 'great' as never,
+      meetAgain: 'yes' as never,
+      checklistOk: false,
+    });
+
+    expect(result.repeatPlanningEligible).toBe(false);
+    expect(result.reportSuggested).toBe(true);
   });
 
   it('rejects a divergent retry instead of overwriting the participant outcome', async () => {

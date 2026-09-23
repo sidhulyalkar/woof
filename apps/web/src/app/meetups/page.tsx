@@ -132,6 +132,7 @@ function OutcomeCard({
   if (existingOutcome) {
     const repeatPlanningEligible =
       existingOutcome.occurred &&
+      existingOutcome.checklistOk !== false &&
       (existingOutcome.meetAgain === 'yes' || existingOutcome.meetAgain === 'maybe');
 
     return (
@@ -455,7 +456,26 @@ export default function MeetupsPage() {
                 </div>
               )}
 
-              {(proposal.status === 'accepted' || proposal.status === 'completed') && (
+              {proposal.status === 'accepted' &&
+                new Date(proposal.suggestedTime).getTime() > Date.now() && (
+                  <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+                    <p className="text-sm font-semibold">Plan accepted</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Keep coordinating in messages. The private reflection opens after the
+                      suggested meetup time.
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="mt-3 bg-transparent">
+                      <Link href="/inbox">
+                        <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Open messages
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+
+              {(proposal.status === 'completed' ||
+                (proposal.status === 'accepted' &&
+                  new Date(proposal.suggestedTime).getTime() <= Date.now())) && (
                 <OutcomeCard
                   proposal={proposal}
                   existingOutcome={outcomeByProposalId.get(proposal.id) ?? null}

@@ -16,6 +16,19 @@ import {
 
 const OUTCOME_EVENT = 'MEETUP_OUTCOME_REPORTED';
 
+const SHARED_PROPOSAL_SELECT = {
+  id: true,
+  proposerId: true,
+  recipientId: true,
+  suggestedTime: true,
+  suggestedVenue: true,
+  status: true,
+  occurredAt: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MeetupProposalSelect;
+
 @Injectable()
 export class MeetupProposalsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -88,6 +101,7 @@ export class MeetupProposalsService {
         },
         notes: dto.notes?.trim() || null,
       },
+      select: SHARED_PROPOSAL_SELECT,
     });
 
     await this.recordTelemetry(proposerId, 'MEETUP_PROPOSED', {
@@ -104,11 +118,13 @@ export class MeetupProposalsService {
         where: { proposerId: userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
+        select: SHARED_PROPOSAL_SELECT,
       }),
       this.prisma.meetupProposal.findMany({
         where: { recipientId: userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
+        select: SHARED_PROPOSAL_SELECT,
       }),
     ]);
     const proposalIds = [...sent, ...received].map((proposal) => proposal.id);
@@ -123,7 +139,10 @@ export class MeetupProposalsService {
   }
 
   async findOneForUser(id: string, userId: string) {
-    const proposal = await this.prisma.meetupProposal.findUnique({ where: { id } });
+    const proposal = await this.prisma.meetupProposal.findUnique({
+      where: { id },
+      select: SHARED_PROPOSAL_SELECT,
+    });
     if (!proposal) throw new NotFoundException(`Meetup proposal ${id} not found`);
     if (proposal.proposerId !== userId && proposal.recipientId !== userId) {
       throw new NotFoundException(`Meetup proposal ${id} not found`);
@@ -145,6 +164,12 @@ export class MeetupProposalsService {
     }
     if (![MeetupProposalStatus.ACCEPTED, MeetupProposalStatus.DECLINED].includes(dto.status)) {
       throw new BadRequestException('Status must be accepted or declined');
+    }
+    if (
+      dto.status === MeetupProposalStatus.ACCEPTED &&
+      proposal.suggestedTime.getTime() <= Date.now()
+    ) {
+      throw new BadRequestException('A meetup proposal cannot be accepted after its suggested time');
     }
 
     const blocked = await this.prisma.blockedUser.findFirst({
@@ -170,7 +195,10 @@ export class MeetupProposalsService {
       throw new ConflictException('This meetup proposal is no longer pending');
     }
 
-    const updated = await this.prisma.meetupProposal.findUnique({ where: { id } });
+    const updated = await this.prisma.meetupProposal.findUnique({
+      where: { id },
+      select: SHARED_PROPOSAL_SELECT,
+    });
     if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
 
     await this.recordTelemetryBestEffort(
@@ -188,6 +216,9 @@ export class MeetupProposalsService {
       proposal.status !== MeetupProposalStatus.COMPLETED
     ) {
       throw new BadRequestException('Only accepted meetups can receive outcome feedback');
+    }
+    if (proposal.suggestedTime.getTime() > Date.now()) {
+      throw new BadRequestException('Meetup feedback opens after the suggested meetup time');
     }
 
     const normalized = this.normalizeOutcome(id, userId, dto);
@@ -210,7 +241,10 @@ export class MeetupProposalsService {
           });
         }
 
-        const latestProposal = await tx.meetupProposal.findUnique({ where: { id } });
+        const latestProposal = await tx.meetupProposal.findUnique({
+          where: { id },
+          select: SHARED_PROPOSAL_SELECT,
+        });
         if (!latestProposal) throw new NotFoundException(`Meetup proposal ${id} not found`);
         return { outcome: createdOutcome, proposal: latestProposal };
       });
@@ -227,7 +261,10 @@ export class MeetupProposalsService {
       }
       outcome = existing;
       idempotentRetry = true;
-      const latestProposal = await this.prisma.meetupProposal.findUnique({ where: { id } });
+      const latestProposal = await this.prisma.meetupProposal.findUnique({
+        where: { id },
+        select: SHARED_PROPOSAL_SELECT,
+      });
       if (latestProposal) currentProposal = latestProposal;
     }
 
@@ -250,7 +287,9 @@ export class MeetupProposalsService {
       idempotentRetry,
       reportSuggested: outcome.checklistOk === false,
       repeatPlanningEligible:
-        outcome.occurred && (outcome.meetAgain === 'yes' || outcome.meetAgain === 'maybe'),
+        outcome.occurred &&
+        outcome.checklistOk !== false &&
+        (outcome.meetAgain === 'yes' || outcome.meetAgain === 'maybe'),
     };
   }
 
@@ -265,6 +304,7 @@ export class MeetupProposalsService {
     const updated = await this.prisma.meetupProposal.update({
       where: { id },
       data: { status: MeetupProposalStatus.CANCELLED },
+      select: SHARED_PROPOSAL_SELECT,
     });
     await this.recordTelemetryBestEffort(userId, 'MEETUP_CANCELLED', { proposalId: id });
     return updated;
@@ -278,6 +318,7 @@ export class MeetupProposalsService {
     const [proposals, outcomes] = await Promise.all([
       this.prisma.meetupProposal.findMany({
         where: { OR: [{ proposerId: userId }, { recipientId: userId }] },
+        select: { status: true },
       }),
       this.prisma.meetupOutcome.findMany({
         where: { participantId: userId, rating: { not: null } },

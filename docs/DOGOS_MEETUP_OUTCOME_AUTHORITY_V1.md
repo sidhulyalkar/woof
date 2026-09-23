@@ -24,7 +24,9 @@ It stores the participant's own:
 - optional private note.
 
 The shared `MeetupProposal` remains coordination state. New outcome writes do not aggregate ratings,
-feedback tags, safety answers, or private notes back onto that row.
+feedback tags, safety answers, or private notes back onto that row. Legacy aggregate feedback columns
+remain quarantined in storage for now and are deliberately omitted from participant-facing proposal
+responses because their participant provenance cannot be recovered safely.
 
 ## Concurrency and retry
 
@@ -36,7 +38,9 @@ feedback tags, safety answers, or private notes back onto that row.
 
 ## Shared-state semantics
 
-A positive occurrence report may promote an accepted proposal to `completed`.
+Outcome feedback is rejected before the proposal's suggested time. A positive occurrence report may
+then promote an accepted proposal to `completed`. A pending proposal cannot be accepted after its
+suggested time.
 
 A single participant reporting `occurred=false` does **not** cancel the shared proposal. Cancellation
 remains an explicit coordination action, not an inference from one person's private reflection.
@@ -52,7 +56,7 @@ canonical outcome ledger.
 ## Repeat planning
 
 The completion response exposes `repeatPlanningEligible` only from the current participant's own
-outcome. It never implies mutual interest.
+outcome and only when that participant did not flag a safety concern. It never implies mutual interest.
 
 ## Evidence boundary
 
