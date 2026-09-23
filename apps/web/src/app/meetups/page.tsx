@@ -142,11 +142,13 @@ function OutcomeCard({
         <div>
           <p className="eyebrow">Your private reflection</p>
           <h3 className="mt-1 font-semibold">
-            {existingOutcome.occurred ? 'You closed the loop.' : 'You marked this as not happening.'}
+            {existingOutcome.occurred
+              ? 'You closed the loop.'
+              : 'You marked this as not happening.'}
           </h3>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            This is your answer only. Woof does not reveal the other participant&apos;s reflection or
-            imply that they answered the same way.
+            This is your answer only. Woof does not reveal the other participant&apos;s reflection
+            or imply that they answered the same way.
           </p>
         </div>
 
@@ -155,7 +157,9 @@ function OutcomeCard({
             {existingOutcome.dogExperience && (
               <div>
                 <dt className="text-xs text-muted-foreground">For your dog</dt>
-                <dd className="font-semibold">{dogExperienceCopy[existingOutcome.dogExperience]}</dd>
+                <dd className="font-semibold">
+                  {dogExperienceCopy[existingOutcome.dogExperience]}
+                </dd>
               </div>
             )}
             {existingOutcome.ownerExperience && (
@@ -485,9 +489,7 @@ export default function MeetupsPage() {
                 <OutcomeCard
                   proposal={proposal}
                   existingOutcome={outcomeByProposalId.get(proposal.id) ?? null}
-                  otherUserId={
-                    direction === 'sent' ? proposal.recipientId : proposal.proposerId
-                  }
+                  otherUserId={direction === 'sent' ? proposal.recipientId : proposal.proposerId}
                 />
               )}
             </Card>
