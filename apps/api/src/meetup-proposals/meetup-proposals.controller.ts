@@ -44,6 +44,12 @@ export class MeetupProposalsController {
     return this.meetupProposalsService.getStats(req.user.sub);
   }
 
+  @Get(':id/outcome')
+  @ApiOperation({ summary: 'Get only the current participant private meetup outcome' })
+  findOutcome(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.meetupProposalsService.findOutcomeForUser(id, req.user.sub);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a meetup proposal only when the member is a participant' })
   findOne(@Param('id') id: string, @Request() req: AuthenticatedRequest) {

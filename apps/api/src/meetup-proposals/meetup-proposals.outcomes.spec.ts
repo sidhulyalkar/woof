@@ -1,7 +1,8 @@
+import { ConflictException } from '@nestjs/common';
 import { MeetupProposalsService } from './meetup-proposals.service';
 
-describe('MeetupProposalsService structured outcomes', () => {
-  it('stores tiny structured answers in canonical telemetry and normalized proposal tags', async () => {
+describe('MeetupProposalsService participant-scoped outcomes', () => {
+  function fixture() {
     const proposal = {
       id: 'proposal-1',
       proposerId: 'user-1',
@@ -9,58 +10,92 @@ describe('MeetupProposalsService structured outcomes', () => {
       status: 'accepted',
       rating: null,
       feedbackTags: [],
-      checklistOk: true,
+      checklistOk: false,
       occurredAt: null,
-      notes: null,
+      notes: 'shared planning note',
+    };
+    const outcome = {
+      id: 'outcome-1',
+      proposalId: 'proposal-1',
+      participantId: 'user-1',
+      occurred: true,
+      dogExperience: 'comfortable',
+      ownerExperience: 'great',
+      meetAgain: 'yes',
+      rating: null,
+      feedbackTags: ['dog_comfortable', 'meet_again_yes', 'owner_great'],
+      checklistOk: true,
+      notes: 'private reflection',
+      createdAt: new Date(),
+    };
+    const tx = {
+      meetupOutcome: { create: jest.fn().mockResolvedValue(outcome) },
+      meetupProposal: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUnique: jest.fn().mockResolvedValue({ ...proposal, status: 'completed' }),
+      },
     };
     const prisma = {
       meetupProposal: {
         findUnique: jest.fn().mockResolvedValue(proposal),
-        update: jest
-          .fn()
-          .mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-            ...proposal,
-            ...data,
-          })),
       },
-      telemetry: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 'telemetry-1' }),
+      meetupOutcome: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
       },
+      telemetry: { create: jest.fn().mockResolvedValue({ id: 'telemetry-1' }) },
+      $transaction: jest.fn().mockImplementation(async (fn: (value: typeof tx) => unknown) => fn(tx)),
     };
+    return { proposal, outcome, prisma, tx };
+  }
+
+  it('stores participant-private outcome data without merging it onto the shared proposal', async () => {
+    const { prisma, tx } = fixture();
     const service = new MeetupProposalsService(prisma as never);
 
-    await service.complete('proposal-1', 'user-1', {
+    const result = await service.complete('proposal-1', 'user-1', {
       occurred: true,
       dogExperience: 'comfortable' as never,
       ownerExperience: 'great' as never,
       meetAgain: 'yes' as never,
       checklistOk: true,
+      notes: ' private reflection ',
     });
 
-    expect(prisma.telemetry.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-1',
-        source: 'meetup',
-        event: 'MEETUP_OUTCOME_REPORTED',
-        data: expect.objectContaining({
-          proposalId: 'proposal-1',
-          otherUserId: 'user-2',
-          dogExperience: 'comfortable',
-          ownerExperience: 'great',
-          meetAgain: 'yes',
-          feedbackTags: ['dog_comfortable', 'owner_great', 'meet_again_yes'],
-          checklistOk: true,
-        }),
-      },
+    expect(tx.meetupOutcome.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        proposalId: 'proposal-1',
+        participantId: 'user-1',
+        notes: 'private reflection',
+        feedbackTags: ['dog_comfortable', 'meet_again_yes', 'owner_great'],
+      }),
     });
-    expect(prisma.meetupProposal.update).toHaveBeenCalledWith(
+    expect(tx.meetupProposal.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'completed',
-          feedbackTags: ['dog_comfortable', 'owner_great', 'meet_again_yes'],
+        data: expect.not.objectContaining({
+          rating: expect.anything(),
+          feedbackTags: expect.anything(),
+          checklistOk: expect.anything(),
+          notes: expect.anything(),
         }),
       })
     );
+    expect(result.repeatPlanningEligible).toBe(true);
+  });
+
+  it('rejects a divergent retry instead of overwriting the participant outcome', async () => {
+    const { prisma, outcome } = fixture();
+    const unique = Object.assign(new Error('unique'), { code: 'P2002' });
+    prisma.$transaction.mockRejectedValue(unique);
+    prisma.meetupOutcome.findUnique.mockResolvedValue(outcome);
+    const service = new MeetupProposalsService(prisma as never);
+    jest.spyOn(service as never, 'isUniqueViolation').mockReturnValue(true);
+
+    await expect(
+      service.complete('proposal-1', 'user-1', {
+        occurred: true,
+        dogExperience: 'not_their_thing' as never,
+      })
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });
