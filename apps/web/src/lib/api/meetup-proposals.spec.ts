@@ -34,6 +34,14 @@ describe('meetupProposalsApi', () => {
     expect(input.suggestedVenue).not.toHaveProperty('lng');
   });
 
+  it('reads only the authenticated participant outcome from the private outcome route', async () => {
+    transport.get.mockResolvedValue({ proposalId: 'proposal-1', participantId: 'member-1' });
+
+    await meetupProposalsApi.getOutcome('proposal-1');
+
+    expect(transport.get).toHaveBeenCalledWith('/meetup-proposals/proposal-1/outcome');
+  });
+
   it('submits the three structured learning answers plus explicit safety feedback', async () => {
     const outcome = {
       occurred: true,
@@ -42,7 +50,11 @@ describe('meetupProposalsApi', () => {
       meetAgain: 'yes' as const,
       checklistOk: true,
     };
-    transport.put.mockResolvedValue({ feedbackRecorded: true });
+    transport.put.mockResolvedValue({
+      feedbackRecorded: true,
+      repeatPlanningEligible: true,
+      outcome: { proposalId: 'proposal-1', participantId: 'member-1' },
+    });
 
     await meetupProposalsApi.complete('proposal-1', outcome);
 

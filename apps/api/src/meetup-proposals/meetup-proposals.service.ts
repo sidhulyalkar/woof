@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@woof/database';
+import { Prisma, type MeetupOutcome } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
 import {
@@ -14,6 +15,19 @@ import {
 } from './dto/update-meetup-proposal.dto';
 
 const OUTCOME_EVENT = 'MEETUP_OUTCOME_REPORTED';
+
+const SHARED_PROPOSAL_SELECT = {
+  id: true,
+  proposerId: true,
+  recipientId: true,
+  suggestedTime: true,
+  suggestedVenue: true,
+  status: true,
+  occurredAt: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MeetupProposalSelect;
 
 @Injectable()
 export class MeetupProposalsService {
@@ -87,9 +101,10 @@ export class MeetupProposalsService {
         },
         notes: dto.notes?.trim() || null,
       },
+      select: SHARED_PROPOSAL_SELECT,
     });
 
-    await this.recordTelemetry(proposerId, 'MEETUP_PROPOSED', {
+    await this.recordTelemetryBestEffort(proposerId, 'MEETUP_PROPOSED', {
       proposalId: proposal.id,
       recipientId: dto.recipientId,
       conversationId: directConversation.id,
@@ -103,18 +118,31 @@ export class MeetupProposalsService {
         where: { proposerId: userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
+        select: SHARED_PROPOSAL_SELECT,
       }),
       this.prisma.meetupProposal.findMany({
         where: { recipientId: userId },
         orderBy: { createdAt: 'desc' },
         take: 100,
+        select: SHARED_PROPOSAL_SELECT,
       }),
     ]);
-    return { sent, received };
+    const proposalIds = [...sent, ...received].map((proposal) => proposal.id);
+    const outcomes =
+      proposalIds.length === 0
+        ? []
+        : await this.prisma.meetupOutcome.findMany({
+            where: { participantId: userId, proposalId: { in: proposalIds } },
+            orderBy: { createdAt: 'desc' },
+          });
+    return { sent, received, outcomes };
   }
 
   async findOneForUser(id: string, userId: string) {
-    const proposal = await this.prisma.meetupProposal.findUnique({ where: { id } });
+    const proposal = await this.prisma.meetupProposal.findUnique({
+      where: { id },
+      select: SHARED_PROPOSAL_SELECT,
+    });
     if (!proposal) throw new NotFoundException(`Meetup proposal ${id} not found`);
     if (proposal.proposerId !== userId && proposal.recipientId !== userId) {
       throw new NotFoundException(`Meetup proposal ${id} not found`);
@@ -122,16 +150,29 @@ export class MeetupProposalsService {
     return proposal;
   }
 
+  async findOutcomeForUser(id: string, userId: string) {
+    await this.findOneForUser(id, userId);
+    return this.prisma.meetupOutcome.findUnique({
+      where: { proposalId_participantId: { proposalId: id, participantId: userId } },
+    });
+  }
+
   async updateStatus(id: string, userId: string, dto: UpdateMeetupProposalDto) {
     const proposal = await this.findOneForUser(id, userId);
     if (proposal.recipientId !== userId) {
       throw new ForbiddenException('Only the recipient can accept or decline this proposal');
     }
-    if (proposal.status !== MeetupProposalStatus.PENDING) {
-      throw new BadRequestException('Only pending proposals can be accepted or declined');
-    }
     if (![MeetupProposalStatus.ACCEPTED, MeetupProposalStatus.DECLINED].includes(dto.status)) {
       throw new BadRequestException('Status must be accepted or declined');
+    }
+    if (
+      dto.status === MeetupProposalStatus.ACCEPTED &&
+      proposal.status === MeetupProposalStatus.PENDING &&
+      proposal.suggestedTime.getTime() <= Date.now()
+    ) {
+      throw new BadRequestException(
+        'A meetup proposal cannot be accepted after its suggested time'
+      );
     }
 
     const blocked = await this.prisma.blockedUser.findFirst({
@@ -145,118 +186,148 @@ export class MeetupProposalsService {
     });
     if (blocked) throw new ForbiddenException('Meetup coordination is unavailable for this pair');
 
-    const updated = await this.prisma.meetupProposal.update({
-      where: { id },
+    const transition = await this.prisma.meetupProposal.updateMany({
+      where: {
+        id,
+        recipientId: userId,
+        status: MeetupProposalStatus.PENDING,
+      },
       data: { status: dto.status },
     });
-    await this.recordTelemetry(
-      userId,
-      dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
-      { proposalId: id, otherUserId: proposal.proposerId }
-    );
+
+    const updated = await this.prisma.meetupProposal.findUnique({
+      where: { id },
+      select: SHARED_PROPOSAL_SELECT,
+    });
+    if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
+    if (transition.count !== 1 && updated.status !== dto.status) {
+      throw new ConflictException('This meetup proposal already changed');
+    }
+
+    if (transition.count === 1) {
+      await this.recordTelemetryBestEffort(
+        userId,
+        dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
+        { proposalId: id, otherUserId: proposal.proposerId }
+      );
+    }
     return updated;
   }
 
   async complete(id: string, userId: string, dto: CompleteMeetupDto) {
     const proposal = await this.findOneForUser(id, userId);
+    const normalized = this.normalizeOutcome(id, userId, dto);
+    const canonicalOutcome = await this.prisma.meetupOutcome.findUnique({
+      where: { proposalId_participantId: { proposalId: id, participantId: userId } },
+    });
+    if (canonicalOutcome) {
+      if (!this.outcomeMatches(canonicalOutcome, normalized)) {
+        throw new ConflictException('You already submitted different feedback for this meetup');
+      }
+      return this.outcomeReceipt(proposal, canonicalOutcome, true);
+    }
+
     if (
       proposal.status !== MeetupProposalStatus.ACCEPTED &&
       proposal.status !== MeetupProposalStatus.COMPLETED
     ) {
       throw new BadRequestException('Only accepted meetups can receive outcome feedback');
     }
-
-    const existingFeedback = await this.prisma.telemetry.findFirst({
-      where: {
-        userId,
-        event: OUTCOME_EVENT,
-        data: { path: ['proposalId'], equals: id },
-      },
-      select: { id: true },
-    });
-    if (existingFeedback) {
-      throw new BadRequestException('You already submitted feedback for this meetup');
+    if (proposal.suggestedTime.getTime() > Date.now()) {
+      throw new BadRequestException('Meetup feedback opens after the suggested meetup time');
     }
 
-    const structuredTags = [
-      dto.dogExperience ? `dog_${dto.dogExperience}` : null,
-      dto.ownerExperience ? `owner_${dto.ownerExperience}` : null,
-      dto.meetAgain ? `meet_again_${dto.meetAgain}` : null,
-    ].filter((tag): tag is string => tag !== null);
-    const safeTags = [...structuredTags, ...(dto.feedbackTags ?? [])]
-      .map((tag) =>
-        tag
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9_-]+/g, '_')
-      )
-      .filter(Boolean);
-    const uniqueTags = [...new Set(safeTags)].slice(0, 16);
+    let outcome: MeetupOutcome;
+    let currentProposal = proposal;
+    let idempotentRetry = false;
+    let created = false;
 
-    await this.recordTelemetry(userId, OUTCOME_EVENT, {
-      proposalId: id,
-      otherUserId: proposal.proposerId === userId ? proposal.recipientId : proposal.proposerId,
-      occurred: dto.occurred,
-      dogExperience: dto.dogExperience ?? null,
-      ownerExperience: dto.ownerExperience ?? null,
-      meetAgain: dto.meetAgain ?? null,
-      rating: dto.rating ?? null,
-      feedbackTags: uniqueTags,
-      checklistOk: dto.checklistOk ?? null,
-    });
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const createdOutcome = await tx.meetupOutcome.create({ data: normalized });
 
-    const previousRating = proposal.rating;
-    const aggregateRating =
-      dto.rating === undefined
-        ? previousRating
-        : previousRating === null
-          ? dto.rating
-          : Math.round(((previousRating + dto.rating) / 2) * 10) / 10;
-    const mergedTags = [...new Set([...(proposal.feedbackTags ?? []), ...uniqueTags])].slice(0, 16);
+        let completionTransitionCount = 0;
+        if (createdOutcome.occurred && proposal.status === MeetupProposalStatus.ACCEPTED) {
+          const transition = await tx.meetupProposal.updateMany({
+            where: { id, status: MeetupProposalStatus.ACCEPTED },
+            data: {
+              status: MeetupProposalStatus.COMPLETED,
+              occurredAt: proposal.occurredAt ?? new Date(),
+            },
+          });
+          completionTransitionCount = transition.count;
+        }
 
-    const updated = await this.prisma.meetupProposal.update({
-      where: { id },
-      data: {
-        status: dto.occurred ? MeetupProposalStatus.COMPLETED : MeetupProposalStatus.CANCELLED,
-        occurredAt: dto.occurred ? (proposal.occurredAt ?? new Date()) : null,
-        rating: aggregateRating,
-        feedbackTags: mergedTags,
-        checklistOk:
-          dto.checklistOk === undefined
-            ? proposal.checklistOk
-            : proposal.checklistOk === false
-              ? false
-              : dto.checklistOk,
-        notes: proposal.notes,
-      },
-    });
-
-    if (dto.checklistOk === false) {
-      await this.recordTelemetry(userId, 'MEETUP_SAFETY_CONCERN_RECORDED', {
-        proposalId: id,
+        const latestProposal = await tx.meetupProposal.findUnique({
+          where: { id },
+          select: SHARED_PROPOSAL_SELECT,
+        });
+        if (!latestProposal) throw new NotFoundException(`Meetup proposal ${id} not found`);
+        if (
+          createdOutcome.occurred &&
+          proposal.status === MeetupProposalStatus.ACCEPTED &&
+          completionTransitionCount !== 1 &&
+          latestProposal.status !== MeetupProposalStatus.COMPLETED
+        ) {
+          throw new ConflictException('Meetup coordination changed while feedback was being saved');
+        }
+        return { outcome: createdOutcome, proposal: latestProposal };
       });
+      outcome = result.outcome;
+      currentProposal = result.proposal;
+      created = true;
+    } catch (error) {
+      if (!this.isUniqueViolation(error)) throw error;
+      const existing = await this.prisma.meetupOutcome.findUnique({
+        where: { proposalId_participantId: { proposalId: id, participantId: userId } },
+      });
+      if (!existing || !this.outcomeMatches(existing, normalized)) {
+        throw new ConflictException('You already submitted different feedback for this meetup');
+      }
+      outcome = existing;
+      idempotentRetry = true;
+      const latestProposal = await this.prisma.meetupProposal.findUnique({
+        where: { id },
+        select: SHARED_PROPOSAL_SELECT,
+      });
+      if (latestProposal) currentProposal = latestProposal;
     }
 
-    return {
-      proposal: updated,
-      feedbackRecorded: true,
-      reportSuggested: dto.checklistOk === false,
-    };
+    if (created) {
+      await this.recordTelemetryBestEffort(userId, OUTCOME_EVENT, {
+        proposalId: id,
+        occurred: outcome.occurred,
+      });
+      if (outcome.checklistOk === false) {
+        await this.recordTelemetryBestEffort(userId, 'MEETUP_SAFETY_CONCERN_RECORDED', {
+          proposalId: id,
+        });
+      }
+    }
+
+    return this.outcomeReceipt(currentProposal, outcome, idempotentRetry);
   }
 
   async cancel(id: string, userId: string) {
-    const proposal = await this.findOneForUser(id, userId);
-    if (
-      proposal.status === MeetupProposalStatus.COMPLETED ||
-      proposal.status === MeetupProposalStatus.DECLINED
-    ) {
-      throw new BadRequestException('This meetup can no longer be cancelled');
-    }
-    const updated = await this.prisma.meetupProposal.update({
-      where: { id },
+    await this.findOneForUser(id, userId);
+    const transition = await this.prisma.meetupProposal.updateMany({
+      where: {
+        id,
+        status: { in: [MeetupProposalStatus.PENDING, MeetupProposalStatus.ACCEPTED] },
+      },
       data: { status: MeetupProposalStatus.CANCELLED },
     });
-    await this.recordTelemetry(userId, 'MEETUP_CANCELLED', { proposalId: id });
+    const updated = await this.prisma.meetupProposal.findUnique({
+      where: { id },
+      select: SHARED_PROPOSAL_SELECT,
+    });
+    if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
+    if (transition.count !== 1 && updated.status !== MeetupProposalStatus.CANCELLED) {
+      throw new ConflictException('This meetup can no longer be cancelled');
+    }
+    if (transition.count === 1) {
+      await this.recordTelemetryBestEffort(userId, 'MEETUP_CANCELLED', { proposalId: id });
+    }
     return updated;
   }
 
@@ -265,20 +336,114 @@ export class MeetupProposalsService {
   }
 
   async getStats(userId: string) {
-    const proposals = await this.prisma.meetupProposal.findMany({
-      where: { OR: [{ proposerId: userId }, { recipientId: userId }] },
-    });
-    const rated = proposals.filter((proposal) => proposal.rating !== null);
+    const [proposals, outcomes] = await Promise.all([
+      this.prisma.meetupProposal.findMany({
+        where: { OR: [{ proposerId: userId }, { recipientId: userId }] },
+        select: { status: true },
+      }),
+      this.prisma.meetupOutcome.findMany({
+        where: { participantId: userId, rating: { not: null } },
+        select: { rating: true },
+      }),
+    ]);
     return {
       total: proposals.length,
       pending: proposals.filter((proposal) => proposal.status === 'pending').length,
       accepted: proposals.filter((proposal) => proposal.status === 'accepted').length,
       completed: proposals.filter((proposal) => proposal.status === 'completed').length,
       avgRating:
-        rated.length > 0
-          ? rated.reduce((sum, proposal) => sum + (proposal.rating ?? 0), 0) / rated.length
+        outcomes.length > 0
+          ? outcomes.reduce((sum, outcome) => sum + (outcome.rating ?? 0), 0) / outcomes.length
           : 0,
     };
+  }
+
+  private outcomeReceipt(
+    proposal: Awaited<ReturnType<MeetupProposalsService['findOneForUser']>>,
+    outcome: MeetupOutcome,
+    idempotentRetry: boolean
+  ) {
+    return {
+      proposal,
+      outcome,
+      feedbackRecorded: true as const,
+      idempotentRetry,
+      reportSuggested: outcome.checklistOk === false,
+      repeatPlanningEligible:
+        outcome.occurred &&
+        outcome.checklistOk !== false &&
+        (outcome.meetAgain === 'yes' || outcome.meetAgain === 'maybe'),
+    };
+  }
+
+  private normalizeOutcome(proposalId: string, participantId: string, dto: CompleteMeetupDto) {
+    const structuredTags = [
+      dto.dogExperience ? `dog_${dto.dogExperience}` : null,
+      dto.ownerExperience ? `owner_${dto.ownerExperience}` : null,
+      dto.meetAgain ? `meet_again_${dto.meetAgain}` : null,
+    ].filter((tag): tag is string => tag !== null);
+    const feedbackTags = [...structuredTags, ...(dto.feedbackTags ?? [])]
+      .map((tag) =>
+        tag
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '_')
+      )
+      .filter(Boolean);
+    return {
+      proposalId,
+      participantId,
+      occurred: dto.occurred,
+      dogExperience: dto.dogExperience ?? null,
+      ownerExperience: dto.ownerExperience ?? null,
+      meetAgain: dto.meetAgain ?? null,
+      rating: dto.rating ?? null,
+      feedbackTags: [...new Set(feedbackTags)].sort().slice(0, 16),
+      checklistOk: dto.checklistOk ?? null,
+      notes: dto.notes?.trim() || null,
+    };
+  }
+
+  private outcomeMatches(
+    existing: {
+      occurred: boolean;
+      dogExperience: string | null;
+      ownerExperience: string | null;
+      meetAgain: string | null;
+      rating: number | null;
+      feedbackTags: string[];
+      checklistOk: boolean | null;
+      notes: string | null;
+    },
+    expected: ReturnType<MeetupProposalsService['normalizeOutcome']>
+  ) {
+    return (
+      existing.occurred === expected.occurred &&
+      existing.dogExperience === expected.dogExperience &&
+      existing.ownerExperience === expected.ownerExperience &&
+      existing.meetAgain === expected.meetAgain &&
+      existing.rating === expected.rating &&
+      existing.checklistOk === expected.checklistOk &&
+      existing.notes === expected.notes &&
+      existing.feedbackTags.length === expected.feedbackTags.length &&
+      existing.feedbackTags.every((tag, index) => tag === expected.feedbackTags[index])
+    );
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  }
+
+  private async recordTelemetryBestEffort(
+    userId: string,
+    event: string,
+    data: Prisma.InputJsonObject
+  ) {
+    try {
+      await this.recordTelemetry(userId, event, data);
+    } catch {
+      // Canonical meetup outcomes must not fail because observability is degraded.
+    }
   }
 
   private async recordTelemetry(userId: string, event: string, data: Prisma.InputJsonObject) {

@@ -51,13 +51,12 @@ jobs:
             git diff --name-only "$base"...HEAD -- \
               'apps/api/src/adventure/adaptive-profile*.ts' \
               'apps/api/src/adventure/dto/adaptive-profile.dto.ts' \
-              'packages/database/prisma/schema.prisma' \
               'packages/database/prisma/migrations/20260826055200_add_adaptive_profile_persistence/**' \
               'docs/DOGOS_ADAPTIVE_PROFILE_PERSISTENCE_V1.md' || true
           })"
 
           if [ -z "$profile_owned" ]; then
-            echo 'No Adaptive Profile-owned runtime/schema files changed; shared-module trigger only.'
+            echo 'No Adaptive Profile-owned runtime/migration files changed; shared schema/module trigger only.'
             exit 0
           fi
 

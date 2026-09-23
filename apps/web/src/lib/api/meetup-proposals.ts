@@ -14,9 +14,6 @@ export type MeetupProposal = {
   };
   status: MeetupProposalStatus;
   occurredAt?: string | null;
-  rating?: number | null;
-  feedbackTags?: string[];
-  checklistOk?: boolean;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -30,9 +27,28 @@ export type MeetupOutcome = {
   checklistOk?: boolean;
 };
 
+export type MeetupParticipantOutcome = {
+  id: string;
+  proposalId: string;
+  participantId: string;
+  occurred: boolean;
+  dogExperience: MeetupOutcome['dogExperience'] | null;
+  ownerExperience: MeetupOutcome['ownerExperience'] | null;
+  meetAgain: MeetupOutcome['meetAgain'] | null;
+  rating: number | null;
+  feedbackTags: string[];
+  checklistOk: boolean | null;
+  notes: string | null;
+  createdAt: string;
+};
+
 export const meetupProposalsApi = {
   getMine: () =>
-    apiClient.get<{ sent: MeetupProposal[]; received: MeetupProposal[] }>('/meetup-proposals'),
+    apiClient.get<{
+      sent: MeetupProposal[];
+      received: MeetupProposal[];
+      outcomes: MeetupParticipantOutcome[];
+    }>('/meetup-proposals'),
   create: (input: {
     recipientId: string;
     suggestedTime: string;
@@ -41,10 +57,16 @@ export const meetupProposalsApi = {
   }) => apiClient.post<MeetupProposal>('/meetup-proposals', input),
   updateStatus: (id: string, status: 'accepted' | 'declined') =>
     apiClient.put<MeetupProposal>(`/meetup-proposals/${id}/status`, { status }),
+  getOutcome: (id: string) =>
+    apiClient.get<MeetupParticipantOutcome | null>(`/meetup-proposals/${id}/outcome`),
   complete: (id: string, outcome: MeetupOutcome) =>
-    apiClient.put<{ proposal: MeetupProposal; feedbackRecorded: true; reportSuggested: boolean }>(
-      `/meetup-proposals/${id}/complete`,
-      outcome
-    ),
+    apiClient.put<{
+      proposal: MeetupProposal;
+      outcome: MeetupParticipantOutcome;
+      feedbackRecorded: true;
+      idempotentRetry: boolean;
+      reportSuggested: boolean;
+      repeatPlanningEligible: boolean;
+    }>(`/meetup-proposals/${id}/complete`, outcome),
   cancel: (id: string) => apiClient.delete<MeetupProposal>(`/meetup-proposals/${id}`),
 };

@@ -13,10 +13,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
-import {
-  CompleteMeetupDto,
-  UpdateMeetupProposalDto,
-} from './dto/update-meetup-proposal.dto';
+import { CompleteMeetupDto, UpdateMeetupProposalDto } from './dto/update-meetup-proposal.dto';
 import { MeetupProposalsService } from './meetup-proposals.service';
 
 @ApiTags('meetup-proposals')
@@ -44,6 +41,12 @@ export class MeetupProposalsController {
     return this.meetupProposalsService.getStats(req.user.sub);
   }
 
+  @Get(':id/outcome')
+  @ApiOperation({ summary: 'Get only the current participant private meetup outcome' })
+  findOutcome(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.meetupProposalsService.findOutcomeForUser(id, req.user.sub);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a meetup proposal only when the member is a participant' })
   findOne(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
@@ -55,7 +58,7 @@ export class MeetupProposalsController {
   updateStatus(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
-    @Body() dto: UpdateMeetupProposalDto,
+    @Body() dto: UpdateMeetupProposalDto
   ) {
     return this.meetupProposalsService.updateStatus(id, req.user.sub, dto);
   }
@@ -65,7 +68,7 @@ export class MeetupProposalsController {
   complete(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
-    @Body() dto: CompleteMeetupDto,
+    @Body() dto: CompleteMeetupDto
   ) {
     return this.meetupProposalsService.complete(id, req.user.sub, dto);
   }

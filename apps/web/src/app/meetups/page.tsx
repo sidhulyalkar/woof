@@ -11,6 +11,7 @@ import { authApi } from '@/lib/api';
 import {
   meetupProposalsApi,
   type MeetupOutcome,
+  type MeetupParticipantOutcome,
   type MeetupProposal,
 } from '@/lib/api/meetup-proposals';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -66,7 +67,33 @@ function ChoiceGroup<T extends string>({
   );
 }
 
-function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
+const dogExperienceCopy: Record<NonNullable<MeetupOutcome['dogExperience']>, string> = {
+  loved_it: 'Loved it',
+  comfortable: 'Comfortable',
+  not_their_thing: 'Not for them',
+};
+
+const ownerExperienceCopy: Record<NonNullable<MeetupOutcome['ownerExperience']>, string> = {
+  great: 'Easy',
+  fine: 'Fine',
+  a_lot_today: 'A lot today',
+};
+
+const meetAgainCopy: Record<NonNullable<MeetupOutcome['meetAgain']>, string> = {
+  yes: 'Yes',
+  maybe: 'Maybe',
+  no: 'No',
+};
+
+function OutcomeCard({
+  proposal,
+  existingOutcome,
+  otherUserId,
+}: {
+  proposal: MeetupProposal;
+  existingOutcome: MeetupParticipantOutcome | null;
+  otherUserId: string;
+}) {
   const queryClient = useQueryClient();
   const [dogExperience, setDogExperience] = useState<NonNullable<
     MeetupOutcome['dogExperience']
@@ -83,13 +110,13 @@ function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
     onSuccess: async (result) => {
       setMessage(
         result.reportSuggested
-          ? 'Feedback saved. Because you flagged a safety concern, reporting options should be considered.'
-          : 'Thanks. That tiny bit of context will make future matching more useful.'
+          ? 'Your private reflection was saved. You flagged a safety concern, so reporting or blocking may be useful.'
+          : 'Your private reflection was saved. Woof can use your answer without exposing it to the other participant.'
       );
       await queryClient.invalidateQueries({ queryKey: ['meetup-proposals'] });
     },
     onError: () => {
-      setMessage('That outcome could not be saved, or you may have already submitted it.');
+      setMessage('That reflection could not be saved. Refresh before trying a different answer.');
     },
   });
 
@@ -104,14 +131,98 @@ function OutcomeCard({ proposal }: { proposal: MeetupProposal }) {
     });
   };
 
+  if (existingOutcome) {
+    const repeatPlanningEligible =
+      existingOutcome.occurred &&
+      existingOutcome.checklistOk !== false &&
+      (existingOutcome.meetAgain === 'yes' || existingOutcome.meetAgain === 'maybe');
+
+    return (
+      <div className="mt-4 space-y-4 border-t border-border/60 pt-4">
+        <div>
+          <p className="eyebrow">Your private reflection</p>
+          <h3 className="mt-1 font-semibold">
+            {existingOutcome.occurred
+              ? 'You closed the loop.'
+              : 'You marked this as not happening.'}
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            This is your answer only. Woof does not reveal the other participant&apos;s reflection
+            or imply that they answered the same way.
+          </p>
+        </div>
+
+        {existingOutcome.occurred ? (
+          <dl className="grid gap-2 rounded-xl bg-muted/40 p-3 text-sm sm:grid-cols-2">
+            {existingOutcome.dogExperience && (
+              <div>
+                <dt className="text-xs text-muted-foreground">For your dog</dt>
+                <dd className="font-semibold">
+                  {dogExperienceCopy[existingOutcome.dogExperience]}
+                </dd>
+              </div>
+            )}
+            {existingOutcome.ownerExperience && (
+              <div>
+                <dt className="text-xs text-muted-foreground">For you</dt>
+                <dd className="font-semibold">
+                  {ownerExperienceCopy[existingOutcome.ownerExperience]}
+                </dd>
+              </div>
+            )}
+            {existingOutcome.meetAgain && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Your meet-again answer</dt>
+                <dd className="font-semibold">{meetAgainCopy[existingOutcome.meetAgain]}</dd>
+              </div>
+            )}
+            {existingOutcome.checklistOk !== null && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Felt safe</dt>
+                <dd className="font-semibold">{existingOutcome.checklistOk ? 'Yes' : 'No'}</dd>
+              </div>
+            )}
+          </dl>
+        ) : (
+          <p className="rounded-xl bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+            One private reflection does not automatically cancel the shared coordination record.
+          </p>
+        )}
+
+        {existingOutcome.checklistOk === false && (
+          <p className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs leading-relaxed text-destructive">
+            You flagged a safety concern. Consider using the reporting or blocking tools if that
+            would help you feel safer.
+          </p>
+        )}
+
+        {repeatPlanningEligible && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <p className="text-sm font-semibold">Want another shared activity?</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Your answer says another meetup may be worthwhile. Open the conversation and suggest a
+              new public-place plan when you want to. This does not reveal their answer.
+            </p>
+            <Button asChild size="sm" className="mt-3">
+              <Link href={`/inbox?member=${encodeURIComponent(otherUserId)}`}>
+                <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                Message this person
+              </Link>
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4 space-y-4 border-t border-border/60 pt-4">
       <div>
         <p className="eyebrow">Close the loop</p>
         <h3 className="mt-1 font-semibold">How did it go?</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Three quick answers become outcome evidence for future compatibility. They are not a
-          health diagnosis.
+          Three quick answers become your private relationship evidence. They are not a health
+          diagnosis and are not shown to the other participant.
         </p>
       </div>
 
@@ -236,6 +347,14 @@ export default function MeetupsPage() {
     );
   }, [proposals.data, user]);
 
+  const outcomeByProposalId = useMemo(
+    () =>
+      new Map(
+        (proposals.data?.outcomes ?? []).map((outcome) => [outcome.proposalId, outcome] as const)
+      ),
+    [proposals.data?.outcomes]
+  );
+
   return (
     <div className="min-h-screen pb-24">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/88 backdrop-blur-2xl">
@@ -343,8 +462,35 @@ export default function MeetupsPage() {
                 </div>
               )}
 
-              {(proposal.status === 'accepted' || proposal.status === 'completed') && (
-                <OutcomeCard proposal={proposal} />
+              {proposal.status === 'accepted' &&
+                new Date(proposal.suggestedTime).getTime() > Date.now() && (
+                  <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+                    <p className="text-sm font-semibold">Plan accepted</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Keep coordinating in messages. The private reflection opens after the
+                      suggested meetup time.
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="mt-3 bg-transparent">
+                      <Link
+                        href={`/inbox?member=${encodeURIComponent(
+                          direction === 'sent' ? proposal.recipientId : proposal.proposerId
+                        )}`}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Message this person
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+
+              {(proposal.status === 'completed' ||
+                (proposal.status === 'accepted' &&
+                  new Date(proposal.suggestedTime).getTime() <= Date.now())) && (
+                <OutcomeCard
+                  proposal={proposal}
+                  existingOutcome={outcomeByProposalId.get(proposal.id) ?? null}
+                  otherUserId={direction === 'sent' ? proposal.recipientId : proposal.proposerId}
+                />
               )}
             </Card>
           ))

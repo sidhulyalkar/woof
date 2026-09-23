@@ -61,6 +61,7 @@ model User {
   careEvents                CareEvent[]
   rewardLedgerEntries       RewardLedger[]
   questInteractions         QuestInteraction[]
+  meetupOutcomes            MeetupOutcome[]
 
   adaptiveProfileEvidenceSources   AdaptiveProfileEvidence[]         @relation("AdaptiveProfileEvidenceSource")
   adaptiveProfileQuestionResponses AdaptiveProfileQuestionResponse[] @relation("AdaptiveProfileQuestionResponder")
@@ -611,11 +612,36 @@ model MeetupProposal {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  outcomes MeetupOutcome[]
+
   @@index([proposerId])
   @@index([recipientId])
   @@index([status])
   @@index([suggestedTime])
   @@map("meetup_proposals")
+}
+
+model MeetupOutcome {
+  id              String   @id @default(uuid())
+  proposalId      String   @map("proposal_id")
+  participantId   String   @map("participant_id")
+  occurred        Boolean
+  dogExperience   String?  @map("dog_experience")
+  ownerExperience String?  @map("owner_experience")
+  meetAgain       String?  @map("meet_again")
+  rating          Int?
+  feedbackTags    String[] @default([]) @map("feedback_tags")
+  checklistOk     Boolean? @map("checklist_ok")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  proposal    MeetupProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  participant User           @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, participantId])
+  @@index([participantId])
+  @@index([proposalId])
+  @@map("meetup_outcomes")
 }
 
 model LocationPing {
