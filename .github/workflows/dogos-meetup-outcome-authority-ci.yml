@@ -75,19 +75,21 @@ jobs:
         run: pnpm --filter @woof/database db:migrate:deploy
 
       - name: Check meetup authority formatting
-        run: >-
-          pnpm exec prettier --check
-          apps/api/src/meetup-proposals/meetup-proposals.service.ts
-          apps/api/src/meetup-proposals/meetup-proposals.controller.ts
-          apps/api/src/meetup-proposals/dto/create-meetup-proposal.dto.ts
-          apps/api/src/meetup-proposals/dto/update-meetup-proposal.dto.ts
-          apps/api/src/meetup-proposals/meetup-proposals.outcomes.spec.ts
-          apps/api/src/meetup-proposals/meetup-proposals.outcomes.integration.spec.ts
-          apps/web/src/app/meetups/page.tsx
-          apps/web/src/lib/api/meetup-proposals.ts
-          apps/web/src/lib/api/meetup-proposals.spec.ts
-          docs/DOGOS_MEETUP_OUTCOME_AUTHORITY_V1.md
-          .github/workflows/dogos-meetup-outcome-authority-ci.yml
+        shell: bash
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/meetup-proposals/meetup-proposals.service.ts \
+            apps/api/src/meetup-proposals/meetup-proposals.controller.ts \
+            apps/api/src/meetup-proposals/dto/create-meetup-proposal.dto.ts \
+            apps/api/src/meetup-proposals/dto/update-meetup-proposal.dto.ts \
+            apps/api/src/meetup-proposals/meetup-proposals.outcomes.spec.ts \
+            apps/api/src/meetup-proposals/meetup-proposals.outcomes.integration.spec.ts \
+            apps/web/src/app/meetups/page.tsx \
+            apps/web/src/lib/api/meetup-proposals.ts \
+            apps/web/src/lib/api/meetup-proposals.spec.ts \
+            docs/DOGOS_MEETUP_OUTCOME_AUTHORITY_V1.md \
+            .github/workflows/dogos-meetup-outcome-authority-ci.yml
+          git diff --exit-code
 
       - name: Lint meetup authority
         run: >-
