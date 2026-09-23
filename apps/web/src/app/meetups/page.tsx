@@ -88,9 +88,11 @@ const meetAgainCopy: Record<NonNullable<MeetupOutcome['meetAgain']>, string> = {
 function OutcomeCard({
   proposal,
   existingOutcome,
+  otherUserId,
 }: {
   proposal: MeetupProposal;
   existingOutcome: MeetupParticipantOutcome | null;
+  otherUserId: string;
 }) {
   const queryClient = useQueryClient();
   const [dogExperience, setDogExperience] = useState<NonNullable<
@@ -198,9 +200,9 @@ function OutcomeCard({
               new public-place plan when you want to. This does not reveal their answer.
             </p>
             <Button asChild size="sm" className="mt-3">
-              <Link href="/inbox">
+              <Link href={`/inbox?member=${encodeURIComponent(otherUserId)}`}>
                 <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                Open messages
+                Message this person
               </Link>
             </Button>
           </div>
@@ -465,9 +467,13 @@ export default function MeetupsPage() {
                       suggested meetup time.
                     </p>
                     <Button asChild size="sm" variant="outline" className="mt-3 bg-transparent">
-                      <Link href="/inbox">
+                      <Link
+                        href={`/inbox?member=${encodeURIComponent(
+                          direction === 'sent' ? proposal.recipientId : proposal.proposerId
+                        )}`}
+                      >
                         <MessageCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Open messages
+                        Message this person
                       </Link>
                     </Button>
                   </div>
@@ -479,6 +485,9 @@ export default function MeetupsPage() {
                 <OutcomeCard
                   proposal={proposal}
                   existingOutcome={outcomeByProposalId.get(proposal.id) ?? null}
+                  otherUserId={
+                    direction === 'sent' ? proposal.recipientId : proposal.proposerId
+                  }
                 />
               )}
             </Card>
