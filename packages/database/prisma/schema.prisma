@@ -61,6 +61,7 @@ model User {
   careEvents                CareEvent[]
   rewardLedgerEntries       RewardLedger[]
   questInteractions         QuestInteraction[]
+  meetupOutcomes            MeetupOutcome[]
 
   adaptiveProfileEvidenceSources   AdaptiveProfileEvidence[]         @relation("AdaptiveProfileEvidenceSource")
   adaptiveProfileQuestionResponses AdaptiveProfileQuestionResponse[] @relation("AdaptiveProfileQuestionResponder")
@@ -634,7 +635,8 @@ model MeetupOutcome {
   notes           String?
   createdAt       DateTime  @default(now()) @map("created_at")
 
-  proposal MeetupProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposal    MeetupProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  participant User           @relation(fields: [participantId], references: [id], onDelete: Cascade)
 
   @@unique([proposalId, participantId])
   @@index([participantId])

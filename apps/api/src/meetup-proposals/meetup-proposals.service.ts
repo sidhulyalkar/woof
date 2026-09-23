@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@woof/database';
+import { Prisma, type MeetupOutcome } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetupProposalDto } from './dto/create-meetup-proposal.dto';
 import {
@@ -173,7 +173,7 @@ export class MeetupProposalsService {
     const updated = await this.prisma.meetupProposal.findUnique({ where: { id } });
     if (!updated) throw new NotFoundException(`Meetup proposal ${id} not found`);
 
-    await this.recordTelemetry(
+    await this.recordTelemetryBestEffort(
       userId,
       dto.status === MeetupProposalStatus.ACCEPTED ? 'MEETUP_ACCEPTED' : 'MEETUP_DECLINED',
       { proposalId: id, otherUserId: proposal.proposerId }
@@ -191,7 +191,7 @@ export class MeetupProposalsService {
     }
 
     const normalized = this.normalizeOutcome(id, userId, dto);
-    let outcome;
+    let outcome: MeetupOutcome;
     let currentProposal = proposal;
     let idempotentRetry = false;
     let created = false;
@@ -255,7 +255,6 @@ export class MeetupProposalsService {
   }
 
   async cancel(id: string, userId: string) {
-  async cancel(id: string, userId: string) {
     const proposal = await this.findOneForUser(id, userId);
     if (
       proposal.status === MeetupProposalStatus.COMPLETED ||
@@ -267,7 +266,7 @@ export class MeetupProposalsService {
       where: { id },
       data: { status: MeetupProposalStatus.CANCELLED },
     });
-    await this.recordTelemetry(userId, 'MEETUP_CANCELLED', { proposalId: id });
+    await this.recordTelemetryBestEffort(userId, 'MEETUP_CANCELLED', { proposalId: id });
     return updated;
   }
 
@@ -367,7 +366,6 @@ export class MeetupProposalsService {
     }
   }
 
-  private async recordTelemetry(
   private async recordTelemetry(userId: string, event: string, data: Prisma.InputJsonObject) {
     await this.prisma.telemetry.create({
       data: { userId, source: 'meetup', event, data },

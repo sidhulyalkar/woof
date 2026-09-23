@@ -24,3 +24,8 @@ ALTER TABLE "meetup_outcomes"
   ADD CONSTRAINT "meetup_outcomes_proposal_id_fkey"
   FOREIGN KEY ("proposal_id") REFERENCES "meetup_proposals"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "meetup_outcomes"
+  ADD CONSTRAINT "meetup_outcomes_participant_id_fkey"
+  FOREIGN KEY ("participant_id") REFERENCES "users"("id")
+  ON DELETE CASCADE ON UPDATE CASCADE;

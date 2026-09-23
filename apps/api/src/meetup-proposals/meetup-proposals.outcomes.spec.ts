@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { Prisma } from '@woof/database';
 import { MeetupProposalsService } from './meetup-proposals.service';
 
 describe('MeetupProposalsService participant-scoped outcomes', () => {
@@ -85,11 +86,13 @@ describe('MeetupProposalsService participant-scoped outcomes', () => {
 
   it('rejects a divergent retry instead of overwriting the participant outcome', async () => {
     const { prisma, outcome } = fixture();
-    const unique = Object.assign(new Error('unique'), { code: 'P2002' });
+    const unique = new Prisma.PrismaClientKnownRequestError('unique outcome', {
+      code: 'P2002',
+      clientVersion: '5.9.1',
+    });
     prisma.$transaction.mockRejectedValue(unique);
     prisma.meetupOutcome.findUnique.mockResolvedValue(outcome);
     const service = new MeetupProposalsService(prisma as never);
-    jest.spyOn(service as never, 'isUniqueViolation').mockReturnValue(true);
 
     await expect(
       service.complete('proposal-1', 'user-1', {
