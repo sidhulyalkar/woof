@@ -170,7 +170,9 @@ export class MeetupProposalsService {
       proposal.status === MeetupProposalStatus.PENDING &&
       proposal.suggestedTime.getTime() <= Date.now()
     ) {
-      throw new BadRequestException('A meetup proposal cannot be accepted after its suggested time');
+      throw new BadRequestException(
+        'A meetup proposal cannot be accepted after its suggested time'
+      );
     }
 
     const blocked = await this.prisma.blockedUser.findFirst({
