@@ -41,19 +41,42 @@ pnpm install
 pnpm --filter @woof/mobile start
 ```
 
-On macOS with Xcode:
+### Physical iPhone through Xcode
+
+The repository now has a repeatable physical-device preparation path:
 
 ```bash
-pnpm --filter @woof/mobile ios
+pnpm --filter @woof/mobile ios:device:prepare
 ```
 
-For a physical development device, provide an API origin reachable from that device:
+By default this uses the repository-qualified remote API so the first iPhone launch does not depend
+on a local backend. To test the exact local API running on your Mac instead:
 
 ```bash
-EXPO_PUBLIC_API_URL=http://<your-lan-ip>:4000/api/v1 pnpm --filter @woof/mobile start
+pnpm --filter @woof/mobile ios:device:prepare -- --local-api
 ```
 
-`EXPO_PUBLIC_API_URL` takes precedence over the development fallback in Expo config.
+The preparation command installs the frozen JavaScript dependencies, resolves a phone-reachable API
+origin, generates the iOS project with Expo prebuild, resolves CocoaPods, writes local Xcode/Metro
+environment authority, and opens `apps/mobile/ios/Woof.xcworkspace`.
+
+For rapid Debug iteration, keep Metro running in a second terminal:
+
+```bash
+pnpm --filter @woof/mobile ios:device:metro
+```
+
+Then select your connected iPhone in Xcode, choose your Apple Development team under **Signing &
+Capabilities**, and press **Cmd+R**.
+
+The development helper uses a local bundle identifier by default so it does not require ownership of
+the production `com.woof.app` identifier. Preview and production builds remain locked to the
+canonical release identity.
+
+See [`../../docs/IOS_PHYSICAL_DEVICE_XCODE_V1.md`](../../docs/IOS_PHYSICAL_DEVICE_XCODE_V1.md) for
+the complete device checklist, local-API mode, signing notes, and evidence boundary.
+
+`EXPO_PUBLIC_API_URL` still takes precedence when you explicitly provide a different development API.
 
 ## Quality gates
 

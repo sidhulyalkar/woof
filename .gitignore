@@ -54,6 +54,8 @@ Thumbs.db
 # Expo
 .expo/
 .expo-shared/
+apps/mobile/ios/
+apps/mobile/android/
 
 # TypeScript
 *.tsbuildinfo

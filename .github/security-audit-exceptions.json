@@ -7,10 +7,13 @@
       "severity": "high",
       "classification": "mobile-build-tool-only",
       "allowed_path_prefix": "apps/mobile >",
-      "required_path_substrings": ["> @expo/", "> metro@"],
+      "required_path_substrings": [
+        "> @expo/",
+        "> metro@"
+      ],
       "owner": "sidhulyalkar",
-      "expires_on": "2026-09-29",
-      "rationale": "No patched image-size release is available. Every current production-audit path is confined to Expo/Metro dependency inspection used to build the mobile app; Woof does not expose image-size as an application runtime parser for user-supplied ICNS data. Re-evaluate on Expo/Metro or image-size release changes."
+      "expires_on": "2026-11-15",
+      "rationale": "Re-reviewed 2026-10-01: no patched image-size release is currently available. The locked finding remains confined to Expo/Metro dependency inspection used to build the mobile app, and Woof does not expose image-size as an application runtime parser for attacker-supplied ICNS/JXL/HEIF data. Re-evaluate on Expo/Metro or image-size release changes, and remove this exception as soon as an installable upstream fix exists."
     },
     {
       "advisory_id": "GHSA-5p2g-fcmc-qvqq",
@@ -18,10 +21,13 @@
       "severity": "high",
       "classification": "mobile-build-tool-only",
       "allowed_path_prefix": "apps/mobile >",
-      "required_path_substrings": ["> @expo/", "> metro@"],
+      "required_path_substrings": [
+        "> @expo/",
+        "> metro@"
+      ],
       "owner": "sidhulyalkar",
-      "expires_on": "2026-09-29",
-      "rationale": "No patched image-size release is available. Every current production-audit path is confined to Expo/Metro dependency inspection used to build the mobile app; Woof does not expose image-size as an application runtime parser for user-supplied JXL or HEIF data. Re-evaluate on Expo/Metro or image-size release changes."
+      "expires_on": "2026-11-15",
+      "rationale": "Re-reviewed 2026-10-01: no patched image-size release is currently available. The locked finding remains confined to Expo/Metro dependency inspection used to build the mobile app, and Woof does not expose image-size as an application runtime parser for attacker-supplied ICNS/JXL/HEIF data. Re-evaluate on Expo/Metro or image-size release changes, and remove this exception as soon as an installable upstream fix exists."
     }
   ]
 }
