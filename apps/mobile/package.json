@@ -12,7 +12,10 @@
     "type-check": "tsc --noEmit",
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios",
-    "build:all": "eas build --platform all"
+    "build:all": "eas build --platform all",
+    "ios:device:prepare": "bash ./scripts/prepare-ios-device.sh",
+    "ios:device:metro": "bash ./scripts/start-ios-device-metro.sh",
+    "ios:xcode": "bash ./scripts/open-ios-xcode.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

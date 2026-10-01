@@ -75,6 +75,31 @@ jobs:
           grep -F 'http://localhost:4000/api/v1' /tmp/woof-development-config.txt
           grep -F 'development' /tmp/woof-development-config.txt
 
+      - name: Development config supports physical iPhone identity and local networking
+        run: |
+          WOOF_BUILD_PROFILE=development \
+            EXPO_PUBLIC_API_URL='http://192.0.2.25:4000/api/v1' \
+            WOOF_IOS_BUNDLE_IDENTIFIER='com.sidhulyalkar.woof.dev' \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/woof-device-config.txt
+          grep -F 'http://192.0.2.25:4000/api/v1' /tmp/woof-device-config.txt
+          grep -F 'com.sidhulyalkar.woof.dev' /tmp/woof-device-config.txt
+          grep -F 'NSLocalNetworkUsageDescription' /tmp/woof-device-config.txt
+          grep -F 'NSAllowsLocalNetworking' /tmp/woof-device-config.txt
+
+      - name: Production config rejects development bundle identity
+        run: |
+          if WOOF_BUILD_PROFILE=production \
+            EXPO_PUBLIC_API_URL="$QUALIFIED_PRODUCTION_API_URL" \
+            EAS_PROJECT_ID="$TEST_EAS_PROJECT_ID" \
+            WOOF_IOS_BUNDLE_IDENTIFIER='com.sidhulyalkar.woof.dev' \
+            pnpm --filter @woof/mobile exec expo config --type public > /tmp/dev-bundle-in-production.txt 2>&1
+          then
+            cat /tmp/dev-bundle-in-production.txt
+            echo 'Production config unexpectedly accepted a development bundle identifier.'
+            exit 1
+          fi
+          grep -F 'must keep canonical iOS bundle identifier' /tmp/dev-bundle-in-production.txt
+
       - name: Production config rejects missing API authority
         run: |
           if env -u EXPO_PUBLIC_API_URL \
