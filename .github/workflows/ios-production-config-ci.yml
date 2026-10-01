@@ -67,6 +67,16 @@ jobs:
           .github/workflows/ios-production-config-ci.yml
           docs/IOS_PRODUCTION_CONFIG_V1.md
 
+      - name: Qualify physical-device helper entrypoints
+        run: |
+          bash -n apps/mobile/scripts/prepare-ios-device.sh
+          bash -n apps/mobile/scripts/start-ios-device-metro.sh
+          bash -n apps/mobile/scripts/open-ios-xcode.sh
+          pnpm --filter @woof/mobile ios:device:prepare -- --help > /tmp/woof-ios-device-help.txt
+          grep -F 'Prepare Woof for a physical iPhone Xcode run.' /tmp/woof-ios-device-help.txt
+          git check-ignore -q apps/mobile/ios/generated-probe
+          git check-ignore -q apps/mobile/android/generated-probe
+
       - name: Development config preserves local iteration
         run: |
           env -u EXPO_PUBLIC_API_URL -u EAS_PROJECT_ID -u EAS_BUILD_PROJECT_ID \
