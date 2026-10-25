@@ -209,6 +209,11 @@ jobs:
           EXPECTED_RELEASE: ${{ env.RELEASE_SHA }}
         run: node .github/scripts/verify-live-release.mjs
 
+      - name: Run disposable staging user journey
+        env:
+          API_URL: ${{ env.EXPECTED_API_URL }}
+        run: node .github/scripts/verify-staging-user-journey.mjs
+
   retain-staging-release-receipt:
     name: Retain Staging Release Receipt
     runs-on: ubuntu-latest
