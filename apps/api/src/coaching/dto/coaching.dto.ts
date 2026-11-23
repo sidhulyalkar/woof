@@ -5,6 +5,8 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsISO8601,
+  IsUUID,
   IsOptional,
   IsString,
   Max,
@@ -45,8 +47,14 @@ export class CreateTrainingPlanDto {
 }
 
 export class RecordTrainingSessionDto {
+  @IsUUID()
+  sessionKey!: string;
+
+  @IsISO8601({ strict: true })
+  expectedPlanUpdatedAt!: string;
+
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(20)
   attempts!: number;
 

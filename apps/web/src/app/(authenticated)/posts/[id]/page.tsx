@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Heart, MessageCircle, Share2, Send, MoreHorizontal, X, Loader2 } from 'lucide-react';
 import { ProfileAvatar, getPlaceholderAvatar } from '@/components/ui/ProfileAvatar';
 import { AppImage } from '@/components/ui/app-image';
@@ -11,7 +11,8 @@ import { useUIStore } from '@/store/ui';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { usePost, useComments, useCreateComment, useLikePost } from '@/lib/api/hooks';
 
-export default function PostDetailPage({ params }: { params: { id: string } }) {
+export default function PostDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { showToast } = useUIStore();
   const user = useAuthStore((state) => state.user);
@@ -21,10 +22,10 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   const [showComments, setShowComments] = useState(false);
 
   // Fetch post data
-  const { data: post, isLoading: postLoading } = usePost(params.id);
+  const { data: post, isLoading: postLoading } = usePost(id);
 
   // Fetch comments
-  const { data: comments = [], isLoading: commentsLoading } = useComments(params.id, {
+  const { data: comments = [], isLoading: commentsLoading } = useComments(id, {
     enabled: showComments,
   });
 
@@ -50,7 +51,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   const handleSendComment = async () => {
     if (!comment.trim()) return;
     try {
-      await createCommentMutation.mutateAsync({ postId: params.id, text: comment.trim() });
+      await createCommentMutation.mutateAsync({ postId: id, text: comment.trim() });
       setComment('');
       showToast({ message: 'Comment posted!', type: 'success' });
     } catch {
@@ -61,7 +62,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   const handleLike = () => {
     setIsLiked(!isLiked);
     setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
-    likePostMutation.mutate(params.id);
+    likePostMutation.mutate(id);
   };
 
   if (postLoading) {

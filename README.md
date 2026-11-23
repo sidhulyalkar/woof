@@ -57,21 +57,21 @@ The guiding product principles live in [`docs/RELATIONSHIP_FIRST_PRODUCT_PRINCIP
 
 Woof uses explicit maturity boundaries. **Implemented** means the canonical path exists. **Qualified** means dedicated tests/CI enforce the stated contract. **Shadow** means a capability may produce evidence but has intentionally limited authority. **Planned** means the roadmap exists but the release is not complete.
 
-| Capability | State | Current role |
-| --- | --- | --- |
-| First Adventure onboarding | Implemented + qualified | Creates the account/pet first, then asks only a few optional high-value personalization questions. Sparse profiles never block first use. |
-| Today | Implemented + qualified | Action-first home surface with one primary shared recommendation and subordinate alternatives/supporting context. |
-| Adventure | Implemented + qualified | Shared activities, outcomes, safe opt-outs, Bond XP, pathway context, and bounded recommendation adaptation. |
-| Adaptive Profile | Implemented + qualified | Pair-scoped evidence with provenance, uncertainty, corrections, skip/not-sure semantics, and deterministic progressive-question policy. |
-| Adventure learning v2 | Implemented + qualified | Learns bounded recommendation-fit signals from canonical outcomes while keeping reward authority and temporary owner load separate. |
-| Daily Signals + individual baseline substrate | Implemented + qualified backend | Canonical private check-ins, evidence projection, and deterministic longitudinal baseline policy. The richer Today capture/correction UX remains roadmap work. |
-| Coach | Implemented v1 | Reward-based practice flow. A deeper individualized skill graph and relationship-mastery model remain planned. |
-| Health Lens | Implemented + safety hardened | Conservative photo/context screening and handoff support with deterministic emergency boundaries and explicit model provenance. Not a diagnostic product. |
-| Behavior Vision | Shadow only | Derived behavior evidence with active-release attestation. It has zero Compatibility, safety, or canonical pet-state authority. |
-| Compatibility + Discovery | Implemented | Social matching remains a supporting capability with deterministic fallback and tightly governed learned-model promotion. |
-| Realtime messaging | Implemented + heavily qualified | Runtime payload validation, relationship authorization, bounded abuse control, finite session leases, persisted revocation, and private delivery rules. |
-| Session authority | Implemented + qualified | Persisted server-owned login sessions support immediate logout/logout-all revocation across protected HTTP and new realtime work. |
-| Deployment | Configured + qualified structurally | Fly API and Vercel Web workflows use explicit health/readiness gates. External deployment credentials remain environment-owned configuration. |
+| Capability                                    | State                               | Current role                                                                                                                                                                                                |
+| --------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First Adventure onboarding                    | Implemented + qualified             | Creates the account/pet first, then asks only a few optional high-value personalization questions. Sparse profiles never block first use.                                                                   |
+| Today                                         | Implemented + qualified             | Action-first home surface with one primary shared recommendation and subordinate alternatives/supporting context.                                                                                           |
+| Adventure                                     | Implemented + qualified             | Shared activities, outcomes, safe opt-outs, Bond XP, pathway context, and bounded recommendation adaptation.                                                                                                |
+| Adaptive Profile                              | Implemented + qualified             | Pair-scoped evidence with provenance, uncertainty, corrections, skip/not-sure semantics, and deterministic progressive-question policy.                                                                     |
+| Adventure learning v2                         | Implemented + qualified             | Learns bounded recommendation-fit signals from canonical outcomes while keeping reward authority and temporary owner load separate.                                                                         |
+| Daily Signals + individual baseline substrate | Implemented + qualified backend     | Canonical private check-ins, evidence projection, and deterministic longitudinal baseline policy. Native capture and explicit correction are implemented; richer Today explanation UX remains roadmap work. |
+| Coach                                         | Implemented v1                      | Reward-based practice flow with retry-safe session receipts and context-qualified progression. A deeper individualized skill graph and relationship-mastery model remain planned.                           |
+| Health Lens                                   | Implemented + safety hardened       | Conservative photo/context screening and handoff support with deterministic emergency boundaries and explicit model provenance. Not a diagnostic product.                                                   |
+| Behavior Vision                               | Shadow only                         | Derived behavior evidence with active-release attestation. It has zero Compatibility, safety, or canonical pet-state authority.                                                                             |
+| Compatibility + Discovery                     | Implemented                         | Social matching remains a supporting capability with deterministic fallback and tightly governed learned-model promotion.                                                                                   |
+| Realtime messaging                            | Implemented + heavily qualified     | Runtime payload validation, relationship authorization, bounded abuse control, finite session leases, persisted revocation, and private delivery rules.                                                     |
+| Session authority                             | Implemented + qualified             | Persisted server-owned login sessions support immediate logout/logout-all revocation across protected HTTP and new realtime work.                                                                           |
+| Deployment                                    | Configured + qualified structurally | Fly API and Vercel Web workflows use explicit health/readiness gates. External deployment credentials remain environment-owned configuration.                                                               |
 
 The project intentionally resists making every experimental model authoritative simply because it can produce a score.
 
@@ -295,12 +295,12 @@ pnpm --filter @woof/web dev
 
 Typical local endpoints:
 
-| Surface | URL |
-| --- | --- |
-| Web | `http://localhost:3000` |
-| API | `http://localhost:4000` |
-| Swagger | `http://localhost:4000/docs` |
-| Optional ML service | `http://localhost:8001` |
+| Surface             | URL                          |
+| ------------------- | ---------------------------- |
+| Web                 | `http://localhost:3000`      |
+| API                 | `http://localhost:4000`      |
+| Swagger             | `http://localhost:4000/docs` |
+| Optional ML service | `http://localhost:8001`      |
 
 ### Repository verification
 
@@ -399,6 +399,7 @@ Start with:
 
 - [`docs/RELATIONSHIP_FIRST_PRODUCT_PRINCIPLES.md`](docs/RELATIONSHIP_FIRST_PRODUCT_PRINCIPLES.md)
 - [`docs/FIRST_ADVENTURE_RELEASE.md`](docs/FIRST_ADVENTURE_RELEASE.md)
+- [`docs/COACHING_AND_NATIVE_CORRECTION_RELEASE.md`](docs/COACHING_AND_NATIVE_CORRECTION_RELEASE.md)
 - [`docs/DOGOS_ADVENTURE_LEARNING_V2.md`](docs/DOGOS_ADVENTURE_LEARNING_V2.md)
 - [`docs/DOGOS_SESSION_AUTHORITY.md`](docs/DOGOS_SESSION_AUTHORITY.md)
 - [`docs/DOGOS_INTELLIGENCE_BASELINE_POLICY_V1.md`](docs/DOGOS_INTELLIGENCE_BASELINE_POLICY_V1.md)

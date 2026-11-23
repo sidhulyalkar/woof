@@ -15,7 +15,7 @@ import {
   Sparkles,
   Timer,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { BottomNav } from '@/components/bottom-nav';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,7 +96,10 @@ function PracticePanel({
   const [rewardType, setRewardType] = useState<TrainingSessionInput['rewardType']>('food');
   const [stressSignals, setStressSignals] = useState<string[]>([]);
   const [stoppedEarly, setStoppedEarly] = useState(false);
+  const [distractionLevel, setDistractionLevel] = useState<number | undefined>();
   const [startedAt] = useState(() => Date.now());
+  const submission = useRef<TrainingSessionInput | null>(null);
+  const [submissionLocked, setSubmissionLocked] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -104,15 +107,21 @@ function PracticePanel({
         20,
         Math.min(900, Math.round((Date.now() - startedAt) / 1000))
       );
-      return coachingApi.recordSession(plan.id, {
+      // Freeze the entire payload on first submission, including elapsed time.
+      // An uncertain response must retry the same practice rather than create another.
+      submission.current ??= {
+        sessionKey: crypto.randomUUID(),
+        expectedPlanUpdatedAt: plan.updatedAt,
         attempts,
         successes,
         durationSeconds,
-        distractionLevel: plan.level,
+        distractionLevel,
         rewardType,
         stressSignals,
         stoppedEarly,
-      });
+      };
+      setSubmissionLocked(true);
+      return coachingApi.recordSession(plan.id, submission.current);
     },
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['coaching', 'me'] });
@@ -157,6 +166,7 @@ function PracticePanel({
         <div className="mt-7 grid grid-cols-2 gap-3">
           <button
             type="button"
+            disabled={submissionLocked || attempts >= 20}
             onClick={() => {
               setAttempts((value) => value + 1);
               setSuccesses((value) => value + 1);
@@ -169,6 +179,7 @@ function PracticePanel({
           </button>
           <button
             type="button"
+            disabled={submissionLocked || attempts >= 20}
             onClick={() => setAttempts((value) => value + 1)}
             className="flex min-h-32 flex-col items-center justify-center rounded-3xl border border-border/70 bg-card transition-transform active:scale-[0.98]"
           >
@@ -196,6 +207,7 @@ function PracticePanel({
               <button
                 key={reward.value}
                 type="button"
+                disabled={submissionLocked}
                 onClick={() => setRewardType(reward.value)}
                 className={cn(
                   'rounded-full border px-3 py-2 text-xs font-semibold transition-colors',
@@ -210,6 +222,25 @@ function PracticePanel({
           </div>
         </div>
 
+        <label className="mt-6 block text-sm font-semibold">
+          How distracting was the setting?
+          <select
+            className="mt-2 block w-full rounded-xl border border-border bg-background p-3"
+            value={distractionLevel ?? ''}
+            disabled={submissionLocked}
+            onChange={(event) =>
+              setDistractionLevel(event.target.value ? Number(event.target.value) : undefined)
+            }
+          >
+            <option value="">Not sure / leave unreported</option>
+            <option value="1">Quiet and familiar</option>
+            <option value="2">A few mild distractions</option>
+            <option value="3">Moderate distractions</option>
+            <option value="4">Busy setting</option>
+            <option value="5">Very distracting</option>
+          </select>
+        </label>
+
         <details className="mt-6 rounded-2xl border border-border/60 bg-card/60 p-4">
           <summary className="cursor-pointer text-sm font-semibold">
             Did anything look uncomfortable?
@@ -223,6 +254,7 @@ function PracticePanel({
               <button
                 key={observation.value}
                 type="button"
+                disabled={submissionLocked}
                 onClick={() => toggleObservation(observation.value)}
                 className={cn(
                   'rounded-full border px-3 py-2 text-xs transition-colors',
@@ -237,6 +269,7 @@ function PracticePanel({
           </div>
           <button
             type="button"
+            disabled={submissionLocked}
             onClick={() => setStoppedEarly((value) => !value)}
             className={cn(
               'mt-4 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs',
@@ -253,7 +286,7 @@ function PracticePanel({
         <Button
           size="lg"
           className="mt-7 h-12 w-full rounded-2xl"
-          disabled={attempts === 0 || saveMutation.isPending}
+          disabled={(attempts === 0 && !stoppedEarly) || saveMutation.isPending}
           onClick={() => saveMutation.mutate()}
         >
           {saveMutation.isPending ? (
@@ -261,11 +294,17 @@ function PracticePanel({
           ) : (
             <Heart className="mr-2 h-4 w-4" aria-hidden="true" />
           )}
-          Save practice
+          {saveMutation.isError ? 'Retry the same save' : 'Save practice'}
         </Button>
-        {attempts === 0 && (
+        {saveMutation.isError && (
+          <p role="alert" className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+            We could not confirm this save. Retry sends the same observations and cannot count this
+            practice twice. If the plan changed, close practice and reload your plan.
+          </p>
+        )}
+        {attempts === 0 && !stoppedEarly && (
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Log at least one observable repetition before saving.
+            Log a repetition, or choose “We stopped early” if you ended before trying.
           </p>
         )}
       </div>
@@ -368,7 +407,10 @@ export default function CoachPage() {
       {practicePlan && (
         <PracticePanel
           plan={practicePlan}
-          onClose={() => setPracticePlan(null)}
+          onClose={() => {
+            setPracticePlan(null);
+            void queryClient.invalidateQueries({ queryKey: ['coaching', 'me'] });
+          }}
           onSaved={(decision) => {
             setPracticePlan(null);
             setLatestDecision(decision);
