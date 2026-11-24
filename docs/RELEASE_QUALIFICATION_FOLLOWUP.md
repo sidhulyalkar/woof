@@ -14,7 +14,7 @@ anchors the suite clock, supplies the missing rejection metric mock, and verifie
 that moving the clock beyond the window rejects the event before ingestion or
 receipt creation. All 16 focused connector/contract tests pass locally.
 
-## Dependency release blocker
+## Dependency release blocker (historical 2026-11-23 scan)
 
 The security job stopped at expired image-size exceptions. A fresh production
 lockfile audit found 41 unique high/critical advisories across 19 packages (45
@@ -84,3 +84,32 @@ not raise a dog's coaching level. Preserve bounded weekly breadth credit and
 no additional league credit for retries. Test scenario/receipt identity, old
 attempt completion, retries, rejected/expired attempts, and native/web parity.
 Content review and a real-device trial remain explicit acceptance gates.
+
+## 2026-11-24 security-remediation result
+
+The original 41 high/critical advisory records (across 19 vulnerable packages)
+were eliminated from the locked production dependency graph by commit
+`6c2b1fd8db7543c3354442caf67f9f49448f642b`. The generated lockfile
+passed `pnpm install --frozen-lockfile --ignore-scripts`, and
+`pnpm audit --prod --json` returned **zero high and zero critical** findings.
+There are still 17 moderate/low findings, for separate triage. Exact audit
+evidence is retained in GitHub Actions run `45462151150`.
+
+- Patched direct Next.js + ESLint configuration, Sentry, Axios, Sharp, Multer,
+  fast-uri and both Zod consumers; API environment validation now uses Zod 4.
+- Patched vulnerable transitive dependencies with targeted brace-expansion
+  selectors and same-major overrides. Metro `0.83.8` drops `image-size` by
+  vendoring asset parsers, avoiding an incompatible image-size major override.
+- Woof mobile launches `AppNavigator`, not Expo Router. Removed the unused
+  Expo Router dependency/plugin, and moved React Navigation Core to `7.22.1`.
+  Neither `query-string` nor its vulnerable `decode-uri-component` dependency
+  remains in the production graph.
+- Removed expired `image-size` exceptions rather than renewing them. The
+  security baseline now checks the exception schema instead of requiring
+  obsolete advisories; the audit policy continues rejecting stale/expired or
+  unaccepted exceptions. No release waiver is granted.
+
+This establishes audited dependency presence, not production deployment or
+physical-device acceptance. Re-qualify the **final** head with Security Baseline,
+backend, browser/frontend, Expo compatibility, native artifacts and iOS Xcode
+before reviewing or deploying. Re-audit after any further dependency changes.
