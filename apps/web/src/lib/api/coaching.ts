@@ -65,6 +65,8 @@ export type CoachingDashboard = {
 };
 
 export type TrainingSessionInput = {
+  sessionKey: string;
+  expectedPlanUpdatedAt: string;
   attempts: number;
   successes: number;
   durationSeconds: number;

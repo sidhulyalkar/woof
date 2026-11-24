@@ -53,8 +53,20 @@ If `UNSURE` was included, the receipt explicitly says it remains uncertainty rat
 
 Repository qualification is not physical-device evidence. Largest Dynamic Type, VoiceOver traversal and real keyboard behavior remain part of the authenticated/device gates.
 
-## Non-goals
+## Explicit corrections
 
-This release does not weaken same-day conflict semantics and does not implement correction.
+Native now loads the effective structured state before permitting capture or editing.
+`Edit observations` begins a correction using the current CareEvent as the expected
+predecessor. The correction includes the complete intended structured state; an
+empty state explicitly retracts all observations. Private notes are not editable
+through this endpoint and are never copied into correction requests.
 
-Correction is a separate authority tranche because it must preserve the original CareEvent, create explicit superseding evidence, remain idempotent under concurrency, and replay baseline projections without double-counting.
+An uncertain save retains the same payload for retry while this screen remains
+mounted. Conflicts require an explicit reload before another correction; reloading
+replaces the draft. Responses for a previously selected dog cannot update the
+current editor. Full offline persistence and recovery after process termination
+remain future work.
+
+Behavioral tests execute the maintained component using DOM primitives in
+`apps/web/src/lib/native-daily-signals.spec.tsx`. They supplement source boundary
+checks; they do not establish native layout or VoiceOver quality.

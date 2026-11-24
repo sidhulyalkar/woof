@@ -44,7 +44,11 @@ required_daily = [
     "Add a private note",
     "Nothing to add today",
     "answeredCount === 0",
-    "signals: answers",
+    "signals: { ...answers }",
+    "expectedCurrentCareEventId: current.currentCareEventId",
+    "intelligenceApi.correctDailySignals(submission.input)",
+    "generation !== stateGeneration.current",
+    "Edit observations",
     "Unreported stays unknown.",
     "“Not sure” stays uncertainty",
     "minHeight: 44",
@@ -69,12 +73,12 @@ for forbidden in [
 if "const [answers, setAnswers] = useState<DailySignalsAnswers>({});" not in daily:
     raise SystemExit("Daily Signals answers must start sparse/empty; untouched cannot imply USUAL")
 
-if "disabled={saving || answeredCount === 0 || !selected.timezone}" not in daily:
+if "(!current && answeredCount === 0)" not in daily:
     raise SystemExit("note-only/empty Daily Signals must not become canonical evidence")
 
 print(
     "Native Daily Signals vNext sparse-capture authority is explicit: untouched dimensions stay unknown, "
     "only a uniquely authorized relationship context is preselected, note-only capture cannot save, "
     "large-text choices wrap with 44-point targets, and leaving without observations writes nothing. "
-    "Correction/supersession authority remains a separate release gate."
+    "Explicit predecessor-bound corrections may retract all observations; runtime journeys are covered by native-daily-signals.spec.tsx."
 )

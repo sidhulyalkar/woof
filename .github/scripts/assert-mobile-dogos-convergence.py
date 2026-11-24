@@ -55,7 +55,7 @@ for forbidden in ["PostDetail", "CreatePost"]:
 for marker in [
     "This is not a diagnosis or health score.",
     "'UNSURE'",
-    "already recorded for this dog and household day",
+    "Reload the saved version before making your correction",
     "householdId: selected.householdId",
 ]:
     if marker not in daily:

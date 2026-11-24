@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,7 +16,9 @@ import {
   intelligenceApi,
   type DailySignalChoice,
   type DailySignalsAnswers,
-  type DailySignalsCaptureReceipt,
+  type DailySignalsEffectiveState,
+  type CreateDailySignalsInput,
+  type CorrectDailySignalsInput,
 } from '../api/intelligence';
 import { colors } from '../theme/tokens';
 
@@ -68,7 +70,7 @@ type DailySignalsSuccess = {
   petName: string;
   savedCount: number;
   unsureCount: number;
-  receipt: DailySignalsCaptureReceipt;
+  receipt: { duplicate: boolean };
 };
 
 type Props = {
@@ -126,6 +128,18 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<DailySignalsSuccess | null>(null);
 
+  const [current, setCurrent] = useState<DailySignalsEffectiveState | null>(null);
+  const [stateReady, setStateReady] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [submissionLocked, setSubmissionLocked] = useState(false);
+  const stateGeneration = useRef(0);
+  const savingRef = useRef(false);
+  const pending = useRef<
+    | { kind: 'capture'; input: CreateDailySignalsInput }
+    | { kind: 'correction'; input: CorrectDailySignalsInput }
+    | null
+  >(null);
+
   const resetDraft = useCallback(() => {
     setAnswers({});
     setExpandedDimension(null);
@@ -159,6 +173,38 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   );
 
   const selected = contexts.find((context) => contextKey(context) === selectedContextKey) ?? null;
+  const loadCurrent = useCallback(async () => {
+    const generation = ++stateGeneration.current;
+    setStateReady(false);
+    setSaving(false);
+    setCurrent(null);
+    setEditing(false);
+    setSubmissionLocked(false);
+    pending.current = null;
+    resetDraft();
+    if (!selectedContextKey) return;
+    const [householdId, petId] = selectedContextKey.split(':');
+    if (!householdId || !petId) return;
+    try {
+      const state = await intelligenceApi.currentDailySignals(householdId, petId);
+      if (generation !== stateGeneration.current) return;
+      setCurrent(state);
+      setAnswers(state?.signals ?? {});
+      setEditing(!state);
+      setStateReady(true);
+    } catch {
+      if (generation === stateGeneration.current)
+        setError('Could not load today’s observations. Reload before editing.');
+    }
+  }, [selectedContextKey, resetDraft]);
+
+  useEffect(() => {
+    void loadCurrent();
+    return () => {
+      stateGeneration.current += 1;
+    };
+  }, [loadCurrent]);
+
   const answeredCount = useMemo(
     () => Object.values(answers).filter((value) => value !== undefined).length,
     [answers]
@@ -169,12 +215,17 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   );
 
   const chooseContext = (key: string) => {
-    if (key === selectedContextKey) return;
+    if (key === selectedContextKey || savingRef.current) return;
+    stateGeneration.current += 1;
+    setStateReady(false);
+    setCurrent(null);
+    setEditing(false);
     setSelectedContextKey(key);
     resetDraft();
   };
 
   const setChoice = (key: keyof DailySignalsAnswers, value: DailySignalChoice) => {
+    if (!stateReady || !editing || submissionLocked || savingRef.current) return;
     setAnswers((current) => ({ ...current, [key]: value }));
     setExpandedDimension(null);
     setSuccess(null);
@@ -182,6 +233,7 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   };
 
   const clearChoice = (key: keyof DailySignalsAnswers) => {
+    if (!stateReady || !editing || submissionLocked || savingRef.current) return;
     setAnswers((current) => {
       const next = { ...current };
       delete next[key];
@@ -193,40 +245,86 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
   };
 
   const save = async () => {
-    if (!selected || answeredCount === 0) return;
+    if (
+      !selected ||
+      !stateReady ||
+      !editing ||
+      savingRef.current ||
+      (!current && answeredCount === 0)
+    )
+      return;
+    const generation = stateGeneration.current;
     const savedCount = answeredCount;
     const savedUnsureCount = unsureCount;
+    pending.current ??= current
+      ? {
+          kind: 'correction',
+          input: {
+            householdId: selected.householdId,
+            petId: selected.petId,
+            expectedCurrentCareEventId: current.currentCareEventId,
+            signals: { ...answers },
+          },
+        }
+      : {
+          kind: 'capture',
+          input: {
+            householdId: selected.householdId,
+            petId: selected.petId,
+            observedAt: new Date().toISOString(),
+            signals: { ...answers },
+            ...(note.trim() ? { note: note.trim() } : {}),
+          },
+        };
+    const submission = pending.current;
+    savingRef.current = true;
     setSaving(true);
+    setSubmissionLocked(true);
     setError(null);
-    setSuccess(null);
     try {
-      const receipt = await intelligenceApi.captureDailySignals({
-        householdId: selected.householdId,
-        petId: selected.petId,
-        signals: answers,
-        ...(note.trim() ? { note: note.trim() } : {}),
-      });
-      setSuccess({
-        petName: selected.petName,
-        savedCount,
-        unsureCount: savedUnsureCount,
-        receipt,
-      });
-      setAnswers({});
-      setExpandedDimension(null);
+      const receipt =
+        submission.kind === 'correction'
+          ? await intelligenceApi.correctDailySignals(submission.input)
+          : await intelligenceApi.captureDailySignals(submission.input);
+      if (generation !== stateGeneration.current) return;
+      setSuccess({ petName: selected.petName, savedCount, unsureCount: savedUnsureCount, receipt });
+      setEditing(false);
       setNote('');
       setNoteOpen(false);
+      pending.current = null;
+      try {
+        const state = await intelligenceApi.currentDailySignals(
+          selected.householdId,
+          selected.petId
+        );
+        if (generation !== stateGeneration.current) return;
+        setCurrent(state);
+        setAnswers(state?.signals ?? {});
+        setEditing(!state);
+        setStateReady(true);
+        setSubmissionLocked(false);
+      } catch {
+        if (generation === stateGeneration.current) {
+          setStateReady(false);
+          setError('Saved successfully. Reload today’s observations before making another edit.');
+        }
+      }
     } catch (caught) {
+      if (generation !== stateGeneration.current) return;
       const status = isAxiosError(caught) ? caught.response?.status : undefined;
-      if (status === 409) {
+      if (status === 409 || status === 404) {
+        setStateReady(false);
         setError(
-          'A different Daily Signals check-in is already recorded for this dog and household day. Woof will not silently overwrite it.'
+          'Today’s observations changed. Reload the saved version before making your correction. Reloading replaces this draft.'
         );
       } else {
-        setError('Woof could not save this check-in. Nothing was partially replaced.');
+        setError(
+          'We could not confirm this save. Retry sends the same observations; it will not count them twice.'
+        );
       }
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (generation === stateGeneration.current) setSaving(false);
     }
   };
 
@@ -251,6 +349,47 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
         Only mark what you actually noticed. Skipping the rest leaves it unknown.
       </Text>
       <Text style={styles.boundaryText}>This is not a diagnosis or health score.</Text>
+
+      {selected && (
+        <View style={styles.noticeCard}>
+          <Text style={styles.noticeTitle}>
+            {current
+              ? editing
+                ? 'Edit today’s observations'
+                : 'Today’s saved observations'
+              : 'Today’s observations'}
+          </Text>
+          {current && (
+            <Text style={styles.noticeText}>
+              Changes replace the reported observations for today. Private notes are unchanged.
+              Leaving every item unreported clears these observations.
+            </Text>
+          )}
+          {current && stateReady && !editing && (
+            <Pressable
+              accessibilityRole="button"
+              style={styles.clearButton}
+              onPress={() => {
+                setEditing(true);
+                setSuccess(null);
+              }}
+            >
+              <Text style={styles.clearButtonText}>Edit observations</Text>
+            </Pressable>
+          )}
+          {!stateReady && (
+            <Pressable
+              accessibilityRole="button"
+              style={styles.clearButton}
+              accessibilityState={{ disabled: saving }}
+              disabled={saving}
+              onPress={() => void loadCurrent()}
+            >
+              <Text style={styles.clearButtonText}>Reload saved observations</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {contexts.length === 0 ? (
         <View style={styles.noticeCard}>
@@ -288,7 +427,8 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
                     <Pressable
                       key={key}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: selectedContext }}
+                      accessibilityState={{ selected: selectedContext, disabled: saving }}
+                      disabled={saving}
                       accessibilityLabel={`${context.petName}, ${context.householdName}`}
                       style={[styles.contextChip, selectedContext && styles.contextChipSelected]}
                       onPress={() => chooseContext(key)}
@@ -394,8 +534,12 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
                                   <Pressable
                                     key={choice.value}
                                     accessibilityRole="button"
-                                    accessibilityState={{ selected: isSelected }}
+                                    accessibilityState={{
+                                      selected: isSelected,
+                                      disabled: !stateReady || !editing || submissionLocked,
+                                    }}
                                     style={[styles.choice, isSelected && styles.choiceSelected]}
+                                    disabled={!stateReady || !editing || submissionLocked}
                                     onPress={() => setChoice(dimension.key, choice.value)}
                                   >
                                     <Text
@@ -414,6 +558,7 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
                               <Pressable
                                 accessibilityRole="button"
                                 style={styles.clearButton}
+                                disabled={!stateReady || !editing || submissionLocked}
                                 onPress={() => clearChoice(dimension.key)}
                               >
                                 <Text style={styles.clearButtonText}>Leave unreported</Text>
@@ -427,40 +572,43 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
                 </View>
               </View>
 
-              <View style={styles.noteSection}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: noteOpen }}
-                  style={styles.noteToggle}
-                  onPress={() => setNoteOpen((current) => !current)}
-                >
-                  <View style={styles.flex}>
-                    <Text style={styles.noteToggleTitle}>Add a private note</Text>
-                    <Text style={styles.noteToggleSubtitle}>Optional · up to 500 characters</Text>
-                  </View>
-                  <Ionicons
-                    name={noteOpen ? 'chevron-up' : 'chevron-down'}
-                    size={20}
-                    color={colors.gray[500]}
-                  />
-                </Pressable>
-
-                {noteOpen && (
-                  <>
-                    <TextInput
-                      value={note}
-                      onChangeText={(value) => setNote(value.slice(0, 500))}
-                      placeholder="A short private note"
-                      placeholderTextColor={colors.gray[400]}
-                      multiline
-                      textAlignVertical="top"
-                      style={styles.noteInput}
-                      accessibilityLabel="Optional private Daily Signals note"
+              {!current && (
+                <View style={styles.noteSection}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: noteOpen }}
+                    style={styles.noteToggle}
+                    onPress={() => setNoteOpen((current) => !current)}
+                  >
+                    <View style={styles.flex}>
+                      <Text style={styles.noteToggleTitle}>Add a private note</Text>
+                      <Text style={styles.noteToggleSubtitle}>Optional · up to 500 characters</Text>
+                    </View>
+                    <Ionicons
+                      name={noteOpen ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color={colors.gray[500]}
                     />
-                    <Text style={styles.characterCount}>{note.length}/500</Text>
-                  </>
-                )}
-              </View>
+                  </Pressable>
+
+                  {noteOpen && (
+                    <>
+                      <TextInput
+                        editable={stateReady && editing && !submissionLocked}
+                        value={note}
+                        onChangeText={(value) => setNote(value.slice(0, 500))}
+                        placeholder="A short private note"
+                        placeholderTextColor={colors.gray[400]}
+                        multiline
+                        textAlignVertical="top"
+                        style={styles.noteInput}
+                        accessibilityLabel="Optional private Daily Signals note"
+                      />
+                      <Text style={styles.characterCount}>{note.length}/500</Text>
+                    </>
+                  )}
+                </View>
+              )}
 
               {error && (
                 <View style={styles.errorCard} accessibilityRole="alert">
@@ -498,12 +646,28 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{
-                  disabled: saving || answeredCount === 0 || !selected.timezone,
+                  disabled:
+                    saving ||
+                    !stateReady ||
+                    !editing ||
+                    (!current && answeredCount === 0) ||
+                    !selected.timezone,
                 }}
-                disabled={saving || answeredCount === 0 || !selected.timezone}
+                disabled={
+                  saving ||
+                  !stateReady ||
+                  !editing ||
+                  (!current && answeredCount === 0) ||
+                  !selected.timezone
+                }
                 style={[
                   styles.saveButton,
-                  (saving || answeredCount === 0 || !selected.timezone) && styles.disabledButton,
+                  (saving ||
+                    !stateReady ||
+                    !editing ||
+                    (!current && answeredCount === 0) ||
+                    !selected.timezone) &&
+                    styles.disabledButton,
                 ]}
                 onPress={() => void save()}
               >
@@ -511,8 +675,8 @@ export default function DailySignalsScreen({ preferredPetId, onDone }: Props) {
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.saveButtonText}>
-                    Save {answeredCount || ''}{' '}
-                    {answeredCount === 1 ? 'observation' : 'observations'}
+                    {submissionLocked ? 'Retry saving' : current ? 'Save correction:' : 'Save'}{' '}
+                    {answeredCount || ''} {answeredCount === 1 ? 'observation' : 'observations'}
                   </Text>
                 )}
               </Pressable>

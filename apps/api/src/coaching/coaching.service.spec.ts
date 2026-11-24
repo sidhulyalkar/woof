@@ -7,6 +7,7 @@ const session = (successRate: number, options: Partial<TrainingSignal> = {}): Tr
   stressSignals: [],
   stoppedEarly: false,
   difficultyLevel: 2,
+  distractionLevel: 1,
   ...options,
 });
 
@@ -30,7 +31,10 @@ describe('reward-based coaching progression', () => {
   });
 
   it('reduces difficulty instead of repeating a failing setup', () => {
-    const decision = recommendProgression([session(0.4), session(0.4)], 3);
+    const decision = recommendProgression(
+      [session(0.4, { difficultyLevel: 3 }), session(0.4, { difficultyLevel: 3 })],
+      3
+    );
     expect(decision.action).toBe('decrease');
     expect(decision.nextLevel).toBe(2);
   });
@@ -49,5 +53,29 @@ describe('reward-based coaching progression', () => {
     const decision = recommendProgression([session(1), session(1)], 5);
     expect(decision.action).toBe('hold');
     expect(decision.nextLevel).toBe(5);
+  });
+});
+
+describe('comparable coaching evidence', () => {
+  it('does not reuse an easier level to advance after one new-level session', () => {
+    expect(recommendProgression([session(1), session(1, { difficultyLevel: 1 })], 2).action).toBe(
+      'hold'
+    );
+  });
+  it('does not combine successful sessions from different distraction contexts', () => {
+    expect(recommendProgression([session(1), session(1, { distractionLevel: 3 })], 2).action).toBe(
+      'hold'
+    );
+  });
+  it('keeps unknown legacy context from authorizing progression', () => {
+    expect(
+      recommendProgression([session(1, { distractionLevel: undefined }), session(1)], 2).action
+    ).toBe('hold');
+  });
+  it('can recommend stopping before any repetition', () => {
+    expect(
+      recommendProgression([session(0, { attempts: 0, successes: 0, stoppedEarly: true })], 2)
+        .nextLevel
+    ).toBe(1);
   });
 });

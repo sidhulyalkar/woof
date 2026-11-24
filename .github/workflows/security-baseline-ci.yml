@@ -74,6 +74,7 @@ jobs:
       - name: Enforce committed security baseline contracts
         run: |
           python - <<'PY'
+          import json
           from pathlib import Path
 
           dependabot = Path('.github/dependabot.yml').read_text()
@@ -112,11 +113,8 @@ jobs:
               'stale audit exceptions are not allowed',
               'apps/mobile >',
           ]
-          required_exceptions = [
-              'GHSA-w3rx-r6r6-pgpr',
-              'GHSA-5p2g-fcmc-qvqq',
-              '2026-09-29',
-          ]
+          # Do not require obsolete GHSA exceptions.
+          required_exceptions = []
 
           groups = [
               ('dependabot', dependabot, required_dependabot),
@@ -133,6 +131,18 @@ jobs:
                   f'{label}:{marker}' for marker in markers if marker not in content
               )
 
+          try:
+              exception_config = json.loads(exceptions)
+          except json.JSONDecodeError:
+              missing.append('audit-exceptions:valid-json')
+          else:
+              if (
+                  not isinstance(exception_config, dict)
+                  or exception_config.get('schema_version') != 1
+                  or not isinstance(exception_config.get('exceptions'), list)
+              ):
+                  missing.append('audit-exceptions:valid-schema-v1')
+
           if missing:
               raise SystemExit('security baseline contract drift:\n' + '\n'.join(missing))
           PY
@@ -148,11 +158,12 @@ jobs:
           docs/SECURITY_BASELINE.md
 
       - name: Retain production security evidence
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: production-security-evidence-${{ github.run_id }}
           path: |
             /tmp/pnpm-audit.json
             /tmp/production-dependency-inventory.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14

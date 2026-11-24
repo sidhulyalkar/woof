@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Prisma } from '@woof/database';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -15,7 +17,7 @@ import {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TRAINING_GOAL_TYPE = 'TRAINING';
 const PLAN_SCHEMA_VERSION = 'woof-training-plan-v1';
-const SESSION_SCHEMA_VERSION = 'woof-training-session-v1';
+const SESSION_SCHEMA_VERSION = 'woof-training-session-v2';
 
 export type TrainingSignal = {
   attempts: number;
@@ -24,6 +26,7 @@ export type TrainingSignal = {
   stressSignals: string[];
   stoppedEarly: boolean;
   difficultyLevel: number;
+  distractionLevel?: number;
 };
 
 export type ProgressionDecision = {
@@ -76,6 +79,9 @@ export function recommendProgression(
     recent.length >= 2 &&
     recent.every(
       (session) =>
+        session.difficultyLevel === level &&
+        session.distractionLevel !== undefined &&
+        session.distractionLevel === latest.distractionLevel &&
         session.attempts >= 5 &&
         session.successRate >= 0.8 &&
         session.stressSignals.length === 0 &&
@@ -89,11 +95,11 @@ export function recommendProgression(
       reason:
         level < 5
           ? 'Two comfortable sessions above the practice threshold suggest the skill is ready for one modest increase in duration, distance, or distraction.'
-          : 'The skill is working in varied contexts. Keep reinforcement worthwhile and vary contexts gradually.',
+          : 'Keep reinforcement worthwhile. Success here does not establish reliability in other contexts.',
     };
   }
 
-  if (recent.length >= 2) {
+  if (recent.length >= 2 && recent.every((session) => session.difficultyLevel === level)) {
     const average = recent.reduce((sum, session) => sum + session.successRate, 0) / recent.length;
     if (average < 0.6) {
       return {
@@ -469,119 +475,181 @@ export class CoachingService {
       throw new BadRequestException('Successes cannot exceed attempts');
     }
 
-    const plan = await this.getOwnedPlan(userId, planId);
-    if (plan.status !== 'ACTIVE') {
-      throw new BadRequestException('Resume this coaching plan before logging practice');
+    if (dto.attempts === 0 && !dto.stoppedEarly) {
+      throw new BadRequestException('Record an attempt or an early stop');
     }
-    const metadata = this.parsePlanMetadata(plan.metadata);
-    if (!metadata) throw new BadRequestException('Training plan metadata is invalid');
-
-    const recentActivities = await this.prisma.activity.findMany({
-      where: {
-        userId,
-        petId: plan.petId,
-        type: 'TRAINING',
-        startedAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
-      },
-      orderBy: { startedAt: 'desc' },
-      take: 30,
-    });
-    const previous = recentActivities
-      .map((activity) =>
-        this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt)
-      )
-      .filter(
-        (session): session is NonNullable<typeof session> =>
-          session !== null && session.planId === plan.id
-      );
-
-    const now = new Date();
-    const startedAt = new Date(now.getTime() - dto.durationSeconds * 1000);
-    const successRate = dto.attempts > 0 ? dto.successes / dto.attempts : 0;
-    const signal: TrainingSignal = {
-      attempts: dto.attempts,
-      successes: dto.successes,
-      successRate,
-      stressSignals: dto.stressSignals ?? [],
-      stoppedEarly: dto.stoppedEarly ?? false,
-      difficultyLevel: metadata.level,
-    };
-    const decision = recommendProgression(
-      [signal, ...previous.map((session) => session.signal)],
-      metadata.level
-    );
-
-    const activity = await this.prisma.activity.create({
-      data: {
-        userId,
-        petId: plan.petId,
-        startedAt,
-        endedAt: now,
-        type: 'TRAINING',
-        humanMetrics: {
-          coachPlanId: plan.id,
-          handlerFocus: metadata.handlerFocus,
-          rewardType: dto.rewardType,
-        },
-        petMetrics: {
+    const payloadHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          planId,
+          expectedPlanUpdatedAt: new Date(dto.expectedPlanUpdatedAt).toISOString(),
           attempts: dto.attempts,
           successes: dto.successes,
-          successRate: this.round(successRate),
-          stressSignals: dto.stressSignals ?? [],
-          stoppedEarly: dto.stoppedEarly ?? false,
-        },
-        jointMetrics: {
-          schemaVersion: SESSION_SCHEMA_VERSION,
-          coachPlanId: plan.id,
-          templateId: metadata.templateId,
-          difficultyLevel: metadata.level,
-          distractionLevel: dto.distractionLevel ?? metadata.level,
-          attempts: dto.attempts,
-          successes: dto.successes,
-          successRate: this.round(successRate),
+          durationSeconds: dto.durationSeconds,
+          distractionLevel: dto.distractionLevel ?? null,
           rewardType: dto.rewardType,
-          stressSignals: dto.stressSignals ?? [],
+          stressSignals: [...new Set(dto.stressSignals ?? [])].sort(),
           stoppedEarly: dto.stoppedEarly ?? false,
           notes: dto.notes ?? null,
-          nextDecision: decision,
+        })
+      )
+      .digest('hex');
+
+    return this.prisma.$transaction(async (tx) => {
+      // All plan writes (including pause/resume) serialize on the same database row.
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM mutual_goals WHERE id = ${planId} FOR UPDATE`);
+      const plan = await this.getOwnedPlan(userId, planId, tx);
+      const ownedPets = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM pets WHERE id = ${plan.petId} AND owner_id = ${userId} FOR SHARE
+      `);
+      if (!ownedPets.length) throw new ForbiddenException('You do not have access to this pet');
+      const receipts = await tx.$queryRaw<
+        Array<{ payload_hash: string; response: Prisma.JsonValue }>
+      >(Prisma.sql`
+        SELECT payload_hash, response FROM dogos_coaching.session_receipts
+        WHERE plan_id = ${planId} AND session_key = ${dto.sessionKey}::uuid
+      `);
+      if (receipts[0]) {
+        if (receipts[0].payload_hash !== payloadHash) {
+          throw new ConflictException(
+            'This practice was already saved with different observations'
+          );
+        }
+        return receipts[0].response as unknown as CoachingSessionReceipt;
+      }
+      if (plan.updatedAt.getTime() !== new Date(dto.expectedPlanUpdatedAt).getTime()) {
+        throw new ConflictException(
+          'The coaching plan changed. Reload it before recording a new practice'
+        );
+      }
+      if (plan.status !== 'ACTIVE') {
+        throw new BadRequestException('Resume this coaching plan before logging practice');
+      }
+      const metadata = this.parsePlanMetadata(plan.metadata);
+      if (!metadata) throw new BadRequestException('Training plan metadata is invalid');
+
+      const recentActivities = await tx.activity.findMany({
+        where: {
+          userId,
+          petId: plan.petId,
+          type: 'TRAINING',
+          jointMetrics: { path: ['coachPlanId'], equals: plan.id },
+          startedAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
         },
-      },
-    });
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 30,
+      });
+      const previous = recentActivities
+        .map((activity) =>
+          this.parseSession(activity.jointMetrics, activity.startedAt, activity.endedAt)
+        )
+        .filter(
+          (session): session is NonNullable<typeof session> =>
+            session !== null && session.planId === plan.id
+        );
 
-    const currentValue = plan.currentValue + 1;
-    const updatedMetadata: PlanMetadata = {
-      ...metadata,
-      level: decision.nextLevel,
-      lastDecision: decision,
-    };
-    const updatedPlan = await this.prisma.mutualGoal.update({
-      where: { id: plan.id },
-      data: {
-        currentValue,
-        progress: Math.min(100, (currentValue / plan.targetNumber) * 100),
-        metadata: updatedMetadata as unknown as Prisma.InputJsonValue,
-      },
-    });
+      const now = new Date(Math.max(Date.now(), plan.updatedAt.getTime() + 1));
+      const startedAt = new Date(now.getTime() - dto.durationSeconds * 1000);
+      const successRate = dto.attempts > 0 ? dto.successes / dto.attempts : 0;
+      const signal: TrainingSignal = {
+        attempts: dto.attempts,
+        successes: dto.successes,
+        successRate,
+        stressSignals: dto.stressSignals ?? [],
+        stoppedEarly: dto.stoppedEarly ?? false,
+        difficultyLevel: metadata.level,
+        distractionLevel: dto.distractionLevel,
+      };
+      const decision = recommendProgression(
+        [signal, ...previous.map((session) => session.signal)],
+        metadata.level
+      );
 
-    const allSignals = [signal, ...previous.map((session) => session.signal)];
-    return {
-      activityId: activity.id,
-      plan: this.serializePlan(updatedPlan, [
-        {
-          planId: plan.id,
+      const activity = await tx.activity.create({
+        data: {
+          userId,
+          petId: plan.petId,
           startedAt,
-          durationSeconds: dto.durationSeconds,
-          signal,
+          endedAt: now,
+          createdAt: now,
+          type: 'TRAINING',
+          humanMetrics: {
+            coachPlanId: plan.id,
+            handlerFocus: metadata.handlerFocus,
+            rewardType: dto.rewardType,
+          },
+          petMetrics: {
+            attempts: dto.attempts,
+            successes: dto.successes,
+            successRate: this.round(successRate),
+            stressSignals: dto.stressSignals ?? [],
+            stoppedEarly: dto.stoppedEarly ?? false,
+          },
+          jointMetrics: {
+            schemaVersion: SESSION_SCHEMA_VERSION,
+            coachPlanId: plan.id,
+            templateId: metadata.templateId,
+            difficultyLevel: metadata.level,
+            distractionLevel: dto.distractionLevel ?? null,
+            attempts: dto.attempts,
+            successes: dto.successes,
+            successRate: this.round(successRate),
+            rewardType: dto.rewardType,
+            stressSignals: dto.stressSignals ?? [],
+            stoppedEarly: dto.stoppedEarly ?? false,
+            notes: dto.notes ?? null,
+            nextDecision: decision,
+          },
         },
-        ...previous,
-      ]),
-      decision,
-      support: this.supportMessage(allSignals),
-    };
+      });
+
+      const currentValue = plan.currentValue + 1;
+      const updatedMetadata: PlanMetadata = {
+        ...metadata,
+        level: decision.nextLevel,
+        lastDecision: decision,
+      };
+      const updatedPlan = await tx.mutualGoal.update({
+        where: { id: plan.id },
+        data: {
+          currentValue,
+          updatedAt: now,
+          progress: Math.min(100, (currentValue / plan.targetNumber) * 100),
+          metadata: updatedMetadata as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      const allSignals = [signal, ...previous.map((session) => session.signal)];
+      const result = {
+        activityId: activity.id,
+        plan: this.serializePlan(updatedPlan, [
+          {
+            planId: plan.id,
+            startedAt,
+            durationSeconds: dto.durationSeconds,
+            signal,
+          },
+          ...previous,
+        ]),
+        decision,
+        support: this.supportMessage(allSignals),
+      };
+      await tx.$executeRaw(Prisma.sql`
+      INSERT INTO dogos_coaching.session_receipts
+        (plan_id, session_key, user_id, activity_id, payload_hash, response)
+      VALUES (${plan.id}, ${dto.sessionKey}::uuid, ${userId}, ${activity.id}, ${payloadHash},
+        ${JSON.stringify(result)}::jsonb)
+    `);
+      return result;
+    });
   }
 
-  private async getOwnedPlan(userId: string, planId: string) {
-    const plan = await this.prisma.mutualGoal.findUnique({ where: { id: planId } });
+  private async getOwnedPlan(
+    userId: string,
+    planId: string,
+    db: Prisma.TransactionClient = this.prisma
+  ) {
+    const plan = await db.mutualGoal.findUnique({ where: { id: planId } });
     if (!plan) throw new NotFoundException('Coaching plan not found');
     if (plan.userId !== userId || plan.goalType !== TRAINING_GOAL_TYPE) {
       throw new ForbiddenException('You do not have access to this coaching plan');
@@ -629,7 +697,8 @@ export class CoachingService {
     if (!value || Array.isArray(value) || typeof value !== 'object') return null;
     const raw = value as Prisma.JsonObject;
     if (
-      raw.schemaVersion !== SESSION_SCHEMA_VERSION ||
+      (raw.schemaVersion !== SESSION_SCHEMA_VERSION &&
+        raw.schemaVersion !== 'woof-training-session-v1') ||
       typeof raw.coachPlanId !== 'string' ||
       typeof raw.attempts !== 'number' ||
       typeof raw.successes !== 'number' ||
@@ -654,11 +723,15 @@ export class CoachingService {
         stressSignals,
         stoppedEarly: raw.stoppedEarly === true,
         difficultyLevel: raw.difficultyLevel,
+        distractionLevel:
+          raw.schemaVersion === SESSION_SCHEMA_VERSION && typeof raw.distractionLevel === 'number'
+            ? raw.distractionLevel
+            : undefined,
       } satisfies TrainingSignal,
     };
   }
 
-  private serializePlan(
+  serializePlan(
     goal: {
       id: string;
       petId: string;
@@ -679,7 +752,7 @@ export class CoachingService {
     const metadata = this.parsePlanMetadata(goal.metadata);
     if (!metadata) return null;
     const signals = sessions.map((session) => session.signal);
-    const decision = recommendProgression(signals, metadata.level);
+    const decision = metadata.lastDecision ?? recommendProgression(signals, metadata.level);
     const recent = sessions.slice(0, 5);
     const totalAttempts = recent.reduce((sum, session) => sum + session.signal.attempts, 0);
     const totalSuccesses = recent.reduce((sum, session) => sum + session.signal.successes, 0);
@@ -767,3 +840,10 @@ export class CoachingService {
     return Math.round(value * 1000) / 1000;
   }
 }
+
+export type CoachingSessionReceipt = {
+  activityId: string;
+  plan: ReturnType<CoachingService['serializePlan']>;
+  decision: ProgressionDecision;
+  support: { recommended: boolean; message: string };
+};
