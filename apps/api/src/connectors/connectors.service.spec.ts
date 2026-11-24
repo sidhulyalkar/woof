@@ -60,6 +60,7 @@ function harness() {
   };
   const metrics = {
     recordConnectorImport: jest.fn(),
+    recordDeviceContractRejection: jest.fn(),
   };
   return {
     credentials,
@@ -76,6 +77,11 @@ function harness() {
 }
 
 describe('ConnectorsService', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-08-23T12:00:00.000Z') });
+  });
+  afterEach(() => jest.useRealTimers());
+
   it('reports partner-gated providers without fake connected states', async () => {
     const { service } = harness();
 
@@ -273,6 +279,25 @@ describe('ConnectorsService', () => {
     expect(JSON.stringify(metric)).not.toContain(userId);
     expect(JSON.stringify(metric)).not.toContain('tractive-pet-1');
     expect(JSON.stringify(metric)).not.toContain('day-1');
+  });
+
+  it('rejects expired partner observations before import and records only rejection telemetry', async () => {
+    const { service, metrics, autopilot, operational } = harness();
+    jest.setSystemTime(new Date('2027-08-23T12:00:00.000Z'));
+    await expect(
+      service.ingestDevicePartnerEnvelopeFromTransport(userId, {
+        schemaVersion: 'woof-device-partner-v1',
+        provider: 'TRACTIVE',
+        externalPetId: 'tractive-pet-1',
+        externalObjectId: 'day-1',
+        kind: 'DAILY_ACTIVITY',
+        observedAt: '2026-08-22T08:00:00.000Z',
+        payload: { activeMinutes: 51 },
+      })
+    ).rejects.toThrow('outside the supported backfill window');
+    expect(metrics.recordDeviceContractRejection).toHaveBeenCalledWith();
+    expect(autopilot.ingestProviderObservation).not.toHaveBeenCalled();
+    expect(operational.recordImportReceipt).not.toHaveBeenCalled();
   });
 
   it('repairs a missing receipt from canonical truth and rejects an altered replay payload', async () => {
