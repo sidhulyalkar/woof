@@ -1,0 +1,76 @@
+# Temporary, branch-scoped lockfile regeneration for PR #181.
+# Never run on pull_request events or on main: it writes only the lockfile
+# after resolving audited manifests against the npm registry.
+name: Dependency Remediation Lockfile Regeneration
+
+on:
+  push:
+    branches:
+      - fix/coaching-session-integrity
+    paths:
+      - package.json
+      - apps/api/package.json
+      - apps/web/package.json
+      - apps/mobile/package.json
+      - .github/workflows/dependency-remediation-lockfile-ci.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-remediation-lockfile-181
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    if: github.repository == 'sidhulyalkar/woof' && github.ref == 'refs/heads/fix/coaching-session-integrity'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '8.15.1'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20.20.2'
+          cache: pnpm
+      - name: Resolve dependency manifests into the lockfile, without package scripts
+        run: pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
+      - name: Verify the resulting graph installs as frozen
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check lockfile patch integrity
+        run: git diff --check -- pnpm-lock.yaml
+      - name: Commit only the generated lockfile to the same branch
+        run: |
+          if [[ -z "$(git status --porcelain -- pnpm-lock.yaml)" ]]; then
+            echo "Lockfile unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- pnpm-lock.yaml
+          git commit -m "security: regenerate pinned pnpm lockfile after dependency patches"
+          git push origin HEAD:refs/heads/fix/coaching-session-integrity
+      - name: Audit refreshed production dependency graph
+        run: |
+          set +e
+          pnpm audit --prod --json > /tmp/pnpm-remediation-audit.json
+          status=$?
+          set -e
+          echo "pnpm audit exit status: ${status}"
+          if [[ ! -s /tmp/pnpm-remediation-audit.json ]]; then
+            echo "Missing machine-readable audit report." >&2
+            exit 1
+          fi
+          python .github/scripts/assert-pnpm-audit-policy.py /tmp/pnpm-remediation-audit.json .github/security-audit-exceptions.json || true
+      - name: Upload refreshed advisory report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-remediation-audit-${{ github.run_id }}
+          path: /tmp/pnpm-remediation-audit.json
+          if-no-files-found: ignore
+          retention-days: 14
